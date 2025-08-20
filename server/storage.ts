@@ -1,180 +1,283 @@
-import { type Product, type InsertProduct, type SearchHistory, type InsertSearchHistory, type VisualSearch, type InsertVisualSearch, type ProductWithSimilarity } from "@shared/schema";
+import { 
+  type Patient, 
+  type InsertPatient, 
+  type MedicalImage, 
+  type InsertMedicalImage, 
+  type Examination, 
+  type InsertExamination,
+  type AiAnalysisResult,
+  type InsertAiAnalysisResult,
+  type PatientWithExams,
+  type ImageWithAnalysis,
+  type ExamWithImages
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // Products
-  getAllProducts(): Promise<Product[]>;
-  getProductById(id: string): Promise<Product | undefined>;
-  getProductsByCategory(category: string): Promise<Product[]>;
-  createProduct(product: InsertProduct): Promise<Product>;
+  // Patients
+  getAllPatients(): Promise<Patient[]>;
+  getPatientById(id: string): Promise<Patient | undefined>;
+  getPatientByNumber(patientNumber: string): Promise<Patient | undefined>;
+  createPatient(patient: InsertPatient): Promise<Patient>;
+  updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient>;
   
-  // Visual Search
-  performVisualSearch(imageData: string): Promise<ProductWithSimilarity[]>;
-  saveVisualSearch(search: InsertVisualSearch): Promise<VisualSearch>;
+  // Medical Images
+  getMedicalImagesByPatientId(patientId: string): Promise<ImageWithAnalysis[]>;
+  getMedicalImageById(id: string): Promise<MedicalImage | undefined>;
+  uploadMedicalImage(image: InsertMedicalImage): Promise<MedicalImage>;
   
-  // Search History
-  getSearchHistory(limit?: number): Promise<SearchHistory[]>;
-  addToSearchHistory(history: InsertSearchHistory): Promise<SearchHistory>;
+  // Examinations
+  getExaminationsByPatientId(patientId: string): Promise<ExamWithImages[]>;
+  getExaminationById(id: string): Promise<Examination | undefined>;
+  createExamination(exam: InsertExamination): Promise<Examination>;
+  updateExaminationStatus(id: string, status: string): Promise<Examination>;
+  
+  // AI Analysis
+  performAiAnalysis(imageId: string, imageData: string): Promise<AiAnalysisResult>;
+  getAnalysisResultsByImageId(imageId: string): Promise<AiAnalysisResult[]>;
+  saveAnalysisResult(result: InsertAiAnalysisResult): Promise<AiAnalysisResult>;
 }
 
 export class MemStorage implements IStorage {
-  private products: Map<string, Product>;
-  private searchHistory: Map<string, SearchHistory>;
-  private visualSearches: Map<string, VisualSearch>;
+  private patients: Map<string, Patient>;
+  private medicalImages: Map<string, MedicalImage>;
+  private examinations: Map<string, Examination>;
+  private aiAnalysisResults: Map<string, AiAnalysisResult>;
 
   constructor() {
-    this.products = new Map();
-    this.searchHistory = new Map();
-    this.visualSearches = new Map();
+    this.patients = new Map();
+    this.medicalImages = new Map();
+    this.examinations = new Map();
+    this.aiAnalysisResults = new Map();
     this.initializeSampleData();
   }
 
   private initializeSampleData() {
-    const sampleProducts: InsertProduct[] = [
+    // 샘플 환자 데이터
+    const samplePatients: InsertPatient[] = [
       {
-        name: "Wireless Headphones Pro",
-        description: "Premium noise-canceling headphones with superior sound quality",
-        fullDescription: "Premium noise-canceling headphones with superior sound quality, 30-hour battery life, and comfortable over-ear design perfect for long listening sessions.",
-        price: 29900, // $299
-        location: "Booth A-12",
-        imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "electronics",
-        availability: "available"
+        patientNumber: "P2024001",
+        name: "김철수",
+        birthDate: "1985-03-15",
+        gender: "남성",
+        phone: "010-1234-5678",
+        email: "kim@example.com",
+        address: "서울시 강남구 역삼동",
+        bloodType: "A+",
+        allergies: "페니실린",
+        medicalHistory: "고혈압, 당뇨병"
       },
       {
-        name: "Smart Fitness Watch",
-        description: "Advanced fitness tracking with heart rate monitoring",
-        fullDescription: "Advanced fitness tracking with heart rate monitoring, GPS, waterproof design, and week-long battery life for active lifestyles.",
-        price: 19900, // $199
-        location: "Booth C-5",
-        imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "electronics",
-        availability: "limited"
+        patientNumber: "P2024002",
+        name: "이영희",
+        birthDate: "1990-07-22",
+        gender: "여성",
+        phone: "010-9876-5432",
+        email: "lee@example.com",
+        address: "서울시 서초구 서초동",
+        bloodType: "B+",
+        allergies: "없음",
+        medicalHistory: "없음"
       },
       {
-        name: "Handcrafted Ceramic Vase",
-        description: "Unique artisan-made ceramic piece with organic patterns",
-        fullDescription: "Unique artisan-made ceramic piece with organic patterns, perfect for home decoration and showcasing fresh flowers.",
-        price: 8500, // $85
-        location: "Booth B-8",
-        imageUrl: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "home-living",
-        availability: "available"
-      },
-      {
-        name: "Vintage Leather Backpack",
-        description: "Premium leather backpack with classic design and durability",
-        fullDescription: "Premium leather backpack with classic design and durability, featuring multiple compartments and comfortable straps.",
-        price: 15900, // $159
-        location: "Booth D-15",
-        imageUrl: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "fashion",
-        availability: "available"
-      },
-      {
-        name: "Modern Table Lamp",
-        description: "Minimalist design with adjustable brightness and USB charging",
-        fullDescription: "Minimalist design with adjustable brightness and USB charging port, perfect for modern workspaces and reading.",
-        price: 12900, // $129
-        location: "Booth A-7",
-        imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "home-living",
-        availability: "sold_out"
-      },
-      {
-        name: "Abstract Art Print",
-        description: "Limited edition print on premium paper with vibrant colors",
-        fullDescription: "Limited edition print on premium paper with vibrant colors, professionally framed and ready to hang.",
-        price: 7500, // $75
-        location: "Booth E-3",
-        imageUrl: "https://images.unsplash.com/photo-1541961017774-22349e4a1262?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400",
-        category: "art-crafts",
-        availability: "available"
+        patientNumber: "P2024003",
+        name: "박민수",
+        birthDate: "1978-11-08",
+        gender: "남성",
+        phone: "010-5555-1234",
+        email: "park@example.com",
+        address: "서울시 송파구 잠실동",
+        bloodType: "O+",
+        allergies: "갑각류",
+        medicalHistory: "천식"
       }
     ];
 
-    sampleProducts.forEach(async (product) => {
-      await this.createProduct(product);
+    samplePatients.forEach(async (patient) => {
+      await this.createPatient(patient);
     });
   }
 
-  async getAllProducts(): Promise<Product[]> {
-    return Array.from(this.products.values());
+  // Patient methods
+  async getAllPatients(): Promise<Patient[]> {
+    return Array.from(this.patients.values());
   }
 
-  async getProductById(id: string): Promise<Product | undefined> {
-    return this.products.get(id);
+  async getPatientById(id: string): Promise<Patient | undefined> {
+    return this.patients.get(id);
   }
 
-  async getProductsByCategory(category: string): Promise<Product[]> {
-    return Array.from(this.products.values()).filter(
-      (product) => category === "all" || product.category === category
-    );
+  async getPatientByNumber(patientNumber: string): Promise<Patient | undefined> {
+    return Array.from(this.patients.values()).find(p => p.patientNumber === patientNumber);
   }
 
-  async createProduct(insertProduct: InsertProduct): Promise<Product> {
+  async createPatient(insertPatient: InsertPatient): Promise<Patient> {
     const id = randomUUID();
-    const product: Product = {
-      ...insertProduct,
+    const patient: Patient = {
+      ...insertPatient,
       id,
       createdAt: new Date(),
+      updatedAt: new Date(),
+      address: insertPatient.address || null,
+      phone: insertPatient.phone || null,
+      email: insertPatient.email || null,
+      emergencyContact: insertPatient.emergencyContact || null,
+      bloodType: insertPatient.bloodType || null,
+      allergies: insertPatient.allergies || null,
+      medicalHistory: insertPatient.medicalHistory || null,
     };
-    this.products.set(id, product);
-    return product;
+    this.patients.set(id, patient);
+    return patient;
   }
 
-  async performVisualSearch(imageData: string): Promise<ProductWithSimilarity[]> {
-    // Simulate image analysis and matching
-    const allProducts = Array.from(this.products.values());
+  async updatePatient(id: string, updateData: Partial<InsertPatient>): Promise<Patient> {
+    const existingPatient = this.patients.get(id);
+    if (!existingPatient) {
+      throw new Error("Patient not found");
+    }
     
-    // Simple similarity simulation based on product characteristics
-    const results: ProductWithSimilarity[] = allProducts.map((product) => {
-      // Generate similarity score based on various factors
-      const baseScore = Math.random() * 0.3 + 0.7; // 70-100%
-      const categoryBonus = product.category === "electronics" ? 0.05 : 0;
-      const availabilityPenalty = product.availability === "sold_out" ? -0.1 : 0;
-      
-      const similarityScore = Math.min(0.99, Math.max(0.5, 
-        baseScore + categoryBonus + availabilityPenalty
-      ));
+    const updatedPatient: Patient = {
+      ...existingPatient,
+      ...updateData,
+      updatedAt: new Date(),
+    };
+    this.patients.set(id, updatedPatient);
+    return updatedPatient;
+  }
 
+  // Medical Image methods
+  async getMedicalImagesByPatientId(patientId: string): Promise<ImageWithAnalysis[]> {
+    const images = Array.from(this.medicalImages.values())
+      .filter(img => img.patientId === patientId);
+    
+    const imagesWithAnalysis = await Promise.all(images.map(async (image) => {
+      const analysisResults = await this.getAnalysisResultsByImageId(image.id);
       return {
-        ...product,
-        similarityScore: Math.round(similarityScore * 100) / 100
+        ...image,
+        analysis: analysisResults[0] // 가장 최근 분석 결과
       };
-    });
-
-    // Sort by similarity score descending
-    return results.sort((a, b) => b.similarityScore - a.similarityScore);
+    }));
+    
+    return imagesWithAnalysis;
   }
 
-  async saveVisualSearch(search: InsertVisualSearch): Promise<VisualSearch> {
+  async getMedicalImageById(id: string): Promise<MedicalImage | undefined> {
+    return this.medicalImages.get(id);
+  }
+
+  async uploadMedicalImage(insertImage: InsertMedicalImage): Promise<MedicalImage> {
     const id = randomUUID();
-    const visualSearch: VisualSearch = {
-      ...search,
+    const image: MedicalImage = {
+      ...insertImage,
       id,
-      timestamp: new Date(),
+      uploadedAt: new Date(),
+      examId: insertImage.examId || null,
+      description: insertImage.description || null,
+      originalFileName: insertImage.originalFileName || null,
+      fileSize: insertImage.fileSize || null,
     };
-    this.visualSearches.set(id, visualSearch);
-    return visualSearch;
+    this.medicalImages.set(id, image);
+    return image;
   }
 
-  async getSearchHistory(limit: number = 10): Promise<SearchHistory[]> {
-    const history = Array.from(this.searchHistory.values())
-      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
-      .slice(0, limit);
-    return history;
+  // Examination methods
+  async getExaminationsByPatientId(patientId: string): Promise<ExamWithImages[]> {
+    const exams = Array.from(this.examinations.values())
+      .filter(exam => exam.patientId === patientId);
+    
+    const examsWithImages = await Promise.all(exams.map(async (exam) => {
+      const images = await this.getMedicalImagesByPatientId(patientId);
+      const examImages = images.filter(img => img.examId === exam.id);
+      return {
+        ...exam,
+        images: examImages
+      };
+    }));
+    
+    return examsWithImages;
   }
 
-  async addToSearchHistory(insertHistory: InsertSearchHistory): Promise<SearchHistory> {
+  async getExaminationById(id: string): Promise<Examination | undefined> {
+    return this.examinations.get(id);
+  }
+
+  async createExamination(insertExam: InsertExamination): Promise<Examination> {
     const id = randomUUID();
-    const history: SearchHistory = {
-      ...insertHistory,
+    const exam: Examination = {
+      ...insertExam,
       id,
-      timestamp: new Date(),
+      createdAt: new Date(),
+      status: insertExam.status || "pending",
+      examDate: insertExam.examDate || new Date(),
+      doctorName: insertExam.doctorName || null,
+      notes: insertExam.notes || null,
     };
-    this.searchHistory.set(id, history);
-    return history;
+    this.examinations.set(id, exam);
+    return exam;
+  }
+
+  async updateExaminationStatus(id: string, status: string): Promise<Examination> {
+    const exam = this.examinations.get(id);
+    if (!exam) {
+      throw new Error("Examination not found");
+    }
+    
+    const updatedExam = { ...exam, status };
+    this.examinations.set(id, updatedExam);
+    return updatedExam;
+  }
+
+  // AI Analysis methods
+  async performAiAnalysis(imageId: string, imageData: string): Promise<AiAnalysisResult> {
+    // 실제 AI 모델이 없으므로 모의 분석 결과 생성
+    const mockFindings = [
+      "정상 소견",
+      "경미한 이상 소견 발견",
+      "추가 검사 필요",
+      "즉시 의사와 상담 필요"
+    ];
+    
+    const mockResults = {
+      detected_objects: [
+        { class: "normal_tissue", confidence: 0.85, bbox: [100, 100, 200, 200] },
+        { class: "anomaly", confidence: 0.65, bbox: [150, 150, 250, 250] }
+      ],
+      classification: "normal",
+      risk_score: Math.floor(Math.random() * 100)
+    };
+    
+    const analysisResult: InsertAiAnalysisResult = {
+      imageId,
+      analysisType: "YOLO_v8",
+      results: JSON.stringify(mockResults),
+      confidence: Math.floor(Math.random() * 40) + 60, // 60-100%
+      findings: mockFindings[Math.floor(Math.random() * mockFindings.length)],
+      recommendations: "정기적인 추적 검사를 권장합니다.",
+      modelVersion: "v1.0.0"
+    };
+    
+    return await this.saveAnalysisResult(analysisResult);
+  }
+
+  async getAnalysisResultsByImageId(imageId: string): Promise<AiAnalysisResult[]> {
+    return Array.from(this.aiAnalysisResults.values())
+      .filter(result => result.imageId === imageId)
+      .sort((a, b) => (b.analysisDate?.getTime() || 0) - (a.analysisDate?.getTime() || 0));
+  }
+
+  async saveAnalysisResult(insertResult: InsertAiAnalysisResult): Promise<AiAnalysisResult> {
+    const id = randomUUID();
+    const result: AiAnalysisResult = {
+      ...insertResult,
+      id,
+      analysisDate: new Date(),
+      confidence: insertResult.confidence || null,
+      findings: insertResult.findings || null,
+      recommendations: insertResult.recommendations || null,
+      modelVersion: insertResult.modelVersion || null,
+    };
+    this.aiAnalysisResults.set(id, result);
+    return result;
   }
 }
 
