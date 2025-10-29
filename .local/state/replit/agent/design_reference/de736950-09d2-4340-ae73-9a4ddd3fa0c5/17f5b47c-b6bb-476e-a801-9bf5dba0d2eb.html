@@ -1,0 +1,449 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventFind - Visual Product Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#2563EB',
+                        secondary: '#7C3AED',
+                        success: '#059669',
+                        background: '#F8FAFC',
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="font-inter bg-background text-slate-800">
+    <!-- @COMPONENT: AppHeader [navigation and branding] -->
+    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-search text-primary text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold text-slate-900">EventFind</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="p-2 text-slate-600 hover:text-primary transition-colors">
+                        <i class="fas fa-history text-lg"></i>
+                    </button>
+                    <button class="p-2 text-slate-600 hover:text-primary transition-colors">
+                        <i class="fas fa-user-circle text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: AppHeader -->
+
+    <!-- @COMPONENT: VisualSearchInterface [main search functionality] -->
+    <section class="bg-gradient-to-br from-primary to-secondary text-white py-12 px-4">
+        <div class="max-w-4xl mx-auto text-center">
+            <h2 class="text-3xl sm:text-4xl font-bold mb-4">Find Products Instantly</h2>
+            <p class="text-lg mb-8 text-blue-100">Take a photo or upload an image to discover products at the event</p>
+            
+            <!-- Search Interface -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Camera Capture Button -->
+                    <button data-event="click:openCamera" class="bg-white text-primary font-semibold py-4 px-6 rounded-xl hover:bg-blue-50 transition-all transform hover:scale-105 flex items-center justify-center space-x-3">
+                        <i class="fas fa-camera text-xl"></i>
+                        <span>Take Photo</span>
+                    </button>
+                    
+                    <!-- Upload Button -->
+                    <button data-event="click:openUpload" class="bg-white/20 text-white font-semibold py-4 px-6 rounded-xl hover:bg-white/30 transition-all transform hover:scale-105 flex items-center justify-center space-x-3 border border-white/30">
+                        <i class="fas fa-upload text-xl"></i>
+                        <span>Upload Image</span>
+                    </button>
+                </div>
+                
+                <!-- Hidden File Input -->
+                <input type="file" id="imageUpload" accept="image/*" capture="environment" class="hidden" data-implementation="Handle image upload and processing">
+            </div>
+
+            <!-- Recent Searches -->
+            <div class="text-left">
+                <h3 class="text-sm font-medium text-blue-200 mb-3">Recent Searches</h3>
+                <div class="flex space-x-3 overflow-x-auto pb-2">
+                    <!-- @MAP: recentSearches.map(search => ( -->
+                    <div class="flex-shrink-0 bg-white/15 rounded-lg p-2">
+                        <!-- A small electronic device or gadget on a white background -->
+                        <img src="https://images.unsplash.com/photo-1583394838336-acd977736f90?ixlib=rb-4.0.3&auto=format&fit=crop&w=60&h=60" alt="Recent search item" class="w-12 h-12 rounded object-cover" data-mock="true">
+                    </div>
+                    <div class="flex-shrink-0 bg-white/15 rounded-lg p-2">
+                        <!-- A colorful piece of jewelry or accessory -->
+                        <img src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?ixlib=rb-4.0.3&auto=format&fit=crop&w=60&h=60" alt="Recent search item" class="w-12 h-12 rounded object-cover" data-mock="true">
+                    </div>
+                    <div class="flex-shrink-0 bg-white/15 rounded-lg p-2">
+                        <!-- A modern furniture piece or home decor item -->
+                        <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?ixlib=rb-4.0.3&auto=format&fit=crop&w=60&h=60" alt="Recent search item" class="w-12 h-12 rounded object-cover" data-mock="true">
+                    </div>
+                    <!-- @END_MAP )) -->
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- @END_COMPONENT: VisualSearchInterface -->
+
+    <!-- @COMPONENT: SearchResults [product discovery results] -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- @STATE: isLoading:boolean = false, searchResults:array = [] -->
+        
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden">
+            <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                <span class="text-slate-600">Analyzing image...</span>
+            </div>
+        </div>
+
+        <!-- Search Results Header -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">Discover Products</h2>
+            <p class="text-slate-600">Browse featured items available at the event</p>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="mb-6 flex flex-wrap gap-3">
+            <button class="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium">All Items</button>
+            <button class="bg-slate-100 text-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-slate-200 transition-colors">Electronics</button>
+            <button class="bg-slate-100 text-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-slate-200 transition-colors">Fashion</button>
+            <button class="bg-slate-100 text-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-slate-200 transition-colors">Home & Living</button>
+            <button class="bg-slate-100 text-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-slate-200 transition-colors">Art & Crafts</button>
+        </div>
+
+        <!-- Product Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- @MAP: products.map(product => ( -->
+            
+            <!-- Product Card 1 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A modern wireless headphone in sleek packaging -->
+                    <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Wireless Headphones" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-success text-white px-2 py-1 rounded-full text-xs font-medium">Available</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">95% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Wireless Headphones Pro</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Premium noise-canceling headphones with superior sound quality</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth A-12</span>
+                        </span>
+                        <span class="text-lg font-bold text-primary" data-bind="product.price">$299</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Card 2 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A stylish smartwatch with modern design -->
+                    <img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Smart Watch" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">Limited</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">87% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Smart Fitness Watch</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Advanced fitness tracking with heart rate monitoring</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth C-5</span>
+                        </span>
+                        <span class="text-lg font-bold text-primary" data-bind="product.price">$199</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Card 3 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A beautiful handcrafted ceramic vase -->
+                    <img src="https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Ceramic Vase" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-success text-white px-2 py-1 rounded-full text-xs font-medium">Available</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">92% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Handcrafted Ceramic Vase</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Unique artisan-made ceramic piece with organic patterns</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth B-8</span>
+                        </span>
+                        <span class="text-lg font-bold text-primary" data-bind="product.price">$85</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Card 4 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A vintage-style leather backpack -->
+                    <img src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Leather Backpack" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-success text-white px-2 py-1 rounded-full text-xs font-medium">Available</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">78% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Vintage Leather Backpack</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Premium leather backpack with classic design and durability</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth D-15</span>
+                        </span>
+                        <span class="text-lg font-bold text-primary" data-bind="product.price">$159</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Card 5 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A sleek modern table lamp with minimalist design -->
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Modern Table Lamp" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">Sold Out</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">89% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Modern Table Lamp</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Minimalist design with adjustable brightness and USB charging</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth A-7</span>
+                        </span>
+                        <span class="text-lg font-bold text-slate-400" data-bind="product.price">$129</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Card 6 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all transform hover:scale-105 cursor-pointer" data-event="click:openProductDetail">
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    <!-- A colorful abstract art print or painting -->
+                    <img src="https://images.unsplash.com/photo-1541961017774-22349e4a1262?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" alt="Abstract Art Print" class="w-full h-full object-cover" loading="lazy" data-mock="true">
+                    <div class="absolute top-3 right-3">
+                        <span class="bg-success text-white px-2 py-1 rounded-full text-xs font-medium">Available</span>
+                    </div>
+                    <div class="absolute top-3 left-3">
+                        <span class="bg-white/90 text-primary px-2 py-1 rounded-full text-xs font-bold">94% Match</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-slate-900 mb-1" data-bind="product.name">Abstract Art Print</h3>
+                    <p class="text-sm text-slate-600 mb-2" data-bind="product.description">Limited edition print on premium paper with vibrant colors</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span data-bind="product.location">Booth E-3</span>
+                        </span>
+                        <span class="text-lg font-bold text-primary" data-bind="product.price">$75</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- @END_MAP )) -->
+        </div>
+
+        <!-- Load More Button -->
+        <div class="text-center mt-8">
+            <button class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-medium hover:bg-slate-200 transition-colors" data-event="click:loadMoreProducts">
+                <i class="fas fa-plus mr-2"></i>
+                Load More Products
+            </button>
+        </div>
+    </main>
+    <!-- @END_COMPONENT: SearchResults -->
+
+    <!-- @COMPONENT: FloatingActionButton [quick camera access] -->
+    <button class="fixed bottom-6 right-6 bg-primary text-white w-14 h-14 rounded-full shadow-lg hover:bg-blue-600 transition-all transform hover:scale-110 flex items-center justify-center z-40" data-event="click:quickCamera">
+        <i class="fas fa-camera text-lg"></i>
+    </button>
+    <!-- @END_COMPONENT: FloatingActionButton -->
+
+    <!-- @COMPONENT: ProductDetailModal [detailed product view] -->
+    <div id="productModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden" data-event="click:closeModal">
+        <div class="flex items-end sm:items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" data-event="click:stopPropagation">
+                <div class="p-6">
+                    <!-- Modal Header -->
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-2xl font-bold text-slate-900" data-bind="selectedProduct.name">Wireless Headphones Pro</h3>
+                        <button class="text-slate-400 hover:text-slate-600 p-2" data-event="click:closeModal">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Product Image -->
+                    <div class="aspect-video bg-slate-100 rounded-xl mb-6 overflow-hidden">
+                        <!-- A detailed view of wireless headphones with all features visible -->
+                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600" alt="Product detail view" class="w-full h-full object-cover" data-mock="true">
+                    </div>
+                    
+                    <!-- Product Info -->
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-semibold text-slate-900 mb-2">Description</h4>
+                            <p class="text-slate-600" data-bind="selectedProduct.fullDescription">Premium noise-canceling headphones with superior sound quality, 30-hour battery life, and comfortable over-ear design perfect for long listening sessions.</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="font-semibold text-slate-900 mb-1">Location</h4>
+                                <p class="text-slate-600">
+                                    <i class="fas fa-map-marker-alt mr-2 text-primary"></i>
+                                    <span data-bind="selectedProduct.location">Booth A-12</span>
+                                </p>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-slate-900 mb-1">Price</h4>
+                                <p class="text-2xl font-bold text-primary" data-bind="selectedProduct.price">$299</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="flex space-x-3 pt-4">
+                            <button class="flex-1 bg-primary text-white py-3 px-6 rounded-xl font-semibold hover:bg-blue-600 transition-colors" data-event="click:getDirections">
+                                <i class="fas fa-directions mr-2"></i>
+                                Get Directions
+                            </button>
+                            <button class="flex-1 bg-slate-100 text-slate-700 py-3 px-6 rounded-xl font-semibold hover:bg-slate-200 transition-colors" data-event="click:saveProduct">
+                                <i class="fas fa-bookmark mr-2"></i>
+                                Save Item
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: ProductDetailModal -->
+
+    <!-- Performance Optimization and PWA Features -->
+    <script>
+        (function() {
+            // TODO: Implement business logic, API calls, or state management
+            
+            // Basic interaction handlers (non-functional mockup)
+            document.addEventListener('DOMContentLoaded', function() {
+                // Camera/Upload button handlers
+                const takePhotoBtn = document.querySelector('[data-event="click:openCamera"]');
+                const uploadBtn = document.querySelector('[data-event="click:openUpload"]');
+                const fileInput = document.getElementById('imageUpload');
+                
+                takePhotoBtn?.addEventListener('click', () => {
+                    // TODO: Open camera interface
+                    console.log('Opening camera...');
+                });
+                
+                uploadBtn?.addEventListener('click', () => {
+                    fileInput?.click();
+                });
+                
+                fileInput?.addEventListener('change', (e) => {
+                    // TODO: Process uploaded image
+                    console.log('Processing image...', e.target.files[0]);
+                });
+                
+                // Product card click handlers
+                const productCards = document.querySelectorAll('[data-event="click:openProductDetail"]');
+                const modal = document.getElementById('productModal');
+                
+                productCards.forEach(card => {
+                    card.addEventListener('click', () => {
+                        modal?.classList.remove('hidden');
+                        // TODO: Populate modal with product data
+                    });
+                });
+                
+                // Modal close handlers
+                const closeButtons = document.querySelectorAll('[data-event="click:closeModal"]');
+                closeButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        modal?.classList.add('hidden');
+                    });
+                });
+                
+                // Prevent modal close when clicking inside modal content
+                const modalContent = document.querySelector('[data-event="click:stopPropagation"]');
+                modalContent?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                
+                // Floating action button
+                const fabBtn = document.querySelector('[data-event="click:quickCamera"]');
+                fabBtn?.addEventListener('click', () => {
+                    // TODO: Quick camera access
+                    console.log('Quick camera access...');
+                });
+                
+                // Lazy loading implementation
+                const images = document.querySelectorAll('img[loading="lazy"]');
+                if ('IntersectionObserver' in window) {
+                    const imageObserver = new IntersectionObserver((entries, observer) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const img = entry.target;
+                                img.src = img.src; // Trigger actual loading
+                                img.classList.remove('lazy');
+                                observer.unobserve(img);
+                            }
+                        });
+                    });
+                    
+                    images.forEach(img => imageObserver.observe(img));
+                }
+            });
+            
+            // Service Worker registration for PWA features
+            if ('serviceWorker' in navigator) {
+                // TODO: Register service worker for offline capabilities
+                console.log('Service Worker support detected');
+            }
+            
+            // Performance monitoring
+            window.addEventListener('load', () => {
+                // TODO: Implement performance monitoring
+                console.log('Page loaded in', performance.now(), 'ms');
+            });
+        })();
+    </script>
+</body>
+</html>
