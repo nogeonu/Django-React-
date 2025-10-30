@@ -16,6 +16,20 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
 import PatientRegistrationModal from "@/components/PatientRegistrationModal";
 
+interface Patient {
+  id: string;
+  name: string;
+  birth_date: string;
+  gender: string;
+  phone?: string;
+  address?: string;
+  emergency_contact?: string;
+  blood_type?: string;
+  age: number;
+  created_at: string;
+  updated_at: string;
+}
+
 interface MedicalRecord {
   id: number;
   patient_id: string;
@@ -30,6 +44,11 @@ interface MedicalRecord {
 
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [suggestions, setSuggestions] = useState<Patient[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [foundPatients, setFoundPatients] = useState<Patient[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -104,6 +123,69 @@ export default function Dashboard() {
   }
 
   console.log("대시보드 렌더링 중 - waitingPatients:", waitingPatients, "isLoading:", isLoading);
+
+  // 디바운스 자동완성 검색
+  function fetchSuggestions(query: string) {
+    setIsSearching(true);
+    apiRequest("GET", `/api/lung_cancer/api/patients/?search=${encodeURIComponent(query)}`)
+      .then((res) => {
+        const list = (res?.results ?? res ?? []) as Patient[];
+        setSuggestions(list);
+        setShowSuggestions(true);
+      })
+      .catch((err) => {
+        console.error("자동완성 검색 오류:", err);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      })
+      .finally(() => setIsSearching(false));
+  }
+
+  function handleSearchChange(value: string) {
+    setSearchTerm(value);
+    setSelectedIndex(-1);
+    if (!value.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setFoundPatients([]);
+      return;
+    }
+    // 디바운스
+    window.clearTimeout((handleSearchChange as any)._t);
+    (handleSearchChange as any)._t = window.setTimeout(() => fetchSuggestions(value.trim()), 300);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const sel = suggestions[selectedIndex] || suggestions[0];
+      if (sel) {
+        setSearchTerm(sel.name);
+        setFoundPatients([sel]);
+        setShowSuggestions(false);
+      }
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }
+
+  function runSearch() {
+    // 검색 버튼: 현재 suggestions를 결과 테이블로 표시
+    if (suggestions.length > 0) {
+      setFoundPatients(suggestions);
+      setShowSuggestions(false);
+    } else if (searchTerm.trim()) {
+      // 강제 조회
+      fetchSuggestions(searchTerm.trim());
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -281,16 +363,43 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex space-x-4">
+            <div className="flex space-x-4 relative">
               <div className="flex-1">
                 <Input
                   placeholder="환자 이름 또는 번호를 입력하세요..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => searchTerm && suggestions.length > 0 && setShowSuggestions(true)}
                   data-testid="input-patient-search"
                 />
+                {showSuggestions && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-sm max-h-64 overflow-auto">
+                    {isSearching ? (
+                      <div className="p-3 text-sm text-gray-500">검색 중...</div>
+                    ) : suggestions.length > 0 ? (
+                      suggestions.map((p, idx) => (
+                        <div
+                          key={p.id}
+                          className={`px-3 py-2 cursor-pointer ${idx === selectedIndex ? "bg-gray-100" : "hover:bg-gray-50"}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setSearchTerm(p.name);
+                            setFoundPatients([p]);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          <div className="text-sm text-gray-900">{p.name}</div>
+                          <div className="text-xs text-gray-500">{p.id} • {p.gender} • {p.age}세</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-sm text-gray-500">검색 결과가 없습니다</div>
+                    )}
+                  </div>
+                )}
               </div>
-              <Button data-testid="button-search">
+              <Button data-testid="button-search" onClick={runSearch}>
                 <Search className="w-4 h-4 mr-2" />
                 검색
               </Button>
@@ -301,6 +410,52 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 검색 결과 테이블 */}
+        {foundPatients.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>환자 목록</CardTitle>
+              <CardDescription>검색 결과 {foundPatients.length}명</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b text-gray-600">
+                      <th className="py-2">환자정보</th>
+                      <th className="py-2">성별/나이</th>
+                      <th className="py-2">연락처</th>
+                      <th className="py-2">혈액형</th>
+                      <th className="py-2">등록일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {foundPatients.map((p) => (
+                      <tr key={p.id} className="border-b hover:bg-gray-50">
+                        <td className="py-2">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 text-sm font-semibold">{p.name.charAt(0)}</span>
+                            </div>
+                            <div>
+                              <div className="text-gray-900 font-medium">{p.name}</div>
+                              <div className="text-xs text-gray-500">{p.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2 text-sm text-gray-700">{p.gender} / {p.age}세</td>
+                        <td className="py-2 text-sm text-gray-700">{p.phone || "-"}</td>
+                        <td className="py-2 text-sm text-gray-700">{p.blood_type || "-"}</td>
+                        <td className="py-2 text-sm text-gray-700">{new Date(p.created_at).toLocaleDateString("ko-KR")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
 
       {/* Patient Registration Modal */}
