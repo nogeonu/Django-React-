@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.db import models
-from .models import Patient, LungCancerPatient, LungRecord, LungResult
+from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
 from .serializers import (
     PatientSerializer, 
     LungCancerPatientSerializer,
@@ -12,7 +12,10 @@ from .serializers import (
     LungResultSerializer,
     LungCancerPredictionSerializer,
     PatientRegistrationSerializer,
-    PatientUpdateSerializer
+    PatientUpdateSerializer,
+    MedicalRecordSerializer,
+    MedicalRecordCreateSerializer,
+    MedicalRecordUpdateSerializer
 )
 import joblib
 import os
@@ -52,6 +55,57 @@ class PatientViewSet(viewsets.ModelViewSet):
             return PatientRegistrationSerializer
         return PatientSerializer
     
+    def perform_destroy(self, instance):
+        """환자 삭제 시 관련 데이터도 함께 삭제"""
+        from django.db import connections
+        
+        try:
+            # hospital_db 데이터베이스 연결 사용
+            with connections['hospital_db'].cursor() as cursor:
+                print(f"환자 {instance.id} 삭제 시작...")
+                
+                # 1. LungResult 삭제
+                cursor.execute("""
+                    DELETE lr FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
+                    WHERE lcp.patient_id = %s
+                """, [instance.id])
+                print(f"LungResult 삭제: {cursor.rowcount}개")
+                
+                # 2. LungRecord 삭제
+                cursor.execute("""
+                    DELETE lrec FROM lung_record lrec
+                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
+                    WHERE lcp.patient_id = %s
+                """, [instance.id])
+                print(f"LungRecord 삭제: {cursor.rowcount}개")
+                
+                # 3. LungCancerPatient 삭제
+                cursor.execute("""
+                    DELETE FROM lung_cancer_patient WHERE patient_id = %s
+                """, [instance.id])
+                print(f"LungCancerPatient 삭제: {cursor.rowcount}개")
+                
+                # 4. Patient 삭제
+                cursor.execute("""
+                    DELETE FROM patient WHERE id = %s
+                """, [instance.id])
+                print(f"Patient 삭제: {cursor.rowcount}개")
+            
+            print(f"환자 {instance.id} 삭제 완료")
+            
+        except Exception as e:
+            print(f"환자 삭제 중 오류: {e}")
+            # 오류가 발생해도 Patient는 삭제 시도
+            try:
+                with connections['hospital_db'].cursor() as cursor:
+                    cursor.execute("DELETE FROM patient WHERE id = %s", [instance.id])
+                    print(f"환자 {instance.id} 강제 삭제 완료: {cursor.rowcount}개")
+            except Exception as final_error:
+                print(f"최종 삭제 실패: {final_error}")
+                raise
+    
     @action(detail=False, methods=['post'])
     def register(self, request):
         """환자 등록 API"""
@@ -78,23 +132,6 @@ class PatientViewSet(viewsets.ModelViewSet):
                 patient_data = serializer.validated_data.copy()
                 patient_data['id'] = patient_id
                 patient_data['age'] = age
-                
-                # 증상 필드들은 기본값으로 설정
-                patient_data.update({
-                    'smoking': False,
-                    'yellow_fingers': False,
-                    'anxiety': False,
-                    'peer_pressure': False,
-                    'chronic_disease': False,
-                    'fatigue': False,
-                    'allergy': False,
-                    'wheezing': False,
-                    'alcohol_consuming': False,
-                    'coughing': False,
-                    'shortness_of_breath': False,
-                    'swallowing_difficulty': False,
-                    'chest_pain': False,
-                })
                 
                 patient = Patient.objects.using('hospital_db').create(**patient_data)
                 
@@ -240,6 +277,30 @@ class PatientViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def medical_records(self, request, pk=None):
+        """특정 환자의 진료 기록 조회 API"""
+        try:
+            patient = self.get_object()
+            # 해당 환자의 모든 진료 기록을 최신순으로 조회
+            medical_records = MedicalRecord.objects.using('hospital_db').filter(
+                patient_id=patient.id
+            ).order_by('-reception_start_time')
+            
+            serializer = MedicalRecordSerializer(medical_records, many=True)
+            return Response({
+                'patient': PatientSerializer(patient).data,
+                'medical_records': serializer.data
+            })
+        except Patient.DoesNotExist:
+            return Response({
+                'error': '환자를 찾을 수 없습니다.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LungRecordViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = LungRecord.objects.using('hospital_db').all()
@@ -344,3 +405,140 @@ def visualization_data(request):
         return JsonResponse({
             'error': f'시각화 데이터 생성 중 오류가 발생했습니다: {str(e)}'
         }, status=500)
+
+
+class MedicalRecordViewSet(viewsets.ModelViewSet):
+    queryset = MedicalRecord.objects.using('hospital_db').all()
+    serializer_class = MedicalRecordSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return MedicalRecordCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return MedicalRecordUpdateSerializer
+        return MedicalRecordSerializer
+    
+    def create(self, request):
+        """진료기록 생성 API"""
+        serializer = MedicalRecordCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                patient = Patient.objects.using('hospital_db').get(id=serializer.validated_data['patient_id'])
+                medical_record = MedicalRecord.objects.using('hospital_db').create(
+                    patient_id=serializer.validated_data['patient_id'],
+                    name=serializer.validated_data['name'],
+                    department=serializer.validated_data['department'],
+                    notes=serializer.validated_data.get('notes', '')
+                )
+                return Response({
+                    'message': '진료기록이 성공적으로 생성되었습니다.',
+                    'record_id': medical_record.id
+                }, status=status.HTTP_201_CREATED)
+            except Patient.DoesNotExist:
+                return Response({
+                    'error': '존재하지 않는 환자입니다.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    'error': f'진료기록 생성 중 오류가 발생했습니다: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def complete_treatment(self, request, pk=None):
+        """진료 완료 처리 API"""
+        try:
+            medical_record = self.get_object()
+            medical_record.complete_treatment()
+            return Response({
+                'message': '진료가 완료되었습니다.',
+                'treatment_end_time': medical_record.treatment_end_time
+            }, status=status.HTTP_200_OK)
+        except MedicalRecord.DoesNotExist:
+            return Response({
+                'error': '진료기록을 찾을 수 없습니다.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': f'진료 완료 처리 중 오류가 발생했습니다: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def by_status(self, request):
+        """상태별 진료기록 조회 API"""
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = self.queryset.filter(status=status_filter)
+        else:
+            queryset = self.queryset
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def completed_today(self, request):
+        """오늘 완료된 진료기록 조회 API"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        queryset = self.queryset.filter(
+            is_treatment_completed=True,
+            treatment_end_time__date=today
+        )
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def waiting_patients(self, request):
+        """대기 중인 환자 목록 조회 API (순번 기준)"""
+        # 접수완료 상태의 환자들을 접수시간 순으로 정렬
+        queryset = self.queryset.filter(
+            status='접수완료'
+        ).order_by('reception_start_time')
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def search_patients(self, request):
+        """환자 검색 API"""
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            return Response({'patients': []})
+        
+        try:
+            # 환자 이름으로 검색 (대소문자 구분 없음)
+            patients = Patient.objects.using('hospital_db').filter(
+                name__icontains=query
+            ).order_by('name')[:10]  # 최대 10명만 반환, 이름순 정렬
+            
+            print(f"검색어: '{query}', 결과: {patients.count()}명")
+            
+            serializer = PatientSerializer(patients, many=True)
+            return Response({'patients': serializer.data})
+        except Exception as e:
+            print(f"환자 검색 오류: {e}")
+            return Response({'patients': [], 'error': str(e)})
+    
+    @action(detail=True, methods=['get'])
+    def medical_records(self, request, pk=None):
+        """특정 환자의 진료 기록 조회 API"""
+        try:
+            patient = self.get_object()
+            # 해당 환자의 모든 진료 기록을 최신순으로 조회
+            medical_records = MedicalRecord.objects.using('hospital_db').filter(
+                patient_id=patient.id
+            ).order_by('-reception_start_time')
+            
+            serializer = MedicalRecordSerializer(medical_records, many=True)
+            return Response({
+                'patient': PatientSerializer(patient).data,
+                'medical_records': serializer.data
+            })
+        except Patient.DoesNotExist:
+            return Response({
+                'error': '환자를 찾을 수 없습니다.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

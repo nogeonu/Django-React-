@@ -70,8 +70,15 @@ cp env.example .env
 
 4. 데이터베이스 마이그레이션
 ```bash
+# 마이그레이션 파일 생성
 python manage.py makemigrations
+
+# 로컬 sqlite3로 마이그레이션
 python manage.py migrate
+
+# MySQL(hospital_db)로 마이그레이션
+# settings.py의 DATABASES.hospital_db 설정을 사용합니다
+python manage.py migrate --database=hospital_db
 ```
 
 5. 슈퍼유저 생성
@@ -138,3 +145,44 @@ npm run dev
 ## 라이선스
 
 MIT License
+
+---
+
+## 데이터베이스 설정 가이드 (MySQL)
+
+백엔드 `backend/eventeye/settings.py`에 MySQL 연결이 구성되어 있습니다.
+
+예시 설정:
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    },
+    'hospital_db': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'hospital_db',
+        'USER': 'acorn',
+        'PASSWORD': 'acorn1234',
+        'HOST': '34.42.223.43',
+        'PORT': '3306',
+        'OPTIONS': {'charset': 'utf8mb4'},
+    },
+}
+```
+
+연결 테스트(로컬 또는 VM):
+
+```bash
+mysql -h 34.42.223.43 -u acorn -pacorn1234 -D hospital_db -e "SHOW TABLES;"
+```
+
+마이그레이션 실행(테이블 생성):
+
+```bash
+cd backend
+python manage.py makemigrations
+python manage.py migrate --database=hospital_db
+```
+

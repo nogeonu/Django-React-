@@ -6,6 +6,7 @@ router = DefaultRouter()
 router.register(r'patients', views.PatientViewSet)
 router.register(r'records', views.LungRecordViewSet)
 router.register(r'results', views.LungResultViewSet)
+router.register(r'medical-records', views.MedicalRecordViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),

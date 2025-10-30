@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8002';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -42,7 +42,7 @@ export const apiRequest = async (method: string, url: string, data?: any) => {
       url,
       data,
     });
-    return response;
+    return response.data;
   } catch (error) {
     console.error('API request failed:', error);
     throw error;

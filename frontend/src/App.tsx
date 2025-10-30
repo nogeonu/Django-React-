@@ -8,6 +8,7 @@ import Patients from '@/pages/Patients';
 import MedicalImages from '@/pages/MedicalImages';
 import LungCancerPrediction from '@/pages/LungCancerPrediction';
 import LungCancerStats from '@/pages/LungCancerStats';
+import MedicalRegistration from '@/pages/MedicalRegistration';
 import NotFound from '@/pages/NotFound';
 import Sidebar from '@/components/Sidebar';
 
@@ -27,6 +28,7 @@ function App() {
                 <Route path="/images" element={<MedicalImages />} />
                 <Route path="/lung-cancer" element={<LungCancerPrediction />} />
                 <Route path="/lung-cancer-stats" element={<LungCancerStats />} />
+                <Route path="/medical-registration" element={<MedicalRegistration />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 class Patient(models.Model):
     """환자 기본 정보 저장"""
@@ -156,4 +157,48 @@ class LungResult(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.lung_record.patient.name} - {self.prediction} ({self.risk_score}%)"
+        return f"{self.lung_record.lung_cancer_patient.patient.name} - {self.prediction} ({self.risk_score}%)"
+
+
+class MedicalRecord(models.Model):
+    """진료기록 저장"""
+    DEPARTMENT_CHOICES = [
+        ('호흡기내과', '호흡기내과'),
+        ('외과', '외과'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('접수완료', '접수완료'),
+        ('진료중', '진료중'),
+        ('진료완료', '진료완료'),
+    ]
+    
+    # 기본 정보
+    id = models.AutoField(primary_key=True)
+    patient_id = models.CharField('환자ID', max_length=10)
+    name = models.CharField('환자명', max_length=100)
+    department = models.CharField('진료과', max_length=20, choices=DEPARTMENT_CHOICES)
+    status = models.CharField('진료상태', max_length=20, choices=STATUS_CHOICES, default='접수완료')
+    notes = models.TextField('진료노트', blank=True, null=True)
+    
+    # 시간 관련 필드
+    reception_start_time = models.DateTimeField('접수시작시간', auto_now_add=True)
+    treatment_end_time = models.DateTimeField('진료끝난시간', blank=True, null=True)
+    is_treatment_completed = models.BooleanField('진료완료여부', default=False)
+
+    class Meta:
+        db_table = 'medical_record'
+        managed = False  # 외부 데이터베이스 테이블
+        verbose_name = '진료기록'
+        verbose_name_plural = '진료기록 목록'
+        ordering = ['-reception_start_time']
+
+    def __str__(self):
+        return f"{self.name} - {self.department} ({self.reception_start_time.strftime('%Y-%m-%d %H:%M')})"
+    
+    def complete_treatment(self):
+        """진료 완료 처리"""
+        self.status = '진료완료'
+        self.is_treatment_completed = True
+        self.treatment_end_time = timezone.now()
+        self.save()

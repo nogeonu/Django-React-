@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp } from 'lucide-react';
+import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList } from 'lucide-react';
 
 const navigation = [
   { name: "대시보드", href: "/", icon: BarChart3 },
   { name: "환자 관리", href: "/patients", icon: Users },
+  { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
   { name: "의료 이미지", href: "/images", icon: FileImage },
   { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
   { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },

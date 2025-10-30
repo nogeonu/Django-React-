@@ -73,7 +73,7 @@ export default function MedicalImages() {
     queryKey: ["patients"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
-      return response.data.results || [];
+      return response.results || [];
     },
   });
 
@@ -81,7 +81,7 @@ export default function MedicalImages() {
     queryKey: ["medical-images", selectedPatient],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/medical-images/?patient=${selectedPatient}`);
-      return response.json();
+      return response;
     },
     enabled: !!selectedPatient,
   });
@@ -89,7 +89,7 @@ export default function MedicalImages() {
   const uploadImageMutation = useMutation({
     mutationFn: async (imageData: any) => {
       const response = await apiRequest("POST", "/api/medical-images/", imageData);
-      return response.json();
+      return response;
     },
     onSuccess: () => {
       toast({
@@ -110,7 +110,7 @@ export default function MedicalImages() {
   const aiAnalysisMutation = useMutation({
     mutationFn: async (imageId: string) => {
       const response = await apiRequest("POST", `/api/medical-images/${imageId}/analyze/`);
-      return response.json();
+      return response;
     },
     onSuccess: () => {
       toast({

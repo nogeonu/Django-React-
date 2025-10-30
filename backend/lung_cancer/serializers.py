@@ -1,27 +1,31 @@
 from rest_framework import serializers
-from .models import Patient, LungCancerPatient, LungRecord, LungResult
+from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
 
 class PatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+        ref_name = 'LungCancerPatient'
 
 class LungCancerPatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = LungCancerPatient
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+        ref_name = 'LungCancerPatientSerializer'
 
 class LungRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = LungRecord
         fields = '__all__'
+        ref_name = 'LungRecordSerializer'
 
 class LungResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = LungResult
         fields = '__all__'
+        ref_name = 'LungResultSerializer'
 
 class PatientRegistrationSerializer(serializers.Serializer):
     """환자 등록을 위한 시리얼라이저"""
@@ -94,3 +98,54 @@ class LungCancerPredictionSerializer(serializers.Serializer):
         if value < 0 or value > 120:
             raise serializers.ValidationError("나이는 0-120 사이의 값이어야 합니다.")
         return value
+
+
+class MedicalRecordSerializer(serializers.ModelSerializer):
+    """진료기록 시리얼라이저"""
+    
+    class Meta:
+        model = MedicalRecord
+        fields = [
+            'id', 'patient_id', 'name', 'department', 'status', 'notes',
+            'reception_start_time', 'treatment_end_time', 'is_treatment_completed'
+        ]
+        read_only_fields = ['id', 'reception_start_time']
+        ref_name = 'LungCancerMedicalRecord'
+
+
+class MedicalRecordCreateSerializer(serializers.Serializer):
+    """진료기록 생성을 위한 시리얼라이저"""
+    patient_id = serializers.CharField(max_length=10)
+    name = serializers.CharField(max_length=100)
+    department = serializers.ChoiceField(choices=[('호흡기내과', '호흡기내과'), ('외과', '외과')])
+    notes = serializers.CharField(required=False, allow_blank=True)
+    
+    class Meta:
+        ref_name = 'LungCancerMedicalRecordCreate'
+    
+    def validate_patient_id(self, value):
+        try:
+            Patient.objects.using('hospital_db').get(id=value)
+        except Patient.DoesNotExist:
+            raise serializers.ValidationError("존재하지 않는 환자입니다.")
+        return value
+
+
+class MedicalRecordUpdateSerializer(serializers.ModelSerializer):
+    """진료기록 수정을 위한 시리얼라이저"""
+    
+    class Meta:
+        model = MedicalRecord
+        fields = ['status', 'notes', 'treatment_end_time', 'is_treatment_completed']
+        ref_name = 'LungCancerMedicalRecordUpdate'
+        
+    def update(self, instance, validated_data):
+        # 진료 완료 처리
+        if validated_data.get('status') == '진료완료':
+            instance.complete_treatment()
+        else:
+            # 일반적인 업데이트
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+        return instance

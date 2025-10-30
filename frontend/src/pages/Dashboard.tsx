@@ -16,21 +16,16 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
 import PatientRegistrationModal from "@/components/PatientRegistrationModal";
 
-interface Patient {
-  id: string;
-  patient_number: string;
+interface MedicalRecord {
+  id: number;
+  patient_id: string;
   name: string;
-  birth_date: string;
-  gender: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  emergency_contact?: string;
-  blood_type?: string;
-  allergies?: string;
-  medical_history?: string;
-  created_at: string;
-  updated_at: string;
+  department: string;
+  status: string;
+  notes: string;
+  reception_start_time: string;
+  treatment_end_time?: string;
+  is_treatment_completed: boolean;
 }
 
 export default function Dashboard() {
@@ -38,20 +33,30 @@ export default function Dashboard() {
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: patients = [], isLoading } = useQuery({
-    queryKey: ["patients"],
+  const { data: waitingPatients = [], isLoading, error } = useQuery({
+    queryKey: ["waiting-patients"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/patients/");
-      return response.json();
+      try {
+        console.log("대시보드 - 대기 중인 환자 데이터 조회 시작...");
+        const response = await apiRequest("GET", "/api/lung_cancer/api/medical-records/waiting_patients/");
+        console.log("대시보드 - API 응답:", response);
+        const result = response || [];
+        console.log("대시보드 - 대기 중인 환자 수:", result.length);
+        return result;
+      } catch (err) {
+        console.error("대시보드 - 대기 중인 환자 데이터 조회 오류:", err);
+        throw err;
+      }
     },
+    refetchInterval: 30000, // 30초마다 자동 새로고침
   });
 
-  const recentPatients = (patients as Patient[])
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const recentPatients = (waitingPatients as MedicalRecord[])
+    .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime())
     .slice(0, 5);
-  const totalPatients = (patients as Patient[]).length;
+  const totalPatients = (waitingPatients as MedicalRecord[]).length;
   const todayExams = 3; // 임시 데이터
-  const pendingAnalysis = 10; // 임시 데이터
+  const pendingAnalysis = totalPatients; // 대기 중인 환자 수
 
   const stats = [
     {
@@ -83,6 +88,22 @@ export default function Dashboard() {
       bgColor: "bg-orange-100"
     }
   ];
+
+  // 오류 처리
+  if (error) {
+    console.error("대시보드 로딩 오류:", error);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">오류가 발생했습니다</h2>
+          <p className="text-gray-600 mb-4">대시보드를 불러오는 중 오류가 발생했습니다.</p>
+          <Button onClick={() => window.location.reload()}>새로고침</Button>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("대시보드 렌더링 중 - waitingPatients:", waitingPatients, "isLoading:", isLoading);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -162,11 +183,11 @@ export default function Dashboard() {
                 </div>
               ) : recentPatients.length > 0 ? (
                 <div className="space-y-3">
-                  {recentPatients.map((patient: Patient, index: number) => (
+                  {recentPatients.map((record: MedicalRecord, index: number) => (
                     <div 
-                      key={patient.id} 
+                      key={record.id} 
                       className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
-                      data-testid={`patient-item-${patient.id}`}
+                      data-testid={`patient-item-${record.id}`}
                     >
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-600 font-semibold">
@@ -174,22 +195,28 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900" data-testid={`text-patient-name-${patient.id}`}>
-                          {patient.name}
+                        <p className="font-medium text-gray-900" data-testid={`text-patient-name-${record.id}`}>
+                          {record.name}
                         </p>
-                        <p className="text-sm text-gray-500" data-testid={`text-patient-number-${patient.id}`}>
-                          {patient.patient_number} | {patient.gender}
+                        <p className="text-sm text-gray-500" data-testid={`text-patient-number-${record.id}`}>
+                          {record.patient_id} | {record.department}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {record.notes}
                         </p>
                       </div>
                       <div className="text-sm text-gray-400">
-                        {new Date(patient.created_at || '').toLocaleDateString('ko-KR')}
+                        {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-6 text-gray-500">
-                  등록된 환자가 없습니다
+                  대기 중인 환자가 없습니다
                 </div>
               )}
             </CardContent>
@@ -236,9 +263,10 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-ai-analysis"
+                onClick={() => window.location.href = '/medical-registration'}
               >
                 <Activity className="w-4 h-4 mr-2" />
-                AI 분석 실행
+                진료 접수 
               </Button>
             </CardContent>
           </Card>

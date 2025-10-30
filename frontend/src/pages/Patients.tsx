@@ -7,7 +7,8 @@ import {
   Edit, 
   Eye,
   Calendar,
-  FileImage
+  FileImage,
+  Trash2
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,20 +39,38 @@ interface Patient {
   updated_at: string;
 }
 
+interface MedicalRecord {
+  id: number;
+  patient_id: string;
+  name: string;
+  department: string;
+  status: string;
+  notes: string;
+  reception_start_time: string;
+  treatment_end_time?: string;
+  is_treatment_completed: boolean;
+}
+
 export default function Patients() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [deletingPatient, setDeletingPatient] = useState<Patient | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
 
   const { data: patients = [], isLoading, refetch, error } = useQuery({
     queryKey: ["patients"],
     queryFn: async () => {
       try {
         const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
-        console.log("API 응답:", response.data);
-        return response.data.results || [];
+        console.log("API 응답:", response);
+        return response.results || [];
       } catch (err) {
         console.error("환자 목록 조회 오류:", err);
         throw err;
@@ -61,6 +80,54 @@ export default function Patients() {
 
   const handleRegistrationSuccess = () => {
     refetch(); // 환자 목록 새로고침
+  };
+
+  const handleDeleteClick = (patient: Patient) => {
+    setDeletingPatient(patient);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingPatient) return;
+
+    try {
+      await apiRequest("DELETE", `/api/lung_cancer/api/patients/${deletingPatient.id}/`);
+      alert("환자가 성공적으로 삭제되었습니다.");
+      refetch(); // 환자 목록 새로고침
+      setIsDeleteModalOpen(false);
+      setDeletingPatient(null);
+    } catch (error: any) {
+      console.error("환자 삭제 오류:", error);
+      alert(`환자 삭제 중 오류가 발생했습니다: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setIsDeleteModalOpen(false);
+    setDeletingPatient(null);
+  };
+
+  const handleViewDetails = async (patient: Patient) => {
+    setDetailPatient(patient);
+    setIsDetailModalOpen(true);
+    setIsLoadingRecords(true);
+    
+    try {
+      const response = await apiRequest('GET', `/api/lung_cancer/api/patients/${patient.id}/medical_records/`);
+      setMedicalRecords(response.medical_records || []);
+    } catch (error: any) {
+      console.error('진료 기록 조회 오류:', error);
+      alert(`진료 기록 조회 중 오류가 발생했습니다: ${error.response?.data?.error || error.message}`);
+      setMedicalRecords([]);
+    } finally {
+      setIsLoadingRecords(false);
+    }
+  };
+
+  const handleDetailClose = () => {
+    setIsDetailModalOpen(false);
+    setDetailPatient(null);
+    setMedicalRecords([]);
   };
 
   const filteredPatients = (patients as Patient[]).filter((patient: Patient) =>
@@ -222,7 +289,7 @@ export default function Patients() {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => setSelectedPatient(patient)}
+                              onClick={() => handleViewDetails(patient)}
                               data-testid={`button-view-patient-${patient.id}`}
                             >
                               <Eye className="w-4 h-4" />
@@ -251,6 +318,15 @@ export default function Patients() {
                               data-testid={`button-images-patient-${patient.id}`}
                             >
                               <FileImage className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleDeleteClick(patient)}
+                              data-testid={`button-delete-patient-${patient.id}`}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -325,6 +401,169 @@ export default function Patients() {
               >
                 닫기
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && deletingPatient && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={handleDeleteCancel}
+          data-testid="modal-delete-confirmation"
+        >
+          <div 
+            className="bg-white rounded-lg w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">환자 삭제 확인</h3>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-600 mb-2">
+                  다음 환자를 삭제하시겠습니까?
+                </p>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{deletingPatient.name}</p>
+                  <p className="text-sm text-gray-500">환자번호: {deletingPatient.id}</p>
+                </div>
+                <p className="text-sm text-red-600 mt-2">
+                  ⚠️ 이 작업은 되돌릴 수 없습니다.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleDeleteCancel}
+                  data-testid="button-cancel-delete"
+                >
+                  취소
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDeleteConfirm}
+                  data-testid="button-confirm-delete"
+                >
+                  삭제
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Detail Modal */}
+      {isDetailModalOpen && detailPatient && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={handleDetailClose}
+          data-testid="modal-patient-detail"
+        >
+          <div 
+            className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-semibold text-lg">
+                      {detailPatient.name.charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">{detailPatient.name}</h3>
+                    <p className="text-sm text-gray-500">환자 ID: {detailPatient.id}</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={handleDetailClose}
+                  data-testid="button-close-detail-modal"
+                >
+                  닫기
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {/* 환자 기본 정보 */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">환자 정보</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">성별</p>
+                    <p className="text-sm text-gray-900">{detailPatient.gender}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">나이</p>
+                    <p className="text-sm text-gray-900">{detailPatient.age}세</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">전화번호</p>
+                    <p className="text-sm text-gray-900">{detailPatient.phone || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">응급연락처</p>
+                    <p className="text-sm text-gray-900">{detailPatient.emergency_contact || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">혈액형</p>
+                    <p className="text-sm text-gray-900">{detailPatient.blood_type || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">등록일</p>
+                    <p className="text-sm text-gray-900">{formatDate(detailPatient.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 진료 기록 */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">진료 기록</h4>
+                {isLoadingRecords ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-sm text-gray-500 mt-2">진료 기록을 불러오는 중...</p>
+                  </div>
+                ) : medicalRecords.length > 0 ? (
+                  <div className="space-y-4">
+                    {medicalRecords.map((record) => (
+                      <div key={record.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={record.status === '진료완료' ? 'default' : 'secondary'}>
+                              {record.status}
+                            </Badge>
+                            <span className="text-sm text-gray-500">{record.department}</span>
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            {new Date(record.reception_start_time).toLocaleString('ko-KR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-900">{record.notes}</p>
+                        {record.treatment_end_time && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            진료 완료: {new Date(record.treatment_end_time).toLocaleString('ko-KR')}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>진료 기록이 없습니다</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
