@@ -44,6 +44,7 @@ interface MedicalRecord {
 
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAllWaiting, setShowAllWaiting] = useState(false);
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -65,9 +66,9 @@ export default function Dashboard() {
     refetchInterval: 30000, // 30초마다 자동 새로고침
   });
 
-  const recentPatients = (waitingPatients as MedicalRecord[])
-    .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime())
-    .slice(0, 5);
+  const sortedWaitingPatients = [...(waitingPatients as MedicalRecord[])]
+    .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime());
+  const recentPatients = sortedWaitingPatients.slice(0, 5);
   const totalPatients = (waitingPatients as MedicalRecord[]).length;
   const todayExams = 3; // 임시 데이터
   const pendingAnalysis = totalPatients; // 대기 중인 환자 수
@@ -192,8 +193,13 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 대기 중인 환자(순번 기준)
-                <Button variant="outline" size="sm" data-testid="button-view-all-patients">
-                  전체 보기
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  data-testid="button-view-all-patients"
+                  onClick={() => setShowAllWaiting((v) => !v)}
+                >
+                  {showAllWaiting ? "접기" : "전체 보기"}
                 </Button>
               </CardTitle>
               <CardDescription>
@@ -215,9 +221,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              ) : recentPatients.length > 0 ? (
+              ) : (showAllWaiting ? sortedWaitingPatients : recentPatients).length > 0 ? (
                 <div className="space-y-3">
-                  {recentPatients.map((record: MedicalRecord, index: number) => (
+                  {(showAllWaiting ? sortedWaitingPatients : recentPatients).map((record: MedicalRecord, index: number) => (
                     <div 
                       key={record.id} 
                       className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
