@@ -93,38 +93,30 @@ export default function PatientRegistrationModal({ isOpen, onClose, onSuccess, p
     try {
       console.log(`${isEdit ? '환자 수정' : '환자 등록'} 요청 데이터:`, formData);
       
-      let response;
+      let result;
       if (isEdit && patient) {
         // 수정 모드: PUT 요청
-        response = await apiRequest("PUT", `/api/lung_cancer/api/patients/${patient.id}/`, formData);
+        result = await apiRequest("PUT", `/api/lung_cancer/api/patients/${patient.id}/`, formData);
       } else {
         // 등록 모드: POST 요청
-        response = await apiRequest("POST", "/api/lung_cancer/api/patients/register/", formData);
+        result = await apiRequest("POST", "/api/lung_cancer/api/patients/register/", formData);
       }
       
-      console.log("응답 상태:", response.status);
-      console.log("응답 데이터:", response.data);
+      console.log("응답 데이터:", result);
       
-      // axios는 2xx 상태 코드를 성공으로 처리하므로 status를 확인
-      if (response.status >= 200 && response.status < 300) {
-        const result = response.data;
-        alert(`환자가 성공적으로 ${isEdit ? '수정' : '등록'}되었습니다!${!isEdit ? `\n환자 ID: ${result.patient_id}` : ''}`);
-        onSuccess();
-        onClose();
-        setFormData({
-          name: "",
-          birth_date: "",
-          gender: "",
-          phone: "",
-          address: "",
-          emergency_contact: "",
-          blood_type: "",
-        });
-      } else {
-        const errorData = response.data;
-        console.error("서버 오류:", errorData);
-        setError(errorData.error || `환자 ${isEdit ? '수정' : '등록'}에 실패했습니다.`);
-      }
+      // apiRequest는 성공 시 data만 반환하므로 여기까지 오면 성공으로 간주
+      alert(`환자가 성공적으로 ${isEdit ? '수정' : '등록'}되었습니다!${!isEdit ? `\n환자 ID: ${result?.patient_id ?? ''}` : ''}`);
+      onSuccess();
+      onClose();
+      setFormData({
+        name: "",
+        birth_date: "",
+        gender: "",
+        phone: "",
+        address: "",
+        emergency_contact: "",
+        blood_type: "",
+      });
     } catch (err: any) {
       console.error("네트워크 오류 상세:", err);
       if (err.response) {
