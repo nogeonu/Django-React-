@@ -1,0 +1,66 @@
+name: Deploy to GCE VM
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync project to VM (rsync)
+        uses: burnett01/rsync-deployments@5.2
+        with:
+          switches: -avz --delete --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store"
+          path: ./
+          remote_path: ${{ secrets.APP_DIR }}/
+          remote_host: ${{ secrets.SSH_HOST }}
+          remote_user: ${{ secrets.SSH_USER }}
+          remote_key: ${{ secrets.SSH_KEY }}
+          remote_port: ${{ secrets.SSH_PORT }}
+
+      - name: Remote deploy steps
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            set -e
+            APP_DIR="${{ secrets.APP_DIR }}"
+
+            # --- Django backend ---
+            cd "$APP_DIR/backend"
+            python3 -m venv .venv || true
+            source .venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # DB 마이그레이션/정적파일
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+
+            # --- React frontend ---
+            cd "$APP_DIR/frontend"
+            if ! command -v npm >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+              sudo apt-get install -y nodejs
+            fi
+            npm ci
+            npm run build
+
+            # --- 서비스 재시작 ---
+            sudo systemctl restart gunicorn || sudo systemctl start gunicorn
+            sudo systemctl reload nginx || sudo systemctl restart nginx
+
