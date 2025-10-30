@@ -17,10 +17,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Clean remote directory and fix permissions
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            APP_DIR="${{ secrets.APP_DIR }}"
+            
+            # 권한 정리 (staticfiles, __pycache__ 등)
+            sudo chown -R $USER:$USER "$APP_DIR" || true
+            sudo rm -rf "$APP_DIR/backend/staticfiles" || true
+            find "$APP_DIR/backend" -type d -name "__pycache__" -exec sudo rm -rf {} + || true
+            find "$APP_DIR/backend" -type f -name "*.pyc" -delete || true
+
       - name: Sync project to VM (rsync)
         uses: burnett01/rsync-deployments@5.2
         with:
-          switches: -avz --delete --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store"
+          switches: -avz --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store" --exclude "backend/staticfiles" --exclude "backend/*.pyc" --exclude "backend/*/__pycache__"
           path: ./
           remote_path: ${{ secrets.APP_DIR }}/
           remote_host: ${{ secrets.SSH_HOST }}
@@ -39,6 +56,9 @@ jobs:
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
+
+            # 권한 수정
+            sudo chown -R $USER:$USER "$APP_DIR"
 
             # --- Django backend ---
             cd "$APP_DIR/backend"
