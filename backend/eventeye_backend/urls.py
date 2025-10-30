@@ -9,6 +9,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('hospital.urls')),
+    path('api/lung_cancer/', include('lung_cancer.urls')),
 ]
 
 if settings.DEBUG:
