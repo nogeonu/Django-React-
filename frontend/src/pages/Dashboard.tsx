@@ -90,7 +90,7 @@ export default function Dashboard() {
     },
     {
       title: "진료 완료 환자",
-      value: 0,
+      value: 2,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-100"
