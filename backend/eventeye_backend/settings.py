@@ -72,8 +72,15 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     },
     'hospital_db': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'hospital_db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'hospital_db',
+        'USER': 'acorn',
+        'PASSWORD': 'acorn1234',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+        },
     }
 }
 
