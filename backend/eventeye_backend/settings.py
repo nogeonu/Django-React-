@@ -29,6 +29,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'hospital',
+    'lung_cancer',
+    'medical_images',
+    'patients',
 ]
 
 MIDDLEWARE = [
