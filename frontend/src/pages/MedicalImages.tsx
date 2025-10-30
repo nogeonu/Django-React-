@@ -7,7 +7,6 @@ import {
   Filter,
   Play,
   Download,
-  Trash2,
   AlertTriangle,
   CheckCircle,
   Clock
