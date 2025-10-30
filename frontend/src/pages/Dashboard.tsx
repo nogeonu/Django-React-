@@ -44,11 +44,6 @@ interface MedicalRecord {
 
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [suggestions, setSuggestions] = useState<Patient[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [foundPatients, setFoundPatients] = useState<Patient[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -123,69 +118,26 @@ export default function Dashboard() {
   }
 
   console.log("대시보드 렌더링 중 - waitingPatients:", waitingPatients, "isLoading:", isLoading);
-
-  // 디바운스 자동완성 검색
-  function fetchSuggestions(query: string) {
-    setIsSearching(true);
-    apiRequest("GET", `/api/lung_cancer/api/patients/?search=${encodeURIComponent(query)}`)
-      .then((res) => {
-        const list = (res?.results ?? res ?? []) as Patient[];
-        setSuggestions(list);
-        setShowSuggestions(true);
-      })
-      .catch((err) => {
-        console.error("자동완성 검색 오류:", err);
-        setSuggestions([]);
-        setShowSuggestions(false);
-      })
-      .finally(() => setIsSearching(false));
-  }
-
-  function handleSearchChange(value: string) {
-    setSearchTerm(value);
-    setSelectedIndex(-1);
-    if (!value.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setFoundPatients([]);
-      return;
-    }
-    // 디바운스
-    window.clearTimeout((handleSearchChange as any)._t);
-    (handleSearchChange as any)._t = window.setTimeout(() => fetchSuggestions(value.trim()), 300);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!showSuggestions || suggestions.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % suggestions.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const sel = suggestions[selectedIndex] || suggestions[0];
-      if (sel) {
-        setSearchTerm(sel.name);
-        setFoundPatients([sel]);
-        setShowSuggestions(false);
+  // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
+        return response.results || [];
+      } catch (err) {
+        console.error("대시보드 - 환자 목록 조회 오류:", err);
+        throw err;
       }
-    } else if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
-  }
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
 
-  function runSearch() {
-    // 검색 버튼: 현재 suggestions를 결과 테이블로 표시
-    if (suggestions.length > 0) {
-      setFoundPatients(suggestions);
-      setShowSuggestions(false);
-    } else if (searchTerm.trim()) {
-      // 강제 조회
-      fetchSuggestions(searchTerm.trim());
-    }
-  }
+  const filteredPatients = (patients as Patient[]).filter((p) =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -363,43 +315,16 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex space-x-4 relative">
+            <div className="flex space-x-4">
               <div className="flex-1">
                 <Input
                   placeholder="환자 이름 또는 번호를 입력하세요..."
                   value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => searchTerm && suggestions.length > 0 && setShowSuggestions(true)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   data-testid="input-patient-search"
                 />
-                {showSuggestions && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-sm max-h-64 overflow-auto">
-                    {isSearching ? (
-                      <div className="p-3 text-sm text-gray-500">검색 중...</div>
-                    ) : suggestions.length > 0 ? (
-                      suggestions.map((p, idx) => (
-                        <div
-                          key={p.id}
-                          className={`px-3 py-2 cursor-pointer ${idx === selectedIndex ? "bg-gray-100" : "hover:bg-gray-50"}`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setSearchTerm(p.name);
-                            setFoundPatients([p]);
-                            setShowSuggestions(false);
-                          }}
-                        >
-                          <div className="text-sm text-gray-900">{p.name}</div>
-                          <div className="text-xs text-gray-500">{p.id} • {p.gender} • {p.age}세</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-3 text-sm text-gray-500">검색 결과가 없습니다</div>
-                    )}
-                  </div>
-                )}
               </div>
-              <Button data-testid="button-search" onClick={runSearch}>
+              <Button data-testid="button-search">
                 <Search className="w-4 h-4 mr-2" />
                 검색
               </Button>
@@ -411,12 +336,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* 검색 결과 테이블 */}
-        {foundPatients.length > 0 && (
+        {/* 검색 결과 테이블 (환자관리 페이지와 동일 필터 방식) */}
+        {searchTerm.trim() && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>환자 목록</CardTitle>
-              <CardDescription>검색 결과 {foundPatients.length}명</CardDescription>
+              <CardDescription>검색 결과 {filteredPatients.length}명</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -431,7 +356,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {foundPatients.map((p) => (
+                    {filteredPatients.map((p) => (
                       <tr key={p.id} className="border-b hover:bg-gray-50">
                         <td className="py-2">
                           <div className="flex items-center space-x-3">
