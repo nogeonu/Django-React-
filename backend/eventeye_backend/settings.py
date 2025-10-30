@@ -76,7 +76,7 @@ DATABASES = {
         'NAME': 'hospital_db',
         'USER': 'acorn',
         'PASSWORD': 'acorn1234',
-        'HOST': '127.0.0.1',
+        'HOST': '34.42.223.43', #'127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {
             'charset': 'utf8mb4',
@@ -137,6 +137,7 @@ REST_FRAMEWORK = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5000",
+    "http://localhost:5173", # 기본 Vite 포트 5173
     "http://127.0.0.1:5000",
     "http://34.42.223.43",
 ]

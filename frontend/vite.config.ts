@@ -15,7 +15,7 @@ export default defineConfig({
     port: 5000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000', //프록시 타깃을 실제 백엔드 포트로 변경
         changeOrigin: true,
       },
     },
