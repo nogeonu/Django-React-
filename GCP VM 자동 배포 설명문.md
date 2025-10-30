@@ -1,4 +1,4 @@
-# 🚀 GCP VM 자동 배포 가이드
+# 🚀 GCP VM 자동 배포 설명문
 
 이 문서는 **VSCode → GitHub → GCP VM** 자동 배포 설정 방법을 설명합니다.
 
