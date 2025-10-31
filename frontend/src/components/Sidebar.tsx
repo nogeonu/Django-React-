@@ -80,11 +80,22 @@ export default function Sidebar() {
               로그아웃
             </Button>
           </>
-        ) : location.pathname !== '/' ? (
-          <Button className="w-full" onClick={() => navigate('/login')}>
-            로그인
-          </Button>
-        ) : null}
+        ) : (() => {
+          const hideOnPaths = [
+            '/',
+            '/patients',
+            '/medical-registration',
+            '/images',
+            '/lung-cancer',
+            '/lung-cancer-stats',
+          ];
+          if (hideOnPaths.includes(location.pathname)) return null;
+          return (
+            <Button className="w-full" onClick={() => navigate('/login')}>
+              로그인
+            </Button>
+          );
+        })()}
       </div>
     </div>
   );
