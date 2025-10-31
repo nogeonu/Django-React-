@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList } from 'lucide-react';
+import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, User as UserIcon, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
@@ -70,19 +70,33 @@ export default function Sidebar() {
         </div>
       </nav>
       <div className="p-3 border-t space-y-2">
-        {user ? (
-          <>
-            <div className="text-sm text-gray-700">
-              {user.role === 'medical_staff' ? '의료진' : user.role === 'admin_staff' ? '원무과' : '관리자'} {' '}
-              {user.last_name || ''}{user.first_name ? ' ' + user.first_name : ''}
+        {['/', '/login', '/signup'].includes(location.pathname) ? null : user ? (
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                <UserIcon className="w-6 h-6 text-gray-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {(user.last_name || '') + (user.first_name ? ' ' + user.first_name : '')}
+                </div>
+                <div className="text-xs text-gray-500 truncate">{user.email}</div>
+              </div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleLogout}>
+            <Button
+              variant="outline"
+              className="w-full justify-center rounded-xl bg-gray-50 hover:bg-gray-100 border-0"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
               로그아웃
             </Button>
-          </>
+          </div>
         ) : (() => {
           const hideOnPaths = [
             '/',
+            '/login',
+            '/signup',
             '/patients',
             '/medical-registration',
             '/images',
