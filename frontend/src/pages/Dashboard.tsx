@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
   FileImage, 
   Activity, 
-  Plus,
+  
   Search,
   Filter,
   CheckCircle
@@ -14,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
-import PatientRegistrationModal from "@/components/PatientRegistrationModal";
+ 
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface Patient {
   id: string;
@@ -45,25 +46,42 @@ interface MedicalRecord {
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllWaiting, setShowAllWaiting] = useState(false);
-  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
-  const queryClient = useQueryClient();
+  
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const { data: waitingPatients = [], isLoading, error } = useQuery({
+  const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
     queryFn: async () => {
       try {
         console.log("대시보드 - 대기 중인 환자 데이터 조회 시작...");
-        const response = await apiRequest("GET", "/api/lung_cancer/api/medical-records/waiting_patients/");
+        const response = await apiRequest("GET", "/api/lung_cancer/medical-records/waiting_patients/");
         console.log("대시보드 - API 응답:", response);
         const result = response || [];
         console.log("대시보드 - 대기 중인 환자 수:", result.length);
         return result;
       } catch (err) {
         console.error("대시보드 - 대기 중인 환자 데이터 조회 오류:", err);
-        throw err;
+        return [];
       }
     },
     refetchInterval: 30000, // 30초마다 자동 새로고침
+  });
+
+  // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
+        return response.results || [];
+      } catch (err) {
+        console.error("대시보드 - 환자 목록 조회 오류:", err);
+        return [];
+      }
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   const sortedWaitingPatients = [...(waitingPatients as MedicalRecord[])]
@@ -104,36 +122,7 @@ export default function Dashboard() {
     }
   ];
 
-  // 오류 처리
-  if (error) {
-    console.error("대시보드 로딩 오류:", error);
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">오류가 발생했습니다</h2>
-          <p className="text-gray-600 mb-4">대시보드를 불러오는 중 오류가 발생했습니다.</p>
-          <Button onClick={() => window.location.reload()}>새로고침</Button>
-        </div>
-      </div>
-    );
-  }
-
   console.log("대시보드 렌더링 중 - waitingPatients:", waitingPatients, "isLoading:", isLoading);
-  // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
-  const { data: patients = [] } = useQuery({
-    queryKey: ["patients"],
-    queryFn: async () => {
-      try {
-        const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
-        return response.results || [];
-      } catch (err) {
-        console.error("대시보드 - 환자 목록 조회 오류:", err);
-        throw err;
-      }
-    },
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  });
 
   const filteredPatients = (patients as Patient[]).filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -150,15 +139,17 @@ export default function Dashboard() {
               <Activity className="text-blue-600 text-2xl mr-3" />
               <h1 className="text-xl font-bold text-gray-900">병원 환자관리 시스템</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button 
-                size="sm" 
-                data-testid="button-add-patient"
-                onClick={() => setIsPatientModalOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                환자 등록
-              </Button>
+            <div className="flex items-center space-x-2">
+              {location.pathname === '/' && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/login')}>
+                    로그인
+                  </Button>
+                  <Button size="sm" onClick={() => navigate('/signup')}>
+                    회원가입
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -271,15 +262,6 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                data-testid="button-register-patient"
-                onClick={() => setIsPatientModalOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                새 환자 등록
-              </Button>
               
               <Button 
                 className="w-full justify-start" 
@@ -389,16 +371,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Patient Registration Modal */}
-      <PatientRegistrationModal
-        isOpen={isPatientModalOpen}
-        onClose={() => setIsPatientModalOpen(false)}
-        onSuccess={() => {
-          setIsPatientModalOpen(false);
-          // 환자 목록 새로고침
-          queryClient.invalidateQueries({ queryKey: ["patients"] });
-        }}
-      />
+      
     </div>
   );
 }
