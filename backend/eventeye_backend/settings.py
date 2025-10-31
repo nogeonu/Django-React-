@@ -5,6 +5,10 @@ Django settings for eventeye_backend project.
 from pathlib import Path
 from decouple import config
 import os
+import pymysql
+
+# PyMySQL을 MySQLdb로 사용
+pymysql.install_as_MySQLdb()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +32,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_filters',
+    'drf_yasg',
     'hospital',
     'lung_cancer',
     'medical_images',
@@ -155,3 +160,31 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# Swagger settings
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Basic': {
+            'type': 'basic'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+    'SUPPORTED_SUBMIT_METHODS': [
+        'get',
+        'post',
+        'put',
+        'delete',
+        'patch'
+    ],
+    'OPERATIONS_SORTER': 'alpha',
+    'TAGS_SORTER': 'alpha',
+    'DOC_EXPANSION': 'none',
+    'DEEP_LINKING': True,
+    'SHOW_EXTENSIONS': True,
+    'SHOW_COMMON_EXTENSIONS': True,
+}
+
+REDOC_SETTINGS = {
+    'LAZY_RENDERING': False,
+}
