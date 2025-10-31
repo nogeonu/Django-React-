@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from . import auth_views
 from django.http import JsonResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
@@ -47,6 +48,11 @@ urlpatterns = [
     path('api/medical-images/', include('medical_images.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),
+    # Auth endpoints
+    path('api/auth/login', auth_views.login, name='login'),
+    path('api/auth/me', auth_views.me, name='me'),
+    path('api/auth/logout', auth_views.logout, name='logout'),
+    path('api/auth/register', auth_views.register, name='register'),
     
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
