@@ -7,10 +7,9 @@ from django.db import models, connections
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import requests
-from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
+from .models import Patient, LungRecord, LungResult, MedicalRecord
 from .serializers import (
     PatientSerializer, 
-    LungCancerPatientSerializer,
     LungRecordSerializer, 
     LungResultSerializer,
     LungCancerPredictionSerializer,
@@ -58,26 +57,17 @@ class PatientViewSet(viewsets.ModelViewSet):
                 cursor.execute("""
                     DELETE lr FROM lung_result lr
                     JOIN lung_record lrec ON lr.lung_record_id = lrec.id
-                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
-                    WHERE lcp.patient_id = %s
+                    WHERE lrec.patient_id = %s
                 """, [instance.id])
                 print(f"LungResult 삭제: {cursor.rowcount}개")
                 
                 # 2. LungRecord 삭제
                 cursor.execute("""
-                    DELETE lrec FROM lung_record lrec
-                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
-                    WHERE lcp.patient_id = %s
+                    DELETE FROM lung_record WHERE patient_id = %s
                 """, [instance.id])
                 print(f"LungRecord 삭제: {cursor.rowcount}개")
                 
-                # 3. LungCancerPatient 삭제
-                cursor.execute("""
-                    DELETE FROM lung_cancer_patient WHERE patient_id = %s
-                """, [instance.id])
-                print(f"LungCancerPatient 삭제: {cursor.rowcount}개")
-                
-                # 4. Patient 삭제
+                # 3. Patient 삭제
                 cursor.execute("""
                     DELETE FROM patient WHERE id = %s
                 """, [instance.id])
@@ -417,21 +407,28 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
 def visualization_data(request):
     """시각화 데이터 API"""
     try:
-        results = LungResult.objects.all()
+        # raw SQL로 데이터 조회 (lung_record의 gender, age 사용)
+        with connections['default'].cursor() as cursor:
+            cursor.execute("""
+                SELECT lr.prediction, lr.risk_score, lrec.gender, lrec.age, lr.created_at
+                FROM lung_result lr
+                JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+            """)
+            rows = cursor.fetchall()
         
-        if not results.exists():
+        if not rows:
             return JsonResponse({'error': '데이터가 없습니다.'}, status=404)
         
         # 데이터 준비
         data = []
-        for result in results:
+        for row in rows:
+            prediction, risk_score, gender, age, created_at = row
             data.append({
-                'name': result.lung_record.lung_cancer_patient.patient.name,
-                'gender': result.lung_record.lung_cancer_patient.patient.gender,
-                'age': result.lung_record.lung_cancer_patient.patient.age,
-                'prediction': 'YES' if result.prediction == '양성' else 'NO',
-                'probability': float(result.risk_score) / 100,
-                'created_at': result.created_at.isoformat() if result.created_at else None
+                'gender': gender,
+                'age': age,
+                'prediction': 'YES' if prediction == '양성' else 'NO',
+                'probability': float(risk_score) / 100 if risk_score else 0,
+                'created_at': created_at.isoformat() if created_at else None
             })
         
         # 통계 계산

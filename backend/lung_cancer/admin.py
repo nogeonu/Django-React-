@@ -19,9 +19,9 @@ class LungCancerPatientAdmin(admin.ModelAdmin):
 
 @admin.register(LungRecord)
 class LungRecordAdmin(admin.ModelAdmin):
-    list_display = ['id', 'lung_cancer_patient', 'smoking', 'created_at']
+    list_display = ['id', 'patient_id', 'smoking', 'created_at']
     list_filter = ['smoking', 'created_at']
-    search_fields = ['lung_cancer_patient__patient_id']
+    search_fields = ['patient_id']
     readonly_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 

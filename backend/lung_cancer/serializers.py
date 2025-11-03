@@ -1,19 +1,11 @@
 from rest_framework import serializers
-from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
+from .models import Patient, LungRecord, LungResult, MedicalRecord
 
 class PatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
-        ref_name = 'LungCancerPatient'
-
-class LungCancerPatientSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LungCancerPatient
-        fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at']
-        ref_name = 'LungCancerPatientSerializer'
 
 class LungRecordSerializer(serializers.ModelSerializer):
     class Meta:

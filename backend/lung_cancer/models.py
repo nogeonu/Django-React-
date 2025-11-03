@@ -67,7 +67,6 @@ class LungCancerPatient(models.Model):
 class LungRecord(models.Model):
     """폐암 검사 기록 저장"""
     patient_id = models.CharField('환자ID', max_length=10)  # Patient 테이블 ID 직접 참조
-    lung_cancer_patient = models.ForeignKey(LungCancerPatient, on_delete=models.CASCADE, related_name='lung_records', blank=True, null=True)
     
     # 환자 기본 정보 (예측 시점 스냅샷)
     gender = models.CharField('성별', max_length=10)
@@ -99,7 +98,7 @@ class LungRecord(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.lung_cancer_patient.id} - {self.created_at.strftime('%Y-%m-%d')}"
+        return f"{self.patient_id} - {self.created_at.strftime('%Y-%m-%d')}"
 
 class LungResult(models.Model):
     """검사 결과 저장"""
