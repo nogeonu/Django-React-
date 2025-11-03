@@ -3,13 +3,19 @@ import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, Clipboa
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
-const baseNavigation = [
-  { name: "환자 정보", href: "/patients", icon: Users },
-  { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
-  { name: "의료 이미지", href: "/images", icon: FileImage },
-  { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
-  { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
-];
+const baseNavigation = {
+  medical_staff: [
+    { name: "환자 정보", href: "/patients", icon: Users },
+    { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
+    { name: "의료 이미지", href: "/images", icon: FileImage },
+    { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
+    { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
+  ],
+  admin_staff: [
+    { name: "환자 정보", href: "/patients", icon: Users },
+    { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
+  ],
+};
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -38,11 +44,19 @@ export default function Sidebar() {
             const dashboardHref = user
               ? (user.role === 'medical_staff' ? '/medical_staff' : '/admin_staff')
               : '/';
-            const navigation = [
-              { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-              ...baseNavigation,
-            ];
-            return navigation.map((item) => {
+            
+            // 역할에 따라 다른 메뉴 표시
+            const navigationItems = user 
+              ? [
+                  { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+                  ...(baseNavigation[user.role as keyof typeof baseNavigation] || baseNavigation.admin_staff)
+                ]
+              : [
+                  { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+                  ...baseNavigation.medical_staff
+                ];
+            
+            return navigationItems.map((item) => {
               const Icon = item.icon;
               return (
                 <NavLink
