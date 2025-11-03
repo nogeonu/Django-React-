@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, User as UserIcon, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,20 +17,6 @@ const baseNavigation = {
     { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
   ],
 };
-=======
-import { NavLink } from 'react-router-dom';
-import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen } from 'lucide-react';
-
-const navigation = [
-  { name: "대시보드", href: "/", icon: BarChart3 },
-  { name: "환자 관리", href: "/patients", icon: Users },
-  { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
-  { name: "의료 이미지", href: "/images", icon: FileImage },
-  { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
-  { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
-  { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
-];
->>>>>>> john
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
