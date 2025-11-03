@@ -23,10 +23,29 @@ class MedicalImageSerializer(serializers.ModelSerializer):
         if obj.image_file:
             request = self.context.get('request')
             if request:
-                url = request.build_absolute_uri(obj.image_file.url)
+                # 프록시/리버스프록시 환경에서 절대 URL 생성
+                try:
+                    url = request.build_absolute_uri(obj.image_file.url)
+                except Exception:
+                    url = None
+                if not url or url.startswith('http://127.0.0.1') or url.startswith('http://localhost'):
+                    from django.conf import settings
+                    base = getattr(settings, 'PUBLIC_BASE_URL', None)
+                    if not base:
+                        scheme = 'https' if request.is_secure() else 'http'
+                        host = request.get_host()
+                        base = f"{scheme}://{host}"
+                    path = obj.image_file.url
+                    if path.startswith('/'):
+                        url = base + path
                 print(f"[MedicalImageSerializer] Generated image URL: {url}")
                 return url
+            # request 컨텍스트가 없을 때는 환경 변수 기반으로 절대 URL 생성
+            from django.conf import settings
+            base = getattr(settings, 'PUBLIC_BASE_URL', None)
             url = obj.image_file.url
+            if base and url.startswith('/'):
+                url = base + url
             print(f"[MedicalImageSerializer] No request context, using relative URL: {url}")
             return url
         print(f"[MedicalImageSerializer] No image_file for obj: {obj}")

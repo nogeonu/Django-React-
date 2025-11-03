@@ -116,6 +116,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# 절대 URL 생성에 사용할 공개 베이스 URL (예: Nginx 도메인)
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='http://34.42.223.43')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
