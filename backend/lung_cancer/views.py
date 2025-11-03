@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.db import models
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
 from .serializers import (
     PatientSerializer, 
@@ -43,6 +45,7 @@ else:
     feature_names = None
     model_loaded = False
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
