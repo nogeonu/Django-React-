@@ -614,6 +614,45 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             print(f"환자 검색 오류: {e}")
             return Response({'patients': [], 'error': str(e)})
     
+    @action(detail=False, methods=['get'])
+    def dashboard_statistics(self, request):
+        """대시보드 통계 API - medical_record 테이블 기반"""
+        try:
+            # managed=False이므로 raw SQL 사용
+            with connections['default'].cursor() as cursor:
+                # 총 진료 기록 수
+                cursor.execute("SELECT COUNT(*) FROM medical_record")
+                total_records = cursor.fetchone()[0]
+                
+                # 대기 중인 환자 수 (접수완료 상태)
+                cursor.execute("SELECT COUNT(*) FROM medical_record WHERE status = '접수완료'")
+                waiting_count = cursor.fetchone()[0]
+                
+                # 진료 완료 환자 수
+                cursor.execute("SELECT COUNT(*) FROM medical_record WHERE is_treatment_completed = 1")
+                completed_count = cursor.fetchone()[0]
+                
+                # 오늘 예약 검사 수 (오늘 접수된 기록)
+                from django.utils import timezone
+                today = timezone.now().date()
+                cursor.execute("""
+                    SELECT COUNT(*) FROM medical_record 
+                    WHERE DATE(reception_start_time) = %s
+                """, [today])
+                today_exams = cursor.fetchone()[0]
+            
+            return Response({
+                'total_records': total_records,
+                'waiting_count': waiting_count,
+                'completed_count': completed_count,
+                'today_exams': today_exams,
+            })
+        except Exception as e:
+            print(f"대시보드 통계 오류: {e}")
+            return Response({
+                'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=True, methods=['get'])
     def medical_records(self, request, pk=None):
         """특정 환자의 진료 기록 조회 API"""

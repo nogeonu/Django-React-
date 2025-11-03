@@ -94,38 +94,55 @@ export default function Dashboard() {
     refetchOnWindowFocus: false,
   });
 
+  // 대시보드 통계 데이터
+  const { data: dashboardStats } = useQuery({
+    queryKey: ["dashboard-statistics"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/medical-records/dashboard_statistics/");
+        return response;
+      } catch (err) {
+        console.error("대시보드 - 통계 데이터 조회 오류:", err);
+        return {
+          total_records: 0,
+          waiting_count: 0,
+          completed_count: 0,
+          today_exams: 0,
+        };
+      }
+    },
+    refetchInterval: 30000, // 30초마다 자동 새로고침
+  });
+
   const sortedWaitingPatients = [...(waitingPatients as MedicalRecord[])]
     .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime());
   const recentPatients = sortedWaitingPatients.slice(0, 5);
-  const totalPatients = (waitingPatients as MedicalRecord[]).length;
-  const todayExams = 3; // 임시 데이터
-  const pendingAnalysis = totalPatients; // 대기 중인 환자 수
 
   const stats = [
     {
       title: "총 환자 수",
-      value: totalPatients,
+      value: dashboardStats?.total_records || 0,
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-100"
     },
     {
       title: "오늘 예약 검사",
-      value: todayExams,
+      value: dashboardStats?.today_exams || 0,
       icon: Calendar,
       color: "text-red-600",
       bgColor: "bg-red-100"
     },
     {
       title: "진료 완료 환자",
-      value: 2,
+      value: dashboardStats?.completed_count || 0,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-100"
     },
     {
       title: "진료 대기 중 환자",
-      value: pendingAnalysis,
+      value: dashboardStats?.waiting_count || 0,
       icon: Activity,
       color: "text-orange-600",
       bgColor: "bg-orange-100"
@@ -160,9 +177,10 @@ export default function Dashboard() {
       setExaminationResult("");
       setTreatmentNote("");
 
-      // 대기 환자 목록 새로고침
+      // 대기 환자 목록 및 통계 새로고침
       queryClient.invalidateQueries({ queryKey: ["waiting-patients"] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-statistics"] });
     } catch (error: any) {
       console.error('진료 완료 오류:', error);
       toast({
