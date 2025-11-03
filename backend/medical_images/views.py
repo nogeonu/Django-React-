@@ -17,3 +17,10 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
     search_fields = ['description', 'doctor_notes', 'patient_id']
     ordering_fields = ['taken_date', 'created_at']
     ordering = ['-taken_date']
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({
+            'request': self.request
+        })
+        return context

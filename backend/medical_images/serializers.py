@@ -23,6 +23,11 @@ class MedicalImageSerializer(serializers.ModelSerializer):
         if obj.image_file:
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(obj.image_file.url)
-            return obj.image_file.url
+                url = request.build_absolute_uri(obj.image_file.url)
+                print(f"[MedicalImageSerializer] Generated image URL: {url}")
+                return url
+            url = obj.image_file.url
+            print(f"[MedicalImageSerializer] No request context, using relative URL: {url}")
+            return url
+        print(f"[MedicalImageSerializer] No image_file for obj: {obj}")
         return None
