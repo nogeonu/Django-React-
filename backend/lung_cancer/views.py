@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.db import models, connections
@@ -33,10 +34,10 @@ import base64
 # Flask ML Service URL (로컬 개발)
 ML_SERVICE_URL = os.environ.get('ML_SERVICE_URL', 'http://localhost:5002')
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
+    permission_classes = [AllowAny]
     
     def get_serializer_class(self):
         """요청에 따라 적절한 시리얼라이저 반환"""
@@ -460,10 +461,10 @@ def visualization_data(request):
         }, status=500)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MedicalRecordViewSet(viewsets.ModelViewSet):
     queryset = MedicalRecord.objects.all()
     serializer_class = MedicalRecordSerializer
+    permission_classes = [AllowAny]
     
     def get_serializer_class(self):
         if self.action == 'create':
