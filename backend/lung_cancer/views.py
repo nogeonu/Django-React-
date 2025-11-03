@@ -131,6 +131,7 @@ class PatientViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
+    @csrf_exempt
     def predict(self, request):
         """폐암 예측 API - Flask ML Service 호출"""
         serializer = LungCancerPredictionSerializer(data=request.data)
