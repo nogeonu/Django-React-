@@ -46,22 +46,23 @@ def predict():
         data = request.get_json()
         
         # 증상 데이터를 딕셔너리로 변환
+        # 모델은 1=아니오, 2=예를 사용하므로 True를 2로, False를 1로 변환
         symptoms_dict = {
             'GENDER': 1 if data.get('gender') in ['M', '남성', '1'] else 0,
             'AGE': data.get('age', 0),
-            'SMOKING': 1 if data.get('smoking') else 0,
-            'YELLOW_FINGERS': 1 if data.get('yellow_fingers') else 0,
-            'ANXIETY': 1 if data.get('anxiety') else 0,
-            'PEER_PRESSURE': 1 if data.get('peer_pressure') else 0,
-            'CHRONIC DISEASE': 1 if data.get('chronic_disease') else 0,
-            'FATIGUE ': 1 if data.get('fatigue') else 0,
-            'ALLERGY ': 1 if data.get('allergy') else 0,
-            'WHEEZING': 1 if data.get('wheezing') else 0,
-            'ALCOHOL CONSUMING': 1 if data.get('alcohol_consuming') else 0,
-            'COUGHING': 1 if data.get('coughing') else 0,
-            'SHORTNESS OF BREATH': 1 if data.get('shortness_of_breath') else 0,
-            'SWALLOWING DIFFICULTY': 1 if data.get('swallowing_difficulty') else 0,
-            'CHEST PAIN': 1 if data.get('chest_pain') else 0,
+            'SMOKING': 2 if data.get('smoking') else 1,
+            'YELLOW_FINGERS': 2 if data.get('yellow_fingers') else 1,
+            'ANXIETY': 2 if data.get('anxiety') else 1,
+            'PEER_PRESSURE': 2 if data.get('peer_pressure') else 1,
+            'CHRONIC DISEASE': 2 if data.get('chronic_disease') else 1,
+            'FATIGUE ': 2 if data.get('fatigue') else 1,
+            'ALLERGY ': 2 if data.get('allergy') else 1,
+            'WHEEZING': 2 if data.get('wheezing') else 1,
+            'ALCOHOL CONSUMING': 2 if data.get('alcohol_consuming') else 1,
+            'COUGHING': 2 if data.get('coughing') else 1,
+            'SHORTNESS OF BREATH': 2 if data.get('shortness_of_breath') else 1,
+            'SWALLOWING DIFFICULTY': 2 if data.get('swallowing_difficulty') else 1,
+            'CHEST PAIN': 2 if data.get('chest_pain') else 1,
         }
         
         # DataFrame 생성 및 특성 순서 맞추기
