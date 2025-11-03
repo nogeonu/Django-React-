@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'drf_yasg',
+    'storages',  # GCS를 위한 django-storages
     'patients',
     'medical_images',
     'dashboard',
@@ -114,10 +115,22 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-# 절대 URL 생성에 사용할 공개 베이스 URL (예: Nginx 도메인)
-PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='http://34.42.223.43')
+# GCS 설정
+USE_GCS = config('USE_GCS', default=False, cast=bool)
+GS_BUCKET_NAME = config('GS_BUCKET_NAME', default='')
+GS_PROJECT_ID = config('GS_PROJECT_ID', default='')
+
+if USE_GCS and GS_BUCKET_NAME:
+    # GCS를 사용하는 경우
+    DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
+    MEDIA_URL = f'https://storage.googleapis.com/{GS_BUCKET_NAME}/'
+    PUBLIC_BASE_URL = MEDIA_URL
+else:
+    # 로컬 파일 시스템 사용
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    # 절대 URL 생성에 사용할 공개 베이스 URL (예: Nginx 도메인)
+    PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='http://34.42.223.43')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

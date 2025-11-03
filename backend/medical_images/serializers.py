@@ -21,6 +21,14 @@ class MedicalImageSerializer(serializers.ModelSerializer):
     
     def get_image_url(self, obj):
         if obj.image_file:
+            from django.conf import settings
+            # GCS를 사용하면 url이 이미 절대 URL임
+            if getattr(settings, 'USE_GCS', False):
+                url = obj.image_file.url
+                print(f"[MedicalImageSerializer] GCS URL: {url}")
+                return url
+            
+            # 로컬 파일 시스템 사용 시
             request = self.context.get('request')
             if request:
                 # 프록시/리버스프록시 환경에서 절대 URL 생성
@@ -29,7 +37,6 @@ class MedicalImageSerializer(serializers.ModelSerializer):
                 except Exception:
                     url = None
                 if not url or url.startswith('http://127.0.0.1') or url.startswith('http://localhost'):
-                    from django.conf import settings
                     base = getattr(settings, 'PUBLIC_BASE_URL', None)
                     if not base:
                         scheme = 'https' if request.is_secure() else 'http'
@@ -38,10 +45,9 @@ class MedicalImageSerializer(serializers.ModelSerializer):
                     path = obj.image_file.url
                     if path.startswith('/'):
                         url = base + path
-                print(f"[MedicalImageSerializer] Generated image URL: {url}")
+                print(f"[MedicalImageSerializer] Generated local image URL: {url}")
                 return url
             # request 컨텍스트가 없을 때는 환경 변수 기반으로 절대 URL 생성
-            from django.conf import settings
             base = getattr(settings, 'PUBLIC_BASE_URL', None)
             url = obj.image_file.url
             if base and url.startswith('/'):
