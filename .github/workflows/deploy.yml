@@ -33,6 +33,12 @@ jobs:
             sudo rm -rf "$APP_DIR/backend/staticfiles" || true
             find "$APP_DIR/backend" -type d -name "__pycache__" -exec sudo rm -rf {} + || true
             find "$APP_DIR/backend" -type f -name "*.pyc" -delete || true
+            
+            # frontend 캐시 완전 삭제 (중복 파일 제거)
+            sudo rm -rf "$APP_DIR/frontend/node_modules" || true
+            sudo rm -rf "$APP_DIR/frontend/dist" || true
+            find "$APP_DIR/frontend/src/pages" -name "* 2.*" -type f -delete || true
+            find "$APP_DIR/frontend/src/pages" -name "* 2.tsx" -type f -delete || true
 
       - name: Sync project to VM (rsync)
         uses: burnett01/rsync-deployments@5.2
