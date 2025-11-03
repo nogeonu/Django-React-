@@ -333,23 +333,63 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
     def statistics(self, request):
         """폐암 예측 결과 통계"""
         try:
-            results = LungResult.objects.all()
-            
-            total_count = results.count()
-            positive_count = results.filter(prediction='양성').count()
-            negative_count = results.filter(prediction='음성').count()
-            
-            # 성별 통계
-            male_results = results.filter(lung_record__lung_cancer_patient__patient__gender__in=['M', '남성', '1'])
-            female_results = results.filter(lung_record__lung_cancer_patient__patient__gender__in=['F', '여성', '0'])
-            
-            male_positive = male_results.filter(prediction='양성').count()
-            male_negative = male_results.filter(prediction='음성').count()
-            female_positive = female_results.filter(prediction='양성').count()
-            female_negative = female_results.filter(prediction='음성').count()
-            
-            # 평균 위험도
-            avg_risk_score = results.aggregate(avg_risk=models.Avg('risk_score'))['avg_risk'] or 0
+            with connections['default'].cursor() as cursor:
+                # 전체 통계
+                cursor.execute("SELECT COUNT(*) FROM lung_result")
+                total_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM lung_result WHERE prediction = '양성'")
+                positive_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM lung_result WHERE prediction = '음성'")
+                negative_count = cursor.fetchone()[0]
+                
+                # 성별 통계 (lung_record의 gender 사용)
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1')
+                """)
+                male_total = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1') AND lr.prediction = '양성'
+                """)
+                male_positive = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1') AND lr.prediction = '음성'
+                """)
+                male_negative = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0')
+                """)
+                female_total = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0') AND lr.prediction = '양성'
+                """)
+                female_positive = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0') AND lr.prediction = '음성'
+                """)
+                female_negative = cursor.fetchone()[0]
+                
+                # 평균 위험도
+                cursor.execute("SELECT AVG(risk_score) FROM lung_result")
+                avg_risk_score = cursor.fetchone()[0] or 0
             
             return Response({
                 'total_patients': total_count,
@@ -358,16 +398,16 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
                 'positive_rate': round((positive_count / total_count * 100), 2) if total_count > 0 else 0,
                 'gender_statistics': {
                     'male': {
-                        'total': male_results.count(),
+                        'total': male_total,
                         'positive': male_positive,
                         'negative': male_negative,
-                        'positive_rate': round((male_positive / male_results.count() * 100), 2) if male_results.count() > 0 else 0
+                        'positive_rate': round((male_positive / male_total * 100), 2) if male_total > 0 else 0
                     },
                     'female': {
-                        'total': female_results.count(),
+                        'total': female_total,
                         'positive': female_positive,
                         'negative': female_negative,
-                        'positive_rate': round((female_positive / female_results.count() * 100), 2) if female_results.count() > 0 else 0
+                        'positive_rate': round((female_positive / female_total * 100), 2) if female_total > 0 else 0
                     }
                 },
                 'average_risk_score': round(float(avg_risk_score), 2)
