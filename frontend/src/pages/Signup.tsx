@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Activity, User, Mail, Lock, Shield } from 'lucide-react';
+import doctorBg from '@/assets/doctor-bg.jpg';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -167,30 +168,30 @@ export default function Signup() {
       </div>
       
       {/* Right Panel - Visual */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-900 to-black relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%), linear-gradient(-45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)`,
-            backgroundSize: '60px 60px'
-          }}></div>
+      <div className="hidden lg:flex flex-1 relative overflow-hidden">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0">
+          <img src={doctorBg} alt="Doctor" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/50"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/30 to-black/50"></div>
         </div>
         <div className="relative z-10 p-12 flex flex-col justify-between">
           <div></div>
           <div>
-            <h2 className="text-3xl font-light text-white mb-6">
+            <h2 className="text-3xl font-light text-white mb-6 drop-shadow-lg">
               스마트한 의료 시스템으로<br />
               더 나은 진료를 시작하세요.
             </h2>
-            <Link to="#" className="text-xs text-gray-400 hover:text-blue-500 uppercase tracking-wide">
+            <Link to="#" className="text-xs text-gray-300 hover:text-blue-500 uppercase tracking-wide transition">
               LEARN MORE →
             </Link>
           </div>
           <div className="flex justify-end">
-            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg flex gap-4 cursor-pointer hover:bg-white/20 transition">
-              <Activity className="w-5 h-5 text-blue-400" />
+            <div className="bg-white/20 backdrop-blur-md p-4 rounded-lg flex gap-4 cursor-pointer hover:bg-white/30 transition border border-white/20">
+              <Activity className="w-5 h-5 text-blue-300" />
               <div className="text-white text-sm">
                 <div className="font-medium">병원 관리 시스템</div>
-                <div className="text-xs text-gray-400">EventEye</div>
+                <div className="text-xs text-gray-300">EventEye</div>
               </div>
             </div>
           </div>
