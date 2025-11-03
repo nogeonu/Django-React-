@@ -163,11 +163,12 @@ export default function LungCancerPrediction() {
         title: "예측 완료",
         description: "폐암 예측이 성공적으로 완료되었습니다.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
+      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "예측 중 오류가 발생했습니다. 다시 시도해주세요.";
       toast({
         title: "오류 발생",
-        description: "예측 중 오류가 발생했습니다. 다시 시도해주세요.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
