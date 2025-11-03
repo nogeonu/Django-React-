@@ -181,7 +181,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장
                 lung_cancer_data = {
-                    'patient': patient,
+                    'patient_id': patient.id,
                     'smoking': serializer.validated_data['smoking'],
                     'yellow_fingers': serializer.validated_data['yellow_fingers'],
                     'anxiety': serializer.validated_data['anxiety'],
