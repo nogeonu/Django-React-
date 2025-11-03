@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Activity, User, Lock } from 'lucide-react';
 
 export default function Login() {
   const { login, user } = useAuth();
@@ -43,26 +44,103 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md bg-white shadow rounded-lg p-6">
-        <h1 className="text-2xl font-semibold mb-6">로그인</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="username">아이디</Label>
-            <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="아이디" />
+    <div className="min-h-screen flex bg-black">
+      {/* Left Panel - Login Form */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-md">
+          <div className="mb-8">
+            <Activity className="text-blue-500 text-3xl mb-4" />
+            <h1 className="text-4xl font-bold text-white mb-2">Sign In</h1>
           </div>
-          <div>
-            <Label htmlFor="password">비밀번호</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호" />
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="username" className="text-white text-sm mb-2 block">User Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input 
+                  id="username" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="Enter your username"
+                  className="pl-10 bg-gray-900 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="password" className="text-white text-sm mb-2 block">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Enter Password"
+                  className="pl-10 bg-gray-900 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="text-right">
+              <Link to="#" className="text-xs text-gray-400 hover:text-blue-500 uppercase tracking-wide">
+                FORGOT PASSWORD?
+              </Link>
+            </div>
+            
+            {error && (
+              <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 px-4 py-2 rounded">
+                {error}
+              </div>
+            )}
+            
+            <Button 
+              type="submit" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg uppercase tracking-wide disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Signing In...' : 'SIGN IN'}
+            </Button>
+          </form>
+          
+          <div className="mt-6 text-center text-white text-sm">
+            Don't have an account?{' '}
+            <Link className="text-blue-500 hover:underline" to="/signup">
+              Sign up
+            </Link>
           </div>
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? '로그인 중...' : '로그인'}
-          </Button>
-        </form>
-        <div className="mt-4 text-sm text-gray-600">
-          아직 계정이 없으신가요?{' '}
-          <Link className="text-blue-600 hover:underline" to="/signup">회원가입</Link>
+        </div>
+      </div>
+      
+      {/* Right Panel - Visual */}
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-900 to-black relative overflow-hidden">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%), linear-gradient(-45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)`,
+            backgroundSize: '60px 60px'
+          }}></div>
+        </div>
+        <div className="relative z-10 p-12 flex flex-col justify-between">
+          <div></div>
+          <div>
+            <h2 className="text-3xl font-light text-white mb-6">
+              환자 정보를 한눈에,<br />
+              의료 데이터를 스마트하게.
+            </h2>
+            <Link to="#" className="text-xs text-gray-400 hover:text-blue-500 uppercase tracking-wide">
+              LEARN MORE →
+            </Link>
+          </div>
+          <div className="flex justify-end">
+            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg flex gap-4 cursor-pointer hover:bg-white/20 transition">
+              <Activity className="w-5 h-5 text-blue-400" />
+              <div className="text-white text-sm">
+                <div className="font-medium">의료 이미지 분석</div>
+                <div className="text-xs text-gray-400">AI 기반 진단 지원</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
