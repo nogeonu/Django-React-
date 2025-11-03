@@ -8,6 +8,7 @@ import MedicalImages from '@/pages/MedicalImages';
 import LungCancerPrediction from '@/pages/LungCancerPrediction';
 import LungCancerStats from '@/pages/LungCancerStats';
 import MedicalRegistration from '@/pages/MedicalRegistration';
+import KnowledgeHub from '@/pages/KnowledgeHub';
 import NotFound from '@/pages/NotFound';
 import Sidebar from '@/components/Sidebar';
 import Login from '@/pages/Login';
@@ -20,6 +21,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+<<<<<<< HEAD
         <AuthProvider>
           <Router>
             <div className="flex min-h-screen bg-gray-50">
@@ -39,6 +41,22 @@ function App() {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>
+=======
+        <Router>
+          <div className="flex min-h-screen bg-gray-50">
+            <Sidebar />
+            <div className="flex-1 ml-64">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/patients" element={<Patients />} />
+                <Route path="/images" element={<MedicalImages />} />
+                <Route path="/lung-cancer" element={<LungCancerPrediction />} />
+                <Route path="/lung-cancer-stats" element={<LungCancerStats />} />
+                <Route path="/medical-registration" element={<MedicalRegistration />} />
+                <Route path="/knowledge-hub" element={<KnowledgeHub />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+>>>>>>> john
             </div>
             <Toaster />
           </Router>
