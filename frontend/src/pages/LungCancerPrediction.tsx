@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +44,6 @@ export default function LungCancerPrediction() {
   const [loading, setLoading] = useState(false);
   const [patientSearchResults, setPatientSearchResults] = useState<any[]>([]);
   const [showPatientSearch, setShowPatientSearch] = useState(false);
-  const [searchingPatients, setSearchingPatients] = useState(false);
   const { toast } = useToast();
 
   const handleInputChange = (field: string, value: string) => {
@@ -63,7 +62,6 @@ export default function LungCancerPrediction() {
   };
 
   const searchPatients = async (query: string) => {
-    setSearchingPatients(true);
     try {
       const response = await apiRequest('GET', `/api/lung_cancer/medical-records/search_patients/?query=${encodeURIComponent(query)}`);
       setPatientSearchResults(response.patients || []);
@@ -71,8 +69,6 @@ export default function LungCancerPrediction() {
     } catch (error) {
       console.error('환자 검색 오류:', error);
       setPatientSearchResults([]);
-    } finally {
-      setSearchingPatients(false);
     }
   };
 
