@@ -513,10 +513,39 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         """진료 완료 처리 API"""
         try:
             medical_record = self.get_object()
-            medical_record.complete_treatment()
+            
+            # 프론트엔드에서 전송된 추가 정보
+            examination_result = request.data.get('examination_result', '')
+            treatment_note = request.data.get('treatment_note', '')
+            
+            # notes 업데이트 (기존 notes + 검사 결과 + 진료 메모)
+            updated_notes = medical_record.notes or ''
+            if examination_result or treatment_note:
+                if updated_notes:
+                    updated_notes += '\n'
+                if examination_result:
+                    updated_notes += f'검사 결과: {examination_result}'
+                if examination_result and treatment_note:
+                    updated_notes += '\n'
+                if treatment_note:
+                    updated_notes += f'진료 메모: {treatment_note}'
+            
+            # managed=False이므로 raw SQL 사용
+            from django.utils import timezone
+            now = timezone.now()
+            with connections['default'].cursor() as cursor:
+                cursor.execute("""
+                    UPDATE medical_record 
+                    SET status = %s, 
+                        is_treatment_completed = %s, 
+                        treatment_end_time = %s,
+                        notes = %s
+                    WHERE id = %s
+                """, ['진료완료', True, now, updated_notes, pk])
+            
             return Response({
                 'message': '진료가 완료되었습니다.',
-                'treatment_end_time': medical_record.treatment_end_time
+                'treatment_end_time': now
             }, status=status.HTTP_200_OK)
         except MedicalRecord.DoesNotExist:
             return Response({

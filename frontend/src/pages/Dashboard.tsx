@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
@@ -13,6 +13,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
  
 import { useNavigate, useLocation } from "react-router-dom";
@@ -46,9 +49,16 @@ interface MedicalRecord {
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllWaiting, setShowAllWaiting] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [examinationResult, setExaminationResult] = useState("");
+  const [treatmentNote, setTreatmentNote] = useState("");
+  const [isCompleting, setIsCompleting] = useState(false);
   
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
@@ -128,6 +138,47 @@ export default function Dashboard() {
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleCompleteTreatment = async () => {
+    if (!selectedRecord) return;
+
+    setIsCompleting(true);
+    try {
+      await apiRequest('POST', `/api/lung_cancer/medical-records/${selectedRecord.id}/complete_treatment/`, {
+        examination_result: examinationResult,
+        treatment_note: treatmentNote,
+      });
+      
+      toast({
+        title: "진료 완료",
+        description: "진료가 성공적으로 완료되었습니다.",
+      });
+
+      // 모달 닫기 및 상태 초기화
+      setIsCompleteDialogOpen(false);
+      setSelectedRecord(null);
+      setExaminationResult("");
+      setTreatmentNote("");
+
+      // 대기 환자 목록 새로고침
+      queryClient.invalidateQueries({ queryKey: ["waiting-patients"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    } catch (error: any) {
+      console.error('진료 완료 오류:', error);
+      toast({
+        title: "오류 발생",
+        description: error?.response?.data?.error || "진료 완료 처리 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const openCompleteDialog = (record: MedicalRecord) => {
+    setSelectedRecord(record);
+    setIsCompleteDialogOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -217,7 +268,7 @@ export default function Dashboard() {
                   {(showAllWaiting ? sortedWaitingPatients : recentPatients).map((record: MedicalRecord, index: number) => (
                     <div 
                       key={record.id} 
-                      className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
+                      className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg"
                       data-testid={`patient-item-${record.id}`}
                     >
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -236,11 +287,25 @@ export default function Dashboard() {
                           {record.notes}
                         </p>
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                      <div className="flex flex-col items-end space-y-1">
+                        <div className="text-sm text-gray-400">
+                          {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCompleteDialog(record);
+                          }}
+                          className="text-xs"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          진료 완료
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -381,7 +446,61 @@ export default function Dashboard() {
         )}
       </main>
 
-      
+      {/* 진료 완료 모달 */}
+      <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>진료 완료</DialogTitle>
+            <DialogDescription>
+              {selectedRecord && `${selectedRecord.name} (${selectedRecord.patient_id})`} 환자의 진료를 완료합니다.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="examination-result">검사 결과</Label>
+              <Input
+                id="examination-result"
+                placeholder="검사 결과를 입력하세요 (예: 정상, 이상소견 등)"
+                value={examinationResult}
+                onChange={(e) => setExaminationResult(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="treatment-note">진료 메모</Label>
+              <textarea
+                id="treatment-note"
+                className="w-full min-h-[100px] p-2 border border-gray-300 rounded-md resize-none"
+                placeholder="진료 관련 메모를 입력하세요"
+                value={treatmentNote}
+                onChange={(e) => setTreatmentNote(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCompleteDialogOpen(false);
+                setExaminationResult("");
+                setTreatmentNote("");
+                setSelectedRecord(null);
+              }}
+              disabled={isCompleting}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleCompleteTreatment}
+              disabled={isCompleting}
+            >
+              {isCompleting ? "처리 중..." : "진료 완료"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
