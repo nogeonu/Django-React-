@@ -26,7 +26,8 @@ export default function Signup() {
     }
     try {
       setLoading(true);
-      await registerApi({
+      console.log('[회원가입] 전송 데이터:', { username, email, role, first_name: firstName, last_name: lastName });
+      const result = await registerApi({
         username,
         password,
         email,
@@ -34,9 +35,13 @@ export default function Signup() {
         first_name: firstName || undefined,
         last_name: lastName || undefined,
       });
+      console.log('[회원가입] 성공:', result);
+      alert('회원가입이 완료되었습니다!');
       navigate('/login', { replace: true });
     } catch (err: any) {
+      console.error('[회원가입] 실패:', err);
       const msg = err?.response?.data?.detail || '회원가입에 실패했습니다.';
+      console.error('[회원가입] 에러 메시지:', msg);
       setError(msg);
     } finally {
       setLoading(false);
