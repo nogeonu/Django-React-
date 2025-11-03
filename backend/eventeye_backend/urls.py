@@ -10,6 +10,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('hospital.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),
+    path('api/literature/', include('literature.urls')),
 ]
 
 if settings.DEBUG:
