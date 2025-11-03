@@ -125,7 +125,7 @@ class MedicalRecordCreateSerializer(serializers.Serializer):
     
     def validate_patient_id(self, value):
         try:
-            Patient.objects.using('hospital_db').get(id=value)
+            Patient.objects.get(id=value)
         except Patient.DoesNotExist:
             raise serializers.ValidationError("존재하지 않는 환자입니다.")
         return value

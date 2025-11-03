@@ -44,7 +44,7 @@ else:
     model_loaded = False
 
 class PatientViewSet(viewsets.ModelViewSet):
-    queryset = Patient.objects.using('hospital_db').all()
+    queryset = Patient.objects.all()
     serializer_class = PatientSerializer
     
     def get_serializer_class(self):
@@ -61,7 +61,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         
         try:
             # hospital_db 데이터베이스 연결 사용
-            with connections['hospital_db'].cursor() as cursor:
+            with connections['default'].cursor() as cursor:
                 print(f"환자 {instance.id} 삭제 시작...")
                 
                 # 1. LungResult 삭제
@@ -99,7 +99,7 @@ class PatientViewSet(viewsets.ModelViewSet):
             print(f"환자 삭제 중 오류: {e}")
             # 오류가 발생해도 Patient는 삭제 시도
             try:
-                with connections['hospital_db'].cursor() as cursor:
+                with connections['default'].cursor() as cursor:
                     cursor.execute("DELETE FROM patient WHERE id = %s", [instance.id])
                     print(f"환자 {instance.id} 강제 삭제 완료: {cursor.rowcount}개")
             except Exception as final_error:
@@ -115,7 +115,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 # 환자 ID 자동 생성
                 from datetime import datetime
                 current_year = datetime.now().year
-                last_patient = Patient.objects.using('hospital_db').filter(id__startswith=f'P{current_year}').order_by('-id').first()
+                last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
                 if last_patient:
                     last_number = int(last_patient.id[-3:])
                     new_number = last_number + 1
@@ -133,7 +133,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 patient_data['id'] = patient_id
                 patient_data['age'] = age
                 
-                patient = Patient.objects.using('hospital_db').create(**patient_data)
+                patient = Patient.objects.create(**patient_data)
                 
                 return Response({
                     'patient_id': patient.id,
@@ -190,7 +190,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     'age': age,
                 }
                 
-                patient = Patient.objects.using('hospital_db').create(**patient_data)
+                patient = Patient.objects.create(**patient_data)
                 
                 # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장
                 lung_cancer_data = {
@@ -210,7 +210,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     'chest_pain': serializer.validated_data['chest_pain'],
                 }
                 
-                lung_cancer_patient = LungCancerPatient.objects.using('hospital_db').create(**lung_cancer_data)
+                lung_cancer_patient = LungCancerPatient.objects.create(**lung_cancer_data)
                 
                 # 3. 예측 수행을 위한 증상 데이터 준비
                 symptoms_dict = lung_cancer_patient.get_symptoms_dict()
@@ -226,7 +226,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 lung_cancer_patient.save()
                 
                 # 5. LungRecord에 검사 기록 저장
-                lung_record = LungRecord.objects.using('hospital_db').create(
+                lung_record = LungRecord.objects.create(
                     lung_cancer_patient=lung_cancer_patient,
                     smoking=lung_cancer_patient.smoking,
                     yellow_fingers=lung_cancer_patient.yellow_fingers,
@@ -244,7 +244,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 )
                 
                 # 6. LungResult에 검사 결과 저장
-                LungResult.objects.using('hospital_db').create(
+                LungResult.objects.create(
                     lung_record=lung_record,
                     prediction='양성' if lung_cancer_patient.prediction == 'YES' else '음성',
                     risk_score=lung_cancer_patient.prediction_probability * 100,
@@ -284,7 +284,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         try:
             patient = self.get_object()
             # 해당 환자의 모든 진료 기록을 최신순으로 조회
-            medical_records = MedicalRecord.objects.using('hospital_db').filter(
+            medical_records = MedicalRecord.objects.filter(
                 patient_id=patient.id
             ).order_by('-reception_start_time')
             
@@ -303,18 +303,18 @@ class PatientViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LungRecordViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = LungRecord.objects.using('hospital_db').all()
+    queryset = LungRecord.objects.all()
     serializer_class = LungRecordSerializer
 
 class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = LungResult.objects.using('hospital_db').all()
+    queryset = LungResult.objects.all()
     serializer_class = LungResultSerializer
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """폐암 예측 결과 통계"""
         try:
-            results = LungResult.objects.using('hospital_db').all()
+            results = LungResult.objects.all()
             
             total_count = results.count()
             positive_count = results.filter(prediction='양성').count()
@@ -361,7 +361,7 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
 def visualization_data(request):
     """시각화 데이터 API"""
     try:
-        results = LungResult.objects.using('hospital_db').all()
+        results = LungResult.objects.all()
         
         if not results.exists():
             return JsonResponse({'error': '데이터가 없습니다.'}, status=404)
@@ -408,7 +408,7 @@ def visualization_data(request):
 
 
 class MedicalRecordViewSet(viewsets.ModelViewSet):
-    queryset = MedicalRecord.objects.using('hospital_db').all()
+    queryset = MedicalRecord.objects.all()
     serializer_class = MedicalRecordSerializer
     
     def get_serializer_class(self):
@@ -423,8 +423,8 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         serializer = MedicalRecordCreateSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                patient = Patient.objects.using('hospital_db').get(id=serializer.validated_data['patient_id'])
-                medical_record = MedicalRecord.objects.using('hospital_db').create(
+                patient = Patient.objects.get(id=serializer.validated_data['patient_id'])
+                medical_record = MedicalRecord.objects.create(
                     patient_id=serializer.validated_data['patient_id'],
                     name=serializer.validated_data['name'],
                     department=serializer.validated_data['department'],
@@ -507,7 +507,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         
         try:
             # 환자 이름으로 검색 (대소문자 구분 없음)
-            patients = Patient.objects.using('hospital_db').filter(
+            patients = Patient.objects.filter(
                 name__icontains=query
             ).order_by('name')[:10]  # 최대 10명만 반환, 이름순 정렬
             
@@ -525,7 +525,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         try:
             patient = self.get_object()
             # 해당 환자의 모든 진료 기록을 최신순으로 조회
-            medical_records = MedicalRecord.objects.using('hospital_db').filter(
+            medical_records = MedicalRecord.objects.filter(
                 patient_id=patient.id
             ).order_by('-reception_start_time')
             

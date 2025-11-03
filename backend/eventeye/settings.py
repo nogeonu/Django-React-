@@ -82,17 +82,6 @@ DATABASES = {
             'charset': 'utf8mb4',
         },
     },
-    'hospital_db': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'hospital_db',
-        'USER': 'acorn',
-        'PASSWORD': 'acorn1234',
-        'HOST': '34.42.223.43',
-        'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-        },
-    },
 }
 
 # 외부 데이터베이스 연결 플래그 (참고용)
