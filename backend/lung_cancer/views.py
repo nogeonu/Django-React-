@@ -221,6 +221,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 ml_result = ml_response.json()
                 
                 # 3. LungRecord에 검사 기록 저장 (raw SQL 사용)
+                db_saved = False
                 try:
                     now = datetime.now()
                     with connections['default'].cursor() as cursor:
@@ -265,6 +266,8 @@ class PatientViewSet(viewsets.ModelViewSet):
                             VALUES (%s, %s, %s, %s)
                         """, [lung_record_id, prediction_label, ml_result['probability'], now])
                         print(f"[폐암 예측] LungResult 저장 성공: lung_record_id={lung_record_id}")
+                    
+                    db_saved = True
                 except Exception as db_error:
                     print(f"[폐암 예측] DB 저장 실패: {str(db_error)}")
                     # DB 저장 실패해도 예측 결과는 반환
@@ -276,7 +279,8 @@ class PatientViewSet(viewsets.ModelViewSet):
                     'probability': ml_result['probability'],
                     'risk_level': ml_result['risk_level'],
                     'risk_message': ml_result['risk_message'],
-                    'symptoms': ml_result['symptoms']
+                    'symptoms': ml_result['symptoms'],
+                    'external_db_saved': db_saved
                 }, status=status.HTTP_201_CREATED)
                 
             except requests.exceptions.RequestException as e:
