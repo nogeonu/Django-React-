@@ -82,11 +82,14 @@ def register(request):
     first_name = payload.get("first_name")
     last_name = payload.get("last_name")
     role = payload.get("role", "medical_staff")  # 'medical_staff' | 'admin_staff'
+    
+    print(f"[회원가입] 받은 데이터: username={username}, role={role}, email={email}")
 
     if not username or not password:
         return JsonResponse({"detail": "username and password are required"}, status=400)
 
     if role not in ("medical_staff", "admin_staff"):
+        print(f"[회원가입] 잘못된 role: {role}")
         return JsonResponse({"detail": "Only medical_staff or admin_staff can self-register"}, status=403)
 
     User = get_user_model()
@@ -103,16 +106,23 @@ def register(request):
         return JsonResponse({"detail": "Username already exists"}, status=400)
 
     # 1) 기본 DB 생성
-    user = User.objects.create_user(username=username, password=password, email=email)
-    if first_name:
-        user.first_name = first_name
-    if last_name:
-        user.last_name = last_name
-    if role == "admin_staff":
-        user.is_staff = True
-    user.save()
+    print(f"[회원가입] default DB에 사용자 생성 시도: {username}")
+    try:
+        user = User.objects.create_user(username=username, password=password, email=email)
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        if role == "admin_staff":
+            user.is_staff = True
+        user.save()
+        print(f"[회원가입] default DB 사용자 생성 성공: ID={user.id}")
+    except Exception as e:
+        print(f"[회원가입] default DB 사용자 생성 실패: {e}")
+        return JsonResponse({"detail": f"Failed to save user in default DB: {str(e)}"}, status=500)
 
     # 2) hospital_db 생성(실패 시 롤백)
+    print(f"[회원가입] hospital_db에 사용자 생성 시도: {username}")
     try:
         user_h = User.objects.db_manager('hospital_db').create_user(
             username=username,
@@ -126,7 +136,9 @@ def register(request):
         if role == "admin_staff":
             user_h.is_staff = True
         user_h.save(using='hospital_db')
+        print(f"[회원가입] hospital_db 사용자 생성 성공: ID={user_h.id}")
     except Exception as e:
+        print(f"[회원가입] hospital_db 사용자 생성 실패: {e}")
         try:
             user.delete()
         except Exception:
