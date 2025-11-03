@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Users, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { apiRequest } from '@/lib/api';
 
 interface Statistics {
   total_patients: number;
@@ -27,22 +29,36 @@ interface Statistics {
   average_risk_score: number;
 }
 
+interface VisualizationData {
+  prediction_distribution: { [key: string]: number };
+  gender_distribution: { [key: string]: { [key: string]: number } };
+  age_distribution: { [key: string]: { [key: string]: number } };
+  total_patients: number;
+  average_age: number;
+  average_risk: number;
+}
+
+const COLORS = {
+  positive: '#ef4444',  // red-500
+  negative: '#10b981',  // green-500
+  male: '#3b82f6',      // blue-500
+  female: '#f472b6',    // pink-400
+};
+
 export default function LungCancerStats() {
   const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [visualizationData, setVisualizationData] = useState<VisualizationData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchStatistics();
+    fetchVisualizationData();
   }, []);
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch('/api/lung_cancer/results/statistics/');
-      if (!response.ok) {
-        throw new Error('통계 데이터를 가져오는데 실패했습니다.');
-      }
-      const data = await response.json();
+      const data = await apiRequest('GET', '/api/lung_cancer/results/statistics/');
       setStatistics(data);
     } catch (error) {
       console.error('Error:', error);
@@ -51,10 +67,23 @@ export default function LungCancerStats() {
         description: "통계 데이터를 불러오는데 실패했습니다.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
+
+  const fetchVisualizationData = async () => {
+    try {
+      const data = await apiRequest('GET', '/api/lung_cancer/visualization/');
+      setVisualizationData(data);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (statistics) {
+      setLoading(false);
+    }
+  }, [statistics]);
 
   if (loading) {
     return (
@@ -79,6 +108,25 @@ export default function LungCancerStats() {
       </div>
     );
   }
+
+  // 데이터 가공
+  const predictionData = Object.entries(statistics.gender_statistics).map(([gender, stats]) => ({
+    name: gender === 'male' ? '남성' : '여성',
+    양성: stats.positive,
+    음성: stats.negative,
+  }));
+
+  const pieData = [
+    { name: '양성', value: statistics.positive_patients, color: COLORS.positive },
+    { name: '음성', value: statistics.negative_patients, color: COLORS.negative },
+  ];
+
+  const ageChartData = visualizationData?.age_distribution ? 
+    Object.entries(visualizationData.age_distribution).map(([age, data]) => ({
+      age: `${age}대`,
+      양성: data['YES'] || 0,
+      음성: data['NO'] || 0,
+    })) : [];
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -140,8 +188,85 @@ export default function LungCancerStats() {
         </Card>
       </div>
 
-      {/* 성별 통계 */}
+      {/* 차트 영역 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* 예측 결과 분포 (원형 차트) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>예측 결과 분포</CardTitle>
+            <CardDescription>전체 환자의 양성/음성 예측 비율</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* 성별 예측 결과 (막대 차트) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>성별 예측 결과 비교</CardTitle>
+            <CardDescription>성별에 따른 양성/음성 예측 비교</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={predictionData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="양성" fill={COLORS.positive} />
+                <Bar dataKey="음성" fill={COLORS.negative} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* 연령대별 분석 */}
+        {ageChartData.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>연령대별 예측 결과</CardTitle>
+              <CardDescription>연령대별 양성/음성 예측 분석</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={ageChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="age" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="양성" fill={COLORS.positive} />
+                  <Bar dataKey="음성" fill={COLORS.negative} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* 상세 통계 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>남성 환자 통계</CardTitle>
@@ -200,23 +325,6 @@ export default function LungCancerStats() {
           </CardContent>
         </Card>
       </div>
-
-      {/* 시각화 차트 영역 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>데이터 시각화</CardTitle>
-          <CardDescription>
-            폐암 예측 결과의 시각적 분석을 위한 차트입니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-            <p>차트 데이터를 불러오는 중...</p>
-            <p className="text-sm">실제 구현에서는 Chart.js 또는 Recharts를 사용하여 차트를 렌더링합니다.</p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
