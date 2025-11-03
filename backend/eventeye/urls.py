@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/medical-images/', include('medical_images.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),
+    path('api/literature/', include('literature.urls')),
     # Auth endpoints
     path('api/auth/login', auth_views.login, name='login'),
     path('api/auth/me', auth_views.me, name='me'),

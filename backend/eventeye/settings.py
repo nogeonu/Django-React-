@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'medical_images',
     'dashboard',
     'lung_cancer',
+    'literature',
 ]
 
 MIDDLEWARE = [
