@@ -93,22 +93,22 @@ def register(request):
         return JsonResponse({"detail": "Only medical_staff or admin_staff can self-register"}, status=403)
 
     User = get_user_model()
-    # 두 DB 모두 중복 확인
+    # 중복 확인
     try:
-        exists_default = User.objects.filter(username=username).exists()
-    except Exception:
-        exists_default = False
-    try:
-        exists_hosp = User.objects.db_manager('hospital_db').filter(username=username).exists()
-    except Exception:
-        exists_hosp = False
-    if exists_default or exists_hosp:
-        return JsonResponse({"detail": "Username already exists"}, status=400)
+        if User.objects.filter(username=username).exists():
+            print(f"[회원가입] 중복된 사용자명: {username}")
+            return JsonResponse({"detail": "Username already exists"}, status=400)
+    except Exception as e:
+        print(f"[회원가입] 중복 확인 실패: {e}")
 
-    # 1) 기본 DB 생성
-    print(f"[회원가입] default DB에 사용자 생성 시도: {username}")
+    # 사용자 생성
+    print(f"[회원가입] 사용자 생성 시도: {username}")
     try:
-        user = User.objects.create_user(username=username, password=password, email=email)
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email,
+        )
         if first_name:
             user.first_name = first_name
         if last_name:
@@ -116,34 +116,10 @@ def register(request):
         if role == "admin_staff":
             user.is_staff = True
         user.save()
-        print(f"[회원가입] default DB 사용자 생성 성공: ID={user.id}")
+        print(f"[회원가입] 사용자 생성 성공: ID={user.id}")
     except Exception as e:
-        print(f"[회원가입] default DB 사용자 생성 실패: {e}")
-        return JsonResponse({"detail": f"Failed to save user in default DB: {str(e)}"}, status=500)
-
-    # 2) hospital_db 생성(실패 시 롤백)
-    print(f"[회원가입] hospital_db에 사용자 생성 시도: {username}")
-    try:
-        user_h = User.objects.db_manager('hospital_db').create_user(
-            username=username,
-            password=password,
-            email=email,
-        )
-        if first_name:
-            user_h.first_name = first_name
-        if last_name:
-            user_h.last_name = last_name
-        if role == "admin_staff":
-            user_h.is_staff = True
-        user_h.save(using='hospital_db')
-        print(f"[회원가입] hospital_db 사용자 생성 성공: ID={user_h.id}")
-    except Exception as e:
-        print(f"[회원가입] hospital_db 사용자 생성 실패: {e}")
-        try:
-            user.delete()
-        except Exception:
-            pass
-        return JsonResponse({"detail": f"Failed to save user in hospital_db: {str(e)}"}, status=500)
+        print(f"[회원가입] 사용자 생성 실패: {e}")
+        return JsonResponse({"detail": f"Failed to save user: {str(e)}"}, status=500)
 
     return JsonResponse({
         "id": user.id,

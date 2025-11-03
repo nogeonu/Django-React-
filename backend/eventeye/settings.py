@@ -72,10 +72,6 @@ WSGI_APPLICATION = 'eventeye.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    },
-    'hospital_db': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hospital_db',
         'USER': 'acorn',
