@@ -548,7 +548,7 @@ export default function Patients() {
                             {new Date(record.reception_start_time).toLocaleString('ko-KR')}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-900">{record.notes}</p>
+                        <div className="text-sm text-gray-900 whitespace-pre-line">{record.notes}</div>
                         {record.treatment_end_time && (
                           <p className="text-xs text-gray-500 mt-1">
                             진료 완료: {new Date(record.treatment_end_time).toLocaleString('ko-KR')}
