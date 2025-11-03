@@ -96,10 +96,12 @@ export default function MedicalImages() {
       });
       queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('이미지 업로드 오류:', error);
+      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "이미지 업로드 중 오류가 발생했습니다.";
       toast({
         title: "업로드 실패",
-        description: "이미지 업로드 중 오류가 발생했습니다.",
+        description: errorMessage,
         variant: "destructive",
       });
     }

@@ -18,7 +18,6 @@ class MedicalImage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="등록일")
     
     class Meta:
-        db_table = 'medical_image'
         verbose_name = "의료 이미지"
         verbose_name_plural = "의료 이미지들"
         ordering = ['-taken_date']
