@@ -111,7 +111,9 @@ export default function LungCancerPrediction() {
   const handlePatientSelect = (patient: Patient) => {
     setFormData(prev => ({
       ...prev,
-      name: patient.name
+      name: patient.name,
+      gender: patient.gender === '남성' ? '1' : patient.gender === '여성' ? '0' : '',
+      age: patient.age.toString()
     }));
     setPatientSearchOpen(false);
     setPatientSearchTerm('');
