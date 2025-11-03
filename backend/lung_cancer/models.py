@@ -70,6 +70,7 @@ class LungRecord(models.Model):
     lung_cancer_patient = models.ForeignKey(LungCancerPatient, on_delete=models.CASCADE, related_name='lung_records', blank=True, null=True)
     
     # 환자 기본 정보 (예측 시점 스냅샷)
+    name = models.CharField('환자명', max_length=100)  # 환자 이름 추가
     gender = models.CharField('성별', max_length=10)
     age = models.IntegerField('나이')
     
