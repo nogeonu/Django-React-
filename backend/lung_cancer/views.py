@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.db import models
+from django.db import models, connections
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import requests
@@ -49,8 +49,6 @@ class PatientViewSet(viewsets.ModelViewSet):
     
     def perform_destroy(self, instance):
         """환자 삭제 시 관련 데이터도 함께 삭제"""
-        from django.db import connections
-        
         try:
             # hospital_db 데이터베이스 연결 사용
             with connections['default'].cursor() as cursor:
@@ -179,25 +177,38 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 patient = Patient.objects.create(**patient_data)
                 
-                # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장
-                lung_cancer_data = {
-                    'patient_id': patient.id,
-                    'smoking': serializer.validated_data['smoking'],
-                    'yellow_fingers': serializer.validated_data['yellow_fingers'],
-                    'anxiety': serializer.validated_data['anxiety'],
-                    'peer_pressure': serializer.validated_data['peer_pressure'],
-                    'chronic_disease': serializer.validated_data['chronic_disease'],
-                    'fatigue': serializer.validated_data['fatigue'],
-                    'allergy': serializer.validated_data['allergy'],
-                    'wheezing': serializer.validated_data['wheezing'],
-                    'alcohol_consuming': serializer.validated_data['alcohol_consuming'],
-                    'coughing': serializer.validated_data['coughing'],
-                    'shortness_of_breath': serializer.validated_data['shortness_of_breath'],
-                    'swallowing_difficulty': serializer.validated_data['swallowing_difficulty'],
-                    'chest_pain': serializer.validated_data['chest_pain'],
-                }
+                # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장 (raw SQL 사용)
+                # managed=False 테이블이므로 ORM 대신 raw SQL 사용
+                with connections['default'].cursor() as cursor:
+                    sql = """
+                        INSERT INTO lung_cancer_patient (
+                            patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
+                            chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
+                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                    """
+                    cursor.execute(sql, [
+                        patient.id,
+                        serializer.validated_data['smoking'],
+                        serializer.validated_data['yellow_fingers'],
+                        serializer.validated_data['anxiety'],
+                        serializer.validated_data['peer_pressure'],
+                        serializer.validated_data['chronic_disease'],
+                        serializer.validated_data['fatigue'],
+                        serializer.validated_data['allergy'],
+                        serializer.validated_data['wheezing'],
+                        serializer.validated_data['alcohol_consuming'],
+                        serializer.validated_data['coughing'],
+                        serializer.validated_data['shortness_of_breath'],
+                        serializer.validated_data['swallowing_difficulty'],
+                        serializer.validated_data['chest_pain'],
+                    ])
+                    lung_cancer_patient_id = cursor.lastrowid
                 
-                lung_cancer_patient = LungCancerPatient.objects.create(**lung_cancer_data)
+                # ORM 객체를 가져와서 이후 save() 호출 가능하도록 함
+                lung_cancer_patient = LungCancerPatient.objects.get(id=lung_cancer_patient_id)
                 
                 # 3. Flask ML Service를 통해 예측 수행
                 ml_response = requests.post(
@@ -229,35 +240,54 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 ml_result = ml_response.json()
                 
-                # 4. 예측 결과를 LungCancerPatient에 저장
-                lung_cancer_patient.prediction = ml_result['prediction']
-                lung_cancer_patient.prediction_probability = ml_result['probability'] / 100
-                lung_cancer_patient.save()
+                # 4. 예측 결과를 LungCancerPatient에 저장 (raw SQL 사용)
+                with connections['default'].cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE lung_cancer_patient 
+                        SET prediction = %s, prediction_probability = %s 
+                        WHERE id = %s
+                    """, [
+                        ml_result['prediction'],
+                        ml_result['probability'] / 100,
+                        lung_cancer_patient.id
+                    ])
                 
-                # 5. LungRecord에 검사 기록 저장
-                lung_record = LungRecord.objects.create(
-                    lung_cancer_patient=lung_cancer_patient,
-                    smoking=lung_cancer_patient.smoking,
-                    yellow_fingers=lung_cancer_patient.yellow_fingers,
-                    anxiety=lung_cancer_patient.anxiety,
-                    peer_pressure=lung_cancer_patient.peer_pressure,
-                    chronic_disease=lung_cancer_patient.chronic_disease,
-                    fatigue=lung_cancer_patient.fatigue,
-                    allergy=lung_cancer_patient.allergy,
-                    wheezing=lung_cancer_patient.wheezing,
-                    alcohol_consuming=lung_cancer_patient.alcohol_consuming,
-                    coughing=lung_cancer_patient.coughing,
-                    shortness_of_breath=lung_cancer_patient.shortness_of_breath,
-                    swallowing_difficulty=lung_cancer_patient.swallowing_difficulty,
-                    chest_pain=lung_cancer_patient.chest_pain,
-                )
+                # 5. LungRecord에 검사 기록 저장 (raw SQL 사용)
+                with connections['default'].cursor() as cursor:
+                    sql = """
+                        INSERT INTO lung_record (
+                            lung_cancer_patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
+                            chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
+                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                    """
+                    cursor.execute(sql, [
+                        lung_cancer_patient.id,
+                        serializer.validated_data['smoking'],
+                        serializer.validated_data['yellow_fingers'],
+                        serializer.validated_data['anxiety'],
+                        serializer.validated_data['peer_pressure'],
+                        serializer.validated_data['chronic_disease'],
+                        serializer.validated_data['fatigue'],
+                        serializer.validated_data['allergy'],
+                        serializer.validated_data['wheezing'],
+                        serializer.validated_data['alcohol_consuming'],
+                        serializer.validated_data['coughing'],
+                        serializer.validated_data['shortness_of_breath'],
+                        serializer.validated_data['swallowing_difficulty'],
+                        serializer.validated_data['chest_pain'],
+                    ])
+                    lung_record_id = cursor.lastrowid
                 
-                # 6. LungResult에 검사 결과 저장
-                LungResult.objects.create(
-                    lung_record=lung_record,
-                    prediction='양성' if lung_cancer_patient.prediction == 'YES' else '음성',
-                    risk_score=lung_cancer_patient.prediction_probability * 100,
-                )
+                # 6. LungResult에 검사 결과 저장 (raw SQL 사용)
+                prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
+                with connections['default'].cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO lung_result (lung_record_id, prediction, risk_score) 
+                        VALUES (%s, %s, %s)
+                    """, [lung_record_id, prediction_label, ml_result['probability']])
                 
                 # 7. 결과 반환
                 return Response({
