@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
 const baseNavigation = [
-  { name: "환자 관리", href: "/patients", icon: Users },
+  { name: "환자 정보", href: "/patients", icon: Users },
   { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
   { name: "의료 이미지", href: "/images", icon: FileImage },
   { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
