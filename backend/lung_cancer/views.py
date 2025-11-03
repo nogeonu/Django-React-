@@ -500,18 +500,28 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def search_patients(self, request):
-        """환자 검색 API"""
-        query = request.query_params.get('q', '').strip()
+        """환자 검색 API - 호흡기내과 환자만 검색"""
+        query = request.query_params.get('query', request.query_params.get('q', '')).strip()
         if not query:
             return Response({'patients': []})
         
         try:
-            # 환자 이름으로 검색 (대소문자 구분 없음)
+            # 호흡기내과 진료 기록이 있는 환자들만 검색
+            from django.db.models import Q
+            from .models import MedicalRecord
+            
+            # 호흡기내과 환자 ID 목록 가져오기
+            respiratory_patient_ids = MedicalRecord.objects.filter(
+                department='호흡기내과'
+            ).values_list('patient_id', flat=True).distinct()
+            
+            # 해당 환자들 중 이름으로 검색
             patients = Patient.objects.filter(
-                name__icontains=query
+                Q(id__in=respiratory_patient_ids) &
+                Q(name__icontains=query)
             ).order_by('name')[:10]  # 최대 10명만 반환, 이름순 정렬
             
-            print(f"검색어: '{query}', 결과: {patients.count()}명")
+            print(f"검색어: '{query}', 호흡기내과 환자 결과: {patients.count()}명")
             
             serializer = PatientSerializer(patients, many=True)
             return Response({'patients': serializer.data})

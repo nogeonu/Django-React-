@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/api';
 
 interface PredictionResult {
   patient_id: number;
@@ -41,6 +42,9 @@ export default function LungCancerPrediction() {
 
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [patientSearchResults, setPatientSearchResults] = useState<any[]>([]);
+  const [showPatientSearch, setShowPatientSearch] = useState(false);
+  const [searchingPatients, setSearchingPatients] = useState(false);
   const { toast } = useToast();
 
   const handleInputChange = (field: string, value: string) => {
@@ -48,6 +52,39 @@ export default function LungCancerPrediction() {
       ...prev,
       [field]: value
     }));
+    
+    // 이름 입력 시 환자 검색
+    if (field === 'name' && value.length > 1) {
+      searchPatients(value);
+    } else if (field === 'name' && value.length === 0) {
+      setPatientSearchResults([]);
+      setShowPatientSearch(false);
+    }
+  };
+
+  const searchPatients = async (query: string) => {
+    setSearchingPatients(true);
+    try {
+      const response = await apiRequest('GET', `/api/lung_cancer/medical-records/search_patients/?query=${encodeURIComponent(query)}`);
+      setPatientSearchResults(response.patients || []);
+      setShowPatientSearch(true);
+    } catch (error) {
+      console.error('환자 검색 오류:', error);
+      setPatientSearchResults([]);
+    } finally {
+      setSearchingPatients(false);
+    }
+  };
+
+  const selectPatient = (patient: any) => {
+    setFormData(prev => ({
+      ...prev,
+      name: patient.name,
+      gender: patient.gender === '남성' || patient.gender === 'M' ? '1' : '0',
+      age: patient.age?.toString() || ''
+    }));
+    setShowPatientSearch(false);
+    setPatientSearchResults([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,28 +93,34 @@ export default function LungCancerPrediction() {
     setResult(null);
 
     try {
+      // 나이로부터 생년월일 계산 (대략적인 birth_date 생성)
+      const age = parseInt(formData.age);
+      const birthYear = new Date().getFullYear() - age;
+      const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
+      
       const response = await fetch('/api/lung_cancer/patients/predict/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...formData,
-          gender: parseInt(formData.gender),
-          age: parseInt(formData.age),
-          smoking: parseInt(formData.smoking),
-          yellow_fingers: parseInt(formData.yellow_fingers),
-          anxiety: parseInt(formData.anxiety),
-          peer_pressure: parseInt(formData.peer_pressure),
-          chronic_disease: parseInt(formData.chronic_disease),
-          fatigue: parseInt(formData.fatigue),
-          allergy: parseInt(formData.allergy),
-          wheezing: parseInt(formData.wheezing),
-          alcohol_consuming: parseInt(formData.alcohol_consuming),
-          coughing: parseInt(formData.coughing),
-          shortness_of_breath: parseInt(formData.shortness_of_breath),
-          swallowing_difficulty: parseInt(formData.swallowing_difficulty),
-          chest_pain: parseInt(formData.chest_pain),
+          name: formData.name,
+          birth_date: birth_date,
+          gender: formData.gender === '1' ? 'M' : 'F',
+          age: age,
+          smoking: formData.smoking === '2',
+          yellow_fingers: formData.yellow_fingers === '2',
+          anxiety: formData.anxiety === '2',
+          peer_pressure: formData.peer_pressure === '2',
+          chronic_disease: formData.chronic_disease === '2',
+          fatigue: formData.fatigue === '2',
+          allergy: formData.allergy === '2',
+          wheezing: formData.wheezing === '2',
+          alcohol_consuming: formData.alcohol_consuming === '2',
+          coughing: formData.coughing === '2',
+          shortness_of_breath: formData.shortness_of_breath === '2',
+          swallowing_difficulty: formData.swallowing_difficulty === '2',
+          chest_pain: formData.chest_pain === '2',
         }),
       });
 
@@ -151,7 +194,7 @@ export default function LungCancerPrediction() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="relative">
                   <Label htmlFor="name">환자명 (선택사항)</Label>
                   <Input
                     id="name"
@@ -159,6 +202,22 @@ export default function LungCancerPrediction() {
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="환자명을 입력하세요"
                   />
+                  {showPatientSearch && patientSearchResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {patientSearchResults.map((patient) => (
+                        <div
+                          key={patient.id}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
+                          onClick={() => selectPatient(patient)}
+                        >
+                          <div className="font-medium">{patient.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {patient.id} | {patient.gender} | {patient.age}세
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="gender">성별 *</Label>
