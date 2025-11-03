@@ -81,6 +81,24 @@ jobs:
             npm run build
 
             # --- 서비스 재시작 ---
+            # Gunicorn 서비스 파일 업데이트 (eventeye 사용하도록)
+            sudo tee /etc/systemd/system/gunicorn.service > /dev/null << 'EOF'
+[Unit]
+Description=Gunicorn for Django
+After=network.target
+
+[Service]
+User=shrjsdn908
+Group=shrjsdn908
+WorkingDirectory=/srv/django-react/app/backend
+Environment=PATH=/srv/django-react/app/backend/.venv/bin
+ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            sudo systemctl daemon-reload
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl reload nginx || sudo systemctl restart nginx
 
