@@ -221,47 +221,53 @@ class PatientViewSet(viewsets.ModelViewSet):
                 ml_result = ml_response.json()
                 
                 # 3. LungRecord에 검사 기록 저장 (raw SQL 사용)
-                now = datetime.now()
-                with connections['default'].cursor() as cursor:
-                    sql = """
-                        INSERT INTO lung_record (
-                            patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
-                            chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
-                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
-                            created_at, updated_at
-                        ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                    """
-                    cursor.execute(sql, [
-                        patient_id,
-                        serializer.validated_data['gender'],
-                        age,
-                        serializer.validated_data['smoking'],
-                        serializer.validated_data['yellow_fingers'],
-                        serializer.validated_data['anxiety'],
-                        serializer.validated_data['peer_pressure'],
-                        serializer.validated_data['chronic_disease'],
-                        serializer.validated_data['fatigue'],
-                        serializer.validated_data['allergy'],
-                        serializer.validated_data['wheezing'],
-                        serializer.validated_data['alcohol_consuming'],
-                        serializer.validated_data['coughing'],
-                        serializer.validated_data['shortness_of_breath'],
-                        serializer.validated_data['swallowing_difficulty'],
-                        serializer.validated_data['chest_pain'],
-                        now,
-                        now,
-                    ])
-                    lung_record_id = cursor.lastrowid
-                
-                # 4. LungResult에 검사 결과 저장 (raw SQL 사용)
-                prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
-                with connections['default'].cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO lung_result (lung_record_id, prediction, risk_score, created_at) 
-                        VALUES (%s, %s, %s, %s)
-                    """, [lung_record_id, prediction_label, ml_result['probability'], now])
+                try:
+                    now = datetime.now()
+                    with connections['default'].cursor() as cursor:
+                        sql = """
+                            INSERT INTO lung_record (
+                                patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
+                                chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
+                                coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
+                                created_at, updated_at
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            )
+                        """
+                        cursor.execute(sql, [
+                            patient_id,
+                            serializer.validated_data['gender'],
+                            age,
+                            serializer.validated_data['smoking'],
+                            serializer.validated_data['yellow_fingers'],
+                            serializer.validated_data['anxiety'],
+                            serializer.validated_data['peer_pressure'],
+                            serializer.validated_data['chronic_disease'],
+                            serializer.validated_data['fatigue'],
+                            serializer.validated_data['allergy'],
+                            serializer.validated_data['wheezing'],
+                            serializer.validated_data['alcohol_consuming'],
+                            serializer.validated_data['coughing'],
+                            serializer.validated_data['shortness_of_breath'],
+                            serializer.validated_data['swallowing_difficulty'],
+                            serializer.validated_data['chest_pain'],
+                            now,
+                            now,
+                        ])
+                        lung_record_id = cursor.lastrowid
+                        print(f"[폐암 예측] LungRecord 저장 성공: ID={lung_record_id}, patient_id={patient_id}")
+                    
+                    # 4. LungResult에 검사 결과 저장 (raw SQL 사용)
+                    prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
+                    with connections['default'].cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO lung_result (lung_record_id, prediction, risk_score, created_at) 
+                            VALUES (%s, %s, %s, %s)
+                        """, [lung_record_id, prediction_label, ml_result['probability'], now])
+                        print(f"[폐암 예측] LungResult 저장 성공: lung_record_id={lung_record_id}")
+                except Exception as db_error:
+                    print(f"[폐암 예측] DB 저장 실패: {str(db_error)}")
+                    # DB 저장 실패해도 예측 결과는 반환
                 
                 # 7. 결과 반환
                 return Response({
