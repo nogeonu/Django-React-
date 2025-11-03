@@ -96,10 +96,10 @@ export default function PatientRegistrationModal({ isOpen, onClose, onSuccess, p
       let result;
       if (isEdit && patient) {
         // 수정 모드: PUT 요청
-        result = await apiRequest("PUT", `/api/lung_cancer/api/patients/${patient.id}/`, formData);
+        result = await apiRequest("PUT", `/api/lung_cancer/patients/${patient.id}/`, formData);
       } else {
         // 등록 모드: POST 요청
-        result = await apiRequest("POST", "/api/lung_cancer/api/patients/register/", formData);
+        result = await apiRequest("POST", "/api/lung_cancer/patients/register/", formData);
       }
       
       console.log("응답 데이터:", result);

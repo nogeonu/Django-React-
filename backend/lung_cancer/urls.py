@@ -9,6 +9,6 @@ router.register(r'results', views.LungResultViewSet)
 router.register(r'medical-records', views.MedicalRecordViewSet)
 
 urlpatterns = [
-    path('api/', include(router.urls)),
-    path('api/visualization/', views.visualization_data, name='visualization_data'),
+    path('', include(router.urls)),
+    path('visualization/', views.visualization_data, name='visualization_data'),
 ]

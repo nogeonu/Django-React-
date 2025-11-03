@@ -39,7 +39,7 @@ const MedicalRegistration: React.FC = () => {
     try {
       const encodedQuery = encodeURIComponent(query.trim());
       console.log('인코딩된 검색어:', encodedQuery);
-      const response = await apiRequest('GET', `/api/lung_cancer/api/medical-records/search_patients/?q=${encodedQuery}`);
+      const response = await apiRequest('GET', `/api/lung_cancer/medical-records/search_patients/?q=${encodedQuery}`);
       console.log('검색 결과:', response);
       console.log('환자 수:', response.patients?.length || 0);
       setPatients(response.patients || []);
@@ -88,7 +88,7 @@ const MedicalRegistration: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await apiRequest('POST', '/api/lung_cancer/api/medical-records/', {
+      await apiRequest('POST', '/api/lung_cancer/medical-records/', {
         patient_id: selectedPatient.id,
         name: selectedPatient.name,
         department: department,

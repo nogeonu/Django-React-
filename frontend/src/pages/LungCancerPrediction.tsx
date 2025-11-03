@@ -56,7 +56,7 @@ export default function LungCancerPrediction() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/lung_cancer/api/patients/predict/', {
+      const response = await fetch('/api/lung_cancer/patients/predict/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

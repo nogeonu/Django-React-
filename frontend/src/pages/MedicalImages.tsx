@@ -71,7 +71,7 @@ export default function MedicalImages() {
   const { data: patients = [] } = useQuery({
     queryKey: ["patients"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
+      const response = await apiRequest("GET", "/api/lung_cancer/patients/");
       return response.results || [];
     },
   });

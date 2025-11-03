@@ -38,7 +38,7 @@ export default function LungCancerStats() {
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch('/api/lung_cancer/api/results/statistics/');
+      const response = await fetch('/api/lung_cancer/results/statistics/');
       if (!response.ok) {
         throw new Error('통계 데이터를 가져오는데 실패했습니다.');
       }
