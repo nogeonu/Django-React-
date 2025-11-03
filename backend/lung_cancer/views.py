@@ -221,14 +221,16 @@ class PatientViewSet(viewsets.ModelViewSet):
                 ml_result = ml_response.json()
                 
                 # 3. LungRecord에 검사 기록 저장 (raw SQL 사용)
+                now = datetime.now()
                 with connections['default'].cursor() as cursor:
                     sql = """
                         INSERT INTO lung_record (
                             patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
                             chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
-                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain
+                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
+                            created_at, updated_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                         )
                     """
                     cursor.execute(sql, [
@@ -248,6 +250,8 @@ class PatientViewSet(viewsets.ModelViewSet):
                         serializer.validated_data['shortness_of_breath'],
                         serializer.validated_data['swallowing_difficulty'],
                         serializer.validated_data['chest_pain'],
+                        now,
+                        now,
                     ])
                     lung_record_id = cursor.lastrowid
                 
@@ -255,9 +259,9 @@ class PatientViewSet(viewsets.ModelViewSet):
                 prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
                 with connections['default'].cursor() as cursor:
                     cursor.execute("""
-                        INSERT INTO lung_result (lung_record_id, prediction, risk_score) 
-                        VALUES (%s, %s, %s)
-                    """, [lung_record_id, prediction_label, ml_result['probability']])
+                        INSERT INTO lung_result (lung_record_id, prediction, risk_score, created_at) 
+                        VALUES (%s, %s, %s, %s)
+                    """, [lung_record_id, prediction_label, ml_result['probability'], now])
                 
                 # 7. 결과 반환
                 return Response({
