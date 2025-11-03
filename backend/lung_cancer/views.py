@@ -224,15 +224,17 @@ class PatientViewSet(viewsets.ModelViewSet):
                 with connections['default'].cursor() as cursor:
                     sql = """
                         INSERT INTO lung_record (
-                            patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
+                            patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
                             chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
                             coughing, shortness_of_breath, swallowing_difficulty, chest_pain
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                         )
                     """
                     cursor.execute(sql, [
                         patient_id,
+                        serializer.validated_data['gender'],
+                        age,
                         serializer.validated_data['smoking'],
                         serializer.validated_data['yellow_fingers'],
                         serializer.validated_data['anxiety'],

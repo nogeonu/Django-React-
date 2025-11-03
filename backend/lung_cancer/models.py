@@ -69,6 +69,10 @@ class LungRecord(models.Model):
     patient_id = models.CharField('환자ID', max_length=10)  # Patient 테이블 ID 직접 참조
     lung_cancer_patient = models.ForeignKey(LungCancerPatient, on_delete=models.CASCADE, related_name='lung_records', blank=True, null=True)
     
+    # 환자 기본 정보 (예측 시점 스냅샷)
+    gender = models.CharField('성별', max_length=10)
+    age = models.IntegerField('나이')
+    
     # 검사 시점의 증상 및 생활 습관
     smoking = models.BooleanField('흡연', default=False)
     yellow_fingers = models.BooleanField('손가락 변색', default=False)
