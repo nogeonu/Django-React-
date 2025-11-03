@@ -449,10 +449,14 @@ def visualization_data(request):
         df['age_decade'] = (df['age'] // 10) * 10
         age_prediction = pd.crosstab(df['age_decade'], df['prediction'])
         
+        # DataFrame을 dict로 변환 (JSON 직렬화 가능한 형식)
+        gender_dict = gender_prediction.to_dict('index')
+        age_dict = age_prediction.to_dict('index')
+        
         return JsonResponse({
             'prediction_distribution': prediction_counts.to_dict(),
-            'gender_distribution': gender_prediction.to_dict(),
-            'age_distribution': age_prediction.to_dict(),
+            'gender_distribution': gender_dict,
+            'age_distribution': age_dict,
             'total_patients': len(df),
             'average_age': round(df['age'].mean(), 1),
             'average_risk': round(df['probability'].mean() * 100, 2)

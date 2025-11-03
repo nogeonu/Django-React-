@@ -188,85 +188,8 @@ export default function LungCancerStats() {
         </Card>
       </div>
 
-      {/* 차트 영역 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* 예측 결과 분포 (원형 차트) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>예측 결과 분포</CardTitle>
-            <CardDescription>전체 환자의 양성/음성 예측 비율</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* 성별 예측 결과 (막대 차트) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>성별 예측 결과 비교</CardTitle>
-            <CardDescription>성별에 따른 양성/음성 예측 비교</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={predictionData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="양성" fill={COLORS.positive} />
-                <Bar dataKey="음성" fill={COLORS.negative} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* 연령대별 분석 */}
-        {ageChartData.length > 0 && (
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>연령대별 예측 결과</CardTitle>
-              <CardDescription>연령대별 양성/음성 예측 분석</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={ageChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="age" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="양성" fill={COLORS.positive} />
-                  <Bar dataKey="음성" fill={COLORS.negative} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
       {/* 상세 통계 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card>
           <CardHeader>
             <CardTitle>남성 환자 통계</CardTitle>
@@ -325,6 +248,83 @@ export default function LungCancerStats() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 차트 영역 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* 예측 결과 분포 (원형 차트) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>예측 결과 분포</CardTitle>
+            <CardDescription>전체 환자의 양성/음성 예측 비율</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* 성별 예측 결과 (막대 차트) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>성별 예측 결과 비교</CardTitle>
+            <CardDescription>성별에 따른 양성/음성 예측 비교</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={predictionData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="양성" fill={COLORS.positive} />
+                <Bar dataKey="음성" fill={COLORS.negative} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 연령대별 분석 */}
+      {ageChartData.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>연령대별 예측 결과</CardTitle>
+            <CardDescription>연령대별 양성/음성 예측 분석</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={ageChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="age" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="양성" fill={COLORS.positive} />
+                <Bar dataKey="음성" fill={COLORS.negative} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
