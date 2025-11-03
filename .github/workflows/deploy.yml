@@ -82,22 +82,20 @@ jobs:
 
             # --- 서비스 재시작 ---
             # Gunicorn 서비스 파일 업데이트 (eventeye 사용하도록)
-            sudo tee /etc/systemd/system/gunicorn.service > /dev/null << 'EOF'
-[Unit]
-Description=Gunicorn for Django
-After=network.target
-
-[Service]
-User=shrjsdn908
-Group=shrjsdn908
-WorkingDirectory=/srv/django-react/app/backend
-Environment=PATH=/srv/django-react/app/backend/.venv/bin
-ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
+            echo '[Unit]' | sudo tee /etc/systemd/system/gunicorn.service
+            echo 'Description=Gunicorn for Django' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'After=network.target' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo '[Service]' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'User=shrjsdn908' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'Restart=always' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
             sudo systemctl daemon-reload
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl reload nginx || sudo systemctl restart nginx
