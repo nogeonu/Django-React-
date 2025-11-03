@@ -41,6 +41,9 @@ export const apiRequest = async (method: string, url: string, data?: any) => {
       method,
       url,
       data,
+      headers: data instanceof FormData ? {
+        'Content-Type': 'multipart/form-data',
+      } : undefined,
     });
     return response.data;
   } catch (error) {

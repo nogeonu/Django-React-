@@ -7,7 +7,7 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
     queryset = MedicalImage.objects.all()
     serializer_class = MedicalImageSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['image_type', 'patient']
-    search_fields = ['description', 'doctor_notes', 'patient__name']
+    filterset_fields = ['image_type', 'patient_id']
+    search_fields = ['description', 'doctor_notes', 'patient_id']
     ordering_fields = ['taken_date', 'created_at']
     ordering = ['-taken_date']

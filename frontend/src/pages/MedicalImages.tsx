@@ -36,15 +36,14 @@ interface Patient {
 interface MedicalImage {
   id: string;
   patient: string;
-  examination?: string;
+  patient_name?: string;
   image_type: string;
-  body_part: string;
-  image: string;
-  image_url: string;
-  original_filename?: string;
-  file_size?: number;
+  image_file?: string;
+  image_url?: string;
   description?: string;
-  uploaded_at: string;
+  taken_date: string;
+  doctor_notes?: string;
+  created_at: string;
   analysis_results?: AIAnalysisResult[];
 }
 
@@ -79,7 +78,7 @@ export default function MedicalImages() {
   const { data: images = [], isLoading } = useQuery({
     queryKey: ["medical-images", selectedPatient],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/medical-images/?patient=${selectedPatient}`);
+      const response = await apiRequest("GET", `/api/medical-images/?patient_id=${selectedPatient}`);
       return response;
     },
     enabled: !!selectedPatient,
@@ -145,11 +144,12 @@ export default function MedicalImages() {
 
     try {
       const formData = new FormData();
-      formData.append('patient', selectedPatient);
+      formData.append('patient_id', selectedPatient);
       formData.append('image_type', 'MRI'); // 기본값, 실제로는 사용자가 선택
-      formData.append('body_part', 'Head'); // 기본값, 실제로는 사용자가 선택
-      formData.append('image', file);
+      formData.append('image_file', file);
       formData.append('description', '');
+      formData.append('taken_date', new Date().toISOString());
+      formData.append('doctor_notes', '');
 
       uploadImageMutation.mutate(formData);
     } catch (error) {
@@ -198,7 +198,6 @@ export default function MedicalImages() {
 
   const filteredImages = (images as MedicalImage[]).filter((image: MedicalImage) =>
     image.image_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    image.body_part.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (image.description && image.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -318,7 +317,7 @@ export default function MedicalImages() {
                       <div className="aspect-video bg-gray-100 relative">
                         <img
                           src={image.image_url}
-                          alt={`${image.image_type} - ${image.body_part}`}
+                          alt={image.image_type}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute top-2 right-2">
@@ -333,10 +332,10 @@ export default function MedicalImages() {
                       
                       <div className="p-4">
                         <h3 className="font-medium text-gray-900 mb-1" data-testid={`text-image-type-${image.id}`}>
-                          {image.image_type} - {image.body_part}
+                          {image.image_type}
                         </h3>
                         <p className="text-sm text-gray-500 mb-3">
-                          {new Date(image.uploaded_at || '').toLocaleDateString('ko-KR')}
+                          {new Date(image.taken_date || '').toLocaleDateString('ko-KR')}
                         </p>
                         
                         {image.analysis_results && image.analysis_results.length > 0 && (
@@ -426,7 +425,7 @@ export default function MedicalImages() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold">
-                  {selectedImage.image_type} - {selectedImage.body_part}
+                  {selectedImage.image_type}
                 </h3>
                 <Button
                   variant="outline"
@@ -442,7 +441,7 @@ export default function MedicalImages() {
                 <div>
                   <img
                     src={selectedImage.image_url}
-                    alt={`${selectedImage.image_type} - ${selectedImage.body_part}`}
+                    alt={selectedImage.image_type}
                     className="w-full rounded-lg"
                   />
                 </div>
@@ -456,13 +455,15 @@ export default function MedicalImages() {
                         <span>{selectedImage.image_type}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">부위:</span>
-                        <span>{selectedImage.body_part}</span>
+                        <span className="text-gray-600">촬영일:</span>
+                        <span>{new Date(selectedImage.taken_date || '').toLocaleDateString('ko-KR')}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">업로드일:</span>
-                        <span>{new Date(selectedImage.uploaded_at || '').toLocaleDateString('ko-KR')}</span>
-                      </div>
+                      {selectedImage.patient_name && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">환자:</span>
+                          <span>{selectedImage.patient_name}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

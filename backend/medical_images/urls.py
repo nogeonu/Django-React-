@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import MedicalImageViewSet
 
 router = DefaultRouter()
-router.register(r'images', MedicalImageViewSet)
+router.register(r'', MedicalImageViewSet, basename='medical-images')
 
 urlpatterns = [
     path('', include(router.urls)),
