@@ -8,7 +8,9 @@ import {
   Plus,
   Search,
   Filter,
-  CheckCircle
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +53,12 @@ export default function Dashboard() {
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [rSearchQuery, setRSearchQuery] = useState("");
   const [rPatients, setRPatients] = useState<Patient[]>([]);
   const [rIsLoading, setRIsLoading] = useState(false);
@@ -172,15 +180,32 @@ export default function Dashboard() {
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 4주 캘린더 데이터 생성 (당일 포함 주부터 시작, 주 시작: 월요일)
-  const testReservation = (): Date[] => {
-    const day = new Date().getDay();
-    const diffToMonday = (day === 0 ? -6 : 1 - day);
-    const start = new Date();
-    start.setDate(start.getDate() + diffToMonday);
+  useEffect(() => {
+    if (isCalendarOpen) {
+      const d = new Date();
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      setCurrentMonth(d);
+    }
+  }, [isCalendarOpen]);
 
+  const addMonths = (date: Date, months: number) => {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months, 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const getMonthGridDays = (month: Date): Date[] => {
+    const firstOfMonth = new Date(month);
+    firstOfMonth.setDate(1);
+    firstOfMonth.setHours(0, 0, 0, 0);
+    const weekDay = firstOfMonth.getDay(); // 0(일)~6(토)
+    const diffToMonday = (weekDay === 0 ? -6 : 1 - weekDay);
+    const start = new Date(firstOfMonth);
+    start.setDate(firstOfMonth.getDate() + diffToMonday);
     const days: Date[] = [];
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 42; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       days.push(d);
@@ -286,6 +311,13 @@ export default function Dashboard() {
   const handleReserveSubmit = () => {
     if (!selectedDate || !rSelectedPatient || !selectedTime) return;
     const key = selectedDate.toISOString().slice(0, 10);
+    // 동일 시간 예약 인원 제한: 최대 2명까지 허용
+    const existing = reservations[key] || [];
+    const sameTimeCount = existing.filter(r => r.time === selectedTime).length;
+    if (sameTimeCount >= 2) {
+      alert('해당 시간대는 이미 2명 예약되어 있습니다. 다른 시간을 선택하세요.');
+      return;
+    }
     setReservations((prev) => {
       const list = prev[key] || [];
       return {
@@ -561,13 +593,25 @@ export default function Dashboard() {
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-2">
+                <Button variant="outline" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, -1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="text-sm font-medium">
+                  {`${currentMonth.getFullYear()}년 ${String(currentMonth.getMonth() + 1).padStart(2, '0')}월`}
+                </div>
+                <Button variant="outline" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
               <div className="grid grid-cols-7 gap-2">
                 {["월","화","수","목","금","토","일"].map((d) => (
                   <div key={d} className="text-center text-xs text-gray-500 py-1">{d}</div>
                 ))}
-                {testReservation().map((d) => {
+                {getMonthGridDays(currentMonth).map((d) => {
                   const isToday = new Date().toDateString() === d.toDateString();
                   const isSelected = selectedDate && selectedDate.toDateString() === d.toDateString();
+                  const isOutside = d.getMonth() !== currentMonth.getMonth();
                   const key = d.toISOString().slice(0, 10);
                   const dayReservations = reservations[key] || [];
                   return (
@@ -581,8 +625,10 @@ export default function Dashboard() {
                             : isToday
                               ? 'border-blue-500 ring-1 ring-blue-200 hover:bg-gray-50'
                               : 'border-gray-200 hover:bg-gray-50'
-                      }`}
+                      } ${isOutside ? 'opacity-40' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
+                      disabled={startOfDay(d).getTime() < startOfDay(new Date()).getTime()}
                       onClick={() => {
+                        if (startOfDay(d).getTime() < startOfDay(new Date()).getTime()) return;
                         setSelectedDate(d);
                         const t = initSuggestedTime(d);
                         setSelectedTime(t);
@@ -612,23 +658,22 @@ export default function Dashboard() {
                   );
                 })}
               </div>
-              {selectedDate && (
-                <div className="mt-4 border-t pt-3">
-                  <div className="text-sm font-medium text-gray-700 mb-2">해당 날짜 예약자</div>
-                  {(() => {
-                    const key = selectedDate.toISOString().slice(0, 10);
-                    const list = [...(reservations[key] || [])].sort((a, b) => a.time.localeCompare(b.time));
-                    if (list.length === 0) return <div className="text-sm text-gray-500">예약자가 없습니다</div>;
-                    return (
-                      <div className="space-y-2">
-                        {list.map((p) => (
-                          <div key={`${p.id}-${p.time}`} className="text-sm text-gray-800">- {p.name} (<span className="text-xs text-gray-500">{p.id}</span>) · {p.time}</div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
+              <div className="mt-4 border-t pt-3">
+                <div className="text-sm font-medium text-gray-700 mb-2">해당 날짜 예약자</div>
+                {(() => {
+                  if (!selectedDate) return <div className="text-sm text-gray-500">날짜를 선택하세요</div>;
+                  const key = selectedDate.toISOString().slice(0, 10);
+                  const list = [...(reservations[key] || [])].sort((a, b) => a.time.localeCompare(b.time));
+                  if (list.length === 0) return <div className="text-sm text-gray-500">예약자가 없습니다</div>;
+                  return (
+                    <div className="space-y-2">
+                      {list.map((p) => (
+                        <div key={`${p.id}-${p.time}`} className="text-sm text-gray-800">- {p.name} (<span className="text-xs text-gray-500">{p.id}</span>) · {p.time}</div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             <div>
               {!selectedDate ? (

@@ -8,7 +8,8 @@ import {
   Eye,
   Calendar,
   FileImage,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,6 @@ export default function Patients() {
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const [reservationPatient, setReservationPatient] = useState<Patient | null>(null);
-  const [selectedReserveDate, setSelectedReserveDate] = useState<Date | null>(null);
   const [reservations, setReservations] = useState<Record<string, { id: string; name: string; time: string; memo?: string }[]>>({});
 
   const { data: patients = [], isLoading, refetch, error } = useQuery({
@@ -144,25 +144,7 @@ export default function Patients() {
     return new Date(dateString).toLocaleDateString('ko-KR');
   };
 
-  const startOfDay = (d: Date) => {
-    const x = new Date(d);
-    x.setHours(0,0,0,0);
-    return x;
-  };
-
-  const fourWeekDates = (): Date[] => {
-    const day = new Date().getDay();
-    const diffToMonday = (day === 0 ? -6 : 1 - day);
-    const start = new Date();
-    start.setDate(start.getDate() + diffToMonday);
-    const days: Date[] = [];
-    for (let i = 0; i < 28; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  };
+  // (예약 일정 모달에서 캘린더 UI 사용 안 함)
 
 
   return (
@@ -335,7 +317,6 @@ export default function Patients() {
                               data-testid={`button-exams-patient-${patient.id}`}
                               onClick={() => {
                                 setReservationPatient(patient);
-                                setSelectedReserveDate(null);
                                 try {
                                   const saved = localStorage.getItem('reservations');
                                   if (saved) {
@@ -389,6 +370,11 @@ export default function Patients() {
                     첫 번째 환자 등록
                   </Button>
                 )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
 
       {isReservationModalOpen && reservationPatient && (
         <div 
@@ -397,91 +383,54 @@ export default function Patients() {
           data-testid="modal-patient-reservations"
         >
           <div 
-            className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-hidden"
+            className="bg-white rounded-lg w-full max-w-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">예약 보기</h3>
-                <p className="text-sm text-gray-500">{reservationPatient.name} · ID: {reservationPatient.id}</p>
-              </div>
-              <Button variant="outline" onClick={() => { setIsReservationModalOpen(false); setReservationPatient(null); }}>닫기</Button>
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">예약 검사 일정</h3>
+              <Button size="icon" variant="ghost" onClick={() => { setIsReservationModalOpen(false); setReservationPatient(null); }}>
+                <X className="w-4 h-4" />
+              </Button>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                <div className="grid grid-cols-7 gap-2">
-                  {["월","화","수","목","금","토","일"].map((d) => (
-                    <div key={d} className="text-center text-xs text-gray-500 py-1">{d}</div>
-                  ))}
-                  {fourWeekDates().map((d) => {
-                    const isToday = new Date().toDateString() === d.toDateString();
-                    const isSelected = selectedReserveDate && selectedReserveDate.toDateString() === d.toDateString();
-                    const key = d.toISOString().slice(0, 10);
-                    const dayList = (reservations[key] || []).filter(r => r.id === reservationPatient.id);
-                    return (
-                      <button
-                        key={d.toISOString()}
-                        className={`border rounded-md p-3 text-sm transition text-left ${
-                          isSelected
-                            ? 'border-blue-600 ring-2 ring-blue-300 bg-blue-50'
-                            : dayList.length > 0
-                              ? 'border-blue-200 bg-blue-50 hover:bg-blue-100'
-                              : isToday
-                                ? 'border-blue-500 ring-1 ring-blue-200 hover:bg-gray-50'
-                                : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => setSelectedReserveDate(d)}
-                      >
-                        {(() => {
-                          const todayOnly = startOfDay(new Date());
-                          const dayOnly = startOfDay(d);
-                          const isPast = dayOnly.getTime() < todayOnly.getTime();
-                          return (
-                            <div className={`flex items-start justify-between ${isPast ? 'opacity-40' : ''}`}>
-                              <span className="font-medium text-base">{d.getDate()}</span>
-                              {isToday && <span className="text-xxs text-blue-600">오늘</span>}
-                            </div>
-                          );
-                        })()}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                {!selectedReserveDate ? (
-                  <div className="h-full flex items-center justify-center border rounded-md p-6 text-sm text-gray-500">
-                    날짜를 선택하면 예약 목록이 표시됩니다.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-600">
-                      선택 날짜: {`${selectedReserveDate.getFullYear()}.${String(selectedReserveDate.getMonth()+1).padStart(2,'0')}.${String(selectedReserveDate.getDate()).padStart(2,'0')}`}
-                    </div>
-                    {(() => {
-                      const key = selectedReserveDate.toISOString().slice(0, 10);
-                      const list = [...((reservations[key] || []).filter(r => r.id === reservationPatient.id))].sort((a,b)=>a.time.localeCompare(b.time));
-                      if (list.length === 0) return <div className="text-sm text-gray-500">예약이 없습니다</div>;
-                      return (
-                        <div className="space-y-2">
-                          {list.map((r, idx) => (
-                            <div key={`${r.id}-${r.time}-${idx}`} className="text-sm text-gray-800">- {r.time}{r.memo ? ` - ${r.memo}` : ""}</div>
-                          ))}
+            <div className="p-5 space-y-4">
+              {(() => {
+                const entries = Object.entries(reservations || {});
+                const items: { date: string; time: string; memo?: string }[] = [];
+                for (const [dateKey, list] of entries) {
+                  for (const r of list || []) {
+                    if (r.id === reservationPatient.id) {
+                      items.push({ date: dateKey, time: r.time, memo: r.memo });
+                    }
+                  }
+                }
+                items.sort((a, b) => (a.date + ' ' + a.time).localeCompare(b.date + ' ' + b.time));
+                if (items.length === 0) {
+                  // 빈 모달 콘텐츠 (메시지 표시 없음)
+                  return <div className="h-24" />;
+                }
+                const fmt = (dateKey: string) => {
+                  const parts = dateKey.split('-').map(Number);
+                  const m = parts[1];
+                  const d = parts[2];
+                  return `${m}/${d}`;
+                };
+                return (
+                  <div className="space-y-4">
+                    {items.map((it, idx) => (
+                      <div key={`${it.date}-${it.time}-${idx}`} className="flex items-center justify-between border rounded-md px-4 py-3">
+                        <div className="text-gray-900 text-sm font-medium">{fmt(it.date)}&nbsp;&nbsp;{it.time} 예약</div>
+                        <div className="w-48 min-h-[40px] bg-gray-100 rounded flex items-center px-3 text-sm text-gray-700">
+                          {it.memo || ''}
                         </div>
-                      );
-                    })()}
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
         </div>
       )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </main>
 
       {/* Patient Registration Modal */}
       <PatientRegistrationModal
