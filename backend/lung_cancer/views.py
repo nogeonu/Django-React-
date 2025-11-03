@@ -190,40 +190,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     
                     patient = Patient.objects.create(**patient_data)
                 
-                # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장 (raw SQL 사용)
-                # managed=False 테이블이므로 ORM 대신 raw SQL 사용
-                with connections['default'].cursor() as cursor:
-                    sql = """
-                        INSERT INTO lung_cancer_patient (
-                            patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
-                            chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
-                            coughing, shortness_of_breath, swallowing_difficulty, chest_pain
-                        ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                    """
-                    cursor.execute(sql, [
-                        patient_id,
-                        serializer.validated_data['smoking'],
-                        serializer.validated_data['yellow_fingers'],
-                        serializer.validated_data['anxiety'],
-                        serializer.validated_data['peer_pressure'],
-                        serializer.validated_data['chronic_disease'],
-                        serializer.validated_data['fatigue'],
-                        serializer.validated_data['allergy'],
-                        serializer.validated_data['wheezing'],
-                        serializer.validated_data['alcohol_consuming'],
-                        serializer.validated_data['coughing'],
-                        serializer.validated_data['shortness_of_breath'],
-                        serializer.validated_data['swallowing_difficulty'],
-                        serializer.validated_data['chest_pain'],
-                    ])
-                    lung_cancer_patient_id = cursor.lastrowid
-                
-                # ORM 객체를 가져와서 이후 save() 호출 가능하도록 함
-                lung_cancer_patient = LungCancerPatient.objects.get(id=lung_cancer_patient_id)
-                
-                # 3. Flask ML Service를 통해 예측 수행
+                # 2. Flask ML Service를 통해 예측 수행
                 ml_response = requests.post(
                     f'{ML_SERVICE_URL}/predict',
                     json={
@@ -253,23 +220,11 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 ml_result = ml_response.json()
                 
-                # 4. 예측 결과를 LungCancerPatient에 저장 (raw SQL 사용)
-                with connections['default'].cursor() as cursor:
-                    cursor.execute("""
-                        UPDATE lung_cancer_patient 
-                        SET prediction = %s, prediction_probability = %s 
-                        WHERE id = %s
-                    """, [
-                        ml_result['prediction'],
-                        ml_result['probability'] / 100,
-                        lung_cancer_patient.id
-                    ])
-                
-                # 5. LungRecord에 검사 기록 저장 (raw SQL 사용)
+                # 3. LungRecord에 검사 기록 저장 (raw SQL 사용)
                 with connections['default'].cursor() as cursor:
                     sql = """
                         INSERT INTO lung_record (
-                            lung_cancer_patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
+                            patient_id, smoking, yellow_fingers, anxiety, peer_pressure,
                             chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
                             coughing, shortness_of_breath, swallowing_difficulty, chest_pain
                         ) VALUES (
@@ -277,7 +232,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                         )
                     """
                     cursor.execute(sql, [
-                        lung_cancer_patient.id,
+                        patient_id,
                         serializer.validated_data['smoking'],
                         serializer.validated_data['yellow_fingers'],
                         serializer.validated_data['anxiety'],
@@ -294,7 +249,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     ])
                     lung_record_id = cursor.lastrowid
                 
-                # 6. LungResult에 검사 결과 저장 (raw SQL 사용)
+                # 4. LungResult에 검사 결과 저장 (raw SQL 사용)
                 prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
                 with connections['default'].cursor() as cursor:
                     cursor.execute("""

@@ -66,7 +66,8 @@ class LungCancerPatient(models.Model):
 
 class LungRecord(models.Model):
     """폐암 검사 기록 저장"""
-    lung_cancer_patient = models.ForeignKey(LungCancerPatient, on_delete=models.CASCADE, related_name='lung_records')
+    patient_id = models.CharField('환자ID', max_length=10)  # Patient 테이블 ID 직접 참조
+    lung_cancer_patient = models.ForeignKey(LungCancerPatient, on_delete=models.CASCADE, related_name='lung_records', blank=True, null=True)
     
     # 검사 시점의 증상 및 생활 습관
     smoking = models.BooleanField('흡연', default=False)
