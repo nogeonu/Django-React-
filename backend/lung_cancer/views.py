@@ -155,7 +155,6 @@ class PatientViewSet(viewsets.ModelViewSet):
                     try:
                         patient = Patient.objects.get(id=patient_id)
                         age = patient.age
-                        patient_name = patient.name
                     except Patient.DoesNotExist:
                         return Response({
                             'error': f'환자 ID {patient_id}를 찾을 수 없습니다.'
@@ -190,7 +189,6 @@ class PatientViewSet(viewsets.ModelViewSet):
                     }
                     
                     patient = Patient.objects.create(**patient_data)
-                    patient_name = serializer.validated_data['name']
                 
                 # 2. Flask ML Service를 통해 예측 수행
                 ml_response = requests.post(
@@ -229,17 +227,16 @@ class PatientViewSet(viewsets.ModelViewSet):
                     with connections['default'].cursor() as cursor:
                         sql = """
                             INSERT INTO lung_record (
-                                patient_id, name, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
+                                patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
                                 chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
                                 coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
                                 created_at, updated_at
                             ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                             )
                         """
                         cursor.execute(sql, [
                             patient_id,
-                            patient_name,
                             serializer.validated_data['gender'],
                             age,
                             serializer.validated_data['smoking'],
