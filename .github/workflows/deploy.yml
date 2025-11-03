@@ -88,6 +88,22 @@ jobs:
             npm ci
             npm run build
 
+            # --- ML Service 설정 및 시작 ---
+            echo '[Unit]' | sudo tee /etc/systemd/system/ml-service.service
+            echo 'Description=ML Service (Flask) for Lung Cancer Prediction' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'After=network.target' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo '' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo '[Service]' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'User=shrjsdn908' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5002 ml_service.app:app' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'Restart=always' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo '' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo '[Install]' | sudo tee -a /etc/systemd/system/ml-service.service
+            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/ml-service.service
+            
             # --- 서비스 재시작 ---
             # Gunicorn 서비스 파일 업데이트 (eventeye 사용하도록)
             echo '[Unit]' | sudo tee /etc/systemd/system/gunicorn.service
@@ -105,6 +121,7 @@ jobs:
             echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
             sudo systemctl daemon-reload
+            sudo systemctl restart ml-service || sudo systemctl start ml-service
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl reload nginx || sudo systemctl restart nginx
 

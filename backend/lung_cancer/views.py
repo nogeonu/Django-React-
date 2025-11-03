@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.db import models
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+import requests
 from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
 from .serializers import (
     PatientSerializer, 
@@ -30,20 +31,8 @@ import seaborn as sns
 from io import BytesIO
 import base64
 
-# 모델 로드
-current_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_dir, 'ml_model', 'lung_cancer_model.pkl')
-feature_path = os.path.join(current_dir, 'ml_model', 'feature_names.pkl')
-
-# 모델 파일이 존재하는지 확인
-if os.path.exists(model_path) and os.path.exists(feature_path):
-    model = joblib.load(model_path)
-    feature_names = joblib.load(feature_path)
-    model_loaded = True
-else:
-    model = None
-    feature_names = None
-    model_loaded = False
+# Flask ML Service URL (로컬 개발)
+ML_SERVICE_URL = os.environ.get('ML_SERVICE_URL', 'http://localhost:5002')
 
 @method_decorator(csrf_exempt, name='dispatch')
 class PatientViewSet(viewsets.ModelViewSet):
@@ -155,12 +144,7 @@ class PatientViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def predict(self, request):
-        """폐암 예측 API"""
-        if not model_loaded:
-            return Response({
-                'error': 'ML 모델이 로드되지 않았습니다. 모델 파일을 확인해주세요.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        """폐암 예측 API - Flask ML Service 호출"""
         serializer = LungCancerPredictionSerializer(data=request.data)
         if serializer.is_valid():
             try:
@@ -215,17 +199,39 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 lung_cancer_patient = LungCancerPatient.objects.create(**lung_cancer_data)
                 
-                # 3. 예측 수행을 위한 증상 데이터 준비
-                symptoms_dict = lung_cancer_patient.get_symptoms_dict()
-                features = pd.DataFrame([symptoms_dict])
-                features = features[feature_names]  # 특성 순서 맞추기
+                # 3. Flask ML Service를 통해 예측 수행
+                ml_response = requests.post(
+                    f'{ML_SERVICE_URL}/predict',
+                    json={
+                        'gender': serializer.validated_data['gender'],
+                        'age': age,
+                        'smoking': serializer.validated_data['smoking'],
+                        'yellow_fingers': serializer.validated_data['yellow_fingers'],
+                        'anxiety': serializer.validated_data['anxiety'],
+                        'peer_pressure': serializer.validated_data['peer_pressure'],
+                        'chronic_disease': serializer.validated_data['chronic_disease'],
+                        'fatigue': serializer.validated_data['fatigue'],
+                        'allergy': serializer.validated_data['allergy'],
+                        'wheezing': serializer.validated_data['wheezing'],
+                        'alcohol_consuming': serializer.validated_data['alcohol_consuming'],
+                        'coughing': serializer.validated_data['coughing'],
+                        'shortness_of_breath': serializer.validated_data['shortness_of_breath'],
+                        'swallowing_difficulty': serializer.validated_data['swallowing_difficulty'],
+                        'chest_pain': serializer.validated_data['chest_pain'],
+                    },
+                    timeout=10
+                )
                 
-                prediction_proba = model.predict_proba(features)[0]
-                prediction = model.predict(features)[0]
+                if ml_response.status_code != 200:
+                    return Response({
+                        'error': f'ML 서비스 오류: {ml_response.json().get("error", "알 수 없는 오류")}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                ml_result = ml_response.json()
                 
                 # 4. 예측 결과를 LungCancerPatient에 저장
-                lung_cancer_patient.prediction = 'YES' if prediction == 1 else 'NO'
-                lung_cancer_patient.prediction_probability = float(prediction_proba[1])
+                lung_cancer_patient.prediction = ml_result['prediction']
+                lung_cancer_patient.prediction_probability = ml_result['probability'] / 100
                 lung_cancer_patient.save()
                 
                 # 5. LungRecord에 검사 기록 저장
@@ -253,27 +259,20 @@ class PatientViewSet(viewsets.ModelViewSet):
                     risk_score=lung_cancer_patient.prediction_probability * 100,
                 )
                 
-                # 7. 위험도 계산
-                probability_percent = lung_cancer_patient.prediction_probability * 100
-                if probability_percent >= 70:
-                    risk_level = '높음'
-                    risk_message = '폐암 위험도가 높습니다. 즉시 전문의 상담을 권장합니다.'
-                elif probability_percent >= 40:
-                    risk_level = '중간'
-                    risk_message = '폐암 위험도가 중간입니다. 정기적인 검진을 권장합니다.'
-                else:
-                    risk_level = '낮음'
-                    risk_message = '폐암 위험도가 낮습니다. 건강한 생활 습관을 유지하세요.'
-                
+                # 7. 결과 반환
                 return Response({
                     'patient_id': patient.id,
-                    'prediction': lung_cancer_patient.prediction,
-                    'probability': round(probability_percent, 2),
-                    'risk_level': risk_level,
-                    'risk_message': risk_message,
-                    'symptoms': symptoms_dict
+                    'prediction': ml_result['prediction'],
+                    'probability': ml_result['probability'],
+                    'risk_level': ml_result['risk_level'],
+                    'risk_message': ml_result['risk_message'],
+                    'symptoms': ml_result['symptoms']
                 }, status=status.HTTP_201_CREATED)
                 
+            except requests.exceptions.RequestException as e:
+                return Response({
+                    'error': f'ML 서비스 연결 실패: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             except Exception as e:
                 return Response({
                     'error': f'예측 중 오류가 발생했습니다: {str(e)}'
