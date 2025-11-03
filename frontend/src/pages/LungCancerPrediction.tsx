@@ -137,38 +137,27 @@ export default function LungCancerPrediction() {
       const birthYear = new Date().getFullYear() - age;
       const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
       
-      const response = await fetch('/api/lung_cancer/patients/predict/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          birth_date: birth_date,
-          gender: formData.gender === '1' ? 'M' : 'F',
-          age: age,
-          smoking: formData.smoking === '2',
-          yellow_fingers: formData.yellow_fingers === '2',
-          anxiety: formData.anxiety === '2',
-          peer_pressure: formData.peer_pressure === '2',
-          chronic_disease: formData.chronic_disease === '2',
-          fatigue: formData.fatigue === '2',
-          allergy: formData.allergy === '2',
-          wheezing: formData.wheezing === '2',
-          alcohol_consuming: formData.alcohol_consuming === '2',
-          coughing: formData.coughing === '2',
-          shortness_of_breath: formData.shortness_of_breath === '2',
-          swallowing_difficulty: formData.swallowing_difficulty === '2',
-          chest_pain: formData.chest_pain === '2',
-        }),
+      const response = await apiRequest('POST', '/api/lung_cancer/patients/predict/', {
+        name: formData.name,
+        birth_date: birth_date,
+        gender: formData.gender === '1' ? 'M' : 'F',
+        age: age,
+        smoking: formData.smoking === '2',
+        yellow_fingers: formData.yellow_fingers === '2',
+        anxiety: formData.anxiety === '2',
+        peer_pressure: formData.peer_pressure === '2',
+        chronic_disease: formData.chronic_disease === '2',
+        fatigue: formData.fatigue === '2',
+        allergy: formData.allergy === '2',
+        wheezing: formData.wheezing === '2',
+        alcohol_consuming: formData.alcohol_consuming === '2',
+        coughing: formData.coughing === '2',
+        shortness_of_breath: formData.shortness_of_breath === '2',
+        swallowing_difficulty: formData.swallowing_difficulty === '2',
+        chest_pain: formData.chest_pain === '2',
       });
 
-      if (!response.ok) {
-        throw new Error('예측 요청에 실패했습니다.');
-      }
-
-      const data = await response.json();
-      setResult(data);
+      setResult(response);
       
       toast({
         title: "예측 완료",
