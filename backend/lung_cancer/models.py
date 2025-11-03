@@ -27,43 +27,6 @@ class Patient(models.Model):
     def __str__(self):
         return f"{self.id} - {self.name}"
 
-class LungCancerPatient(models.Model):
-    """폐암 환자 특화 정보 저장"""
-    id = models.AutoField(primary_key=True)
-    patient_id = models.CharField('환자ID', max_length=10)
-    
-    # 폐암 관련 증상 및 생활 습관
-    smoking = models.BooleanField('흡연', default=False)
-    yellow_fingers = models.BooleanField('손가락 변색', default=False)
-    anxiety = models.BooleanField('불안', default=False)
-    peer_pressure = models.BooleanField('또래 압박', default=False)
-    chronic_disease = models.BooleanField('만성 질환', default=False)
-    fatigue = models.BooleanField('피로', default=False)
-    allergy = models.BooleanField('알레르기', default=False)
-    wheezing = models.BooleanField('쌕쌕거림', default=False)
-    alcohol_consuming = models.BooleanField('음주', default=False)
-    coughing = models.BooleanField('기침', default=False)
-    shortness_of_breath = models.BooleanField('호흡 곤란', default=False)
-    swallowing_difficulty = models.BooleanField('삼킴 곤란', default=False)
-    chest_pain = models.BooleanField('가슴 통증', default=False)
-    
-    # 폐암 예측 결과
-    prediction = models.CharField('예측 결과', max_length=10, blank=True, null=True)
-    prediction_probability = models.FloatField('예측 확률', blank=True, null=True)
-    
-    created_at = models.DateTimeField('등록일', auto_now_add=True)
-    updated_at = models.DateTimeField('수정일', auto_now=True)
-
-    class Meta:
-        db_table = 'lung_cancer_patient'
-        managed = False  # 외부 데이터베이스 테이블
-        verbose_name = '폐암 환자'
-        verbose_name_plural = '폐암 환자 목록'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.patient_id} - 폐암 정보"
-
 class LungRecord(models.Model):
     """폐암 검사 기록 저장"""
     patient_id = models.CharField('환자ID', max_length=10)  # Patient 테이블 ID 직접 참조
