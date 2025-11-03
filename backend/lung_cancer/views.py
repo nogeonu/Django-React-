@@ -146,36 +146,49 @@ class PatientViewSet(viewsets.ModelViewSet):
         serializer = LungCancerPredictionSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                # 환자 ID 자동 생성
+                # patient_id가 제공되면 기존 환자 사용, 아니면 새 환자 생성
                 from datetime import datetime
-                current_year = datetime.now().year
-                last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
-                if last_patient:
-                    last_number = int(last_patient.id[-3:])
-                    new_number = last_number + 1
+                patient_id = serializer.validated_data.get('patient_id')
+                
+                if patient_id:
+                    # 기존 환자 조회
+                    try:
+                        patient = Patient.objects.get(id=patient_id)
+                        age = patient.age
+                    except Patient.DoesNotExist:
+                        return Response({
+                            'error': f'환자 ID {patient_id}를 찾을 수 없습니다.'
+                        }, status=status.HTTP_404_NOT_FOUND)
                 else:
-                    new_number = 1
-                patient_id = f'P{current_year}{new_number:03d}'
-                
-                # 나이 계산
-                birth_date = serializer.validated_data['birth_date']
-                today = datetime.now().date()
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
-                # 1. Patient 테이블에 기본 환자 정보 저장
-                patient_data = {
-                    'id': patient_id,
-                    'name': serializer.validated_data['name'],
-                    'birth_date': birth_date,
-                    'gender': serializer.validated_data['gender'],
-                    'phone': serializer.validated_data.get('phone', ''),
-                    'address': serializer.validated_data.get('address', ''),
-                    'emergency_contact': serializer.validated_data.get('emergency_contact', ''),
-                    'blood_type': serializer.validated_data.get('blood_type', ''),
-                    'age': age,
-                }
-                
-                patient = Patient.objects.create(**patient_data)
+                    # 새 환자 생성
+                    current_year = datetime.now().year
+                    last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
+                    if last_patient:
+                        last_number = int(last_patient.id[-3:])
+                        new_number = last_number + 1
+                    else:
+                        new_number = 1
+                    patient_id = f'P{current_year}{new_number:03d}'
+                    
+                    # 나이 계산
+                    birth_date = serializer.validated_data['birth_date']
+                    today = datetime.now().date()
+                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                    
+                    # Patient 테이블에 기본 환자 정보 저장
+                    patient_data = {
+                        'id': patient_id,
+                        'name': serializer.validated_data['name'],
+                        'birth_date': birth_date,
+                        'gender': serializer.validated_data['gender'],
+                        'phone': serializer.validated_data.get('phone', ''),
+                        'address': serializer.validated_data.get('address', ''),
+                        'emergency_contact': serializer.validated_data.get('emergency_contact', ''),
+                        'blood_type': serializer.validated_data.get('blood_type', ''),
+                        'age': age,
+                    }
+                    
+                    patient = Patient.objects.create(**patient_data)
                 
                 # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장 (raw SQL 사용)
                 # managed=False 테이블이므로 ORM 대신 raw SQL 사용
@@ -190,7 +203,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                         )
                     """
                     cursor.execute(sql, [
-                        patient.id,
+                        patient_id,
                         serializer.validated_data['smoking'],
                         serializer.validated_data['yellow_fingers'],
                         serializer.validated_data['anxiety'],
@@ -291,7 +304,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 
                 # 7. 결과 반환
                 return Response({
-                    'patient_id': patient.id,
+                    'patient_id': patient_id,
                     'prediction': ml_result['prediction'],
                     'probability': ml_result['probability'],
                     'risk_level': ml_result['risk_level'],

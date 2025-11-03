@@ -39,6 +39,7 @@ interface PredictionResult {
 
 export default function LungCancerPrediction() {
   const [formData, setFormData] = useState({
+    patient_id: '',
     name: '',
     gender: '',
     age: '',
@@ -112,6 +113,7 @@ export default function LungCancerPrediction() {
   const handlePatientSelect = (patient: Patient) => {
     setFormData(prev => ({
       ...prev,
+      patient_id: patient.id,
       name: patient.name,
       gender: patient.gender === '남성' ? '1' : patient.gender === '여성' ? '0' : '',
       age: patient.age.toString()
@@ -138,6 +140,7 @@ export default function LungCancerPrediction() {
       const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
       
       const response = await apiRequest('POST', '/api/lung_cancer/patients/predict/', {
+        patient_id: formData.patient_id, // 환자 ID 추가
         name: formData.name,
         birth_date: birth_date,
         gender: formData.gender === '1' ? 'M' : 'F',
