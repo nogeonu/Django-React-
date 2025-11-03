@@ -95,7 +95,9 @@ export default function Sidebar() {
                 <div className="text-sm font-medium text-gray-900 truncate">
                   {(user.last_name || '') + (user.first_name ? ' ' + user.first_name : '')}
                 </div>
-                <div className="text-xs text-gray-500 truncate">{user.email}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {user.role === 'medical_staff' ? '의료진' : user.role === 'admin_staff' ? '원무과' : user.role}
+                </div>
               </div>
             </div>
             <Button
