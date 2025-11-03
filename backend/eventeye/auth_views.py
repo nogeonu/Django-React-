@@ -8,8 +8,8 @@ def get_role_from_user(user):
     if user.is_superuser:
         return "superuser"
     if user.is_staff:
-        return "admin_staff"  # 원무과
-    return "medical_staff"  # 의료진
+        return "medical_staff"  # 의료진 (is_staff=1)
+    return "admin_staff"  # 원무과 (is_staff=0)
 
 
 @require_http_methods(["GET"])
@@ -113,7 +113,7 @@ def register(request):
             user.first_name = first_name
         if last_name:
             user.last_name = last_name
-        if role == "admin_staff":
+        if role == "medical_staff":
             user.is_staff = True
         user.save()
         print(f"[회원가입] 사용자 생성 성공: ID={user.id}")
