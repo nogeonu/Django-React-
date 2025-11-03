@@ -122,6 +122,8 @@ jobs:
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
             sudo systemctl daemon-reload
             sudo systemctl restart ml-service || sudo systemctl start ml-service
+            sleep 5
+            sudo systemctl status ml-service || true
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl reload nginx || sudo systemctl restart nginx
 
