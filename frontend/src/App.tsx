@@ -10,6 +10,9 @@ import LungCancerStats from '@/pages/LungCancerStats';
 import MedicalRegistration from '@/pages/MedicalRegistration';
 import NotFound from '@/pages/NotFound';
 import Sidebar from '@/components/Sidebar';
+import Login from '@/pages/Login';
+import Signup from '@/pages/Signup';
+import { AuthProvider } from '@/context/AuthContext';
 
 const queryClient = new QueryClient();
 
@@ -17,23 +20,29 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router>
-          <div className="flex min-h-screen bg-gray-50">
-            <Sidebar />
-            <div className="flex-1 ml-64">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/patients" element={<Patients />} />
-                <Route path="/images" element={<MedicalImages />} />
-                <Route path="/lung-cancer" element={<LungCancerPrediction />} />
-                <Route path="/lung-cancer-stats" element={<LungCancerStats />} />
-                <Route path="/medical-registration" element={<MedicalRegistration />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+        <AuthProvider>
+          <Router>
+            <div className="flex min-h-screen bg-gray-50">
+              <Sidebar />
+              <div className="flex-1 ml-64">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/medical_staff" element={<Dashboard />} />
+                  <Route path="/admin_staff" element={<Dashboard />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/patients" element={<Patients />} />
+                  <Route path="/images" element={<MedicalImages />} />
+                  <Route path="/lung-cancer" element={<LungCancerPrediction />} />
+                  <Route path="/lung-cancer-stats" element={<LungCancerStats />} />
+                  <Route path="/medical-registration" element={<MedicalRegistration />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
             </div>
-          </div>
-          <Toaster />
-        </Router>
+            <Toaster />
+          </Router>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

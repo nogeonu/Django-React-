@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_BASE_URL = '';
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -47,6 +47,26 @@ export const apiRequest = async (method: string, url: string, data?: any) => {
     console.error('API request failed:', error);
     throw error;
   }
+};
+
+export const loginApi = async (data: { username: string; password: string }) => {
+  const res = await apiClient.post('/api/auth/login', data);
+  return res.data;
+};
+
+export const meApi = async () => {
+  const res = await apiClient.get('/api/auth/me');
+  return res.data;
+};
+
+export const logoutApi = async () => {
+  const res = await apiClient.post('/api/auth/logout');
+  return res.data;
+};
+
+export const registerApi = async (data: { username: string; password: string; email?: string; role?: string; first_name?: string; last_name?: string }) => {
+  const res = await apiClient.post('/api/auth/register', data);
+  return res.data;
 };
 
 export default apiClient;
