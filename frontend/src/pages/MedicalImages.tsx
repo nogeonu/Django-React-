@@ -79,7 +79,8 @@ export default function MedicalImages() {
     queryKey: ["medical-images", selectedPatient],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/medical-images/?patient_id=${selectedPatient}`);
-      return response;
+      // DRF pagination 응답일 경우 results 사용
+      return response.results || response || [];
     },
     enabled: !!selectedPatient,
   });
