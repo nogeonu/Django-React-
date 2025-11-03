@@ -77,6 +77,8 @@ jobs:
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
+            # node_modules, dist 캐시 완전 삭제
+            rm -rf node_modules dist .next
             npm ci
             npm run build
 
