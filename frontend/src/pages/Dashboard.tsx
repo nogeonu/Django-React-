@@ -5,7 +5,7 @@ import {
   Calendar, 
   FileImage, 
   Activity, 
-  
+  UserPlus,
   Search,
   Filter,
   CheckCircle
@@ -262,11 +262,21 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Button 
+                className="w-full justify-start" 
+                variant="outline"
+                data-testid="button-register-patient"
+                onClick={() => navigate('/patients')}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                환자 등록
+              </Button>
               
               <Button 
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-upload-image"
+                onClick={() => navigate('/images')}
               >
                 <FileImage className="w-4 h-4 mr-2" />
                 의료 이미지 업로드
@@ -285,7 +295,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-ai-analysis"
-                onClick={() => window.location.href = '/medical-registration'}
+                onClick={() => navigate('/medical-registration')}
               >
                 <Activity className="w-4 h-4 mr-2" />
                 진료 접수 
