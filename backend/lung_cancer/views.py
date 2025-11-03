@@ -461,6 +461,7 @@ def visualization_data(request):
         }, status=500)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class MedicalRecordViewSet(viewsets.ModelViewSet):
     queryset = MedicalRecord.objects.all()
     serializer_class = MedicalRecordSerializer
