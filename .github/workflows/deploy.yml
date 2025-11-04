@@ -133,6 +133,7 @@ jobs:
             fi
 
             # --- ML Service 설정 및 시작 ---
+            set +e  # ML Service 설정 오류 허용
             echo '[Unit]' | sudo tee /etc/systemd/system/ml-service.service
             echo 'Description=ML Service (Flask) for Lung Cancer Prediction' | sudo tee -a /etc/systemd/system/ml-service.service
             echo 'After=network.target' | sudo tee -a /etc/systemd/system/ml-service.service
