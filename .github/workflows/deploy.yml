@@ -77,10 +77,13 @@ jobs:
             set +e  # 마이그레이션 오류 허용
             python manage.py migrate
             MIGRATE_EXIT_CODE=$?
-            set -e  # 다시 오류 시 중단 활성화
             if [ $MIGRATE_EXIT_CODE -ne 0 ]; then
-              echo "Migration exited with code $MIGRATE_EXIT_CODE, but continuing deployment..."
+              echo "Migration failed, attempting to resolve conflicts..."
+              # 마이그레이션 충돌 해결 시도
+              python manage.py makemigrations --merge --noinput || true
+              python manage.py migrate || echo "Migration still failed, but continuing..."
             fi
+            set -e  # 다시 오류 시 중단 활성화
             python manage.py collectstatic --noinput
 
             # --- React frontend ---
