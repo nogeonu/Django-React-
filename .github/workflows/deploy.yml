@@ -60,11 +60,11 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script_stop: false  # 오류 발생 시에도 계속 진행하도록 변경
           script: |
-            set -e
+            set +e  # 오류가 있어도 계속 진행하도록 시작
             APP_DIR="${{ secrets.APP_DIR }}"
 
             # 권한 수정
-            sudo chown -R $USER:$USER "$APP_DIR"
+            sudo chown -R $USER:$USER "$APP_DIR" || echo "chown failed, continuing..."
 
             # --- Django backend ---
             cd "$APP_DIR/backend"
