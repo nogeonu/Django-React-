@@ -107,54 +107,48 @@ jobs:
               echo "Migrations completed successfully"
             fi
             
-            # 마이그레이션 검증 - 필수 테이블 확인 (Python 스크립트 사용)
+            # 마이그레이션 검증 - 필수 테이블 확인
             echo "=== Verifying Required Tables ==="
-            python << 'PYTHON_SCRIPT'
-import os
-import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
-django.setup()
-
-from django.db import connection
-
-with connection.cursor() as cursor:
-    cursor.execute("SHOW TABLES LIKE 'patients_patient'")
-    result = cursor.fetchone()
-    if result:
-        print("✓ patients_patient table exists")
-    else:
-        print("ERROR: patients_patient table does not exist!")
-        exit(1)
-    
-    cursor.execute("SHOW TABLES LIKE 'patients_appointment'")
-    result = cursor.fetchone()
-    if result:
-        print("✓ patients_appointment table exists")
-    else:
-        print("WARNING: patients_appointment table does not exist")
-PYTHON_SCRIPT
-            
-            # 최종 마이그레이션 상태 확인
-            echo "=== Final Migration Status ==="
-            python manage.py showmigrations patients 2>&1 | tail -10 || echo "Migration status check"
-            
-            # 테이블이 없으면 마이그레이션 강제 실행
-            if ! python << 'PYTHON_SCRIPT'
-import os
-import django
+            python -c "
+import os, django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
 django.setup()
 from django.db import connection
-with connection.cursor() as cursor:
-    cursor.execute("SHOW TABLES LIKE 'patients_patient'")
-    exit(0 if cursor.fetchone() else 1)
-PYTHON_SCRIPT
-            then
+cursor = connection.cursor()
+cursor.execute(\"SHOW TABLES LIKE 'patients_patient'\")
+if cursor.fetchone():
+    print('✓ patients_patient table exists')
+else:
+    print('ERROR: patients_patient table does not exist!')
+    exit(1)
+cursor.execute(\"SHOW TABLES LIKE 'patients_appointment'\")
+if cursor.fetchone():
+    print('✓ patients_appointment table exists')
+else:
+    print('WARNING: patients_appointment table does not exist')
+" || {
               echo "CRITICAL: patients_patient table missing, forcing migration..."
               python manage.py makemigrations patients
               python manage.py migrate patients --run-syncdb
               python manage.py migrate
-            fi
+              # 재확인
+              python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
+django.setup()
+from django.db import connection
+cursor = connection.cursor()
+cursor.execute(\"SHOW TABLES LIKE 'patients_patient'\")
+if not cursor.fetchone():
+    print('ERROR: Table still missing after migration!')
+    exit(1)
+print('✓ patients_patient table verified')
+"
+            }
+            
+            # 최종 마이그레이션 상태 확인
+            echo "=== Final Migration Status ==="
+            python manage.py showmigrations patients 2>&1 | tail -10 || echo "Migration status check"
             
             # collectstatic 실행 전 디렉토리 준비
             mkdir -p "$APP_DIR/backend/staticfiles"
