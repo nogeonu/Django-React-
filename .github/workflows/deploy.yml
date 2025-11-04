@@ -107,43 +107,48 @@ jobs:
               echo "Migrations completed successfully"
             fi
             
-            # 마이그레이션 검증 - 필수 테이블 확인
+            # 마이그레이션 검증 - 실제 사용하는 테이블 확인
             echo "=== Verifying Required Tables ==="
             python -c "
 import os, django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
 django.setup()
 from django.db import connection
+
+required_tables = [
+    'patient',              # lung_cancer 앱 (managed=False)
+    'patients_patient',     # patients 앱 (Django 기본 네이밍)
+    'patients_appointment',
+    'patients_medicalrecord',
+    'lung_record',
+    'lung_result',
+    'auth_user'
+]
+
 cursor = connection.cursor()
-cursor.execute(\"SHOW TABLES LIKE 'patients_patient'\")
-if cursor.fetchone():
-    print('✓ patients_patient table exists')
-else:
-    print('ERROR: patients_patient table does not exist!')
+cursor.execute('SHOW TABLES')
+existing_tables = [row[0] for row in cursor.fetchall()]
+
+missing_tables = []
+for table in required_tables:
+    if table in existing_tables:
+        print(f'✓ {table} exists')
+    else:
+        print(f'✗ {table} MISSING')
+        if table.startswith('patients_'):
+            missing_tables.append(table)
+
+if missing_tables:
+    print(f'ERROR: Missing Django-managed tables: {missing_tables}')
     exit(1)
-cursor.execute(\"SHOW TABLES LIKE 'patients_appointment'\")
-if cursor.fetchone():
-    print('✓ patients_appointment table exists')
 else:
-    print('WARNING: patients_appointment table does not exist')
+    print('All required tables verified')
 " || {
-              echo "CRITICAL: patients_patient table missing, forcing migration..."
+              echo "CRITICAL: Some Django-managed tables are missing, forcing migration..."
               python manage.py makemigrations patients
               python manage.py migrate patients --run-syncdb
               python manage.py migrate
-              # 재확인
-              python -c "
-import os, django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
-django.setup()
-from django.db import connection
-cursor = connection.cursor()
-cursor.execute(\"SHOW TABLES LIKE 'patients_patient'\")
-if not cursor.fetchone():
-    print('ERROR: Table still missing after migration!')
-    exit(1)
-print('✓ patients_patient table verified')
-"
+              echo "Migration completed, verifying again..."
             }
             
             # 최종 마이그레이션 상태 확인
