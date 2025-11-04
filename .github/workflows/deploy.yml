@@ -81,10 +81,17 @@ jobs:
             # DB 마이그레이션/정적파일
             set +e  # 마이그레이션 오류 허용
             
+            echo "=== Checking Database Connection ==="
+            python manage.py dbshell <<< "SELECT 1;" || echo "Database connection check"
+            
+            echo "=== Checking Existing Tables ==="
+            python manage.py dbshell <<< "SHOW TABLES LIKE 'patients_%';" || echo "Table check"
+            
             # patients_appointment 테이블이 이미 존재하는 경우 fake migration 적용
             python manage.py migrate patients 0001_appointment --fake 2>/dev/null || true
             
             # 일반 마이그레이션 실행 (이미 적용된 것은 스킵)
+            echo "=== Running Migrations ==="
             python manage.py migrate 2>&1 | tee /tmp/migrate.log
             MIGRATE_EXIT_CODE=${PIPESTATUS[0]}
             
@@ -102,6 +109,22 @@ jobs:
             else
               echo "Migrations completed successfully"
             fi
+            
+            # 마이그레이션 검증 - 필수 테이블 확인
+            echo "=== Verifying Required Tables ==="
+            python manage.py dbshell <<< "SHOW TABLES;" | grep -q "patients_patient" && echo "✓ patients_patient table exists" || {
+              echo "ERROR: patients_patient table does not exist! Creating migrations..."
+              python manage.py makemigrations patients
+              python manage.py migrate patients
+            }
+            
+            python manage.py dbshell <<< "SHOW TABLES;" | grep -q "patients_appointment" && echo "✓ patients_appointment table exists" || {
+              echo "WARNING: patients_appointment table does not exist, but continuing..."
+            }
+            
+            # 최종 마이그레이션 상태 확인
+            echo "=== Final Migration Status ==="
+            python manage.py showmigrations patients | tail -10 || echo "Migration status check"
             
             # collectstatic 실행 전 디렉토리 준비
             mkdir -p "$APP_DIR/backend/staticfiles"
