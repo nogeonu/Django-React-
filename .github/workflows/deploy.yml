@@ -206,7 +206,7 @@ jobs:
             echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3' | sudo tee -a /etc/systemd/system/gunicorn.service
+            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 2 --threads 2 --timeout 120 --max-requests 1000 --max-requests-jitter 50' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'Restart=always' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
