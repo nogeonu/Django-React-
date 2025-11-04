@@ -9,7 +9,7 @@ from django.db import models, connections
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import requests
-from .models import Patient, LungRecord, LungResult, MedicalRecord
+from .models import Patient, LungRecord, LungResult, MedicalRecord, PatientAppointment
 from .serializers import (
     PatientSerializer, 
     LungRecordSerializer, 
@@ -19,7 +19,8 @@ from .serializers import (
     PatientUpdateSerializer,
     MedicalRecordSerializer,
     MedicalRecordCreateSerializer,
-    MedicalRecordUpdateSerializer
+    MedicalRecordUpdateSerializer,
+    PatientAppointmentSerializer
 )
 import joblib
 import os
@@ -676,3 +677,72 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class PatientAppointmentViewSet(viewsets.ModelViewSet):
+    """환자 예약 관리 API"""
+
+    queryset = PatientAppointment.objects.all()
+    serializer_class = PatientAppointmentSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = PatientAppointment.objects.all()
+
+        patient_id = self.request.query_params.get('patient_id')
+        status_param = self.request.query_params.get('status')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+        if start_date and end_date:
+            queryset = queryset.filter(appointment_date__range=[start_date, end_date])
+
+        return queryset.order_by('appointment_date', 'appointment_time')
+
+    @action(detail=False, methods=['get'])
+    def upcoming(self, request):
+        """다가오는 예약 목록 조회"""
+
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        queryset = self.get_queryset().filter(
+            appointment_date__gte=today,
+            status__in=['예약대기', '예약확정']
+        )
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        """예약 상태 업데이트"""
+
+        appointment = self.get_object()
+        new_status = request.data.get('status')
+
+        if not new_status:
+            return Response(
+                {"error": "status 필드가 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        valid_status = dict(PatientAppointment.APPOINTMENT_STATUS)
+        if new_status not in valid_status:
+            return Response(
+                {"error": f"유효하지 않은 상태입니다. 가능한 상태: {list(valid_status.keys())}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        appointment.status = new_status
+        appointment.save()
+
+        return Response({
+            "status": "success",
+            "message": f"예약 상태가 {new_status}(으)로 업데이트되었습니다.",
+            "data": self.get_serializer(appointment).data
+        })

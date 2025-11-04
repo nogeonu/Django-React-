@@ -10,6 +10,8 @@ from django.http import JsonResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from rest_framework.routers import DefaultRouter
+from lung_cancer import views as lung_cancer_views
 
 def api_root(request):
     return JsonResponse({
@@ -40,11 +42,16 @@ schema_view = get_schema_view(
     permission_classes=[permissions.AllowAny],
 )
 
+appointment_router = DefaultRouter()
+appointment_router.register(r'patients/appointments', lung_cancer_views.PatientAppointmentViewSet, basename='patient-appointment')
+
+
 urlpatterns = [
     path('', api_root, name='root'),
     path('admin/', admin.site.urls),
     path('api/', api_root, name='api-root'),
     path('api/patients/', include('patients.urls')),
+    path('api/', include(appointment_router.urls)),
     path('api/medical-images/', include('medical_images.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),

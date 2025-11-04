@@ -75,9 +75,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hospital_db',
-        'USER': 'acorn',
-        'PASSWORD': 'acorn1234',
-        'HOST': '34.42.223.43',
+        'USER': 'root',
+        'PASSWORD': 'acorm1234',
+        'HOST': '127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {
             'charset': 'utf8mb4',

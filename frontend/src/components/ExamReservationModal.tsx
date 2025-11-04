@@ -54,7 +54,7 @@ export default function ExamReservationModal({
   const [endAmPm, setEndAmPm] = useState<'AM' | 'PM'>("AM");
   const [endHour, setEndHour] = useState<string>("10");
   const [endMinute, setEndMinute] = useState<string>("00");
-  const [reserveType, setReserveType] = useState<'검진' | '회의' | '내근' | '외근'>("검진");
+  const [reserveType, setReserveType] = useState<'일반검진' | '정기검진' | '추가검사'>("일반검진");
 
   const resetForm = () => {
     setReserveTitle("");
@@ -69,56 +69,75 @@ export default function ExamReservationModal({
     setEndAmPm("AM");
     setEndHour("10");
     setEndMinute("00");
-    setReserveType("검진");
+    setReserveType("일반검진");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     try {
       if (!reserveTitle.trim()) {
         toast({ title: "제목을 입력해 주세요", variant: "destructive" });
         return;
       }
 
-      const to24h = (ampm: 'AM' | 'PM', h: string, m: string) => {
-        let hourNum = parseInt(h, 10) % 12;
-        if (ampm === 'PM') hourNum += 12;
-        return `${String(hourNum).padStart(2, '0')}:${m}`;
-      };
-
-      const startStr = to24h(startAmPm, startHour, startMinute);
-      const endStr = to24h(endAmPm, endHour, endMinute);
-      const start = new Date(`${reserveDate}T${startStr}:00`);
-      const end = new Date(`${reserveDate}T${endStr}:00`);
-
-      if (end <= start) {
-        toast({ title: "종료 시간이 시작 시간보다 늦어야 합니다", variant: "destructive" });
+      if (!selectedPatient) {
+        toast({ title: "환자를 선택해주세요", variant: "destructive" });
         return;
       }
 
-      const startIso = start.toISOString();
-      const endIso = end.toISOString();
-      const titleFinal = reserveTitle.trim();
+      const to24h = (ampm: 'AM' | 'PM', h: string, m: string) => {
+        let hourNum = parseInt(h, 10) % 12;
+        if (ampm === 'PM') hourNum += 12;
+        return `${hourNum.toString().padStart(2, '0')}:${m.padStart(2, '0')}`;
+      };
 
+      const timeStr = to24h(startAmPm, startHour, startMinute);
+      
+      // 예약 데이터 생성
+      const appointmentData = {
+        patient_id: selectedPatient.id,
+        patient_name: selectedPatient.name,
+        appointment_date: reserveDate,
+        appointment_time: timeStr,
+        appointment_type: reserveType,
+        status: '예약대기',
+        notes: reserveTitle.trim(),
+        phone: selectedPatient.phone || '',
+      };
+
+      // 로컬 API 호출로 예약 생성
+      const createdAppointment = await apiRequest('POST', '/api/patients/appointments/', appointmentData);
+
+      // 캘린더에도 이벤트 추가
       addEvent({
-        title: titleFinal,
-        start: startIso,
-        end: endIso,
+        id: createdAppointment?.id ? String(createdAppointment.id) : undefined,
+        title: reserveTitle.trim(),
+        baseTitle: reserveTitle.trim(),
+        start: new Date(`${reserveDate}T${timeStr}:00`).toISOString(),
+        end: new Date(`${reserveDate}T${timeStr}:00`).toISOString(),
         type: reserveType,
-        patientId: selectedPatient?.id,
-        patientName: selectedPatient?.name,
-        patientGender: selectedPatient?.gender,
-        patientAge: selectedPatient?.age,
+        patientId: selectedPatient.id,
+        patientName: selectedPatient.name,
+        patientGender: selectedPatient.gender,
+        patientAge: selectedPatient.age,
       });
 
       onOpenChange(false);
       resetForm();
-      toast({ title: "예약이 등록되었습니다", description: "일정관리 캘린더에서 확인할 수 있습니다." });
+      toast({ 
+        title: "예약이 등록되었습니다", 
+        description: "일정관리 캘린더에서 확인할 수 있습니다." 
+      });
       
       if (navigateToSchedule) {
         navigate('/schedule');
       }
-    } catch (e) {
-      toast({ title: "등록 실패", description: "다시 시도해 주세요.", variant: "destructive" });
+    } catch (error) {
+      console.error('예약 생성 실패:', error);
+      toast({
+        title: "예약 등록 실패",
+        description: "예약을 등록하는 중 문제가 발생했습니다.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -337,10 +356,9 @@ export default function ExamReservationModal({
                 <SelectValue placeholder="유형 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="검진">검진</SelectItem>
-                <SelectItem value="회의">회의</SelectItem>
-                <SelectItem value="내근">내근</SelectItem>
-                <SelectItem value="외근">외근</SelectItem>
+                <SelectItem value="일반검진">일반검진</SelectItem>
+                <SelectItem value="정기검진">정기검진</SelectItem>
+                <SelectItem value="추가검사">추가검사</SelectItem>
               </SelectContent>
             </Select>
           </div>

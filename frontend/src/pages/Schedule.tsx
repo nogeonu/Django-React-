@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { useCalendar } from '@/context/CalendarContext';
 import { apiRequest } from '@/lib/api';
 import ExamReservationModal from '@/components/ExamReservationModal';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Schedule() {
   const calendarRef = useRef<FullCalendar | null>(null);
@@ -23,6 +24,7 @@ export default function Schedule() {
   const [currentTitle, setCurrentTitle] = useState<string>(format(new Date(), 'yyyy.MM'));
   const [activeView, setActiveView] = useState<'day' | 'week' | 'month'>('month');
   const { events, removeEvent, updateEvent } = useCalendar();
+  const { toast } = useToast();
   
   // 예약 검사 등록 모달 상태
   const [isReserveOpen, setIsReserveOpen] = useState(false);
@@ -143,6 +145,77 @@ export default function Schedule() {
     const api = calendarRef.current?.getApi();
     api?.changeView(toFcView(v));
     setCurrentTitle(api ? format(api.getDate(), 'yyyy.MM') : currentTitle);
+  };
+
+  const to24h = (ampm: 'AM' | 'PM', h: string, m: string) => {
+    let hourNum = parseInt(h, 10) % 12;
+    if (ampm === 'PM') hourNum += 12;
+    return `${hourNum.toString().padStart(2, '0')}:${m.padStart(2, '0')}`;
+  };
+
+  const isBackendId = (value?: string) => !!value && /^\d+$/.test(value);
+
+  const handleSaveEdit = async () => {
+    if (!detail?.id || !editDate) {
+      return;
+    }
+
+    const appointmentId = detail.id;
+    const startStr = to24h(startAmPm, startHour, startMinute);
+    const endStr = to24h(endAmPm, endHour, endMinute);
+    const startDate = new Date(`${editDate}T${startStr}:00`);
+    const endDate = new Date(`${editDate}T${endStr}:00`);
+    if (endDate <= startDate) {
+      toast({ title: '종료 시간은 시작 시간보다 뒤여야 합니다.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      if (isBackendId(appointmentId)) {
+        await apiRequest('PATCH', `/api/patients/appointments/${appointmentId}/`, {
+          appointment_date: editDate,
+          appointment_time: startStr,
+        });
+      }
+      updateEvent(appointmentId, {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+      });
+      toast({ title: '예약 일정이 수정되었습니다.' });
+      setIsEditing(false);
+      setOpenDetail(false);
+    } catch (error) {
+      console.error('예약 편집 실패:', error);
+      toast({
+        title: '예약 편집 실패',
+        description: '서버와 통신 중 문제가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!detail?.id) {
+      return;
+    }
+
+    const appointmentId = detail.id;
+
+    try {
+      if (isBackendId(appointmentId)) {
+        await apiRequest('DELETE', `/api/patients/appointments/${appointmentId}/`);
+      }
+      removeEvent(appointmentId);
+      toast({ title: '예약이 삭제되었습니다.' });
+      setOpenDetail(false);
+    } catch (error) {
+      console.error('예약 삭제 실패:', error);
+      toast({
+        title: '예약 삭제 실패',
+        description: '서버와 통신 중 문제가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -421,31 +494,13 @@ export default function Schedule() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={()=> setIsEditing(false)}>취소</Button>
-                <Button onClick={()=> {
-                  if (!detail?.id || !editDate) return;
-                  const to24h = (ampm:'AM'|'PM', h:string, m:string) => {
-                    let hourNum = parseInt(h,10) % 12; if (ampm === 'PM') hourNum += 12;
-                    return `${String(hourNum).padStart(2,'0')}:${m}`;
-                  };
-                  const startStr = to24h(startAmPm, startHour, startMinute);
-                  const endStr = to24h(endAmPm, endHour, endMinute);
-                  const s = new Date(`${editDate}T${startStr}:00`);
-                  const e = new Date(`${editDate}T${endStr}:00`);
-                  if (e <= s) return;
-                  updateEvent(detail.id, { start: s.toISOString(), end: e.toISOString() });
-                  setIsEditing(false);
-                  setOpenDetail(false);
-                }}>저장</Button>
+                <Button onClick={handleSaveEdit}>저장</Button>
               </div>
             </div>
           ) : (
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={()=> { setIsEditing(true); initEditFromDetail(); }}>편집</Button>
-              <Button variant="destructive" onClick={()=>{
-                if (!detail?.id) return;
-                removeEvent(detail.id);
-                setOpenDetail(false);
-              }}>삭제</Button>
+              <Button variant="destructive" onClick={handleDeleteEvent}>삭제</Button>
             </div>
           )}
         </DialogContent>

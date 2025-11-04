@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Patient, LungRecord, LungResult, MedicalRecord
+from .models import Patient, LungRecord, LungResult, MedicalRecord, PatientAppointment
 
 class PatientSerializer(serializers.ModelSerializer):
     class Meta:
@@ -142,3 +142,37 @@ class MedicalRecordUpdateSerializer(serializers.ModelSerializer):
                 setattr(instance, attr, value)
             instance.save()
         return instance
+
+
+class PatientAppointmentSerializer(serializers.ModelSerializer):
+    """환자 예약 시리얼라이저"""
+
+    class Meta:
+        model = PatientAppointment
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+    def validate_appointment_date(self, value):
+        from django.utils import timezone
+
+        if value < timezone.now().date():
+            raise serializers.ValidationError('과거 날짜는 예약할 수 없습니다.')
+        return value
+
+    def validate(self, data):
+        appointment_date = data.get('appointment_date')
+        appointment_time = data.get('appointment_time')
+
+        if appointment_date and appointment_time and not data.get('id'):
+            exists = PatientAppointment.objects.filter(
+                appointment_date=appointment_date,
+                appointment_time=appointment_time,
+                status__in=['예약대기', '예약확정']
+            ).exists()
+
+            if exists:
+                raise serializers.ValidationError({
+                    'appointment_time': '이미 예약된 시간대입니다.'
+                })
+
+        return data

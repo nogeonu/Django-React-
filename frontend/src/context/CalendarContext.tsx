@@ -6,16 +6,18 @@ export type CalendarEvent = {
   baseTitle?: string;
   start: string; // ISO string
   end?: string;  // ISO string
-  type?: '검진' | '회의' | '내근' | '외근';
+  type?: '일반검진' | '정기검진' | '추가검사';
   patientId?: string;
   patientName?: string;
   patientGender?: string;
   patientAge?: number;
 };
 
+type CalendarEventInput = Omit<CalendarEvent, 'id'> & { id?: string };
+
 type CalendarContextType = {
   events: CalendarEvent[];
-  addEvent: (e: Omit<CalendarEvent, 'id'>) => CalendarEvent;
+  addEvent: (e: CalendarEventInput) => CalendarEvent;
   updateEvent: (id: string, patch: Partial<Omit<CalendarEvent, 'id'>>) => void;
   removeEvent: (id: string) => void;
   clearEvents: () => void;
@@ -51,7 +53,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     events,
     addEvent: (e) => {
       const baseTitle = e.baseTitle ?? e.title;
-      const withId: CalendarEvent = { id: Math.random().toString(36).slice(2), ...e, baseTitle };
+      const id = e.id ?? Math.random().toString(36).slice(2);
+      const withId: CalendarEvent = { id, ...e, baseTitle };
       setEvents((prev) => [...prev, withId]);
       return withId;
     },

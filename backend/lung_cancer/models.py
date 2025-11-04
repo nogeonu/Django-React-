@@ -123,3 +123,40 @@ class MedicalRecord(models.Model):
         self.is_treatment_completed = True
         self.treatment_end_time = timezone.now()
         self.save()
+
+
+class PatientAppointment(models.Model):
+    """환자 예약 정보 저장"""
+
+    APPOINTMENT_STATUS = [
+        ('예약대기', '예약대기'),
+        ('예약확정', '예약확정'),
+        ('검사완료', '검사완료'),
+        ('예약취소', '예약취소'),
+    ]
+
+    APPOINTMENT_TYPE = [
+        ('일반검진', '일반검진'),
+        ('정기검진', '정기검진'),
+        ('추가검사', '추가검사'),
+    ]
+
+    patient_id = models.CharField('환자ID', max_length=10)
+    patient_name = models.CharField('환자명', max_length=100)
+    appointment_date = models.DateField('예약일자')
+    appointment_time = models.TimeField('예약시간')
+    appointment_type = models.CharField('검사유형', max_length=20, choices=APPOINTMENT_TYPE)
+    status = models.CharField('예약상태', max_length=20, choices=APPOINTMENT_STATUS, default='예약대기')
+    notes = models.TextField('특이사항', blank=True, null=True)
+    phone = models.CharField('연락처', max_length=20)
+    created_at = models.DateTimeField('생성일시', auto_now_add=True)
+    updated_at = models.DateTimeField('수정일시', auto_now=True)
+
+    class Meta:
+        db_table = 'patient_appointments'
+        verbose_name = '환자 예약'
+        verbose_name_plural = '환자 예약 목록'
+        ordering = ['-appointment_date', 'appointment_time']
+
+    def __str__(self):
+        return f"{self.patient_name} - {self.appointment_date} {self.appointment_time} - {self.get_status_display()}"
