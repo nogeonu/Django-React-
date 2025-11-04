@@ -27,6 +27,42 @@ class Patient(models.Model):
     def __str__(self):
         return f"{self.name} ({self.patient_id})"
 
+class Appointment(models.Model):
+    APPOINTMENT_TYPE_CHOICES = [
+        ('검진', '검진'),
+        ('회의', '회의'),
+        ('내근', '내근'),
+        ('외근', '외근'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('예약됨', '예약됨'),
+        ('완료', '완료'),
+        ('취소', '취소'),
+    ]
+    
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='appointments', verbose_name="환자")
+    appointment_date = models.DateTimeField(verbose_name="예약 일시")
+    appointment_type = models.CharField(max_length=10, choices=APPOINTMENT_TYPE_CHOICES, default='검진', verbose_name="예약 종류")
+    title = models.CharField(max_length=200, verbose_name="예약 제목")
+    description = models.TextField(blank=True, verbose_name="설명")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='예약됨', verbose_name="상태")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="생성자")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="등록일")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="수정일")
+    
+    class Meta:
+        verbose_name = "예약"
+        verbose_name_plural = "예약들"
+        ordering = ['-appointment_date']
+        indexes = [
+            models.Index(fields=['patient', 'appointment_date']),
+            models.Index(fields=['appointment_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.patient.name} - {self.title} ({self.appointment_date.strftime('%Y-%m-%d %H:%M')})"
+
 class MedicalRecord(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='medical_records', verbose_name="환자")
     visit_date = models.DateTimeField(verbose_name="방문일시")

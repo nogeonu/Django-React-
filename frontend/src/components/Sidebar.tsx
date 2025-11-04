@@ -7,7 +7,7 @@ const baseNavigation = {
   medical_staff: [
     { name: "환자 정보", href: "/patients", icon: Users },
     { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
-    { name: "일정관리", href: "/schedule", icon: Calendar },
+    { name: "예약 관리", href: "/schedule", icon: Calendar },
     { name: "의료 이미지", href: "/images", icon: FileImage },
     { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
     { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
