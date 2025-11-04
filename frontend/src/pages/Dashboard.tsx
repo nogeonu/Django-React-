@@ -241,7 +241,7 @@ export default function Dashboard() {
                   </Button>
                   <Button size="sm" onClick={() => navigate('/signup')}>
                     회원가입
-                  </Button>
+              </Button>
                 </>
               )}
             </div>
@@ -331,11 +331,11 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="flex flex-col items-end space-y-1">
-                        <div className="text-sm text-gray-400">
-                          {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                      <div className="text-sm text-gray-400">
+                        {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                         </div>
                         <Button 
                           size="sm" 
@@ -394,7 +394,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-new-examination"
-                onClick={() => navigate('/schedule?reserve=1')}
+                onClick={() => navigate('/schedule')}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 예약 검사 등록
