@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
   Plus, 
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api";
 import PatientRegistrationModal from "@/components/PatientRegistrationModal";
+import FourWeekCalendarModal from "@/components/FourWeekCalendarModal";
 
 interface Patient {
   id: string;
@@ -67,6 +68,7 @@ export default function Patients() {
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const [reservationPatient, setReservationPatient] = useState<Patient | null>(null);
   const [reservations, setReservations] = useState<Record<string, { id: string; name: string; time: string; memo?: string }[]>>({});
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { data: patients = [], isLoading, refetch, error } = useQuery({
     queryKey: ["patients"],
@@ -84,6 +86,43 @@ export default function Patients() {
 
   const handleRegistrationSuccess = () => {
     refetch(); // 환자 목록 새로고침
+  };
+
+  // 예약 로컬 저장/로드
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("reservations");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') setReservations(parsed);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("reservations", JSON.stringify(reservations));
+    } catch {}
+  }, [reservations]);
+
+  // 캘린더 모달(재사용 컴포넌트) 헬퍼
+  const searchPatients = async (q: string): Promise<Patient[]> => {
+    const encodedQuery = encodeURIComponent(q.trim());
+    const response = await apiRequest("GET", `/api/lung_cancer/api/medical-records/search_patients/?q=${encodedQuery}`);
+    return response.patients || [];
+  };
+  const handleReserveFromModal = ({ date, time, patient, memo }: { date: Date; time: string; patient: Patient; memo?: string }) => {
+    const key = date.toISOString().slice(0, 10);
+    setReservations((prev) => {
+      const list = prev[key] || [];
+      return {
+        ...prev,
+        [key]: [
+          ...list,
+          { id: patient.id, name: patient.name, time, memo },
+        ],
+      };
+    });
+    setIsCalendarOpen(false);
   };
 
   const handleDeleteClick = (patient: Patient) => {
@@ -157,13 +196,23 @@ export default function Patients() {
               <h1 className="text-xl font-bold text-gray-900">환자 관리</h1>
               <p className="text-sm text-gray-500">등록된 환자 정보를 관리합니다</p>
             </div>
-            <Button 
-              data-testid="button-add-patient"
-              onClick={() => setIsRegistrationModalOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              환자 등록
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                data-testid="button-add-patient"
+                onClick={() => setIsRegistrationModalOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                환자 등록
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setIsCalendarOpen(true)}
+                data-testid="button-open-calendar-modal"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                예약 검사 등록
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -645,6 +694,16 @@ export default function Patients() {
           </div>
         </div>
       )}
+
+      {/* 4주 캘린더 모달 (재사용 컴포넌트) */}
+      <FourWeekCalendarModal
+        open={isCalendarOpen}
+        onOpenChange={setIsCalendarOpen}
+        reservations={reservations}
+        onReserve={handleReserveFromModal}
+        searchPatients={searchPatients}
+        maxSameTimeReservations={2}
+      />
     </div>
   );
 }
