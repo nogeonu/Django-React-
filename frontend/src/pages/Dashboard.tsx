@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   Users, 
@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useCalendar } from "@/context/CalendarContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
  
 import { useNavigate, useLocation } from "react-router-dom";
@@ -59,6 +61,21 @@ export default function Dashboard() {
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addEvent } = useCalendar();
+
+  // 예약 검사 등록 다이얼로그 상태
+  const [isReserveOpen, setIsReserveOpen] = useState(false);
+  const [reserveTitle, setReserveTitle] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [reserveDate, setReserveDate] = useState<string>(new Date().toISOString().slice(0,10));
+  // 시간 선택 (AM/PM + 시/분)
+  const [startAmPm, setStartAmPm] = useState<'AM'|'PM'>("AM");
+  const [startHour, setStartHour] = useState<string>("09");
+  const [startMinute, setStartMinute] = useState<string>("00");
+  const [endAmPm, setEndAmPm] = useState<'AM'|'PM'>("AM");
+  const [endHour, setEndHour] = useState<string>("10");
+  const [endMinute, setEndMinute] = useState<string>("00");
+  const [reserveType, setReserveType] = useState<'검진'|'회의'|'내근'|'외근'>("검진");
 
   const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
@@ -77,6 +94,14 @@ export default function Dashboard() {
     },
     refetchInterval: 30000, // 30초마다 자동 새로고침
   });
+
+  // URL 쿼리로 예약 모달 자동 오픈 (?reserve=1)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('reserve') === '1') {
+      setIsReserveOpen(true);
+    }
+  }, [location.search]);
 
   // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
   const { data: patients = [] } = useQuery({
@@ -369,6 +394,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-new-examination"
+                onClick={() => setIsReserveOpen(true)}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 예약 검사 등록
@@ -516,6 +542,178 @@ export default function Dashboard() {
             >
               {isCompleting ? "처리 중..." : "진료 완료"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 예약 검사 등록 모달 */}
+      <Dialog open={isReserveOpen} onOpenChange={setIsReserveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>예약 검사 등록</DialogTitle>
+            <DialogDescription>
+              예약 정보를 입력하면 일정관리 캘린더에 표시됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="reserve-title">제목</Label>
+              <Input id="reserve-title" value={reserveTitle} onChange={(e)=>setReserveTitle(e.target.value)} placeholder="예: 흉부 CT 검사" />
+            </div>
+            <div className="space-y-2">
+              <Label>환자명 (선택사항)</Label>
+              <Select value={selectedPatient?.id || ''} onValueChange={(v)=>{
+                const p = (patients as Patient[]).find((x)=> x.id === v) || null;
+                setSelectedPatient(p);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="환자명을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(patients as Patient[]).map((p)=> (
+                    <SelectItem key={p.id} value={p.id} textValue={p.name}>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-semibold">
+                            {p.name?.charAt(0) || '-'}
+                          </div>
+                          <div>
+                            <div className="text-gray-900 font-medium">{p.name}</div>
+                            <div className="text-xs text-gray-500">{p.id}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-700">{p.age}세</div>
+                          <div className="text-xs text-gray-500">{p.gender}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reserve-date">날짜</Label>
+                <Input id="reserve-date" type="date" value={reserveDate} onChange={(e)=>setReserveDate(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>시작 시간</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={startAmPm} onValueChange={(v:any)=>setStartAmPm(v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">오전</SelectItem>
+                      <SelectItem value="PM">오후</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={startHour} onValueChange={(v:any)=>setStartHour(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')).map(h=> (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={startMinute} onValueChange={(v:any)=>setStartMinute(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
+                    <SelectContent>
+                      {['00','10','20','30','40','50'].map(m=> (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>종료 시간</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={endAmPm} onValueChange={(v:any)=>setEndAmPm(v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">오전</SelectItem>
+                      <SelectItem value="PM">오후</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={endHour} onValueChange={(v:any)=>setEndHour(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')).map(h=> (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={endMinute} onValueChange={(v:any)=>setEndMinute(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
+                    <SelectContent>
+                      {['00','10','20','30','40','50'].map(m=> (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>유형</Label>
+              <Select value={reserveType} onValueChange={(v:any)=>setReserveType(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="검진">검진</SelectItem>
+                  <SelectItem value="회의">회의</SelectItem>
+                  <SelectItem value="내근">내근</SelectItem>
+                  <SelectItem value="외근">외근</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setIsReserveOpen(false)}>취소</Button>
+            <Button onClick={() => {
+              try {
+                if (!reserveTitle.trim()) {
+                  toast({ title: "제목을 입력해 주세요", variant: "destructive" });
+                  return;
+                }
+                const to24h = (ampm:'AM'|'PM', h:string, m:string) => {
+                  let hourNum = parseInt(h,10)%12;
+                  if (ampm === 'PM') hourNum += 12;
+                  return `${String(hourNum).padStart(2,'0')}:${m}`;
+                };
+                const startStr = to24h(startAmPm, startHour, startMinute);
+                const endStr = to24h(endAmPm, endHour, endMinute);
+                const start = new Date(`${reserveDate}T${startStr}:00`);
+                const end = new Date(`${reserveDate}T${endStr}:00`);
+                if (end <= start) {
+                  toast({ title: "종료 시간이 시작 시간보다 늦어야 합니다", variant: "destructive" });
+                  return;
+                }
+                const startIso = start.toISOString();
+                const endIso = end.toISOString();
+                const titleFinal = selectedPatient ? `${reserveTitle.trim()} (${selectedPatient.name})` : reserveTitle.trim();
+                addEvent({ 
+                  title: titleFinal, 
+                  start: startIso, 
+                  end: endIso, 
+                  type: reserveType,
+                  patientId: selectedPatient?.id,
+                  patientName: selectedPatient?.name,
+                  patientGender: selectedPatient?.gender,
+                  patientAge: selectedPatient?.age,
+                });
+                setIsReserveOpen(false);
+                setReserveTitle("");
+                setSelectedPatient(null);
+                toast({ title: "예약이 등록되었습니다", description: "일정관리 캘린더에서 확인할 수 있습니다." });
+                navigate('/schedule');
+              } catch (e) {
+                toast({ title: "등록 실패", description: "다시 시도해 주세요.", variant: "destructive" });
+              }
+            }}>등록</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
