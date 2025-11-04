@@ -64,7 +64,6 @@ jobs:
           timeout: 1800s
           command_timeout: 600s
           debug: true
-          script_stop: true  # 오류 발생 시 즉시 중단 (오류 방지를 통해 해결)
           script: |
             set -e  # 오류 발생 시 즉시 중단
             APP_DIR="${{ secrets.APP_DIR }}"
