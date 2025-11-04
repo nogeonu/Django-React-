@@ -334,7 +334,7 @@ export default function Schedule() {
                 eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
                 events={fcEvents}
                 dateClick={onDateClick}
-                eventDidMount={(info) => {
+                eventDidMount={(info: any) => {
                   const d = info.event;
                   const type = (d.extendedProps as any)?.type || '';
                   const name = (d.extendedProps as any)?.patientName || '';
@@ -344,7 +344,7 @@ export default function Schedule() {
                   const tooltip = `${d.title}${name ? `\n환자: ${name}${pid ? ` (${pid})` : ''}` : ''}${type ? `\n유형: ${type}` : ''}${start ? `\n시작: ${start}` : ''}${end ? `\n종료: ${end}` : ''}`;
                   info.el.setAttribute('title', tooltip);
                 }}
-                eventClick={(info) => {
+                eventClick={(info: any) => {
                   const e = info.event;
                   setDetail({
                     id: e.id,
