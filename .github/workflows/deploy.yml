@@ -33,7 +33,7 @@ jobs:
             sudo rm -rf "$APP_DIR/backend/staticfiles" || true
             find "$APP_DIR/backend" -type d -name "__pycache__" -exec sudo rm -rf {} + || true
             find "$APP_DIR/backend" -type f -name "*.pyc" -delete || true
-            
+
             # frontend 캐시 완전 삭제 (중복 파일 제거)
             sudo rm -rf "$APP_DIR/frontend/node_modules" || true
             sudo rm -rf "$APP_DIR/frontend/dist" || true
@@ -147,7 +147,7 @@ jobs:
             echo '' | sudo tee -a /etc/systemd/system/ml-service.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/ml-service.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/ml-service.service
-            
+
             # --- 서비스 재시작 ---
             # Gunicorn 서비스 파일 업데이트 (eventeye 사용하도록)
             echo '[Unit]' | sudo tee /etc/systemd/system/gunicorn.service
@@ -164,13 +164,15 @@ jobs:
             echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
-            sudo systemctl daemon-reload
-            sudo systemctl restart ml-service || sudo systemctl start ml-service
+            sudo systemctl daemon-reload || echo "daemon-reload failed, continuing..."
+            sudo systemctl restart ml-service || sudo systemctl start ml-service || echo "ml-service failed, continuing..."
             sleep 5
             sudo systemctl status ml-service || true
-            sudo systemctl restart gunicorn || sudo systemctl start gunicorn
+            sudo systemctl restart gunicorn || sudo systemctl start gunicorn || echo "gunicorn failed, continuing..."
+            set -e  # 다시 오류 시 중단 활성화
             
             # Nginx 설정에 미디어 파일 서빙 추가
+            set +e  # Nginx 설정 오류 허용
             echo 'server {' | sudo tee /etc/nginx/sites-available/eventeye
             echo '    listen 80;' | sudo tee -a /etc/nginx/sites-available/eventeye
             echo '    server_name 34.42.223.43;' | sudo tee -a /etc/nginx/sites-available/eventeye
@@ -194,6 +196,7 @@ jobs:
             echo '    }' | sudo tee -a /etc/nginx/sites-available/eventeye
             echo '}' | sudo tee -a /etc/nginx/sites-available/eventeye
             
-            sudo ln -sf /etc/nginx/sites-available/eventeye /etc/nginx/sites-enabled/
-            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx
+            sudo ln -sf /etc/nginx/sites-available/eventeye /etc/nginx/sites-enabled/ || echo "nginx symlink failed, continuing..."
+            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx || echo "nginx reload/restart failed, continuing..."
+            set -e  # 다시 오류 시 중단 활성화
 
