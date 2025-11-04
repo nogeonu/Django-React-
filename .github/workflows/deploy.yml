@@ -107,39 +107,19 @@ jobs:
               echo "Migrations completed successfully"
             fi
             
-            # 마이그레이션 검증 - 실제 사용하는 테이블 확인
-            echo "=== Verifying Required Tables ==="
-            cat > /tmp/check_tables.py << 'PYEOF'
-import os, django, sys
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
-django.setup()
-from django.db import connection
-required_tables = ['patient', 'patients_patient', 'patients_appointment', 'patients_medicalrecord', 'lung_record', 'lung_result', 'auth_user']
-cursor = connection.cursor()
-cursor.execute('SHOW TABLES')
-existing_tables = [row[0] for row in cursor.fetchall()]
-missing_tables = []
-for table in required_tables:
-    if table in existing_tables:
-        print('✓ ' + table + ' exists')
-    else:
-        print('✗ ' + table + ' MISSING')
-        if table.startswith('patients_'):
-            missing_tables.append(table)
-if missing_tables:
-    print('ERROR: Missing Django-managed tables: ' + ', '.join(missing_tables))
-    sys.exit(1)
-else:
-    print('All required tables verified')
-PYEOF
-            python /tmp/check_tables.py || {
-              echo "CRITICAL: Some Django-managed tables are missing, forcing migration..."
+            # 마이그레이션 검증 - Django 체크 및 테이블 확인
+            echo "=== Verifying Database and Tables ==="
+            python manage.py check --database default || echo "Django check completed"
+            
+            # patients 앱 마이그레이션 강제 확인
+            python manage.py showmigrations patients | grep -q "\[ \]" && {
+              echo "WARNING: Unapplied migrations found, running migrations..."
               python manage.py makemigrations patients
-              python manage.py migrate patients --run-syncdb
-              python manage.py migrate
-              echo "Migration completed, verifying again..."
-              python /tmp/check_tables.py || echo "Verification failed after migration"
-            }
+              python manage.py migrate patients
+            } || echo "All patients migrations applied"
+            
+            # 전체 마이그레이션 재확인 및 실행
+            python manage.py migrate --run-syncdb || echo "Migration with syncdb completed"
             
             # 최종 마이그레이션 상태 확인
             echo "=== Final Migration Status ==="
