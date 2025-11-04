@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Clean remote directory and fix permissions
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -26,6 +26,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 300s
           command_timeout: 300s
+          debug: true
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
@@ -54,7 +55,7 @@ jobs:
           remote_port: ${{ secrets.SSH_PORT }}
 
       - name: Remote deploy steps
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -62,6 +63,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 1800s
           command_timeout: 600s
+          debug: true
           script_stop: true  # 오류 발생 시 즉시 중단 (오류 방지를 통해 해결)
           script: |
             set -e  # 오류 발생 시 즉시 중단
