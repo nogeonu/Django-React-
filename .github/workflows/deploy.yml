@@ -24,6 +24,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 300s
+          command_timeout: 300s
+          dial_timeout: 60s
+          command_retries: 3
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
@@ -40,10 +44,22 @@ jobs:
             find "$APP_DIR/frontend/src/pages" -name "* 2.*" -type f -delete || true
             find "$APP_DIR/frontend/src/pages" -name "* 2.tsx" -type f -delete || true
 
+      - name: Wait for SSH connection
+        run: |
+          echo "Waiting for SSH connection to be ready..."
+          for i in {1..30}; do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo 'SSH connection successful'"; then
+              echo "SSH connection established"
+              break
+            fi
+            echo "Attempt $i failed, retrying in 5 seconds..."
+            sleep 5
+          done
+
       - name: Sync project to VM (rsync)
         uses: burnett01/rsync-deployments@5.2
         with:
-          switches: -avz --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store" --exclude "backend/staticfiles" --exclude "backend/*.pyc" --exclude "backend/*/__pycache__"
+          switches: -avz --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store" --exclude "backend/staticfiles" --exclude "backend/*.pyc" --exclude "backend/*/__pycache__" --timeout=300
           path: ./
           remote_path: ${{ secrets.APP_DIR }}/
           remote_host: ${{ secrets.SSH_HOST }}
@@ -58,6 +74,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 1800s
+          command_timeout: 600s
+          dial_timeout: 60s
+          command_retries: 3
           script_stop: true  # 오류 발생 시 즉시 중단 (오류 방지를 통해 해결)
           script: |
             set -e  # 오류 발생 시 즉시 중단
