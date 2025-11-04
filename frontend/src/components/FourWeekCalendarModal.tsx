@@ -29,7 +29,7 @@ interface FourWeekCalendarModalProps {
   onReserve: (payload: { date: Date; time: string; patient: Patient; memo?: string }) => void;
   searchPatients: (query: string) => Promise<Patient[]>;
   initialMonth?: Date;
-  maxSameTimeReservations?: number; // default 2
+  maxSameTimeReservations?: number;
 }
 
 const startOfDay = (d: Date) => {
@@ -205,7 +205,7 @@ export default function FourWeekCalendarModal({
     const key = selectedDate.toISOString().slice(0, 10);
     const existing = reservations[key] || [];
     const sameTimeCount = existing.filter((r) => r.time === selectedTime).length;
-    if (sameTimeCount >= maxSameTimeReservations) {
+    if (maxSameTimeReservations !== undefined && sameTimeCount >= maxSameTimeReservations) {
       alert(`해당 시간대는 이미 ${maxSameTimeReservations}명 예약되어 있습니다. 다른 시간을 선택하세요.`);
       return;
     }

@@ -179,7 +179,6 @@ export default function Dashboard() {
         ],
       };
     });
-    // 모달 닫기
     setIsCalendarOpen(false);
   };
 
@@ -440,7 +439,6 @@ export default function Dashboard() {
         reservations={reservations}
         onReserve={handleReserveFromModal}
         searchPatients={searchPatients}
-        maxSameTimeReservations={2}
       />
 
       {/* Patient Registration Modal */}

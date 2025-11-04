@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.shortcuts import render
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db import connections
 from django.http import JsonResponse
 from django.db import models
 from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
