@@ -209,7 +209,27 @@ jobs:
               sudo systemctl enable gunicorn
               sudo systemctl start gunicorn
             fi
-            echo "Services restarted successfully"
+            sleep 5
+            
+            # Gunicorn 서비스 상태 확인
+            echo "=== Gunicorn Service Status ==="
+            sudo systemctl status gunicorn --no-pager -l || echo "Failed to get gunicorn status"
+            
+            # Gunicorn 로그 확인
+            echo "=== Recent Gunicorn Logs ==="
+            sudo journalctl -u gunicorn -n 50 --no-pager || echo "Failed to get gunicorn logs"
+            
+            # Django 설정 테스트
+            echo "=== Testing Django Configuration ==="
+            cd "$APP_DIR/backend"
+            source .venv/bin/activate
+            python manage.py check --deploy || echo "Django check failed"
+            
+            # 포트 8000 확인
+            echo "=== Checking Port 8000 ==="
+            sudo netstat -tlnp | grep :8000 || ss -tlnp | grep :8000 || echo "Port 8000 not found"
+            
+            echo "Services restarted and verified"
             
             # Nginx 설정에 미디어 파일 서빙 추가
             # 미디어 디렉토리 생성
@@ -247,6 +267,8 @@ jobs:
             # Nginx 설정 테스트
             sudo nginx -t || {
               echo "Nginx configuration test failed"
+              echo "=== Nginx Error Log ==="
+              sudo tail -n 20 /var/log/nginx/error.log || true
               exit 1
             }
             
@@ -256,6 +278,13 @@ jobs:
             else
               sudo systemctl start nginx
             fi
+            
+            # 최종 서비스 상태 확인
+            echo "=== Final Service Status ==="
+            echo "Gunicorn: $(sudo systemctl is-active gunicorn || echo 'inactive')"
+            echo "Nginx: $(sudo systemctl is-active nginx || echo 'inactive')"
+            echo "ML Service: $(sudo systemctl is-active ml-service || echo 'inactive')"
+            
             echo "Nginx configuration applied successfully"
             echo "Deployment completed successfully!"
 
