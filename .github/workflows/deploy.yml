@@ -98,43 +98,62 @@ jobs:
               echo "Migrations completed successfully"
             fi
             
-            # collectstatic 실행 (오류가 있어도 계속 진행)
-            set +e
-            python manage.py collectstatic --noinput || echo "collectstatic failed, but continuing..."
-            COLLECTSTATIC_EXIT_CODE=$?
-            if [ $COLLECTSTATIC_EXIT_CODE -ne 0 ]; then
-              echo "collectstatic failed with exit code $COLLECTSTATIC_EXIT_CODE, but continuing..."
+            # collectstatic 실행 전 디렉토리 준비
+            mkdir -p "$APP_DIR/backend/staticfiles"
+            chmod -R 755 "$APP_DIR/backend/staticfiles" || true
+            sudo chown -R $USER:$USER "$APP_DIR/backend/staticfiles" || true
+            
+            # collectstatic 실행
+            python manage.py collectstatic --noinput
+            if [ $? -ne 0 ]; then
+              echo "collectstatic failed, retrying..."
+              mkdir -p "$APP_DIR/backend/staticfiles"
+              python manage.py collectstatic --noinput --clear
             fi
-            # set -e 제거: 이후 단계들도 오류가 있어도 계속 진행하도록
+            echo "collectstatic completed successfully"
 
             # --- React frontend ---
             cd "$APP_DIR/frontend"
-            set +e  # 프론트엔드 빌드 오류 허용 (일시적)
+            
+            # Node.js 확인 및 설치
             if ! command -v npm >/dev/null 2>&1; then
+              echo "Installing Node.js..."
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
+            
+            # Node.js 버전 확인
+            node --version
+            npm --version
+            
+            # 디렉토리 정리 및 권한 설정
+            mkdir -p dist
+            chmod -R 755 "$APP_DIR/frontend" || true
+            sudo chown -R $USER:$USER "$APP_DIR/frontend" || true
+            
             # node_modules, dist 캐시 완전 삭제
             rm -rf node_modules dist .next
-            npm ci
-            BUILD_EXIT_CODE=$?
-            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            
+            # 패키지 설치
+            echo "Installing npm packages..."
+            npm ci || {
               echo "npm ci failed, trying npm install..."
+              rm -rf node_modules package-lock.json
               npm install
-            fi
-            npm run build
-            BUILD_EXIT_CODE=$?
-            if [ $BUILD_EXIT_CODE -ne 0 ]; then
-              echo "Frontend build failed with exit code $BUILD_EXIT_CODE"
-              echo "Checking for TypeScript errors..."
-              npm run build 2>&1 | head -50 || true
-              echo "Continuing deployment despite build errors..."
-            fi
-            # set -e 제거: 이후 단계들도 오류가 있어도 계속 진행하도록
+            }
+            
+            # 빌드 실행
+            echo "Building frontend..."
+            npm run build || {
+              echo "First build attempt failed, retrying with clean cache..."
+              rm -rf node_modules/.cache dist .next
+              npm run build
+            }
+            echo "Frontend build completed successfully"
 
             # --- ML Service 설정 및 시작 ---
-            set +e  # ML Service 설정 오류 허용
-            echo '[Unit]' | sudo tee /etc/systemd/system/ml-service.service
+            # ML Service 파일 생성
+            echo '[Unit]' | sudo tee /etc/systemd/system/ml-service.service > /dev/null
             echo 'Description=ML Service (Flask) for Lung Cancer Prediction' | sudo tee -a /etc/systemd/system/ml-service.service
             echo 'After=network.target' | sudo tee -a /etc/systemd/system/ml-service.service
             echo '' | sudo tee -a /etc/systemd/system/ml-service.service
@@ -165,16 +184,36 @@ jobs:
             echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
-            sudo systemctl daemon-reload || echo "daemon-reload failed, continuing..."
-            sudo systemctl restart ml-service || sudo systemctl start ml-service || echo "ml-service failed, continuing..."
-            sleep 5
-            sudo systemctl status ml-service || true
-            sudo systemctl restart gunicorn || sudo systemctl start gunicorn || echo "gunicorn failed, continuing..."
-            set -e  # 다시 오류 시 중단 활성화
+            # systemd 데몬 리로드
+            sudo systemctl daemon-reload
+            
+            # ML Service 재시작
+            if sudo systemctl is-active --quiet ml-service; then
+              sudo systemctl restart ml-service
+            else
+              sudo systemctl enable ml-service
+              sudo systemctl start ml-service
+            fi
+            sleep 3
+            sudo systemctl status ml-service --no-pager || echo "ML service status check completed"
+            
+            # Gunicorn 재시작
+            if sudo systemctl is-active --quiet gunicorn; then
+              sudo systemctl restart gunicorn
+            else
+              sudo systemctl enable gunicorn
+              sudo systemctl start gunicorn
+            fi
+            echo "Services restarted successfully"
             
             # Nginx 설정에 미디어 파일 서빙 추가
-            set +e  # Nginx 설정 오류 허용
-            echo 'server {' | sudo tee /etc/nginx/sites-available/eventeye
+            # 미디어 디렉토리 생성
+            mkdir -p "$APP_DIR/backend/media"
+            chmod -R 755 "$APP_DIR/backend/media" || true
+            sudo chown -R $USER:$USER "$APP_DIR/backend/media" || true
+            
+            # Nginx 설정 파일 생성
+            echo 'server {' | sudo tee /etc/nginx/sites-available/eventeye > /dev/null
             echo '    listen 80;' | sudo tee -a /etc/nginx/sites-available/eventeye
             echo '    server_name 34.42.223.43;' | sudo tee -a /etc/nginx/sites-available/eventeye
             echo '    ' | sudo tee -a /etc/nginx/sites-available/eventeye
@@ -197,7 +236,21 @@ jobs:
             echo '    }' | sudo tee -a /etc/nginx/sites-available/eventeye
             echo '}' | sudo tee -a /etc/nginx/sites-available/eventeye
             
-            sudo ln -sf /etc/nginx/sites-available/eventeye /etc/nginx/sites-enabled/ || echo "nginx symlink failed, continuing..."
-            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx || echo "nginx reload/restart failed, continuing..."
-            set -e  # 다시 오류 시 중단 활성화
+            # Nginx 설정 활성화
+            sudo ln -sf /etc/nginx/sites-available/eventeye /etc/nginx/sites-enabled/
+            
+            # Nginx 설정 테스트
+            sudo nginx -t || {
+              echo "Nginx configuration test failed"
+              exit 1
+            }
+            
+            # Nginx 재시작
+            if sudo systemctl is-active --quiet nginx; then
+              sudo systemctl reload nginx
+            else
+              sudo systemctl start nginx
+            fi
+            echo "Nginx configuration applied successfully"
+            echo "Deployment completed successfully!"
 
