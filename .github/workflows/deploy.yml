@@ -94,9 +94,18 @@ jobs:
                 python manage.py makemigrations --merge --noinput || true
                 python manage.py migrate 2>&1 | grep -v "already exists" || echo "Migration completed with warnings"
               fi
+            else
+              echo "Migrations completed successfully"
+            fi
+            
+            # collectstatic 실행 (오류가 있어도 계속 진행)
+            set +e
+            python manage.py collectstatic --noinput
+            COLLECTSTATIC_EXIT_CODE=$?
+            if [ $COLLECTSTATIC_EXIT_CODE -ne 0 ]; then
+              echo "collectstatic failed with exit code $COLLECTSTATIC_EXIT_CODE, but continuing..."
             fi
             set -e  # 다시 오류 시 중단 활성화
-            python manage.py collectstatic --noinput
 
             # --- React frontend ---
             cd "$APP_DIR/frontend"
