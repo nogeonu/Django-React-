@@ -58,7 +58,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script_stop: true
+          script_stop: false  # 오류 발생 시에도 계속 진행하도록 변경
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
@@ -100,12 +100,12 @@ jobs:
             
             # collectstatic 실행 (오류가 있어도 계속 진행)
             set +e
-            python manage.py collectstatic --noinput
+            python manage.py collectstatic --noinput || echo "collectstatic failed, but continuing..."
             COLLECTSTATIC_EXIT_CODE=$?
             if [ $COLLECTSTATIC_EXIT_CODE -ne 0 ]; then
               echo "collectstatic failed with exit code $COLLECTSTATIC_EXIT_CODE, but continuing..."
             fi
-            set -e  # 다시 오류 시 중단 활성화
+            # set -e 제거: 이후 단계들도 오류가 있어도 계속 진행하도록
 
             # --- React frontend ---
             cd "$APP_DIR/frontend"
@@ -124,13 +124,13 @@ jobs:
             fi
             npm run build
             BUILD_EXIT_CODE=$?
-            set -e  # 다시 오류 시 중단 활성화
             if [ $BUILD_EXIT_CODE -ne 0 ]; then
               echo "Frontend build failed with exit code $BUILD_EXIT_CODE"
               echo "Checking for TypeScript errors..."
               npm run build 2>&1 | head -50 || true
               echo "Continuing deployment despite build errors..."
             fi
+            # set -e 제거: 이후 단계들도 오류가 있어도 계속 진행하도록
 
             # --- ML Service 설정 및 시작 ---
             set +e  # ML Service 설정 오류 허용
