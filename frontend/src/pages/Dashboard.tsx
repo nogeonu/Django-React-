@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
   FileImage, 
   Activity, 
-  Plus,
+  UserPlus,
   Search,
   Filter,
   CheckCircle
@@ -13,9 +13,14 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useCalendar } from "@/context/CalendarContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
-import PatientRegistrationModal from "@/components/PatientRegistrationModal";
-import FourWeekCalendarModal from "@/components/FourWeekCalendarModal";
+ 
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface Patient {
   id: string;
@@ -46,40 +51,89 @@ interface MedicalRecord {
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllWaiting, setShowAllWaiting] = useState(false);
-  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [reservations, setReservations] = useState<Record<string, { id: string; name: string; time: string; memo?: string }[]>>({});
+  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [examinationResult, setExaminationResult] = useState("");
+  const [treatmentNote, setTreatmentNote] = useState("");
+  const [isCompleting, setIsCompleting] = useState(false);
+  
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addEvent } = useCalendar();
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("reservations");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') setReservations(parsed);
-      }
-    } catch { /* ignore */ }
-  }, []);
+  // 예약 검사 등록 다이얼로그 상태
+  const [isReserveOpen, setIsReserveOpen] = useState(false);
+  const [reserveTitle, setReserveTitle] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [reserveDate, setReserveDate] = useState<string>(new Date().toISOString().slice(0,10));
+  // 시간 선택 (AM/PM + 시/분)
+  const [startAmPm, setStartAmPm] = useState<'AM'|'PM'>("AM");
+  const [startHour, setStartHour] = useState<string>("09");
+  const [startMinute, setStartMinute] = useState<string>("00");
+  const [endAmPm, setEndAmPm] = useState<'AM'|'PM'>("AM");
+  const [endHour, setEndHour] = useState<string>("10");
+  const [endMinute, setEndMinute] = useState<string>("00");
+  const [reserveType, setReserveType] = useState<'검진'|'회의'|'내근'|'외근'>("검진");
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("reservations", JSON.stringify(reservations));
-    } catch { /* ignore */ }
-  }, [reservations]);
-
-  const { data: waitingPatients = [], isLoading, error } = useQuery({
+  const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
     queryFn: async () => {
       try {
         console.log("대시보드 - 대기 중인 환자 데이터 조회 시작...");
-        const response = await apiRequest("GET", "/api/lung_cancer/api/medical-records/waiting_patients/");
+        const response = await apiRequest("GET", "/api/lung_cancer/medical-records/waiting_patients/");
         console.log("대시보드 - API 응답:", response);
         const result = response || [];
         console.log("대시보드 - 대기 중인 환자 수:", result.length);
         return result;
       } catch (err) {
         console.error("대시보드 - 대기 중인 환자 데이터 조회 오류:", err);
-        throw err;
+        return [];
+      }
+    },
+    refetchInterval: 30000, // 30초마다 자동 새로고침
+  });
+
+  // URL 쿼리로 예약 모달 자동 오픈 (?reserve=1)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('reserve') === '1') {
+      setIsReserveOpen(true);
+    }
+  }, [location.search]);
+
+  // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
+        return response.results || [];
+      } catch (err) {
+        console.error("대시보드 - 환자 목록 조회 오류:", err);
+        return [];
+      }
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  // 대시보드 통계 데이터
+  const { data: dashboardStats } = useQuery({
+    queryKey: ["dashboard-statistics"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/medical-records/dashboard_statistics/");
+        return response;
+      } catch (err) {
+        console.error("대시보드 - 통계 데이터 조회 오류:", err);
+        return {
+          total_records: 0,
+          waiting_count: 0,
+          completed_count: 0,
+          today_exams: 0,
+        };
       }
     },
     refetchInterval: 30000, // 30초마다 자동 새로고침
@@ -88,98 +142,85 @@ export default function Dashboard() {
   const sortedWaitingPatients = [...(waitingPatients as MedicalRecord[])]
     .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime());
   const recentPatients = sortedWaitingPatients.slice(0, 5);
-  const totalPatients = (waitingPatients as MedicalRecord[]).length;
-  const todayExams = 3; // 임시 데이터
-  const pendingAnalysis = totalPatients; // 대기 중인 환자 수
 
   const stats = [
     {
       title: "총 환자 수",
-      value: totalPatients,
+      value: dashboardStats?.total_records || 0,
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-100"
     },
     {
       title: "오늘 예약 검사",
-      value: todayExams,
+      value: dashboardStats?.today_exams || 0,
       icon: Calendar,
       color: "text-red-600",
       bgColor: "bg-red-100"
     },
     {
       title: "진료 완료 환자",
-      value: 2,
+      value: dashboardStats?.completed_count || 0,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-100"
     },
     {
       title: "진료 대기 중 환자",
-      value: pendingAnalysis,
+      value: dashboardStats?.waiting_count || 0,
       icon: Activity,
       color: "text-orange-600",
       bgColor: "bg-orange-100"
     }
   ];
 
-  // 오류 처리
-  if (error) {
-    console.error("대시보드 로딩 오류:", error);
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">오류가 발생했습니다</h2>
-          <p className="text-gray-600 mb-4">대시보드를 불러오는 중 오류가 발생했습니다.</p>
-          <Button onClick={() => window.location.reload()}>새로고침</Button>
-        </div>
-      </div>
-    );
-  }
-
   console.log("대시보드 렌더링 중 - waitingPatients:", waitingPatients, "isLoading:", isLoading);
-  // 환자 목록(환자관리 페이지와 동일 엔드포인트/형태)
-  const { data: patients = [] } = useQuery({
-    queryKey: ["patients"],
-    queryFn: async () => {
-      try {
-        const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
-        return response.results || [];
-      } catch (err) {
-        console.error("대시보드 - 환자 목록 조회 오류:", err);
-        throw err;
-      }
-    },
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  });
 
   const filteredPatients = (patients as Patient[]).filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleCompleteTreatment = async () => {
+    if (!selectedRecord) return;
 
-  // 캘린더 모달(재사용 컴포넌트)용 헬퍼
-  const searchPatients = async (q: string): Promise<Patient[]> => {
-    const encodedQuery = encodeURIComponent(q.trim());
-    const response = await apiRequest("GET", `/api/lung_cancer/api/medical-records/search_patients/?q=${encodedQuery}`);
-    return response.patients || [];
+    setIsCompleting(true);
+    try {
+      await apiRequest('POST', `/api/lung_cancer/medical-records/${selectedRecord.id}/complete_treatment/`, {
+        examination_result: examinationResult,
+        treatment_note: treatmentNote,
+      });
+      
+      toast({
+        title: "진료 완료",
+        description: "진료가 성공적으로 완료되었습니다.",
+      });
+
+      // 모달 닫기 및 상태 초기화
+      setIsCompleteDialogOpen(false);
+      setSelectedRecord(null);
+      setExaminationResult("");
+      setTreatmentNote("");
+
+      // 대기 환자 목록 및 통계 새로고침
+      queryClient.invalidateQueries({ queryKey: ["waiting-patients"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-statistics"] });
+    } catch (error: any) {
+      console.error('진료 완료 오류:', error);
+      toast({
+        title: "오류 발생",
+        description: error?.response?.data?.error || "진료 완료 처리 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
-  const handleReserveFromModal = ({ date, time, patient, memo }: { date: Date; time: string; patient: Patient; memo?: string }) => {
-    const key = date.toISOString().slice(0, 10);
-    setReservations((prev) => {
-      const list = prev[key] || [];
-      return {
-        ...prev,
-        [key]: [
-          ...list,
-          { id: patient.id, name: patient.name, time, memo },
-        ],
-      };
-    });
-    setIsCalendarOpen(false);
+  const openCompleteDialog = (record: MedicalRecord) => {
+    setSelectedRecord(record);
+    setIsCompleteDialogOpen(true);
   };
 
   return (
@@ -192,15 +233,17 @@ export default function Dashboard() {
               <Activity className="text-blue-600 text-2xl mr-3" />
               <h1 className="text-xl font-bold text-gray-900">병원 환자관리 시스템</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button 
-                size="sm" 
-                data-testid="button-add-patient"
-                onClick={() => setIsPatientModalOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                환자 등록
-              </Button>
+            <div className="flex items-center space-x-2">
+              {location.pathname === '/' && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/login')}>
+                    로그인
+                  </Button>
+                  <Button size="sm" onClick={() => navigate('/signup')}>
+                    회원가입
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -217,7 +260,7 @@ export default function Dashboard() {
                   <div className={`${stat.bgColor} p-3 rounded-lg mr-4`}>
                     <Icon className={`w-6 h-6 ${stat.color}`} />
                   </div>
-                  <div className="md:col-span-1">
+                  <div>
                     <p className="text-sm font-medium text-gray-600">{stat.title}</p>
                     <p className="text-2xl font-bold text-gray-900" data-testid={`stat-${index}`}>
                       {stat.value}
@@ -268,7 +311,7 @@ export default function Dashboard() {
                   {(showAllWaiting ? sortedWaitingPatients : recentPatients).map((record: MedicalRecord, index: number) => (
                     <div 
                       key={record.id} 
-                      className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
+                      className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg"
                       data-testid={`patient-item-${record.id}`}
                     >
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -287,11 +330,25 @@ export default function Dashboard() {
                           {record.notes}
                         </p>
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                      <div className="flex flex-col items-end space-y-1">
+                        <div className="text-sm text-gray-400">
+                          {new Date(record.reception_start_time).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCompleteDialog(record);
+                          }}
+                          className="text-xs"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          진료 완료
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -317,16 +374,17 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-register-patient"
-                onClick={() => setIsPatientModalOpen(true)}
+                onClick={() => navigate('/patients')}
               >
-                <Plus className="w-4 h-4 mr-2" />
-                새 환자 등록
+                <UserPlus className="w-4 h-4 mr-2" />
+                환자 등록
               </Button>
               
               <Button 
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-upload-image"
+                onClick={() => navigate('/images')}
               >
                 <FileImage className="w-4 h-4 mr-2" />
                 의료 이미지 업로드
@@ -336,7 +394,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-new-examination"
-                onClick={() => setIsCalendarOpen(true)}
+                onClick={() => setIsReserveOpen(true)}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 예약 검사 등록
@@ -346,7 +404,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-ai-analysis"
-                onClick={() => window.location.href = '/medical-registration'}
+                onClick={() => navigate('/medical-registration')}
               >
                 <Activity className="w-4 h-4 mr-2" />
                 진료 접수 
@@ -432,25 +490,233 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* 4주 캘린더 모달 (재사용 컴포넌트) */}
-      <FourWeekCalendarModal
-        open={isCalendarOpen}
-        onOpenChange={setIsCalendarOpen}
-        reservations={reservations}
-        onReserve={handleReserveFromModal}
-        searchPatients={searchPatients}
-      />
+      {/* 진료 완료 모달 */}
+      <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>진료 완료</DialogTitle>
+            <DialogDescription>
+              {selectedRecord && `${selectedRecord.name} (${selectedRecord.patient_id})`} 환자의 진료를 완료합니다.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="examination-result">검사 결과</Label>
+              <Input
+                id="examination-result"
+                placeholder="검사 결과를 입력하세요 (예: 정상, 이상소견 등)"
+                value={examinationResult}
+                onChange={(e) => setExaminationResult(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="treatment-note">진료 메모</Label>
+              <textarea
+                id="treatment-note"
+                className="w-full min-h-[100px] p-2 border border-gray-300 rounded-md resize-none"
+                placeholder="진료 관련 메모를 입력하세요"
+                value={treatmentNote}
+                onChange={(e) => setTreatmentNote(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCompleteDialogOpen(false);
+                setExaminationResult("");
+                setTreatmentNote("");
+                setSelectedRecord(null);
+              }}
+              disabled={isCompleting}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleCompleteTreatment}
+              disabled={isCompleting}
+            >
+              {isCompleting ? "처리 중..." : "진료 완료"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Patient Registration Modal */}
-      <PatientRegistrationModal
-        isOpen={isPatientModalOpen}
-        onClose={() => setIsPatientModalOpen(false)}
-        onSuccess={() => {
-          setIsPatientModalOpen(false);
-          // 환자 목록 새로고침
-          queryClient.invalidateQueries({ queryKey: ["patients"] });
-        }}
-      />
+      {/* 예약 검사 등록 모달 */}
+      <Dialog open={isReserveOpen} onOpenChange={setIsReserveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>예약 검사 등록</DialogTitle>
+            <DialogDescription>
+              예약 정보를 입력하면 일정관리 캘린더에 표시됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="reserve-title">제목</Label>
+              <Input id="reserve-title" value={reserveTitle} onChange={(e)=>setReserveTitle(e.target.value)} placeholder="예: 흉부 CT 검사" />
+            </div>
+            <div className="space-y-2">
+              <Label>환자명 (선택사항)</Label>
+              <Select value={selectedPatient?.id || ''} onValueChange={(v)=>{
+                const p = (patients as Patient[]).find((x)=> x.id === v) || null;
+                setSelectedPatient(p);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="환자명을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(patients as Patient[]).map((p)=> (
+                    <SelectItem key={p.id} value={p.id} textValue={p.name}>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-semibold">
+                            {p.name?.charAt(0) || '-'}
+                          </div>
+                          <div>
+                            <div className="text-gray-900 font-medium">{p.name}</div>
+                            <div className="text-xs text-gray-500">{p.id}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-700">{p.age}세</div>
+                          <div className="text-xs text-gray-500">{p.gender}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reserve-date">날짜</Label>
+                <Input id="reserve-date" type="date" value={reserveDate} onChange={(e)=>setReserveDate(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>시작 시간</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={startAmPm} onValueChange={(v:any)=>setStartAmPm(v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">오전</SelectItem>
+                      <SelectItem value="PM">오후</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={startHour} onValueChange={(v:any)=>setStartHour(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')).map(h=> (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={startMinute} onValueChange={(v:any)=>setStartMinute(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
+                    <SelectContent>
+                      {['00','10','20','30','40','50'].map(m=> (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>종료 시간</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={endAmPm} onValueChange={(v:any)=>setEndAmPm(v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">오전</SelectItem>
+                      <SelectItem value="PM">오후</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={endHour} onValueChange={(v:any)=>setEndHour(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')).map(h=> (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={endMinute} onValueChange={(v:any)=>setEndMinute(v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
+                    <SelectContent>
+                      {['00','10','20','30','40','50'].map(m=> (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>유형</Label>
+              <Select value={reserveType} onValueChange={(v:any)=>setReserveType(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="검진">검진</SelectItem>
+                  <SelectItem value="회의">회의</SelectItem>
+                  <SelectItem value="내근">내근</SelectItem>
+                  <SelectItem value="외근">외근</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setIsReserveOpen(false)}>취소</Button>
+            <Button onClick={() => {
+              try {
+                if (!reserveTitle.trim()) {
+                  toast({ title: "제목을 입력해 주세요", variant: "destructive" });
+                  return;
+                }
+                const to24h = (ampm:'AM'|'PM', h:string, m:string) => {
+                  let hourNum = parseInt(h,10)%12;
+                  if (ampm === 'PM') hourNum += 12;
+                  return `${String(hourNum).padStart(2,'0')}:${m}`;
+                };
+                const startStr = to24h(startAmPm, startHour, startMinute);
+                const endStr = to24h(endAmPm, endHour, endMinute);
+                const start = new Date(`${reserveDate}T${startStr}:00`);
+                const end = new Date(`${reserveDate}T${endStr}:00`);
+                if (end <= start) {
+                  toast({ title: "종료 시간이 시작 시간보다 늦어야 합니다", variant: "destructive" });
+                  return;
+                }
+                const startIso = start.toISOString();
+                const endIso = end.toISOString();
+                const titleFinal = selectedPatient ? `${reserveTitle.trim()} (${selectedPatient.name})` : reserveTitle.trim();
+                addEvent({ 
+                  title: titleFinal, 
+                  start: startIso, 
+                  end: endIso, 
+                  type: reserveType,
+                  patientId: selectedPatient?.id,
+                  patientName: selectedPatient?.name,
+                  patientGender: selectedPatient?.gender,
+                  patientAge: selectedPatient?.age,
+                });
+                setIsReserveOpen(false);
+                setReserveTitle("");
+                setSelectedPatient(null);
+                toast({ title: "예약이 등록되었습니다", description: "일정관리 캘린더에서 확인할 수 있습니다." });
+                navigate('/schedule');
+              } catch (e) {
+                toast({ title: "등록 실패", description: "다시 시도해 주세요.", variant: "destructive" });
+              }
+            }}>등록</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

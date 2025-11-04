@@ -19,7 +19,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-secret-key-here'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.41.140', '*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.41.140', '34.42.223.43', '*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'medical_images',
     'dashboard',
     'lung_cancer',
+    'literature',
 ]
 
 MIDDLEWARE = [
@@ -72,10 +73,6 @@ WSGI_APPLICATION = 'eventeye.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    },
-    'hospital_db': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hospital_db',
         'USER': 'acorn',
@@ -119,6 +116,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# 절대 URL 생성에 사용할 공개 베이스 URL (예: Nginx 도메인)
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='http://34.42.223.43')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -129,10 +128,27 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5000",
     "http://127.0.0.1:5000",
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+    "http://34.42.223.43",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True  # 개발 환경에서만 사용
+
+# 개발 편의용 CSRF/세션 설정
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://34.42.223.43",
+]
+
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False
 
 # REST Framework settings
 REST_FRAMEWORK = {

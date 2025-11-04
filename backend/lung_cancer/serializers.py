@@ -1,19 +1,11 @@
 from rest_framework import serializers
-from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
+from .models import Patient, LungRecord, LungResult, MedicalRecord
 
 class PatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
-        ref_name = 'LungCancerPatient'
-
-class LungCancerPatientSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LungCancerPatient
-        fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at']
-        ref_name = 'LungCancerPatientSerializer'
 
 class LungRecordSerializer(serializers.ModelSerializer):
     class Meta:
@@ -67,14 +59,15 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
 
 class LungCancerPredictionSerializer(serializers.Serializer):
     """폐암 예측을 위한 입력 데이터 시리얼라이저"""
+    patient_id = serializers.CharField(max_length=10, required=False, allow_blank=True)  # 기존 환자 ID (옵션)
     name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    birth_date = serializers.DateField()
+    birth_date = serializers.DateField(required=False)
     gender = serializers.CharField(max_length=10)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
     emergency_contact = serializers.CharField(max_length=20, required=False, allow_blank=True)
     blood_type = serializers.CharField(max_length=5, required=False, allow_blank=True)
-    age = serializers.IntegerField()
+    age = serializers.IntegerField(required=False)
     smoking = serializers.BooleanField()
     yellow_fingers = serializers.BooleanField()
     anxiety = serializers.BooleanField()
@@ -125,7 +118,7 @@ class MedicalRecordCreateSerializer(serializers.Serializer):
     
     def validate_patient_id(self, value):
         try:
-            Patient.objects.using('hospital_db').get(id=value)
+            Patient.objects.get(id=value)
         except Patient.DoesNotExist:
             raise serializers.ValidationError("존재하지 않는 환자입니다.")
         return value

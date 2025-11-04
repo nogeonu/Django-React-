@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Patient, LungCancerPatient, LungRecord, LungResult
+from .models import Patient, LungRecord, LungResult
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
@@ -9,19 +9,11 @@ class PatientAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 
-@admin.register(LungCancerPatient)
-class LungCancerPatientAdmin(admin.ModelAdmin):
-    list_display = ['id', 'patient', 'prediction', 'prediction_probability', 'smoking', 'created_at']
-    list_filter = ['prediction', 'smoking', 'created_at']
-    search_fields = ['patient__name', 'patient__id']
-    readonly_fields = ['created_at', 'updated_at']
-    ordering = ['-created_at']
-
 @admin.register(LungRecord)
 class LungRecordAdmin(admin.ModelAdmin):
-    list_display = ['id', 'lung_cancer_patient', 'smoking', 'created_at']
+    list_display = ['id', 'patient_id', 'smoking', 'created_at']
     list_filter = ['smoking', 'created_at']
-    search_fields = ['lung_cancer_patient__patient__name', 'lung_cancer_patient__patient__id']
+    search_fields = ['patient_id']
     readonly_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 
@@ -29,6 +21,6 @@ class LungRecordAdmin(admin.ModelAdmin):
 class LungResultAdmin(admin.ModelAdmin):
     list_display = ['id', 'lung_record', 'prediction', 'risk_score', 'created_at']
     list_filter = ['prediction', 'created_at']
-    search_fields = ['lung_record__lung_cancer_patient__patient__name', 'lung_record__lung_cancer_patient__patient__id']
+    search_fields = ['lung_record__id']
     readonly_fields = ['created_at']
     ordering = ['-created_at']

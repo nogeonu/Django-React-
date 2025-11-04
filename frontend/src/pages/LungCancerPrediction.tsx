@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Loader2, AlertTriangle, CheckCircle, Info, Search, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/api';
+
+interface Patient {
+  id: string;
+  name: string;
+  birth_date: string;
+  gender: string;
+  phone?: string;
+  address?: string;
+  emergency_contact?: string;
+  blood_type?: string;
+  age: number;
+  created_at: string;
+  updated_at: string;
+  hasRespiratoryRecord?: boolean; // 호흡기내과 진료기록 여부
+}
 
 interface PredictionResult {
   patient_id: number;
@@ -21,6 +39,7 @@ interface PredictionResult {
 
 export default function LungCancerPrediction() {
   const [formData, setFormData] = useState({
+    patient_id: '',
     name: '',
     gender: '',
     age: '',
@@ -41,7 +60,48 @@ export default function LungCancerPrediction() {
 
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(false);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
   const { toast } = useToast();
+
+  // 환자 목록 불러오기 (호흡기내과 환자만)
+  useEffect(() => {
+    const fetchPatients = async () => {
+      setPatientsLoading(true);
+      try {
+        // 모든 환자 가져오기
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
+        const allPatients = response.results || [];
+        
+        // 각 환자의 호흡기내과 진료기록 확인
+        const patientsWithRespiratoryRecords = await Promise.all(
+          allPatients.map(async (patient: Patient) => {
+            try {
+              const medicalResponse = await apiRequest("GET", `/api/lung_cancer/patients/${patient.id}/medical_records/`);
+              const hasRespiratoryRecord = medicalResponse.medical_records?.some((record: any) => 
+                record.department === '호흡기내과'
+              ) || false;
+              return { ...patient, hasRespiratoryRecord };
+            } catch (error) {
+              console.warn(`환자 ${patient.id}의 진료기록 조회 실패:`, error);
+              return { ...patient, hasRespiratoryRecord: false };
+            }
+          })
+        );
+        
+        // 호흡기내과 진료기록이 있는 환자만 필터링
+        const respiratoryPatients = patientsWithRespiratoryRecords.filter(patient => patient.hasRespiratoryRecord);
+        setPatients(respiratoryPatients);
+      } catch (error) {
+        console.error("환자 목록 조회 오류:", error);
+      } finally {
+        setPatientsLoading(false);
+      }
+    };
+    fetchPatients();
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -50,53 +110,68 @@ export default function LungCancerPrediction() {
     }));
   };
 
+  const handlePatientSelect = (patient: Patient) => {
+    setFormData(prev => ({
+      ...prev,
+      patient_id: patient.id,
+      name: patient.name,
+      gender: patient.gender === '남성' ? '1' : patient.gender === '여성' ? '0' : '',
+      age: patient.age.toString()
+    }));
+    setPatientSearchOpen(false);
+    setPatientSearchTerm('');
+  };
+
+  // 환자 검색 필터링
+  const filteredPatients = patients.filter(patient =>
+    patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+    patient.id.toLowerCase().includes(patientSearchTerm.toLowerCase())
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResult(null);
 
     try {
-      const response = await fetch('/api/lung_cancer/api/patients/predict/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          gender: parseInt(formData.gender),
-          age: parseInt(formData.age),
-          smoking: parseInt(formData.smoking),
-          yellow_fingers: parseInt(formData.yellow_fingers),
-          anxiety: parseInt(formData.anxiety),
-          peer_pressure: parseInt(formData.peer_pressure),
-          chronic_disease: parseInt(formData.chronic_disease),
-          fatigue: parseInt(formData.fatigue),
-          allergy: parseInt(formData.allergy),
-          wheezing: parseInt(formData.wheezing),
-          alcohol_consuming: parseInt(formData.alcohol_consuming),
-          coughing: parseInt(formData.coughing),
-          shortness_of_breath: parseInt(formData.shortness_of_breath),
-          swallowing_difficulty: parseInt(formData.swallowing_difficulty),
-          chest_pain: parseInt(formData.chest_pain),
-        }),
+      // 나이로부터 생년월일 계산 (대략적인 birth_date 생성)
+      const age = parseInt(formData.age);
+      const birthYear = new Date().getFullYear() - age;
+      const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
+      
+      const response = await apiRequest('POST', '/api/lung_cancer/patients/predict/', {
+        patient_id: formData.patient_id, // 환자 ID 추가
+        name: formData.name,
+        birth_date: birth_date,
+        gender: formData.gender === '1' ? 'M' : 'F',
+        age: age,
+        smoking: formData.smoking === '2',
+        yellow_fingers: formData.yellow_fingers === '2',
+        anxiety: formData.anxiety === '2',
+        peer_pressure: formData.peer_pressure === '2',
+        chronic_disease: formData.chronic_disease === '2',
+        fatigue: formData.fatigue === '2',
+        allergy: formData.allergy === '2',
+        wheezing: formData.wheezing === '2',
+        alcohol_consuming: formData.alcohol_consuming === '2',
+        coughing: formData.coughing === '2',
+        shortness_of_breath: formData.shortness_of_breath === '2',
+        swallowing_difficulty: formData.swallowing_difficulty === '2',
+        chest_pain: formData.chest_pain === '2',
       });
 
-      if (!response.ok) {
-        throw new Error('예측 요청에 실패했습니다.');
-      }
-
-      const data = await response.json();
-      setResult(data);
+      setResult(response);
       
       toast({
         title: "예측 완료",
         description: "폐암 예측이 성공적으로 완료되었습니다.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
+      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "예측 중 오류가 발생했습니다. 다시 시도해주세요.";
       toast({
         title: "오류 발생",
-        description: "예측 중 오류가 발생했습니다. 다시 시도해주세요.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -153,12 +228,70 @@ export default function LungCancerPrediction() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">환자명 (선택사항)</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="환자명을 입력하세요"
-                  />
+                  <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={patientSearchOpen}
+                        className="w-full justify-between"
+                      >
+                        {formData.name || "환자명을 선택하세요"}
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <div className="flex items-center border-b px-3">
+                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          <CommandInput
+                            placeholder="환자명 또는 ID 검색..."
+                            value={patientSearchTerm}
+                            onValueChange={setPatientSearchTerm}
+                            className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                        <CommandList>
+                          {patientsLoading ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              <span className="text-sm text-muted-foreground">환자 목록 불러오는 중...</span>
+                            </div>
+                          ) : filteredPatients.length > 0 ? (
+                            <CommandGroup>
+                              {filteredPatients.map((patient) => (
+                                <CommandItem
+                                  key={patient.id}
+                                  value={patient.name}
+                                  onSelect={() => handlePatientSelect(patient)}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <span className="text-blue-600 font-semibold text-xs">
+                                          {patient.name.charAt(0)}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <p className="font-medium">{patient.name}</p>
+                                        <p className="text-sm text-muted-foreground">{patient.id}</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm text-muted-foreground">{patient.age}세</p>
+                                      <p className="text-xs text-muted-foreground">{patient.gender}</p>
+                                    </div>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          ) : (
+                            <CommandEmpty>검색 결과가 없습니다</CommandEmpty>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
                   <Label htmlFor="gender">성별 *</Label>

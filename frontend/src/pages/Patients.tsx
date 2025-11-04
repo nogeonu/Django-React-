@@ -74,7 +74,7 @@ export default function Patients() {
     queryKey: ["patients"],
     queryFn: async () => {
       try {
-        const response = await apiRequest("GET", "/api/lung_cancer/api/patients/");
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
         console.log("API 응답:", response);
         return response.results || [];
       } catch (err) {
@@ -134,7 +134,7 @@ export default function Patients() {
     if (!deletingPatient) return;
 
     try {
-      await apiRequest("DELETE", `/api/lung_cancer/api/patients/${deletingPatient.id}/`);
+      await apiRequest("DELETE", `/api/lung_cancer/patients/${deletingPatient.id}/`);
       alert("환자가 성공적으로 삭제되었습니다.");
       refetch(); // 환자 목록 새로고침
       setIsDeleteModalOpen(false);
@@ -156,7 +156,7 @@ export default function Patients() {
     setIsLoadingRecords(true);
     
     try {
-      const response = await apiRequest('GET', `/api/lung_cancer/api/patients/${patient.id}/medical_records/`);
+      const response = await apiRequest('GET', `/api/lung_cancer/patients/${patient.id}/medical_records/`);
       setMedicalRecords(response.medical_records || []);
     } catch (error: any) {
       console.error('진료 기록 조회 오류:', error);
@@ -625,7 +625,7 @@ export default function Patients() {
                             {new Date(record.reception_start_time).toLocaleString('ko-KR')}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-900">{record.notes}</p>
+                        <div className="text-sm text-gray-900 whitespace-pre-line">{record.notes}</div>
                         {record.treatment_end_time && (
                           <p className="text-xs text-gray-500 mt-1">
                             진료 완료: {new Date(record.treatment_end_time).toLocaleString('ko-KR')}
