@@ -109,22 +109,15 @@ jobs:
             
             # 마이그레이션 검증 - 실제 사용하는 테이블 확인
             echo "=== Verifying Required Tables ==="
-            python -c "
-import os, django
+            python manage.py shell << 'EOF'
+import os
+import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventeye.settings')
 django.setup()
+
 from django.db import connection
 
-required_tables = [
-    'patient',              # lung_cancer 앱 (managed=False)
-    'patients_patient',     # patients 앱 (Django 기본 네이밍)
-    'patients_appointment',
-    'patients_medicalrecord',
-    'lung_record',
-    'lung_result',
-    'auth_user'
-]
-
+required_tables = ['patient', 'patients_patient', 'patients_appointment', 'patients_medicalrecord', 'lung_record', 'lung_result', 'auth_user']
 cursor = connection.cursor()
 cursor.execute('SHOW TABLES')
 existing_tables = [row[0] for row in cursor.fetchall()]
@@ -132,24 +125,26 @@ existing_tables = [row[0] for row in cursor.fetchall()]
 missing_tables = []
 for table in required_tables:
     if table in existing_tables:
-        print(f'✓ {table} exists')
+        print('✓ ' + table + ' exists')
     else:
-        print(f'✗ {table} MISSING')
+        print('✗ ' + table + ' MISSING')
         if table.startswith('patients_'):
             missing_tables.append(table)
 
 if missing_tables:
-    print(f'ERROR: Missing Django-managed tables: {missing_tables}')
+    print('ERROR: Missing Django-managed tables: ' + ', '.join(missing_tables))
     exit(1)
 else:
     print('All required tables verified')
-" || {
+EOF
+
+            if [ $? -ne 0 ]; then
               echo "CRITICAL: Some Django-managed tables are missing, forcing migration..."
               python manage.py makemigrations patients
               python manage.py migrate patients --run-syncdb
               python manage.py migrate
               echo "Migration completed, verifying again..."
-            }
+            fi
             
             # 최종 마이그레이션 상태 확인
             echo "=== Final Migration Status ==="
