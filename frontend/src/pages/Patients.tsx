@@ -24,8 +24,8 @@ import {
 } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api";
 import PatientRegistrationModal from "@/components/PatientRegistrationModal";
-import FourWeekCalendarModal from "@/components/FourWeekCalendarModal";
 import PatientReservationsViewerModal from "@/components/PatientReservationsViewerModal";
+import { useCalendar } from "@/context/CalendarContext";
 
 interface Patient {
   id: string;
@@ -54,6 +54,7 @@ interface MedicalRecord {
 }
 
 export default function Patients() {
+  const { events } = useCalendar(); // CalendarContext에서 예약 데이터 가져오기
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
@@ -67,8 +68,6 @@ export default function Patients() {
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const [reservationPatient, setReservationPatient] = useState<Patient | null>(null);
-  const [reservations, setReservations] = useState<Record<string, { id: string; name: string; time: string; memo?: string }[]>>({});
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { data: patients = [], isLoading, refetch, error } = useQuery({
     queryKey: ["patients"],
@@ -88,42 +87,30 @@ export default function Patients() {
     refetch(); // 환자 목록 새로고침
   };
 
-  // 예약 로컬 저장/로드
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("reservations");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') setReservations(parsed);
+  // CalendarContext events를 reservations 형식으로 변환
+  const reservations = events.reduce((acc, event) => {
+    if (event.patientId && event.patientName) {
+      const dateKey = event.start.split('T')[0]; // YYYY-MM-DD 형식
+      const time = new Date(event.start).toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
       }
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem("reservations", JSON.stringify(reservations));
-    } catch {}
-  }, [reservations]);
+      
+      acc[dateKey].push({
+        id: event.patientId,
+        name: event.patientName,
+        time: time,
+        memo: event.title
+      });
+    }
+    return acc;
+  }, {} as Record<string, { id: string; name: string; time: string; memo?: string }[]>);
 
-  // 캘린더 모달(재사용 컴포넌트) 헬퍼
-  const searchPatients = async (q: string): Promise<Patient[]> => {
-    const encodedQuery = encodeURIComponent(q.trim());
-    const response = await apiRequest("GET", `/api/lung_cancer/api/medical-records/search_patients/?q=${encodedQuery}`);
-    return response.patients || [];
-  };
-  const handleReserveFromModal = ({ date, time, patient, memo }: { date: Date; time: string; patient: Patient; memo?: string }) => {
-    const key = date.toISOString().slice(0, 10);
-    setReservations((prev) => {
-      const list = prev[key] || [];
-      return {
-        ...prev,
-        [key]: [
-          ...list,
-          { id: patient.id, name: patient.name, time, memo },
-        ],
-      };
-    });
-    setIsCalendarOpen(false);
-  };
 
   const handleDeleteClick = (patient: Patient) => {
     setDeletingPatient(patient);
@@ -183,9 +170,6 @@ export default function Patients() {
     return new Date(dateString).toLocaleDateString('ko-KR');
   };
 
-  // (예약 일정 모달에서 캘린더 UI 사용 안 함)
-
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -203,14 +187,6 @@ export default function Patients() {
               >
                 <Plus className="w-4 h-4 mr-2" />
                 환자 등록
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setIsCalendarOpen(true)}
-                data-testid="button-open-calendar-modal"
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                예약 검사 등록
               </Button>
             </div>
           </div>
@@ -366,17 +342,6 @@ export default function Patients() {
                               data-testid={`button-exams-patient-${patient.id}`}
                               onClick={() => {
                                 setReservationPatient(patient);
-                                try {
-                                  const saved = localStorage.getItem('reservations');
-                                  if (saved) {
-                                    const parsed = JSON.parse(saved);
-                                    if (parsed && typeof parsed === 'object') setReservations(parsed);
-                                  } else {
-                                    setReservations({});
-                                  }
-                                } catch {
-                                  setReservations({});
-                                }
                                 setIsReservationModalOpen(true);
                               }}
                             >
@@ -646,14 +611,12 @@ export default function Patients() {
         </div>
       )}
 
-      {/* 4주 캘린더 모달 (재사용 컴포넌트) */}
-      <FourWeekCalendarModal
-        open={isCalendarOpen}
-        onOpenChange={setIsCalendarOpen}
+      {/* 예약 내역 조회 모달 */}
+      <PatientReservationsViewerModal
+        open={isReservationModalOpen}
+        onClose={() => setIsReservationModalOpen(false)}
+        patient={reservationPatient}
         reservations={reservations}
-        onReserve={handleReserveFromModal}
-        searchPatients={searchPatients}
-        maxSameTimeReservations={2}
       />
     </div>
   );

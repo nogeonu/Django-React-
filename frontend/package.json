@@ -43,6 +43,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^11.13.1",
+    "fullcalendar": "^6.1.19",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",
     "next-themes": "^0.4.6",

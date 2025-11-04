@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -13,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCalendar } from '@/context/CalendarContext';
-import { useNavigate } from 'react-router-dom';
+import { apiRequest } from '@/lib/api';
+import ExamReservationModal from '@/components/ExamReservationModal';
 
 export default function Schedule() {
   const calendarRef = useRef<FullCalendar | null>(null);
@@ -21,7 +23,25 @@ export default function Schedule() {
   const [currentTitle, setCurrentTitle] = useState<string>(format(new Date(), 'yyyy.MM'));
   const [activeView, setActiveView] = useState<'day' | 'week' | 'month'>('month');
   const { events, removeEvent, updateEvent } = useCalendar();
-  const navigate = useNavigate();
+  
+  // 예약 검사 등록 모달 상태
+  const [isReserveOpen, setIsReserveOpen] = useState(false);
+  
+  // 환자 목록 조회
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
+        return response.results || [];
+      } catch (err) {
+        console.error("환자 목록 조회 오류:", err);
+        return [];
+      }
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
   // Pastel palette (bg/border) similar to reference
   const colorByType: Record<string, { bg: string; border: string; text?: string }> = {
     '검진': { bg: '#DBEAFE', border: '#93C5FD', text: '#0F172A' },   // light blue
@@ -32,9 +52,11 @@ export default function Schedule() {
   const fcEvents = useMemo(
     () => events.map((e) => {
       const c = colorByType[e.type || '검진'] || colorByType['검진'];
+      const baseTitle = e.baseTitle ?? e.title;
+      const displayTitle = e.patientName ? `${baseTitle} (${e.patientName})` : baseTitle;
       return {
         id: e.id,
-        title: e.title,
+        title: displayTitle,
         start: e.start,
         end: e.end,
         backgroundColor: c.bg,
@@ -46,6 +68,7 @@ export default function Schedule() {
           patientName: e.patientName,
           patientGender: e.patientGender,
           patientAge: e.patientAge,
+          baseTitle,
         },
       } as any;
     }),
@@ -170,7 +193,7 @@ export default function Schedule() {
         <div className="col-span-12 lg:col-span-2">
           <Card>
             <CardContent className="p-4">
-              <Button className="w-full mb-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm" onClick={() => navigate('/?reserve=1')}>
+              <Button className="w-full mb-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm" onClick={() => setIsReserveOpen(true)}>
                 일정추가
               </Button>
               <style>{`
@@ -427,6 +450,14 @@ export default function Schedule() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 예약 검사 등록 모달 */}
+      <ExamReservationModal
+        open={isReserveOpen}
+        onOpenChange={setIsReserveOpen}
+        patients={patients}
+        navigateToSchedule={false}
+      />
     </div>
   );
 }

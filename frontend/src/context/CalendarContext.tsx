@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo, useState, ReactNode, useEffect } fr
 export type CalendarEvent = {
   id: string;
   title: string;
+  baseTitle?: string;
   start: string; // ISO string
   end?: string;  // ISO string
   type?: '검진' | '회의' | '내근' | '외근';
@@ -30,7 +31,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setEvents(JSON.parse(raw));
+      if (raw) {
+        const parsed: CalendarEvent[] = JSON.parse(raw);
+        setEvents(parsed.map((ev) => ({
+          ...ev,
+          baseTitle: ev.baseTitle ?? ev.title,
+        })));
+      }
     } catch {}
   }, []);
 
@@ -43,12 +50,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const api = useMemo<CalendarContextType>(() => ({
     events,
     addEvent: (e) => {
-      const withId: CalendarEvent = { id: Math.random().toString(36).slice(2), ...e };
+      const baseTitle = e.baseTitle ?? e.title;
+      const withId: CalendarEvent = { id: Math.random().toString(36).slice(2), ...e, baseTitle };
       setEvents((prev) => [...prev, withId]);
       return withId;
     },
     updateEvent: (id, patch) => {
-      setEvents((prev) => prev.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev)));
+      setEvents((prev) => prev.map((ev) => (
+        ev.id === id
+          ? { ...ev, ...patch, baseTitle: patch.baseTitle ?? ev.baseTitle ?? patch.title ?? ev.title }
+          : ev
+      )));
     },
     removeEvent: (id) => setEvents((prev) => prev.filter((e) => e.id !== id)),
     clearEvents: () => setEvents([]),

@@ -41,7 +41,7 @@ export default function PatientReservationsViewerModal({ open, onClose, patient,
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">예약 검사 일정</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{patient.name} 님의 예약 검사 일정</h3>
           <Button size="icon" variant="ghost" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
