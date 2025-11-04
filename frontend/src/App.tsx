@@ -9,12 +9,14 @@ import LungCancerPrediction from '@/pages/LungCancerPrediction';
 import LungCancerStats from '@/pages/LungCancerStats';
 import MedicalRegistration from '@/pages/MedicalRegistration';
 import KnowledgeHub from '@/pages/KnowledgeHub';
+import Schedule from '@/pages/Schedule';
 import NotFound from '@/pages/NotFound';
 import Sidebar from '@/components/Sidebar';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/context/AuthContext';
+import { CalendarProvider } from '@/context/CalendarContext';
 
 const queryClient = new QueryClient();
 
@@ -23,6 +25,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <CalendarProvider>
           <Router>
             <div className="flex min-h-screen bg-gray-50">
               <Sidebar />
@@ -40,6 +43,7 @@ function App() {
                   {/* 공통 접근 가능 페이지 */}
                   <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
                   <Route path="/medical-registration" element={<ProtectedRoute><MedicalRegistration /></ProtectedRoute>} />
+                  <Route path="/schedule" element={<ProtectedRoute><Schedule /></ProtectedRoute>} />
                   
                   {/* 의료진만 접근 가능한 페이지 */}
                   <Route path="/images" element={<ProtectedRoute allowedRoles={['medical_staff', 'superuser']}><MedicalImages /></ProtectedRoute>} />
@@ -53,6 +57,7 @@ function App() {
             </div>
             <Toaster />
           </Router>
+          </CalendarProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
