@@ -222,7 +222,7 @@ export default function Schedule() {
         <div className="col-span-12 lg:col-span-2">
           <Card>
             <CardContent className="p-4">
-              <Button className="w-full mb-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm" onClick={() => navigate('/?reserve=1')}>
+              <Button className="w-full mb-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm" onClick={() => setIsReserveOpen(true)}>
                 일정추가
               </Button>
               <style>{`
