@@ -17,6 +17,7 @@ import PatientLogin from '@/pages/PatientLogin';
 import PatientSignup from '@/pages/PatientSignup';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/context/AuthContext';
+import { CalendarProvider } from '@/context/CalendarContext';
 import Home from '@/pages/Home';
 
 const queryClient = new QueryClient();
@@ -63,10 +64,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Router>
-            <AppContent />
-            <Toaster />
-          </Router>
+          <CalendarProvider>
+            <Router>
+              <AppContent />
+              <Toaster />
+            </Router>
+          </CalendarProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

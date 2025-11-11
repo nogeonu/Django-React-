@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
-import { useCalendar } from '@/context/CalendarContext';
+import { CalendarEvent, useCalendar } from '@/context/CalendarContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function Schedule() {
@@ -30,22 +30,22 @@ export default function Schedule() {
     '외근': { bg: '#FFE4E6', border: '#FDA4AF', text: '#0F172A' },   // light rose
   };
   const fcEvents = useMemo(
-    () => events.map((e) => {
-      const c = colorByType[e.type || '검진'] || colorByType['검진'];
+    () => events.map((event: CalendarEvent) => {
+      const c = colorByType[event.type || '검진'] || colorByType['검진'];
       return {
-        id: e.id,
-        title: e.title,
-        start: e.start,
-        end: e.end,
+        id: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
         backgroundColor: c.bg,
         borderColor: c.border,
         textColor: c.text || '#0F172A',
         extendedProps: {
-          type: e.type || '검진',
-          patientId: e.patientId,
-          patientName: e.patientName,
-          patientGender: e.patientGender,
-          patientAge: e.patientAge,
+          type: event.type || '검진',
+          patientId: event.patientId,
+          patientName: event.patientName,
+          patientGender: event.patientGender,
+          patientAge: event.patientAge,
         },
       } as any;
     }),
@@ -338,19 +338,19 @@ export default function Schedule() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-date">날짜</Label>
-                <Input id="edit-date" type="date" value={editDate} onChange={(e)=> setEditDate(e.target.value)} />
+                <Input id="edit-date" type="date" value={editDate} onChange={(event: ChangeEvent<HTMLInputElement>)=> setEditDate(event.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>시작 시간</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  <Select value={startAmPm} onValueChange={(v:any)=> setStartAmPm(v)}>
+                  <Select value={startAmPm} onValueChange={(value)=> setStartAmPm(value as 'AM' | 'PM')}>
                     <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="AM">오전</SelectItem>
                       <SelectItem value="PM">오후</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select value={startHour} onValueChange={(v:any)=> setStartHour(v)}>
+                  <Select value={startHour} onValueChange={(value)=> setStartHour(value)}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
                     <SelectContent>
                       {Array.from({length:12},(_,i)=> String(i+1).padStart(2,'0')).map(h => (
@@ -358,7 +358,7 @@ export default function Schedule() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={startMinute} onValueChange={(v:any)=> setStartMinute(v)}>
+                  <Select value={startMinute} onValueChange={(value)=> setStartMinute(value)}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
                     <SelectContent>
                       {['00','10','20','30','40','50'].map(m => (
@@ -371,14 +371,14 @@ export default function Schedule() {
               <div className="space-y-2">
                 <Label>종료 시간</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  <Select value={endAmPm} onValueChange={(v:any)=> setEndAmPm(v)}>
+                  <Select value={endAmPm} onValueChange={(value)=> setEndAmPm(value as 'AM' | 'PM')}>
                     <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="AM">오전</SelectItem>
                       <SelectItem value="PM">오후</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select value={endHour} onValueChange={(v:any)=> setEndHour(v)}>
+                  <Select value={endHour} onValueChange={(value)=> setEndHour(value)}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="시" /></SelectTrigger>
                     <SelectContent>
                       {Array.from({length:12},(_,i)=> String(i+1).padStart(2,'0')).map(h => (
@@ -386,7 +386,7 @@ export default function Schedule() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={endMinute} onValueChange={(v:any)=> setEndMinute(v)}>
+                  <Select value={endMinute} onValueChange={(value)=> setEndMinute(value)}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="분" /></SelectTrigger>
                     <SelectContent>
                       {['00','10','20','30','40','50'].map(m => (
