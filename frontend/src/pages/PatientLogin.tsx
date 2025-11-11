@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { patientLoginApi } from "@/lib/api";
 
 function PatientLogin() {
   const { toast } = useToast();
@@ -13,6 +14,14 @@ function PatientLogin() {
   const [password, setPassword] = useState("");
   const [rememberId, setRememberId] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const savedAccount = localStorage.getItem("patient_account_id");
+    if (savedAccount) {
+      setAccountId(savedAccount);
+      setRememberId(true);
+    }
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -27,11 +36,42 @@ function PatientLogin() {
 
     setLoading(true);
     try {
-      // TODO: 환자 인증 API 연동
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const response = await patientLoginApi({
+        account_id: accountId.trim(),
+        password,
+      });
+
+      if (rememberId) {
+        localStorage.setItem("patient_account_id", accountId.trim());
+      } else {
+        localStorage.removeItem("patient_account_id");
+      }
+
       toast({
         title: "환자 로그인",
-        description: "환자 포털 로그인 기능이 곧 제공될 예정입니다.",
+        description: `${response.name}님 환영합니다.`,
+      });
+      setPassword("");
+    } catch (error: any) {
+      const data = error?.response?.data;
+      let message = data?.detail;
+
+      if (!message && data && typeof data === "object") {
+        const firstKey = Object.keys(data)[0];
+        const value = (data as Record<string, unknown>)[firstKey];
+        if (Array.isArray(value) && value.length > 0) {
+          message = String(value[0]);
+        }
+      }
+
+      if (!message) {
+        message = "로그인 중 오류가 발생했습니다.";
+      }
+
+      toast({
+        title: "로그인 실패",
+        description: message,
+        variant: "destructive",
       });
     } finally {
       setLoading(false);

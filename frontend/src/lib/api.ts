@@ -72,6 +72,11 @@ export const registerApi = async (data: { username: string; password: string; em
   return res.data;
 };
 
+export const patientLoginApi = async (data: { account_id: string; password: string }) => {
+  const res = await apiClient.post('/api/patients/login/', data);
+  return res.data;
+};
+
 export const patientSignupApi = async (data: { account_id: string; name: string; email: string; phone: string; password: string }) => {
   const res = await apiClient.post('/api/patients/signup/', data);
   return res.data;
