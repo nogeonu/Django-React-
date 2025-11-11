@@ -261,7 +261,7 @@ function Home() {
                     to="#records"
                     className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
-                    의무기록 발급
+                    진료 내역 조회
                   </Link>
                   {patientUser ? (
                     <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">

@@ -41,6 +41,8 @@ class PatientViewSet(viewsets.ModelViewSet):
     serializer_class = PatientSerializer
     authentication_classes = []
     permission_classes = [AllowAny]
+    lookup_field = 'patient_id'
+    lookup_value_regex = '[^/]+'
     
     def get_serializer_class(self):
         """요청에 따라 적절한 시리얼라이저 반환"""
@@ -53,42 +55,39 @@ class PatientViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         """환자 삭제 시 관련 데이터도 함께 삭제"""
         try:
+            patient_identifier = instance.patient_id
             # hospital_db 데이터베이스 연결 사용
             with connections['default'].cursor() as cursor:
-                print(f"환자 {instance.id} 삭제 시작...")
+                print(f"환자 {patient_identifier} 삭제 시작...")
                 
                 # 1. LungResult 삭제
                 cursor.execute("""
                     DELETE lr FROM lung_result lr
                     JOIN lung_record lrec ON lr.lung_record_id = lrec.id
                     WHERE lrec.patient_id = %s
-                """, [instance.id])
+                """, [patient_identifier])
                 print(f"LungResult 삭제: {cursor.rowcount}개")
                 
                 # 2. LungRecord 삭제
                 cursor.execute("""
                     DELETE FROM lung_record WHERE patient_id = %s
-                """, [instance.id])
+                """, [patient_identifier])
                 print(f"LungRecord 삭제: {cursor.rowcount}개")
-                
-                # 3. Patient 삭제
-                cursor.execute("""
-                    DELETE FROM patient WHERE id = %s
-                """, [instance.id])
-                print(f"Patient 삭제: {cursor.rowcount}개")
+
+                # 3. MedicalRecord 삭제
+                cursor.execute(
+                    "DELETE FROM medical_record WHERE patient_id = %s",
+                    [patient_identifier],
+                )
+                print(f"MedicalRecord 삭제: {cursor.rowcount}개")
             
-            print(f"환자 {instance.id} 삭제 완료")
-            
+            print(f"환자 {patient_identifier} 삭제 완료")
+
         except Exception as e:
             print(f"환자 삭제 중 오류: {e}")
-            # 오류가 발생해도 Patient는 삭제 시도
-            try:
-                with connections['default'].cursor() as cursor:
-                    cursor.execute("DELETE FROM patient WHERE id = %s", [instance.id])
-                    print(f"환자 {instance.id} 강제 삭제 완료: {cursor.rowcount}개")
-            except Exception as final_error:
-                print(f"최종 삭제 실패: {final_error}")
-                raise
+
+        # 실제 환자 데이터 삭제
+        instance.delete()
     
     @action(detail=False, methods=['post'])
     def register(self, request):
@@ -96,31 +95,9 @@ class PatientViewSet(viewsets.ModelViewSet):
         serializer = PatientRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                # 환자 ID 자동 생성
-                from datetime import datetime
-                current_year = datetime.now().year
-                last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
-                if last_patient:
-                    last_number = int(last_patient.id[-3:])
-                    new_number = last_number + 1
-                else:
-                    new_number = 1
-                patient_id = f'P{current_year}{new_number:03d}'
-                
-                # 나이 계산
-                birth_date = serializer.validated_data['birth_date']
-                today = datetime.now().date()
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
-                # 환자 데이터 저장
-                patient_data = serializer.validated_data.copy()
-                patient_data['id'] = patient_id
-                patient_data['age'] = age
-                
-                patient = Patient.objects.create(**patient_data)
-                
+                patient = serializer.save()
                 return Response({
-                    'patient_id': patient.id,
+                    'patient_id': patient.patient_id,
                     'name': patient.name,
                     'age': patient.age,
                     'gender': patient.gender,
@@ -147,7 +124,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                 if patient_id:
                     # 기존 환자 조회
                     try:
-                        patient = Patient.objects.get(id=patient_id)
+                        patient = Patient.objects.get(patient_id=patient_id)
                         age = patient.age
                     except Patient.DoesNotExist:
                         return Response({
@@ -155,34 +132,22 @@ class PatientViewSet(viewsets.ModelViewSet):
                         }, status=status.HTTP_404_NOT_FOUND)
                 else:
                     # 새 환자 생성
-                    current_year = datetime.now().year
-                    last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
-                    if last_patient:
-                        last_number = int(last_patient.id[-3:])
-                        new_number = last_number + 1
-                    else:
-                        new_number = 1
-                    patient_id = f'P{current_year}{new_number:03d}'
-                    
-                    # 나이 계산
-                    birth_date = serializer.validated_data['birth_date']
-                    today = datetime.now().date()
-                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                    
-                    # Patient 테이블에 기본 환자 정보 저장
-                    patient_data = {
-                        'id': patient_id,
-                        'name': serializer.validated_data['name'],
-                        'birth_date': birth_date,
-                        'gender': serializer.validated_data['gender'],
-                        'phone': serializer.validated_data.get('phone', ''),
-                        'address': serializer.validated_data.get('address', ''),
-                        'emergency_contact': serializer.validated_data.get('emergency_contact', ''),
-                        'blood_type': serializer.validated_data.get('blood_type', ''),
-                        'age': age,
-                    }
-                    
-                    patient = Patient.objects.create(**patient_data)
+                    generated_id = Patient.generate_patient_id()
+                    birth_date = serializer.validated_data.get('birth_date')
+                    patient = Patient.objects.create(
+                        patient_id=generated_id,
+                        name=serializer.validated_data.get('name', ''),
+                        birth_date=birth_date,
+                        gender=serializer.validated_data['gender'],
+                        phone=serializer.validated_data.get('phone', ''),
+                        address=serializer.validated_data.get('address', ''),
+                        emergency_contact=serializer.validated_data.get('emergency_contact', ''),
+                        blood_type=serializer.validated_data.get('blood_type', ''),
+                        medical_history=serializer.validated_data.get('medical_history', ''),
+                        allergies=serializer.validated_data.get('allergies', ''),
+                    )
+                    patient_id = patient.patient_id
+                    age = patient.age or 0
                 
                 # 2. Flask ML Service를 통해 예측 수행
                 ml_response = requests.post(
@@ -295,7 +260,7 @@ class PatientViewSet(viewsets.ModelViewSet):
             patient = self.get_object()
             # 해당 환자의 모든 진료 기록을 최신순으로 조회
             medical_records = MedicalRecord.objects.filter(
-                patient_id=patient.id
+                patient_id=patient.patient_id
             ).order_by('-reception_start_time')
             
             serializer = MedicalRecordSerializer(medical_records, many=True)
@@ -487,7 +452,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         serializer = MedicalRecordCreateSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                patient = Patient.objects.get(id=serializer.validated_data['patient_id'])
+                patient = Patient.objects.get(patient_id=serializer.validated_data['patient_id'])
                 medical_record = MedicalRecord.objects.create(
                     patient_id=serializer.validated_data['patient_id'],
                     name=serializer.validated_data['name'],
@@ -657,10 +622,10 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     def medical_records(self, request, pk=None):
         """특정 환자의 진료 기록 조회 API"""
         try:
-            patient = self.get_object()
+            patient = Patient.objects.get(patient_id=pk)
             # 해당 환자의 모든 진료 기록을 최신순으로 조회
             medical_records = MedicalRecord.objects.filter(
-                patient_id=patient.id
+                patient_id=patient.patient_id
             ).order_by('-reception_start_time')
             
             serializer = MedicalRecordSerializer(medical_records, many=True)

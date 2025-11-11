@@ -1,31 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from patients.models import Patient as CorePatient
 
-class Patient(models.Model):
-    """환자 기본 정보 저장"""
-    id = models.CharField('환자id', primary_key=True, max_length=10)  # 예: P2025001 
-    name = models.CharField('환자명', max_length=100)
-    birth_date = models.DateField('생년월일')
-    gender = models.CharField('성별', max_length=10)
-    phone = models.CharField('전화번호', max_length=20)
-    address = models.TextField('주소')
-    emergency_contact = models.CharField('응급연락처', max_length=20)
-    blood_type = models.CharField('혈액형', max_length=5)
-    age = models.IntegerField('나이')
-    
-    created_at = models.DateTimeField('등록일', auto_now_add=True)
-    updated_at = models.DateTimeField('수정일', auto_now=True)
+
+class Patient(CorePatient):
+    """patients.Patient을 의료진 플랫폼에서 재사용하기 위한 프록시 모델"""
 
     class Meta:
-        db_table = 'patient'
-        managed = False  # 외부 데이터베이스 테이블
-        verbose_name = '환자'
-        verbose_name_plural = '환자 목록'
+        proxy = True
         ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.id} - {self.name}"
 
 class LungRecord(models.Model):
     """폐암 검사 기록 저장"""

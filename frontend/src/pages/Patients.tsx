@@ -140,6 +140,12 @@ export default function Patients() {
     return new Date(dateString).toLocaleDateString('ko-KR');
   };
 
+  const getGenderLabel = (value: string) => {
+    if (value === "M") return "남성";
+    if (value === "F") return "여성";
+    return value;
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -264,7 +270,7 @@ export default function Patients() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-sm text-gray-900">{patient.gender}</p>
+                            <p className="text-sm text-gray-900">{getGenderLabel(patient.gender)}</p>
                             <p className="text-sm text-gray-500">
                               {patient.age}세
                             </p>

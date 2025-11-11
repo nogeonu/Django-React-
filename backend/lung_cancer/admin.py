@@ -3,9 +3,9 @@ from .models import Patient, LungRecord, LungResult
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'gender', 'age', 'phone', 'blood_type', 'created_at']
+    list_display = ['patient_id', 'name', 'gender', 'age', 'phone', 'blood_type', 'created_at']
     list_filter = ['gender', 'blood_type', 'created_at']
-    search_fields = ['id', 'name', 'phone']
+    search_fields = ['patient_id', 'name', 'phone']
     readonly_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 
