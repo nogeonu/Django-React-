@@ -27,7 +27,12 @@ const navItems = [
 const heroQuickLinks = [
   { icon: MapPin, label: "찾아오시는길", link: "#map" },
   { icon: PhoneCall, label: "전화번호 안내", link: "#contact" },
-  { icon: Info, label: "의무기록발급", link: "#records" },
+  {
+    icon: Info,
+    label: "진료 내역 조회",
+    link: "/patient/records",
+    requiresPatient: true,
+  },
   { icon: Calendar, label: "증명서발급", link: "#certificate" },
   { icon: Camera, label: "홍보영상", link: "#promo" },
   { icon: Stethoscope, label: "의료진 소개", link: "#doctors" },
@@ -60,6 +65,13 @@ const quickCallouts = [
     title: "마이페이지",
     content: "내 정보를 확인하고 업데이트하세요",
     link: "/patient/mypage",
+    requiresPatient: true,
+  },
+  {
+    title: "진료 내역 조회",
+    content: "최근 진료 기록을 확인하세요",
+    link: "/patient/records",
+    requiresPatient: true,
   },
 ];
 
@@ -148,7 +160,9 @@ function Home() {
             </div>
             {patientUser ? (
               <div className="flex items-center gap-3 text-xs font-semibold text-slate-700">
-                <span className="hidden sm:inline">{patientUser.name}님 환영합니다.</span>
+                <span className="hidden sm:inline">
+                  {patientUser.name}님 환영합니다.
+                </span>
                 <span className="sm:hidden">환자 로그인 중</span>
                 <Button
                   variant="outline"
@@ -191,7 +205,11 @@ function Home() {
             </div>
             <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600 lg:gap-6">
               {navItems.map((item) => (
-                <Link key={item.label} to={item.link} className="hover:text-primary">
+                <Link
+                  key={item.label}
+                  to={item.link}
+                  className="hover:text-primary"
+                >
                   {item.label}
                 </Link>
               ))}
@@ -218,8 +236,8 @@ function Home() {
                 세계속의 건양대학교병원
               </p>
               <p className="max-w-xl text-base text-white/90 md:text-lg">
-                환자 안전과 편의를 최우선으로 생각하는 스마트 병원 서비스. 온라인 예약부터 증명서 발급까지
-                One-Stop으로 경험해보세요.
+                환자 안전과 편의를 최우선으로 생각하는 스마트 병원 서비스.
+                온라인 예약부터 증명서 발급까지 One-Stop으로 경험해보세요.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
@@ -258,7 +276,7 @@ function Home() {
                     예약 조회
                   </Link>
                   <Link
-                    to="#records"
+                    to={patientUser ? "/patient/records" : "/patient/login"}
                     className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
                     진료 내역 조회
@@ -266,7 +284,8 @@ function Home() {
                   {patientUser ? (
                     <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">
                       <Link to="/patient/mypage" className="hover:underline">
-                        {patientUser.name}님<br />마이페이지 이동
+                        {patientUser.name}님<br />
+                        마이페이지 이동
                       </Link>
                     </div>
                   ) : (
@@ -279,8 +298,8 @@ function Home() {
                   )}
                 </div>
                 <p className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                  모바일 앱에서 진료과·의료진을 선택하고 희망 날짜를 지정하세요. 접수 현황과 대기 순번을 실시간으로
-                  확인할 수 있습니다.
+                  모바일 앱에서 진료과·의료진을 선택하고 희망 날짜를 지정하세요.
+                  접수 현황과 대기 순번을 실시간으로 확인할 수 있습니다.
                 </p>
               </CardContent>
             </Card>
@@ -290,7 +309,11 @@ function Home() {
               {heroQuickLinks.map((item) => (
                 <Link
                   key={item.label}
-                  to={item.link}
+                  to={
+                    item.requiresPatient && !patientUser
+                      ? "/patient/login"
+                      : item.link
+                  }
                   className="flex flex-col items-center justify-center gap-2 rounded-md border border-white/0 bg-slate-50 py-4 text-center text-xs font-semibold text-slate-700 transition hover:-translate-y-1 hover:border-primary/40 hover:bg-white hover:text-primary"
                 >
                   <span className="rounded-full bg-primary/10 p-2 text-primary">
@@ -307,7 +330,10 @@ function Home() {
           <div className="mx-auto max-w-6xl px-6 py-10">
             <div className="grid gap-4 md:grid-cols-5">
               {quickCallouts.map((item) => {
-                const resolvedLink = item.link === "/patient/mypage" ? (patientUser ? item.link : "/patient/login") : item.link ?? "#";
+                const resolvedLink =
+                  item.requiresPatient && !patientUser
+                    ? "/patient/login"
+                    : (item.link ?? "#");
                 return (
                   <Link
                     key={item.title}
@@ -386,11 +412,16 @@ function Home() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {notices.map((notice) => (
-                  <div key={notice.title} className="rounded-lg border border-slate-200 p-4">
+                  <div
+                    key={notice.title}
+                    className="rounded-lg border border-slate-200 p-4"
+                  >
                     <h5 className="text-sm font-semibold text-slate-800">
                       {notice.title}
                     </h5>
-                    <p className="mt-2 text-sm text-slate-600">{notice.content}</p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {notice.content}
+                    </p>
                   </div>
                 ))}
               </CardContent>
@@ -407,8 +438,8 @@ function Home() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-slate-600">
                   <p>
-                    층별 주요 시설과 이동 동선을 한 눈에 확인하세요. 비콘 기반 위치
-                    추적과 연동되어 안내 정확도가 높습니다.
+                    층별 주요 시설과 이동 동선을 한 눈에 확인하세요. 비콘 기반
+                    위치 추적과 연동되어 안내 정확도가 높습니다.
                   </p>
                   <Link to="#" className="text-primary hover:underline">
                     지도 열기 →
@@ -426,10 +457,13 @@ function Home() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-slate-600">
                   <p>
-                    진료과별 전문 의료진 정보를 확인하고, 담당 교수진의 진료 일정과
-                    전문 분야를 미리 살펴보세요.
+                    진료과별 전문 의료진 정보를 확인하고, 담당 교수진의 진료
+                    일정과 전문 분야를 미리 살펴보세요.
                   </p>
-                  <Link to="/patient/login" className="text-primary hover:underline">
+                  <Link
+                    to="/patient/login"
+                    className="text-primary hover:underline"
+                  >
                     의료진 정보 보기 →
                   </Link>
                 </CardContent>
@@ -464,10 +498,13 @@ function Home() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-slate-600">
                   <p>
-                    모바일로 원하는 진료과와 의료진을 선택하여 예약하세요. 예약 내역을
-                    앱에서 바로 확인할 수 있습니다.
+                    모바일로 원하는 진료과와 의료진을 선택하여 예약하세요. 예약
+                    내역을 앱에서 바로 확인할 수 있습니다.
                   </p>
-                  <Link to="/patient/login" className="text-primary hover:underline">
+                  <Link
+                    to="/patient/login"
+                    className="text-primary hover:underline"
+                  >
                     예약 방법 안내 →
                   </Link>
                 </CardContent>
@@ -502,8 +539,8 @@ function Home() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-slate-600">
                   <p>
-                    스마트폰 카메라를 통해 실시간으로 길 안내를 제공합니다. ARCore /
-                    ARKit 기반의 정밀 안내를 경험해보세요.
+                    스마트폰 카메라를 통해 실시간으로 길 안내를 제공합니다.
+                    ARCore / ARKit 기반의 정밀 안내를 경험해보세요.
                   </p>
                   <Link to="#" className="text-primary hover:underline">
                     AR 안내 시작 →
@@ -521,8 +558,8 @@ function Home() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-slate-600">
                   <p>
-                    주차 가능 구역과 혼잡도를 확인하고, 전용 QR코드로 요금 정산을 빠르게
-                    진행하세요.
+                    주차 가능 구역과 혼잡도를 확인하고, 전용 QR코드로 요금
+                    정산을 빠르게 진행하세요.
                   </p>
                   <Link to="#parking" className="text-primary hover:underline">
                     주차 정보 보기 →
@@ -560,4 +597,3 @@ function Home() {
 }
 
 export default Home;
-
