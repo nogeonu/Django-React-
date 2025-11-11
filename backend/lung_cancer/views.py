@@ -282,14 +282,32 @@ class PatientViewSet(viewsets.ModelViewSet):
     def prediction_candidates(self, request):
         """호흡기내과 진료 이력이 있는 환자 목록"""
         department = request.query_params.get('department', '호흡기내과')
-        patient_ids = (
-            MedicalRecord.objects.filter(department=department)
-            .values_list('patient_id', flat=True)
-            .distinct()
-        )
-        patients = Patient.objects.filter(patient_id__in=patient_ids).order_by('name')
-        serializer = self.get_serializer(patients, many=True)
-        return Response({'patients': serializer.data})
+        try:
+            with connections['default'].cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT p.patient_id
+                    FROM patients_patient AS p
+                    JOIN medical_record AS m
+                        ON m.patient_id COLLATE utf8mb4_unicode_ci = p.patient_id COLLATE utf8mb4_unicode_ci
+                    WHERE m.department = %s
+                    ORDER BY p.name ASC
+                    """,
+                    [department],
+                )
+                patient_ids = [row[0] for row in cursor.fetchall()]
+
+            if not patient_ids:
+                return Response({'patients': []})
+
+            patients = Patient.objects.filter(patient_id__in=patient_ids).order_by('name')
+            serializer = self.get_serializer(patients, many=True)
+            return Response({'patients': serializer.data})
+        except Exception as e:
+            return Response(
+                {'error': f'환자 목록을 불러오는 중 오류가 발생했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 class LungRecordViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = LungRecord.objects.all()
