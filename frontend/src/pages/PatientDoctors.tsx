@@ -42,10 +42,27 @@ const DEPARTMENT_LABELS: Record<string, string> = {
 };
 
 function getDisplayName(doctor: Doctor) {
-  const parts = [doctor.first_name, doctor.last_name].filter(Boolean);
-  if (parts.length > 0) {
-    return parts.join(" ");
+  const hasFirst = Boolean(doctor.first_name && doctor.first_name.trim());
+  const hasLast = Boolean(doctor.last_name && doctor.last_name.trim());
+
+  if (hasFirst && hasLast) {
+    const first = doctor.first_name!.trim();
+    const last = doctor.last_name!.trim();
+    const containsKorean = /[ㄱ-ㅎ가-힣]/.test(first + last);
+    if (containsKorean) {
+      return `${last}${first}`; // 한국식: 성 + 이름 (공백 없이)
+    }
+    return `${first} ${last}`; // 영문 등은 First Last
   }
+
+  if (hasFirst) {
+    return doctor.first_name!.trim();
+  }
+
+  if (hasLast) {
+    return doctor.last_name!.trim();
+  }
+
   return doctor.username;
 }
 
