@@ -564,12 +564,14 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             return Response({'patients': []})
         
         try:
-            # 모든 환자 중 이름으로 검색
-            from django.db.models import Q
-            
+            patient_ids = MedicalRecord.objects.filter(
+                department='호흡기내과'
+            ).values_list('patient_id', flat=True).distinct()
+
             patients = Patient.objects.filter(
-                name__icontains=query
-            ).order_by('name')[:10]  # 최대 10명만 반환, 이름순 정렬
+                name__icontains=query,
+                patient_id__in=patient_ids
+            ).order_by('name')[:10]
             
             print(f"검색어: '{query}', 환자 결과: {patients.count()}명")
             
