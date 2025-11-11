@@ -30,7 +30,7 @@ class PatientUserManager(BaseUserManager):
 
 
 class PatientUser(AbstractBaseUser, PermissionsMixin):
-    account_id = models.CharField(max_length=50, unique=True, verbose_name="계정 ID", default="")
+    account_id = models.CharField(max_length=50, unique=True, verbose_name="계정 ID")
     email = models.EmailField(unique=True, verbose_name="이메일")
     name = models.CharField(max_length=100, verbose_name="이름")
     patient_id = models.CharField(max_length=50, unique=True, verbose_name="환자 ID")
