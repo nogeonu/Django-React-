@@ -37,6 +37,23 @@ def cleanup_patient_user(apps, schema_editor):
         if cursor.fetchone()[0]:
             cursor.execute("ALTER TABLE patients_patient DROP COLUMN user_account_id")
 
+        # Drop junction tables referencing patient_user (auth relations)
+        for table_name in [
+            "patient_user_groups",
+            "patient_user_user_permissions",
+        ]:
+            cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = %s
+                """,
+                (table_name,),
+            )
+            if cursor.fetchone()[0]:
+                cursor.execute(f"DROP TABLE {table_name}")
+
         # Drop legacy patient_user table if it exists
         cursor.execute(
             """
