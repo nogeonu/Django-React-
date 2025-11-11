@@ -51,7 +51,7 @@ function PatientMyPage() {
   );
 
   const bloodTypeOptions = useMemo(
-    () => ["A", "B", "AB", "O", "RH+", "RH-"],
+    () => ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
     [],
   );
 
