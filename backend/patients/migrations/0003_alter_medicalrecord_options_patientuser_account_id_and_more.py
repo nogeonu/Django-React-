@@ -4,7 +4,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("patients", "0003_alter_medicalrecord_options_patientuser_account_id_and_more"),
+        ("patients", "0002_merge_0001_appointment"),
     ]
 
     operations = []

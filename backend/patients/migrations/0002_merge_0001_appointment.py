@@ -4,7 +4,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("patients", "0002_add_patient_user"),
+        ("patients", "0001_initial"),
     ]
 
     operations = []
