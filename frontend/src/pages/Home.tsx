@@ -84,10 +84,10 @@ function Home() {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                건양대학교병원
+                최신 의료 정보를 제공하는 병원
               </p>
               <h1 className="text-xl font-bold text-slate-800">
-                스마트 케어 내비게이션 센터
+                건양대학교병원
               </h1>
             </div>
           </div>
@@ -97,10 +97,10 @@ function Home() {
               <span>대표전화 051-797-3500</span>
             </div>
             <Link
-              to="/login"
+              to="/staff"
               className="rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow hover:bg-primary/90"
             >
-              의료진 · 원무과 로그인
+              의료진 플랫폼 바로가기
             </Link>
           </div>
         </div>
@@ -372,8 +372,8 @@ function Home() {
             <p>대전광역시 서구 관저동 196-5 · 대표전화 051-797-3500</p>
           </div>
           <div className="flex flex-wrap gap-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <Link to="/login" className="hover:text-primary">
-              의료진 로그인
+            <Link to="/staff" className="hover:text-primary">
+              의료진 플랫폼
             </Link>
             <Link to="/signup" className="hover:text-primary">
               환자 서비스 안내
