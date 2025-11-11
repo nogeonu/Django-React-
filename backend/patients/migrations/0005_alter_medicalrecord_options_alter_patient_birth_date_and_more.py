@@ -4,6 +4,52 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def cleanup_patient_user(apps, schema_editor):
+    connection = schema_editor.connection
+    with connection.cursor() as cursor:
+        # Drop existing FK from patients_patient to patient_user if present
+        cursor.execute(
+            """
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'patients_patient'
+              AND REFERENCED_TABLE_NAME = 'patient_user'
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            cursor.execute(
+                f"ALTER TABLE patients_patient DROP FOREIGN KEY {row[0]}"
+            )
+
+        # Drop column if it already exists
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'patients_patient'
+              AND COLUMN_NAME = 'user_account_id'
+            """
+        )
+        if cursor.fetchone()[0]:
+            cursor.execute("ALTER TABLE patients_patient DROP COLUMN user_account_id")
+
+        # Drop legacy patient_user table if it exists
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'patient_user'
+            """
+        )
+        if cursor.fetchone()[0]:
+            cursor.execute("DROP TABLE patient_user")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -26,10 +72,7 @@ class Migration(migrations.Migration):
             name='gender',
             field=models.CharField(blank=True, choices=[('M', '남성'), ('F', '여성')], max_length=1, null=True, verbose_name='성별'),
         ),
-        migrations.RunSQL(
-            sql="DROP TABLE IF EXISTS patient_user",
-            reverse_sql=migrations.RunSQL.noop,
-        ),
+        migrations.RunPython(cleanup_patient_user, migrations.RunPython.noop),
         migrations.CreateModel(
             name='PatientUser',
             fields=[
