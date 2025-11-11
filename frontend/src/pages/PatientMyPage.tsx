@@ -293,5 +293,12 @@ function PatientMyPage() {
                 </div>
               </form>
             )}
-          </CardContent>\n        </Card>\n      </main>\n    </div>\n  );\n}\n\nexport default PatientMyPage;\n*** End Patch
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
+
+export default PatientMyPage;
 
