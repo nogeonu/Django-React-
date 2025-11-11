@@ -1,16 +1,46 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Loader2, AlertTriangle, CheckCircle, Info, Search, ChevronDown } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/api';
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  Search,
+  ChevronDown,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/api";
 
 interface Patient {
   id: string;
@@ -29,9 +59,9 @@ interface Patient {
 
 interface PredictionResult {
   patient_id: number;
-  prediction: 'YES' | 'NO';
+  prediction: "YES" | "NO";
   probability: number;
-  risk_level: '낮음' | '중간' | '높음';
+  risk_level: "낮음" | "중간" | "높음";
   risk_message: string;
   external_db_saved: boolean;
   symptoms: Record<string, any>;
@@ -39,23 +69,23 @@ interface PredictionResult {
 
 export default function LungCancerPrediction() {
   const [formData, setFormData] = useState({
-    patient_id: '',
-    name: '',
-    gender: '',
-    age: '',
-    smoking: '',
-    yellow_fingers: '',
-    anxiety: '',
-    peer_pressure: '',
-    chronic_disease: '',
-    fatigue: '',
-    allergy: '',
-    wheezing: '',
-    alcohol_consuming: '',
-    coughing: '',
-    shortness_of_breath: '',
-    swallowing_difficulty: '',
-    chest_pain: '',
+    patient_id: "",
+    name: "",
+    gender: "",
+    age: "",
+    smoking: "",
+    yellow_fingers: "",
+    anxiety: "",
+    peer_pressure: "",
+    chronic_disease: "",
+    fatigue: "",
+    allergy: "",
+    wheezing: "",
+    alcohol_consuming: "",
+    coughing: "",
+    shortness_of_breath: "",
+    swallowing_difficulty: "",
+    chest_pain: "",
   });
 
   const [result, setResult] = useState<PredictionResult | null>(null);
@@ -63,7 +93,7 @@ export default function LungCancerPrediction() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
-  const [patientSearchTerm, setPatientSearchTerm] = useState('');
+  const [patientSearchTerm, setPatientSearchTerm] = useState("");
   const { toast } = useToast();
 
   // 환자 목록 불러오기 (호흡기내과 환자만)
@@ -71,7 +101,10 @@ export default function LungCancerPrediction() {
     const fetchPatients = async () => {
       setPatientsLoading(true);
       try {
-        const response = await apiRequest("GET", "/api/lung_cancer/patients/prediction_candidates/");
+        const response = await apiRequest(
+          "GET",
+          "/api/lung_cancer/patients/prediction_candidates/",
+        );
         const respiratoryPatients = response.patients || response.results || [];
         setPatients(respiratoryPatients);
       } catch (error) {
@@ -84,28 +117,40 @@ export default function LungCancerPrediction() {
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handlePatientSelect = (patient: Patient) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       patient_id: patient.id,
       name: patient.name,
-      gender: patient.gender === '남성' ? '1' : patient.gender === '여성' ? '0' : '',
-      age: patient.age.toString()
+      gender:
+        patient.gender === "M" ||
+        patient.gender === "남성" ||
+        patient.gender === "남"
+          ? "1"
+          : patient.gender === "F" ||
+              patient.gender === "여성" ||
+              patient.gender === "여"
+            ? "0"
+            : "",
+      age: patient.age.toString(),
     }));
     setPatientSearchOpen(false);
-    setPatientSearchTerm('');
+    setPatientSearchTerm("");
   };
 
   // 환자 검색 필터링
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-    (patient.id || '').toLowerCase().includes(patientSearchTerm.toLowerCase())
+  const filteredPatients = patients.filter(
+    (patient) =>
+      patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+      (patient.id || "")
+        .toLowerCase()
+        .includes(patientSearchTerm.toLowerCase()),
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,37 +163,45 @@ export default function LungCancerPrediction() {
       const age = parseInt(formData.age);
       const birthYear = new Date().getFullYear() - age;
       const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
-      
-      const response = await apiRequest('POST', '/api/lung_cancer/patients/predict/', {
-        patient_id: formData.patient_id, // 환자 ID 추가
-        name: formData.name,
-        birth_date: birth_date,
-        gender: formData.gender === '1' ? 'M' : 'F',
-        age: age,
-        smoking: formData.smoking === '2',
-        yellow_fingers: formData.yellow_fingers === '2',
-        anxiety: formData.anxiety === '2',
-        peer_pressure: formData.peer_pressure === '2',
-        chronic_disease: formData.chronic_disease === '2',
-        fatigue: formData.fatigue === '2',
-        allergy: formData.allergy === '2',
-        wheezing: formData.wheezing === '2',
-        alcohol_consuming: formData.alcohol_consuming === '2',
-        coughing: formData.coughing === '2',
-        shortness_of_breath: formData.shortness_of_breath === '2',
-        swallowing_difficulty: formData.swallowing_difficulty === '2',
-        chest_pain: formData.chest_pain === '2',
-      });
+
+      const response = await apiRequest(
+        "POST",
+        "/api/lung_cancer/patients/predict/",
+        {
+          patient_id: formData.patient_id, // 환자 ID 추가
+          name: formData.name,
+          birth_date: birth_date,
+          gender: formData.gender === "1" ? "M" : "F",
+          age: age,
+          smoking: formData.smoking === "2",
+          yellow_fingers: formData.yellow_fingers === "2",
+          anxiety: formData.anxiety === "2",
+          peer_pressure: formData.peer_pressure === "2",
+          chronic_disease: formData.chronic_disease === "2",
+          fatigue: formData.fatigue === "2",
+          allergy: formData.allergy === "2",
+          wheezing: formData.wheezing === "2",
+          alcohol_consuming: formData.alcohol_consuming === "2",
+          coughing: formData.coughing === "2",
+          shortness_of_breath: formData.shortness_of_breath === "2",
+          swallowing_difficulty: formData.swallowing_difficulty === "2",
+          chest_pain: formData.chest_pain === "2",
+        },
+      );
 
       setResult(response);
-      
+
       toast({
         title: "예측 완료",
         description: "폐암 예측이 성공적으로 완료되었습니다.",
       });
     } catch (error: any) {
-      console.error('Error:', error);
-      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "예측 중 오류가 발생했습니다. 다시 시도해주세요.";
+      console.error("Error:", error);
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.response?.data?.detail ||
+        error?.message ||
+        "예측 중 오류가 발생했습니다. 다시 시도해주세요.";
       toast({
         title: "오류 발생",
         description: errorMessage,
@@ -161,24 +214,24 @@ export default function LungCancerPrediction() {
 
   const getRiskColor = (riskLevel: string) => {
     switch (riskLevel) {
-      case '높음':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case '중간':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case '낮음':
-        return 'bg-green-100 text-green-800 border-green-200';
+      case "높음":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "중간":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "낮음":
+        return "bg-green-100 text-green-800 border-green-200";
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
   const getRiskIcon = (riskLevel: string) => {
     switch (riskLevel) {
-      case '높음':
+      case "높음":
         return <AlertTriangle className="h-4 w-4" />;
-      case '중간':
+      case "중간":
         return <Info className="h-4 w-4" />;
-      case '낮음':
+      case "낮음":
         return <CheckCircle className="h-4 w-4" />;
       default:
         return <Info className="h-4 w-4" />;
@@ -208,7 +261,10 @@ export default function LungCancerPrediction() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">환자명 (선택사항)</Label>
-                  <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                  <Popover
+                    open={patientSearchOpen}
+                    onOpenChange={setPatientSearchOpen}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -235,7 +291,9 @@ export default function LungCancerPrediction() {
                           {patientsLoading ? (
                             <div className="flex items-center justify-center py-6">
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span className="text-sm text-muted-foreground">환자 목록 불러오는 중...</span>
+                              <span className="text-sm text-muted-foreground">
+                                환자 목록 불러오는 중...
+                              </span>
                             </div>
                           ) : filteredPatients.length > 0 ? (
                             <CommandGroup>
@@ -253,13 +311,21 @@ export default function LungCancerPrediction() {
                                         </span>
                                       </div>
                                       <div>
-                                        <p className="font-medium">{patient.name}</p>
-                                        <p className="text-sm text-muted-foreground">{patient.id}</p>
+                                        <p className="font-medium">
+                                          {patient.name}
+                                        </p>
+                                        <p className="text-sm text-muted-foreground">
+                                          {patient.id}
+                                        </p>
                                       </div>
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-sm text-muted-foreground">{patient.age}세</p>
-                                      <p className="text-xs text-muted-foreground">{patient.gender}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        {patient.age}세
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {patient.gender}
+                                      </p>
                                     </div>
                                   </div>
                                 </CommandItem>
@@ -275,7 +341,12 @@ export default function LungCancerPrediction() {
                 </div>
                 <div>
                   <Label htmlFor="gender">성별 *</Label>
-                  <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)}>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) =>
+                      handleInputChange("gender", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="성별을 선택하세요" />
                     </SelectTrigger>
@@ -293,7 +364,7 @@ export default function LungCancerPrediction() {
                   id="age"
                   type="number"
                   value={formData.age}
-                  onChange={(e) => handleInputChange('age', e.target.value)}
+                  onChange={(e) => handleInputChange("age", e.target.value)}
                   placeholder="나이를 입력하세요"
                   min="0"
                   max="120"
@@ -303,26 +374,28 @@ export default function LungCancerPrediction() {
 
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold">증상 및 생활 습관</h3>
-                
+
                 {[
-                  { key: 'smoking', label: '흡연' },
-                  { key: 'yellow_fingers', label: '손가락 변색' },
-                  { key: 'anxiety', label: '불안' },
-                  { key: 'peer_pressure', label: '또래 압박' },
-                  { key: 'chronic_disease', label: '만성 질환' },
-                  { key: 'fatigue', label: '피로' },
-                  { key: 'allergy', label: '알레르기' },
-                  { key: 'wheezing', label: '쌕쌕거림' },
-                  { key: 'alcohol_consuming', label: '음주' },
-                  { key: 'coughing', label: '기침' },
-                  { key: 'shortness_of_breath', label: '호흡 곤란' },
-                  { key: 'swallowing_difficulty', label: '삼킴 곤란' },
-                  { key: 'chest_pain', label: '가슴 통증' },
+                  { key: "smoking", label: "흡연" },
+                  { key: "yellow_fingers", label: "손가락 변색" },
+                  { key: "anxiety", label: "불안" },
+                  { key: "peer_pressure", label: "또래 압박" },
+                  { key: "chronic_disease", label: "만성 질환" },
+                  { key: "fatigue", label: "피로" },
+                  { key: "allergy", label: "알레르기" },
+                  { key: "wheezing", label: "쌕쌕거림" },
+                  { key: "alcohol_consuming", label: "음주" },
+                  { key: "coughing", label: "기침" },
+                  { key: "shortness_of_breath", label: "호흡 곤란" },
+                  { key: "swallowing_difficulty", label: "삼킴 곤란" },
+                  { key: "chest_pain", label: "가슴 통증" },
                 ].map(({ key, label }) => (
                   <div key={key} className="flex items-center justify-between">
-                    <Label htmlFor={key} className="flex-1">{label}</Label>
-                    <Select 
-                      value={formData[key as keyof typeof formData]} 
+                    <Label htmlFor={key} className="flex-1">
+                      {label}
+                    </Label>
+                    <Select
+                      value={formData[key as keyof typeof formData]}
                       onValueChange={(value) => handleInputChange(key, value)}
                     >
                       <SelectTrigger className="w-32">
@@ -344,7 +417,7 @@ export default function LungCancerPrediction() {
                     예측 중...
                   </>
                 ) : (
-                  '폐암 위험도 예측하기'
+                  "폐암 위험도 예측하기"
                 )}
               </Button>
             </form>
@@ -366,28 +439,40 @@ export default function LungCancerPrediction() {
                   <div className="text-4xl font-bold mb-2">
                     {result.probability}%
                   </div>
-                  <Badge className={`${getRiskColor(result.risk_level)} flex items-center gap-2 w-fit mx-auto`}>
+                  <Badge
+                    className={`${getRiskColor(result.risk_level)} flex items-center gap-2 w-fit mx-auto`}
+                  >
                     {getRiskIcon(result.risk_level)}
                     {result.risk_level} 위험도
                   </Badge>
                 </div>
 
-                <Alert className={result.prediction === 'YES' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+                <Alert
+                  className={
+                    result.prediction === "YES"
+                      ? "border-red-200 bg-red-50"
+                      : "border-green-200 bg-green-50"
+                  }
+                >
                   <AlertDescription>
-                    <strong>예측 결과:</strong> {result.prediction === 'YES' ? '폐암 양성' : '폐암 음성'}
+                    <strong>예측 결과:</strong>{" "}
+                    {result.prediction === "YES" ? "폐암 양성" : "폐암 음성"}
                   </AlertDescription>
                 </Alert>
 
                 <Alert>
                   <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    {result.risk_message}
-                  </AlertDescription>
+                  <AlertDescription>{result.risk_message}</AlertDescription>
                 </Alert>
 
                 <div className="text-sm text-gray-600">
-                  <p><strong>환자 ID:</strong> {result.patient_id}</p>
-                  <p><strong>외부 DB 저장:</strong> {result.external_db_saved ? '성공' : '실패'}</p>
+                  <p>
+                    <strong>환자 ID:</strong> {result.patient_id}
+                  </p>
+                  <p>
+                    <strong>외부 DB 저장:</strong>{" "}
+                    {result.external_db_saved ? "성공" : "실패"}
+                  </p>
                 </div>
               </div>
             ) : (
