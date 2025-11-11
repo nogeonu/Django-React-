@@ -123,6 +123,7 @@ function PatientMyPage() {
         title: "저장되었습니다.",
         description: "환자 정보가 안전하게 업데이트되었습니다.",
       });
+      navigate("/", { replace: true });
     } catch (error: any) {
       const message = error?.response?.data?.detail ?? "저장 중 오류가 발생했습니다.";
       toast({
