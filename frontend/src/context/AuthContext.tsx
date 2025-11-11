@@ -8,6 +8,7 @@ export type User = {
   first_name?: string;
   last_name?: string;
   role: 'medical_staff' | 'admin_staff' | 'superuser';
+  doctor_id?: string | null;
 };
 
 export type PatientUser = {

@@ -4,6 +4,8 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 
+from .doctor_utils import ensure_doctor_id, get_doctor_id
+
 
 def get_role_from_user(user):
     if user.is_superuser:
@@ -25,6 +27,7 @@ def me(request):
         "first_name": getattr(user, 'first_name', ''),
         "last_name": getattr(user, 'last_name', ''),
         "role": get_role_from_user(user),
+        "doctor_id": get_doctor_id(user.id),
     })
 
 
@@ -56,6 +59,7 @@ def login(request):
         "first_name": getattr(user, 'first_name', ''),
         "last_name": getattr(user, 'last_name', ''),
         "role": actual_role,
+        "doctor_id": get_doctor_id(user.id),
     })
 
 
@@ -117,6 +121,7 @@ def register(request):
         if role == "medical_staff":
             user.is_staff = True
         user.save()
+        doctor_id = ensure_doctor_id(user.id)
         print(f"[회원가입] 사용자 생성 성공: ID={user.id}")
     except Exception as e:
         print(f"[회원가입] 사용자 생성 실패: {e}")
@@ -127,4 +132,5 @@ def register(request):
         "username": user.username,
         "email": user.email,
         "role": get_role_from_user(user),
+        "doctor_id": doctor_id,
     }, status=201)
