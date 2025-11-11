@@ -54,6 +54,7 @@ urlpatterns = [
     path('api/auth/me', auth_views.me, name='me'),
     path('api/auth/logout', auth_views.logout, name='logout'),
     path('api/auth/register', auth_views.register, name='register'),
+    path('api/auth/doctors/', auth_views.list_doctors, name='doctor-list'),
     
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

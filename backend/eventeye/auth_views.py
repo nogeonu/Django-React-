@@ -1,10 +1,18 @@
 
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout, get_user_model
+from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 
-from .doctor_utils import ensure_doctor_id, get_doctor_id
+from .doctor_utils import (
+    ALLOWED_DEPARTMENTS,
+    DEPARTMENT_ADMIN,
+    ensure_doctor_id,
+    get_department,
+    get_doctor_id,
+    set_department,
+)
 
 
 def get_role_from_user(user):
@@ -28,6 +36,7 @@ def me(request):
         "last_name": getattr(user, 'last_name', ''),
         "role": get_role_from_user(user),
         "doctor_id": get_doctor_id(user.id),
+        "department": get_department(user.id),
     })
 
 
@@ -60,6 +69,7 @@ def login(request):
         "last_name": getattr(user, 'last_name', ''),
         "role": actual_role,
         "doctor_id": get_doctor_id(user.id),
+        "department": get_department(user.id),
     })
 
 
@@ -86,16 +96,17 @@ def register(request):
     email = payload.get("email")
     first_name = payload.get("first_name")
     last_name = payload.get("last_name")
-    role = payload.get("role", "medical_staff")  # 'medical_staff' | 'admin_staff'
-    
-    print(f"[회원가입] 받은 데이터: username={username}, role={role}, email={email}")
+    department = payload.get("department", DEPARTMENT_ADMIN)
+
+    print(f"[회원가입] 받은 데이터: username={username}, department={department}, email={email}")
 
     if not username or not password:
         return JsonResponse({"detail": "username and password are required"}, status=400)
 
-    if role not in ("medical_staff", "admin_staff"):
-        print(f"[회원가입] 잘못된 role: {role}")
-        return JsonResponse({"detail": "Only medical_staff or admin_staff can self-register"}, status=403)
+    if department not in ALLOWED_DEPARTMENTS:
+        return JsonResponse({"detail": "Invalid department"}, status=400)
+
+    inferred_role = "admin_staff" if department == DEPARTMENT_ADMIN else "medical_staff"
 
     User = get_user_model()
     # 중복 확인
@@ -118,9 +129,9 @@ def register(request):
             user.first_name = first_name
         if last_name:
             user.last_name = last_name
-        if role == "medical_staff":
-            user.is_staff = True
+        user.is_staff = department != DEPARTMENT_ADMIN
         user.save()
+        set_department(user.id, department)
         doctor_id = ensure_doctor_id(user.id)
         print(f"[회원가입] 사용자 생성 성공: ID={user.id}")
     except Exception as e:
@@ -131,6 +142,50 @@ def register(request):
         "id": user.id,
         "username": user.username,
         "email": user.email,
-        "role": get_role_from_user(user),
+        "role": inferred_role,
+        "department": department,
         "doctor_id": doctor_id,
     }, status=201)
+
+
+@require_http_methods(["GET"])
+def list_doctors(request):
+    department = request.GET.get("department")
+    if department:
+        if department not in ALLOWED_DEPARTMENTS:
+            return JsonResponse({"detail": "Invalid department"}, status=400)
+        if department == DEPARTMENT_ADMIN:
+            return JsonResponse({"detail": "Department must be medical"}, status=400)
+
+    query = [
+        "SELECT id, username, email, first_name, last_name, doctor_id, department",
+        "FROM auth_user",
+        "WHERE department <> %s",
+    ]
+    params = [DEPARTMENT_ADMIN]
+
+    if department:
+        query.append("AND department = %s")
+        params.append(department)
+
+    query.append("ORDER BY first_name, last_name, username")
+    sql = " ".join(query)
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    doctors = [
+        {
+            "id": row[0],
+            "username": row[1],
+            "email": row[2],
+            "first_name": row[3] or "",
+            "last_name": row[4] or "",
+            "doctor_id": row[5],
+            "department": row[6],
+        }
+        for row in rows
+    ]
+
+    return JsonResponse({"doctors": doctors})

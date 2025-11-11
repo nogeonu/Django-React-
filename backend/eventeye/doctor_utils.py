@@ -3,6 +3,15 @@ from typing import Optional
 from django.db import connection, IntegrityError, transaction
 from django.utils import timezone
 
+DEPARTMENT_ADMIN = "admin"
+DEPARTMENT_RESPIRATORY = "respiratory"
+DEPARTMENT_SURGERY = "surgery"
+ALLOWED_DEPARTMENTS = {
+  DEPARTMENT_ADMIN,
+  DEPARTMENT_RESPIRATORY,
+  DEPARTMENT_SURGERY,
+}
+
 
 def get_doctor_id(user_id: int) -> Optional[str]:
     """Fetch doctor_id for a given auth_user primary key."""
@@ -10,6 +19,23 @@ def get_doctor_id(user_id: int) -> Optional[str]:
         cursor.execute("SELECT doctor_id FROM auth_user WHERE id = %s", [user_id])
         row = cursor.fetchone()
         return row[0] if row else None
+
+
+def get_department(user_id: int) -> Optional[str]:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT department FROM auth_user WHERE id = %s", [user_id])
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def set_department(user_id: int, department: str) -> None:
+    if department not in ALLOWED_DEPARTMENTS:
+        raise ValueError(f"Invalid department: {department}")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE auth_user SET department = %s WHERE id = %s",
+            [department, user_id],
+        )
 
 
 def _next_doctor_sequence(prefix: str) -> int:
@@ -28,8 +54,12 @@ def _next_doctor_sequence(prefix: str) -> int:
     return 1
 
 
-def ensure_doctor_id(user_id: int, force: bool = False) -> str:
-    """Ensure the specified user has a doctor_id assigned."""
+def ensure_doctor_id(user_id: int, force: bool = False) -> Optional[str]:
+    """Ensure the specified user has a doctor_id assigned (medical staff only)."""
+    department = get_department(user_id)
+    if department in (None, DEPARTMENT_ADMIN):
+        return None
+
     current = get_doctor_id(user_id)
     if current and not force:
         return current

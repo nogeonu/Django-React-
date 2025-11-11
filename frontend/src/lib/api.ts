@@ -67,13 +67,19 @@ export const logoutApi = async () => {
   return res.data;
 };
 
-export const registerApi = async (data: { username: string; password: string; email?: string; role?: string; first_name?: string; last_name?: string }) => {
+export const registerApi = async (data: { username: string; password: string; email?: string; department?: string; first_name?: string; last_name?: string }) => {
   const res = await apiClient.post('/api/auth/register', data);
   return res.data;
 };
 
 export const patientLoginApi = async (data: { account_id: string; password: string }) => {
   const res = await apiClient.post('/api/patients/login/', data);
+  return res.data;
+};
+
+export const getDoctorsApi = async (department?: string) => {
+  const query = department ? `?department=${encodeURIComponent(department)}` : '';
+  const res = await apiClient.get(`/api/auth/doctors/${query}`);
   return res.data;
 };
 
