@@ -97,7 +97,7 @@ function Home() {
               <span>대표전화 051-797-3500</span>
             </div>
             <Link
-              to="/staff"
+              to="/signup"
               className="rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow hover:bg-primary/90"
             >
               의료진 플랫폼 바로가기
@@ -372,7 +372,7 @@ function Home() {
             <p>대전광역시 서구 관저동 196-5 · 대표전화 051-797-3500</p>
           </div>
           <div className="flex flex-wrap gap-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <Link to="/staff" className="hover:text-primary">
+            <Link to="/signup" className="hover:text-primary">
               의료진 플랫폼
             </Link>
             <Link to="/signup" className="hover:text-primary">
