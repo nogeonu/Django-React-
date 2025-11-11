@@ -254,24 +254,25 @@ class PatientViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['get'])
-    def medical_records(self, request, pk=None):
+    def medical_records(self, request, *args, **kwargs):
         """특정 환자의 진료 기록 조회 API"""
         try:
-            patient = self.get_object()
-            # 해당 환자의 모든 진료 기록을 최신순으로 조회
+            lookup_kwarg = self.lookup_url_kwarg or self.lookup_field
+            patient_identifier = kwargs.get(lookup_kwarg) or self.kwargs.get(lookup_kwarg)
+            if not patient_identifier:
+                return Response({'error': '환자 식별자가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+            patient = Patient.objects.get(patient_id=patient_identifier)
             medical_records = MedicalRecord.objects.filter(
                 patient_id=patient.patient_id
             ).order_by('-reception_start_time')
-            
             serializer = MedicalRecordSerializer(medical_records, many=True)
             return Response({
                 'patient': PatientSerializer(patient).data,
                 'medical_records': serializer.data
             })
         except Patient.DoesNotExist:
-            return Response({
-                'error': '환자를 찾을 수 없습니다.'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': '환자를 찾을 수 없습니다.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({
                 'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
@@ -626,28 +627,4 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             print(f"대시보드 통계 오류: {e}")
             return Response({
                 'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['get'])
-    def medical_records(self, request, pk=None):
-        """특정 환자의 진료 기록 조회 API"""
-        try:
-            patient = Patient.objects.get(patient_id=pk)
-            # 해당 환자의 모든 진료 기록을 최신순으로 조회
-            medical_records = MedicalRecord.objects.filter(
-                patient_id=patient.patient_id
-            ).order_by('-reception_start_time')
-            
-            serializer = MedicalRecordSerializer(medical_records, many=True)
-            return Response({
-                'patient': PatientSerializer(patient).data,
-                'medical_records': serializer.data
-            })
-        except Patient.DoesNotExist:
-            return Response({
-                'error': '환자를 찾을 수 없습니다.'
-            }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({
-                'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
