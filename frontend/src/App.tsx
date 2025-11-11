@@ -15,6 +15,7 @@ import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/context/AuthContext';
+import Home from '@/pages/Home';
 
 const queryClient = new QueryClient();
 
@@ -28,7 +29,7 @@ function AppContent() {
       <div className={isPublicPage ? "flex-1" : "flex-1 ml-64"}>
         <Routes>
           {/* 공개 라우트 */}
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           
