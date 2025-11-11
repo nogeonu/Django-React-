@@ -42,11 +42,6 @@ const heroQuickLinks = [
 
 const quickCallouts = [
   {
-    title: "전화예약(초진)",
-    content: "051-797-3500",
-    highlight: true,
-  },
-  {
     title: "진료과 · 의료진 검색",
     content: "전문의 정보를 확인하고 예약하세요",
     link: "#doctors",
@@ -265,7 +260,7 @@ function Home() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Link
                     to="#appointments"
-                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                    className="flex h-20 flex-col justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
                     온라인 예약
                   </Link>
@@ -328,7 +323,7 @@ function Home() {
 
         <section className="bg-white" id="reservations">
           <div className="mx-auto max-w-6xl px-6 py-10">
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-4">
               {quickCallouts.map((item) => {
                 const resolvedLink =
                   item.requiresPatient && !patientUser
@@ -338,7 +333,7 @@ function Home() {
                   <Link
                     key={item.title}
                     to={resolvedLink}
-                    className={`flex h-full flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
+                    className={`flex h-full min-h-[120px] flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
                       item.highlight
                         ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-slate-200 bg-slate-50 text-slate-700"
