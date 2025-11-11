@@ -35,7 +35,7 @@ const heroQuickLinks = [
   },
   { icon: Calendar, label: "증명서발급", link: "#certificate" },
   { icon: Camera, label: "홍보영상", link: "#promo" },
-  { icon: Stethoscope, label: "의료진 소개", link: "#doctors" },
+  { icon: Stethoscope, label: "의료진 소개", link: "/patient/doctors" },
   { icon: Clock, label: "진료시간 안내", link: "#schedule" },
   { icon: Pill, label: "검진센터", link: "#checkup" },
 ];
@@ -44,7 +44,7 @@ const quickCallouts = [
   {
     title: "진료과 · 의료진 검색",
     content: "전문의 정보를 확인하고 예약하세요",
-    link: "#doctors",
+    link: "/patient/doctors",
   },
   {
     title: "온라인 진료예약",
@@ -81,7 +81,7 @@ const quickServices = [
     icon: Stethoscope,
     title: "진료과 · 의료진 검색",
     description: "전문의 정보를 확인하고 예약하세요",
-    link: "#doctors",
+    link: "/patient/doctors",
   },
   {
     icon: Calendar,

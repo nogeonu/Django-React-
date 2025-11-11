@@ -26,6 +26,7 @@ import { CalendarProvider } from "@/context/CalendarContext";
 import Home from "@/pages/Home";
 import PatientMyPage from "@/pages/PatientMyPage";
 import PatientMedicalRecords from "@/pages/PatientMedicalRecords";
+import PatientDoctors from "@/pages/PatientDoctors";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ function AppContent() {
     "/patient/signup",
     "/patient/mypage",
     "/patient/records",
+    "/patient/doctors",
   ].includes(location.pathname);
 
   return (
@@ -54,6 +56,7 @@ function AppContent() {
           <Route path="/patient/signup" element={<PatientSignup />} />
           <Route path="/patient/mypage" element={<PatientMyPage />} />
           <Route path="/patient/records" element={<PatientMedicalRecords />} />
+          <Route path="/patient/doctors" element={<PatientDoctors />} />
 
           {/* 로그인 필수 라우트 */}
           <Route
