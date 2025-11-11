@@ -333,24 +333,14 @@ function Home() {
                   <Link
                     key={item.title}
                     to={resolvedLink}
-                    className={`flex h-full min-h-[120px] flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
-                      item.highlight
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
-                    }`}
+                    className="flex h-full min-h-[120px] flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-700 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow"
                   >
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Quick
                     </span>
                     <div className="mt-2 space-y-2">
                       <p className="text-base font-bold">{item.title}</p>
-                      <p
-                        className={`text-sm ${
-                          item.highlight ? "font-semibold" : "text-slate-600"
-                        }`}
-                      >
-                        {item.content}
-                      </p>
+                      <p className="text-sm text-slate-600">{item.content}</p>
                     </div>
                   </Link>
                 );
