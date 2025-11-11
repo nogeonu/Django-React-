@@ -2,7 +2,7 @@ name: Deploy to GCE VM
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clean remote directory and fix permissions
+      - name: Prepare remote directory
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -27,23 +27,15 @@ jobs:
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
-            
-            # 권한 정리 (staticfiles, __pycache__ 등)
-            sudo chown -R $USER:$USER "$APP_DIR" || true
+            sudo mkdir -p "$APP_DIR"
+            sudo chown -R $USER:$USER "$APP_DIR"
             sudo rm -rf "$APP_DIR/backend/staticfiles" || true
-            find "$APP_DIR/backend" -type d -name "__pycache__" -exec sudo rm -rf {} + || true
-            find "$APP_DIR/backend" -type f -name "*.pyc" -delete || true
-            
-            # frontend 캐시 완전 삭제 (중복 파일 제거)
-            sudo rm -rf "$APP_DIR/frontend/node_modules" || true
-            sudo rm -rf "$APP_DIR/frontend/dist" || true
-            find "$APP_DIR/frontend/src/pages" -name "* 2.*" -type f -delete || true
-            find "$APP_DIR/frontend/src/pages" -name "* 2.tsx" -type f -delete || true
+            find "$APP_DIR" -name "__pycache__" -type d -exec rm -rf {} + || true
 
-      - name: Sync project to VM (rsync)
+      - name: Sync project to VM
         uses: burnett01/rsync-deployments@5.2
         with:
-          switches: -avz --exclude ".git" --exclude "node_modules" --exclude ".venv" --exclude "venv" --exclude "frontend/dist" --exclude ".DS_Store" --exclude "backend/staticfiles" --exclude "backend/*.pyc" --exclude "backend/*/__pycache__"
+          switches: -avz --delete --exclude ".git" --exclude "node_modules" --exclude "frontend/dist" --exclude ".venv" --exclude "venv" --exclude "backend/staticfiles" --exclude "*.pyc"
           path: ./
           remote_path: ${{ secrets.APP_DIR }}/
           remote_host: ${{ secrets.SSH_HOST }}
@@ -51,7 +43,7 @@ jobs:
           remote_key: ${{ secrets.SSH_KEY }}
           remote_port: ${{ secrets.SSH_PORT }}
 
-      - name: Remote deploy steps
+      - name: Install dependencies and restart services
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -63,101 +55,22 @@ jobs:
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
 
-            # 권한 수정
-            sudo chown -R $USER:$USER "$APP_DIR"
-
-            # --- Django backend ---
             cd "$APP_DIR/backend"
             python3 -m venv .venv || true
             source .venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
-
-            # DB 마이그레이션/정적파일
-            python manage.py migrate
+            python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
-            # --- React frontend ---
             cd "$APP_DIR/frontend"
             if ! command -v npm >/dev/null 2>&1; then
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
-            # node_modules, dist 캐시 완전 삭제
-            rm -rf node_modules dist .next
-            # npm ci가 실패하면 npm install로 대체 (package-lock.json이 동기화되지 않은 경우)
-            npm ci || {
-              echo "npm ci failed, updating package-lock.json with npm install..."
-              npm install
-            }
-            # TypeScript 타입 오류가 있어도 빌드는 계속 진행 (--skipLibCheck 사용)
-            npm run build || {
-              echo "Build failed, trying with TypeScript skipLibCheck..."
-              npx tsc --skipLibCheck && npm run build -- --mode production || echo "Build completed with warnings"
-            }
+            npm ci
+            npm run build
 
-            # --- ML Service 설정 및 시작 ---
-            echo '[Unit]' | sudo tee /etc/systemd/system/ml-service.service
-            echo 'Description=ML Service (Flask) for Lung Cancer Prediction' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'After=network.target' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo '' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo '[Service]' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'User=shrjsdn908' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5002 ml_service.app:app' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'Restart=always' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo '' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo '[Install]' | sudo tee -a /etc/systemd/system/ml-service.service
-            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/ml-service.service
-            
-            # --- 서비스 재시작 ---
-            # Gunicorn 서비스 파일 업데이트 (eventeye 사용하도록)
-            echo '[Unit]' | sudo tee /etc/systemd/system/gunicorn.service
-            echo 'Description=Gunicorn for Django' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'After=network.target' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo '[Service]' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'User=shrjsdn908' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'Restart=always' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo '' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo '[Install]' | sudo tee -a /etc/systemd/system/gunicorn.service
-            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/gunicorn.service
-            sudo systemctl daemon-reload
-            sudo systemctl restart ml-service || sudo systemctl start ml-service
-            sleep 5
-            sudo systemctl status ml-service || true
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
-            
-            # Nginx 설정에 미디어 파일 서빙 추가
-            echo 'server {' | sudo tee /etc/nginx/sites-available/eventeye
-            echo '    listen 80;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    server_name 34.42.223.43;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    ' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    client_max_body_size 100M;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    ' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    location /static/ {' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        alias /srv/django-react/app/backend/staticfiles/;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    }' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    ' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    location /media/ {' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        alias /srv/django-react/app/backend/media/;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    }' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    ' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    location / {' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        proxy_pass http://127.0.0.1:8000;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        proxy_set_header Host $host;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        proxy_set_header X-Real-IP $remote_addr;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '        proxy_set_header X-Forwarded-Proto $scheme;' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '    }' | sudo tee -a /etc/nginx/sites-available/eventeye
-            echo '}' | sudo tee -a /etc/nginx/sites-available/eventeye
-            
-            sudo ln -sf /etc/nginx/sites-available/eventeye /etc/nginx/sites-enabled/
-            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx
+            sudo systemctl reload nginx || sudo systemctl restart nginx
 
