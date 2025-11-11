@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { patientLoginApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 function PatientLogin() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { setPatientUser } = useAuth();
   const [accountId, setAccountId] = useState("");
   const [password, setPassword] = useState("");
   const [rememberId, setRememberId] = useState(false);
@@ -52,6 +55,8 @@ function PatientLogin() {
         description: `${response.name}님 환영합니다.`,
       });
       setPassword("");
+      setPatientUser(response);
+      navigate("/patient/home", { replace: true });
     } catch (error: any) {
       const data = error?.response?.data;
       let message = data?.detail;

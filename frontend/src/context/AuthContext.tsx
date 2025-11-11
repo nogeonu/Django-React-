@@ -10,17 +10,27 @@ export type User = {
   role: 'medical_staff' | 'admin_staff' | 'superuser';
 };
 
+type PatientUser = {
+  account_id: string;
+  patient_id: string;
+  name: string;
+  email: string;
+};
+
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (params: { username: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
+  patientUser: PatientUser | null;
+  setPatientUser: (patient: PatientUser | null) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [patientUser, setPatientUser] = useState<PatientUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextType>(() => ({
     user,
     loading,
+    patientUser,
+    setPatientUser,
     login: async ({ username, password }) => {
       const u = await loginApi({ username, password });
       setUser(u);
@@ -48,8 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout: async () => {
       await logoutApi();
       setUser(null);
+      setPatientUser(null);
     },
-  }), [user, loading]);
+  }), [user, loading, patientUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
