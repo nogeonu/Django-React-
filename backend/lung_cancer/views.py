@@ -277,6 +277,19 @@ class PatientViewSet(viewsets.ModelViewSet):
                 'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'])
+    def prediction_candidates(self, request):
+        """호흡기내과 진료 이력이 있는 환자 목록"""
+        department = request.query_params.get('department', '호흡기내과')
+        patient_ids = (
+            MedicalRecord.objects.filter(department=department)
+            .values_list('patient_id', flat=True)
+            .distinct()
+        )
+        patients = Patient.objects.filter(patient_id__in=patient_ids).order_by('name')
+        serializer = self.get_serializer(patients, many=True)
+        return Response({'patients': serializer.data})
+
 class LungRecordViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = LungRecord.objects.all()
     serializer_class = LungRecordSerializer

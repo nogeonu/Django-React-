@@ -71,28 +71,8 @@ export default function LungCancerPrediction() {
     const fetchPatients = async () => {
       setPatientsLoading(true);
       try {
-        // 모든 환자 가져오기
-        const response = await apiRequest("GET", "/api/lung_cancer/patients/");
-        const allPatients = response.results || [];
-        
-        // 각 환자의 호흡기내과 진료기록 확인
-        const patientsWithRespiratoryRecords = await Promise.all(
-          allPatients.map(async (patient: Patient) => {
-            try {
-              const medicalResponse = await apiRequest("GET", `/api/lung_cancer/patients/${patient.id}/medical_records/`);
-              const hasRespiratoryRecord = medicalResponse.medical_records?.some((record: any) => 
-                record.department === '호흡기내과'
-              ) || false;
-              return { ...patient, hasRespiratoryRecord };
-            } catch (error) {
-              console.warn(`환자 ${patient.id}의 진료기록 조회 실패:`, error);
-              return { ...patient, hasRespiratoryRecord: false };
-            }
-          })
-        );
-        
-        // 호흡기내과 진료기록이 있는 환자만 필터링
-        const respiratoryPatients = patientsWithRespiratoryRecords.filter(patient => patient.hasRespiratoryRecord);
+        const response = await apiRequest("GET", "/api/lung_cancer/patients/prediction_candidates/");
+        const respiratoryPatients = response.patients || response.results || [];
         setPatients(respiratoryPatients);
       } catch (error) {
         console.error("환자 목록 조회 오류:", error);
@@ -125,7 +105,7 @@ export default function LungCancerPrediction() {
   // 환자 검색 필터링
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-    patient.id.toLowerCase().includes(patientSearchTerm.toLowerCase())
+    (patient.id || '').toLowerCase().includes(patientSearchTerm.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
