@@ -68,6 +68,7 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
 
 class PatientProfileSerializer(serializers.ModelSerializer):
     account_id = serializers.CharField(source='user_account.account_id', read_only=True)
+    age = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Patient
@@ -82,6 +83,7 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'emergency_contact',
             'medical_history',
             'allergies',
+            'age',
             'account_id',
         ]
         read_only_fields = ['patient_id', 'account_id']

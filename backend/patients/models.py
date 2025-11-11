@@ -81,6 +81,7 @@ class Patient(models.Model):
     emergency_contact = models.CharField(max_length=100, blank=True, verbose_name="비상연락처")
     medical_history = models.TextField(blank=True, verbose_name="과거 병력")
     allergies = models.TextField(blank=True, verbose_name="알레르기")
+    age = models.PositiveIntegerField(null=True, blank=True, verbose_name="나이")
     user_account = models.OneToOneField(
         PatientUser,
         on_delete=models.SET_NULL,
@@ -99,6 +100,20 @@ class Patient(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.patient_id})"
+
+    def update_age(self):
+        if self.birth_date:
+            today = timezone.now().date()
+            years = today.year - self.birth_date.year
+            if (today.month, today.day) < (self.birth_date.month, self.birth_date.day):
+                years -= 1
+            self.age = max(years, 0)
+        else:
+            self.age = None
+
+    def save(self, *args, **kwargs):
+        self.update_age()
+        super().save(*args, **kwargs)
 
     @staticmethod
     def generate_patient_id() -> str:
