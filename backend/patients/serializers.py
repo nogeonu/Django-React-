@@ -55,6 +55,7 @@ class PatientSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at')
         ref_name = 'PatientsAppPatient'  # Swagger 충돌 방지
 
+
 class MedicalRecordSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.name', read_only=True)
     
@@ -63,3 +64,24 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('created_at',)
         ref_name = 'PatientsAppMedicalRecord'  # Swagger 충돌 방지
+
+
+class PatientProfileSerializer(serializers.ModelSerializer):
+    account_id = serializers.CharField(source='user_account.account_id', read_only=True)
+
+    class Meta:
+        model = Patient
+        fields = [
+            'patient_id',
+            'name',
+            'birth_date',
+            'gender',
+            'phone',
+            'blood_type',
+            'address',
+            'emergency_contact',
+            'medical_history',
+            'allergies',
+            'account_id',
+        ]
+        read_only_fields = ['patient_id', 'account_id']

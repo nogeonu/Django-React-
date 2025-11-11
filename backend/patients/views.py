@@ -3,8 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from django.http import Http404
 from .models import Patient, MedicalRecord, PatientUser
-from .serializers import PatientSerializer, MedicalRecordSerializer, PatientUserSignupSerializer
+from .serializers import (
+    PatientSerializer,
+    MedicalRecordSerializer,
+    PatientUserSignupSerializer,
+    PatientProfileSerializer,
+)
 
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
@@ -21,15 +27,6 @@ class PatientViewSet(viewsets.ModelViewSet):
         records = patient.medical_records.all()
         serializer = MedicalRecordSerializer(records, many=True)
         return Response(serializer.data)
-
-class MedicalRecordViewSet(viewsets.ModelViewSet):
-    queryset = MedicalRecord.objects.all()
-    serializer_class = MedicalRecordSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['patient']
-    search_fields = ['diagnosis', 'symptoms']
-    ordering_fields = ['visit_date']
-    ordering = ['-visit_date']
 
 
 class PatientSignupView(APIView):
@@ -93,6 +90,62 @@ class PatientLoginView(APIView):
                 "patient_id": user.patient_id,
                 "name": user.name,
                 "email": user.email,
+                "phone": user.phone,
             },
             status=status.HTTP_200_OK,
         )
+
+
+class PatientProfileView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes: list = []
+
+    def get_patient(self, account_id: str):
+        try:
+            patient_user = PatientUser.objects.get(account_id=account_id)
+        except PatientUser.DoesNotExist:
+            raise Http404
+
+        patient = getattr(patient_user, "patient_profile", None)
+        if not patient:
+            raise Http404
+        return patient, patient_user
+
+    def get(self, request, account_id: str):
+        patient, _ = self.get_patient(account_id)
+        serializer = PatientProfileSerializer(patient)
+        return Response(serializer.data)
+
+    def put(self, request, account_id: str):
+        patient, patient_user = self.get_patient(account_id)
+        data = request.data.copy()
+
+        for field in ["birth_date", "gender", "blood_type"]:
+            if data.get(field) == "":
+                data[field] = None
+
+        serializer = PatientProfileSerializer(patient, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_patient = serializer.save()
+
+        has_changes = False
+        if "name" in serializer.validated_data:
+            patient_user.name = updated_patient.name
+            has_changes = True
+        if "phone" in serializer.validated_data:
+            patient_user.phone = updated_patient.phone
+            has_changes = True
+        if has_changes:
+            patient_user.save(update_fields=["name", "phone"])
+
+        return Response(PatientProfileSerializer(updated_patient).data)
+
+
+class MedicalRecordViewSet(viewsets.ModelViewSet):
+    queryset = MedicalRecord.objects.all()
+    serializer_class = MedicalRecordSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['patient']
+    search_fields = ['diagnosis', 'symptoms']
+    ordering_fields = ['visit_date']
+    ordering = ['-visit_date']

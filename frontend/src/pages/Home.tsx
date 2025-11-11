@@ -57,9 +57,9 @@ const quickCallouts = [
     link: "#appointments",
   },
   {
-    title: "비자(VISA)검진 예약",
-    content: "국제 환자를 위한 전문 검진센터",
-    link: "#visa",
+    title: "마이페이지",
+    content: "내 정보를 확인하고 업데이트하세요",
+    link: "/patient/mypage",
   },
 ];
 
@@ -265,7 +265,9 @@ function Home() {
                   </Link>
                   {patientUser ? (
                     <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">
-                      {patientUser.name}님 환자 포털 이용 중
+                      <Link to="/patient/mypage" className="hover:underline">
+                        {patientUser.name}님<br />마이페이지 이동
+                      </Link>
                     </div>
                   ) : (
                     <Link
@@ -304,31 +306,34 @@ function Home() {
         <section className="bg-white" id="reservations">
           <div className="mx-auto max-w-6xl px-6 py-10">
             <div className="grid gap-4 md:grid-cols-5">
-              {quickCallouts.map((item) => (
-                <Link
-                  key={item.title}
-                  to={item.link ?? "#"}
-                  className={`flex h-full flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
-                    item.highlight
-                      ? "border-primary/30 bg-primary/10 text-primary"
-                      : "border-slate-200 bg-slate-50 text-slate-700"
-                  }`}
-                >
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Quick
-                  </span>
-                  <div className="mt-2 space-y-2">
-                    <p className="text-base font-bold">{item.title}</p>
-                    <p
-                      className={`text-sm ${
-                        item.highlight ? "font-semibold" : "text-slate-600"
-                      }`}
-                    >
-                      {item.content}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+              {quickCallouts.map((item) => {
+                const resolvedLink = item.link === "/patient/mypage" ? (patientUser ? item.link : "/patient/login") : item.link ?? "#";
+                return (
+                  <Link
+                    key={item.title}
+                    to={resolvedLink}
+                    className={`flex h-full flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
+                      item.highlight
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Quick
+                    </span>
+                    <div className="mt-2 space-y-2">
+                      <p className="text-base font-bold">{item.title}</p>
+                      <p
+                        className={`text-sm ${
+                          item.highlight ? "font-semibold" : "text-slate-600"
+                        }`}
+                      >
+                        {item.content}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </section>

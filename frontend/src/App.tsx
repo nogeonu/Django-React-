@@ -19,12 +19,13 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/context/AuthContext';
 import { CalendarProvider } from '@/context/CalendarContext';
 import Home from '@/pages/Home';
+import PatientMyPage from '@/pages/PatientMyPage';
 
 const queryClient = new QueryClient();
 
 function AppContent() {
   const location = useLocation();
-  const isPublicPage = ['/', '/login', '/signup', '/patient/login', '/patient/signup'].includes(location.pathname);
+  const isPublicPage = ['/', '/login', '/signup', '/patient/login', '/patient/signup', '/patient/mypage'].includes(location.pathname);
   
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -37,6 +38,7 @@ function AppContent() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/patient/login" element={<PatientLogin />} />
           <Route path="/patient/signup" element={<PatientSignup />} />
+          <Route path="/patient/mypage" element={<PatientMyPage />} />
           
           {/* 로그인 필수 라우트 */}
           <Route path="/medical_staff" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

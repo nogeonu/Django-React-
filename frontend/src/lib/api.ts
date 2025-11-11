@@ -77,6 +77,16 @@ export const patientLoginApi = async (data: { account_id: string; password: stri
   return res.data;
 };
 
+export const getPatientProfile = async (accountId: string) => {
+  const res = await apiClient.get(`/api/patients/profile/${accountId}/`);
+  return res.data;
+};
+
+export const updatePatientProfile = async (accountId: string, data: Record<string, unknown>) => {
+  const res = await apiClient.put(`/api/patients/profile/${accountId}/`, data);
+  return res.data;
+};
+
 export const patientSignupApi = async (data: { account_id: string; name: string; email: string; phone: string; password: string }) => {
   const res = await apiClient.post('/api/patients/signup/', data);
   return res.data;

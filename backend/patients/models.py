@@ -76,6 +76,7 @@ class Patient(models.Model):
     birth_date = models.DateField(verbose_name="생년월일", null=True, blank=True)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, verbose_name="성별", null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, verbose_name="전화번호")
+    blood_type = models.CharField(max_length=3, blank=True, null=True, verbose_name="혈액형")
     address = models.TextField(blank=True, verbose_name="주소")
     emergency_contact = models.CharField(max_length=100, blank=True, verbose_name="비상연락처")
     medical_history = models.TextField(blank=True, verbose_name="과거 병력")
