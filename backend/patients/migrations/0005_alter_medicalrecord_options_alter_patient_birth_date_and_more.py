@@ -26,6 +26,10 @@ class Migration(migrations.Migration):
             name='gender',
             field=models.CharField(blank=True, choices=[('M', '남성'), ('F', '여성')], max_length=1, null=True, verbose_name='성별'),
         ),
+        migrations.RunSQL(
+            sql="DROP TABLE IF EXISTS patient_user",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.CreateModel(
             name='PatientUser',
             fields=[
