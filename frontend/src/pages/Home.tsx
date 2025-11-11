@@ -2,16 +2,63 @@ import { Link } from "react-router-dom";
 import heroImage from "@/assets/doctor-bg.jpg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  MapPin,
-  Stethoscope,
-  Clock,
-  Pill,
-  ParkingCircle,
-  Camera,
-  PhoneCall,
   Calendar,
+  Camera,
+  Clock,
   Info,
+  MapPin,
+  ParkingCircle,
+  PhoneCall,
+  Pill,
+  Stethoscope,
 } from "lucide-react";
+
+const navItems = [
+  { label: "예약 / 조회 / 발급", link: "#reservations" },
+  { label: "의료진 / 진료과", link: "#doctors" },
+  { label: "이용안내", link: "#guide" },
+  { label: "건강정보", link: "#health" },
+  { label: "병원소개", link: "#about" },
+];
+
+const heroQuickLinks = [
+  { icon: MapPin, label: "찾아오시는길", link: "#map" },
+  { icon: PhoneCall, label: "전화번호 안내", link: "#contact" },
+  { icon: Info, label: "의무기록발급", link: "#records" },
+  { icon: Calendar, label: "증명서발급", link: "#certificate" },
+  { icon: Camera, label: "홍보영상", link: "#promo" },
+  { icon: Stethoscope, label: "의료진 소개", link: "#doctors" },
+  { icon: Clock, label: "진료시간 안내", link: "#schedule" },
+  { icon: Pill, label: "검진센터", link: "#checkup" },
+];
+
+const quickCallouts = [
+  {
+    title: "전화예약(초진)",
+    content: "051-797-3500",
+    highlight: true,
+  },
+  {
+    title: "진료과 · 의료진 검색",
+    content: "전문의 정보를 확인하고 예약하세요",
+    link: "#doctors",
+  },
+  {
+    title: "온라인 진료예약",
+    content: "모바일로 빠르게 진료 예약하기",
+    link: "#appointments",
+  },
+  {
+    title: "진료예약 조회",
+    content: "예약 내역과 대기 순번을 실시간 확인",
+    link: "#appointments",
+  },
+  {
+    title: "비자(VISA)검진 예약",
+    content: "국제 환자를 위한 전문 검진센터",
+    link: "#visa",
+  },
+];
 
 const quickServices = [
   {
@@ -75,100 +122,184 @@ const notices = [
 
 function Home() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-primary/10 p-2 text-primary">
-              <Stethoscope className="h-8 w-8" />
+    <div className="min-h-screen bg-slate-50">
+      <header>
+        <div className="border-b bg-slate-100">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                NOTICE
+              </span>
+              <span>방문인원은 환자와 나의 건강을 위하여 자제하여 주세요.</span>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                최신 의료 정보를 제공하는 병원
-              </p>
-              <h1 className="text-xl font-bold text-slate-800">
-                건양대학교병원
-              </h1>
+            <div className="flex items-center gap-4 font-semibold">
+              <Link to="/patient/login" className="hover:text-primary">
+                로그인
+              </Link>
+              <Link to="/patient/signup" className="hover:text-primary">
+                회원가입
+              </Link>
+              <Link
+                to="/login"
+                className="rounded-full bg-primary px-3 py-1 text-[11px] text-white hover:bg-primary/90"
+              >
+                의료진 플랫폼
+              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-slate-600">
-            <div className="flex items-center gap-2">
-              <PhoneCall className="h-4 w-4 text-primary" />
-              <span>대표전화 051-797-3500</span>
+        </div>
+        <div className="border-b bg-white">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-tight text-primary">
+                  Konyang University Hospital
+                </p>
+                <h1 className="text-xl font-bold text-slate-900">
+                  건양대학교 병원
+                </h1>
+              </div>
             </div>
-            <Link
-              to="/signup"
-              className="rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow hover:bg-primary/90"
-            >
-              의료진 플랫폼 바로가기
-            </Link>
+            <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600 lg:gap-6">
+              {navItems.map((item) => (
+                <Link key={item.label} to={item.link} className="hover:text-primary">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
         </div>
       </header>
 
       <main>
         <section
-          className="relative"
+          className="relative overflow-hidden"
           style={{
-            backgroundImage: `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url(${heroImage})`,
+            backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${heroImage})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
         >
-          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-16 text-white md:flex-row md:items-center md:justify-between">
-            <div className="max-w-xl space-y-4">
-              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-wide">
-                환자 중심 · 정밀 치료 · 디지털 전환
-              </span>
-              <h2 className="text-3xl font-semibold leading-snug md:text-4xl">
-                환자와 보호자가 쉬게 찾는 <br /> 병원 내 위치 기반 스마트 서비스
+          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-14 text-white md:grid-cols-[2fr,1fr]">
+            <div className="space-y-5">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
+                생명존중 · 인간사랑을 실천하는
               </h2>
-              <p className="text-base text-white/90 md:text-lg">
-                실시간 지도와 대기 현황, AR 내비게이션까지 원스톱으로 제공하여
-                병원 이용 경험을 한 단계 높여드립니다.
+              <p className="text-3xl font-bold leading-snug md:text-4xl">
+                세계속의 건양대학교병원
+              </p>
+              <p className="max-w-xl text-base text-white/90 md:text-lg">
+                환자 안전과 편의를 최우선으로 생각하는 스마트 병원 서비스. 온라인 예약부터 증명서 발급까지
+                One-Stop으로 경험해보세요.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
-                  to="#map"
-                  className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-primary shadow"
+                  to="#appointments"
+                  className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90"
                 >
-                  병원 지도 바로가기
+                  진료예약 바로가기
                 </Link>
                 <Link
-                  to="#appointments"
-                  className="rounded-full border border-white/70 px-6 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                  to="#guide"
+                  className="rounded-full border border-white/60 px-6 py-2 text-sm font-semibold text-white hover:bg-white/10"
                 >
-                  진료 예약 안내
+                  이용안내 보기
                 </Link>
               </div>
             </div>
-            <Card className="w-full max-w-sm bg-white/90 text-slate-800 backdrop-blur">
+            <Card className="bg-white/95 text-slate-900 backdrop-blur">
               <CardHeader>
-                <CardTitle className="text-xl font-bold text-slate-800">
-                  진료 예약 간편 안내
-                </CardTitle>
+                <CardTitle className="text-lg font-bold">간편 안내</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
-                  전화 예약(초진) <strong className="text-primary">051-797-3500</strong>
+              <CardContent className="grid gap-3">
+                <div className="rounded-lg bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">
+                  전화예약(초진) 051-797-3500
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
-                  모바일 앱에서 진료과·의료진을 선택하고 희망 날짜를 지정하세요.
-                  접수 현황과 대기 순번을 실시간으로 확인할 수 있습니다.
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <Link
+                    to="#appointments"
+                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                  >
+                    온라인 예약
+                  </Link>
+                  <Link
+                    to="#appointments"
+                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                  >
+                    예약 조회
+                  </Link>
+                  <Link
+                    to="#records"
+                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                  >
+                    의무기록 발급
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                  >
+                    의료진 로그인
+                  </Link>
                 </div>
-                <Link
-                  to="/signup"
-                  className="block rounded-md bg-primary px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary/90"
-                >
-                  환자용 서비스 안내 보기
-                </Link>
+                <p className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
+                  모바일 앱에서 진료과·의료진을 선택하고 희망 날짜를 지정하세요. 접수 현황과 대기 순번을 실시간으로
+                  확인할 수 있습니다.
+                </p>
               </CardContent>
             </Card>
+          </div>
+          <div className="bg-white/90 py-6">
+            <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-6 md:grid-cols-4 lg:grid-cols-8">
+              {heroQuickLinks.map((item) => (
+                <Link
+                  key={item.label}
+                  to={item.link}
+                  className="flex flex-col items-center justify-center gap-2 rounded-md border border-white/0 bg-slate-50 py-4 text-center text-xs font-semibold text-slate-700 transition hover:-translate-y-1 hover:border-primary/40 hover:bg-white hover:text-primary"
+                >
+                  <span className="rounded-full bg-primary/10 p-2 text-primary">
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white" id="reservations">
+          <div className="mx-auto max-w-6xl px-6 py-10">
+            <div className="grid gap-4 md:grid-cols-5">
+              {quickCallouts.map((item) => (
+                <Link
+                  key={item.title}
+                  to={item.link ?? "#"}
+                  className={`flex h-full flex-col justify-between rounded-lg border px-4 py-5 text-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow ${
+                    item.highlight
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-slate-200 bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Quick
+                  </span>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-base font-bold">{item.title}</p>
+                    <p
+                      className={`text-sm ${
+                        item.highlight ? "font-semibold" : "text-slate-600"
+                      }`}
+                    >
+                      {item.content}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
 
         <section id="quick-services" className="bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-12">
+          <div className="mx-auto max-w-6xl px-6 pb-12">
             <div className="mb-8 flex items-center gap-3">
               <Info className="h-6 w-6 text-primary" />
               <h3 className="text-2xl font-semibold text-slate-800">
@@ -258,7 +389,7 @@ function Home() {
                     진료과별 전문 의료진 정보를 확인하고, 담당 교수진의 진료 일정과
                     전문 분야를 미리 살펴보세요.
                   </p>
-                  <Link to="/signup" className="text-primary hover:underline">
+                  <Link to="/patient/login" className="text-primary hover:underline">
                     의료진 정보 보기 →
                   </Link>
                 </CardContent>
@@ -296,7 +427,7 @@ function Home() {
                     모바일로 원하는 진료과와 의료진을 선택하여 예약하세요. 예약 내역을
                     앱에서 바로 확인할 수 있습니다.
                   </p>
-                  <Link to="/signup" className="text-primary hover:underline">
+                  <Link to="/patient/login" className="text-primary hover:underline">
                     예약 방법 안내 →
                   </Link>
                 </CardContent>
@@ -372,10 +503,10 @@ function Home() {
             <p>대전광역시 서구 관저동 196-5 · 대표전화 051-797-3500</p>
           </div>
           <div className="flex flex-wrap gap-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <Link to="/signup" className="hover:text-primary">
+            <Link to="/login" className="hover:text-primary">
               의료진 플랫폼
             </Link>
-            <Link to="/signup" className="hover:text-primary">
+            <Link to="/patient/login" className="hover:text-primary">
               환자 서비스 안내
             </Link>
             <Link to="#" className="hover:text-primary">

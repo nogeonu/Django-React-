@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import PatientViewSet, MedicalRecordViewSet
+from .views import PatientViewSet, MedicalRecordViewSet, PatientSignupView
 
 router = DefaultRouter()
 router.register(r'patients', PatientViewSet)
@@ -8,4 +8,5 @@ router.register(r'records', MedicalRecordViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('signup/', PatientSignupView.as_view(), name='patient-signup'),
 ]

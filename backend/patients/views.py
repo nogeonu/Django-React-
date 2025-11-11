@@ -1,9 +1,10 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Patient, MedicalRecord
-from .serializers import PatientSerializer, MedicalRecordSerializer
+from .serializers import PatientSerializer, MedicalRecordSerializer, PatientUserSignupSerializer
 
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
@@ -29,3 +30,29 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     search_fields = ['diagnosis', 'symptoms']
     ordering_fields = ['visit_date']
     ordering = ['-visit_date']
+
+
+class PatientSignupView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes: list = []
+
+    def post(self, request):
+        serializer = PatientUserSignupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user = serializer.save()
+        except Exception:  # pragma: no cover
+            return Response(
+                {"detail": "환자 계정 생성 중 오류가 발생했습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "환자 계정이 생성되었습니다.",
+                "account_id": user.account_id,
+                "email": user.email,
+                "patient_id": user.patient_id,
+            },
+            status=status.HTTP_201_CREATED,
+        )

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -69,6 +69,11 @@ export const logoutApi = async () => {
 
 export const registerApi = async (data: { username: string; password: string; email?: string; role?: string; first_name?: string; last_name?: string }) => {
   const res = await apiClient.post('/api/auth/register', data);
+  return res.data;
+};
+
+export const patientSignupApi = async (data: { account_id: string; name: string; email: string; phone: string; password: string }) => {
+  const res = await apiClient.post('/api/patients/signup/', data);
   return res.data;
 };
 
