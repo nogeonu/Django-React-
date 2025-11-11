@@ -10,7 +10,7 @@ export type User = {
   role: 'medical_staff' | 'admin_staff' | 'superuser';
 };
 
-type PatientUser = {
+export type PatientUser = {
   account_id: string;
   patient_id: string;
   name: string;
@@ -26,11 +26,13 @@ type AuthContextType = {
   setPatientUser: (patient: PatientUser | null) => void;
 };
 
+const PATIENT_USER_STORAGE_KEY = 'patient_user';
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [patientUser, setPatientUser] = useState<PatientUser | null>(null);
+  const [patientUser, setPatientUserState] = useState<PatientUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +47,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
     init();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(PATIENT_USER_STORAGE_KEY);
+      if (stored) {
+        setPatientUserState(JSON.parse(stored));
+      }
+    } catch {
+      setPatientUserState(null);
+    }
+  }, []);
+
+  const setPatientUser = React.useCallback((patient: PatientUser | null) => {
+    setPatientUserState(patient);
+    try {
+      if (patient) {
+        localStorage.setItem(PATIENT_USER_STORAGE_KEY, JSON.stringify(patient));
+      } else {
+        localStorage.removeItem(PATIENT_USER_STORAGE_KEY);
+      }
+    } catch {
+      // ignore storage errors
+    }
   }, []);
 
   const value = useMemo<AuthContextType>(() => ({
@@ -62,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setPatientUser(null);
     },
-  }), [user, loading, patientUser]);
+  }), [user, loading, patientUser, setPatientUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

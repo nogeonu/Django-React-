@@ -56,7 +56,7 @@ function PatientLogin() {
       });
       setPassword("");
       setPatientUser(response);
-      navigate("/patient/home", { replace: true });
+      navigate("/", { replace: true });
     } catch (error: any) {
       const data = error?.response?.data;
       let message = data?.detail;
