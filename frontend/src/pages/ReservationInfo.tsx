@@ -709,6 +709,16 @@ export default function ReservationInfo() {
                     text-overflow: ellipsis;
                     white-space: nowrap;
                   }
+                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__time,
+                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__title,
+                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__meta {
+                    white-space: normal;
+                    overflow: visible;
+                    text-overflow: unset;
+                  }
+                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card {
+                    height: 100%;
+                  }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
                   .reservation-calendar .fc .fc-timegrid-slot { height: 40px; }
