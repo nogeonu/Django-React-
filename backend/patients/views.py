@@ -4,12 +4,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
-from .models import Patient, MedicalRecord, PatientUser
+from .models import Patient, MedicalRecord, PatientUser, Appointment
 from .serializers import (
     PatientSerializer,
     MedicalRecordSerializer,
     PatientUserSignupSerializer,
     PatientProfileSerializer,
+    AppointmentSerializer,
 )
 
 class PatientViewSet(viewsets.ModelViewSet):
@@ -149,3 +150,33 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     search_fields = ['diagnosis', 'symptoms']
     ordering_fields = ['visit_date']
     ordering = ['-visit_date']
+
+
+class AppointmentViewSet(viewsets.ModelViewSet):
+    queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
+    serializer_class = AppointmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['doctor', 'status', 'type', 'patient_id']
+    search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
+    ordering_fields = ['start_time', 'created_at']
+    ordering = ['-start_time']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 의료진은 본인이 담당한 예약만 필터링할 수도 있음. 기본은 전체 조회.
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def perform_create(self, serializer):
+        print(f"[예약 등록] 요청 데이터: {self.request.data}")
+        print(f"[예약 등록] 사용자: {self.request.user}")
+        print(f"[예약 등록] 인증 여부: {self.request.user.is_authenticated}")
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save()

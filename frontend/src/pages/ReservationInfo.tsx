@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -134,6 +134,38 @@ export default function ReservationInfo() {
     { label: "내근", color: colorByType["내근"]?.border },
     { label: "외근", color: colorByType["외근"]?.border },
   ];
+
+  const renderEventContent = useCallback((info: any) => {
+    const event = info.event;
+    const palette = colorByType[(event.extendedProps as any)?.type || "예약"] || colorByType["예약"];
+    const timeLabel = event.start
+      ? event.start.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" })
+      : "";
+    const patientName = (event.extendedProps as any)?.patientName;
+
+    return (
+      <div
+        className="fc-event-card"
+        style={{
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+          color: palette.text,
+        }}
+      >
+        {timeLabel && (
+          <div className="fc-event-card__time">
+            <span
+              className="fc-event-card__dot"
+              style={{ backgroundColor: palette.border }}
+            />
+            <span className="fc-event-card__time-text">{timeLabel}</span>
+          </div>
+        )}
+        <div className="fc-event-card__title">{event.title}</div>
+        {patientName && <div className="fc-event-card__meta">{patientName}</div>}
+      </div>
+    );
+  }, []);
 
   return (
     <div className="p-6 space-y-5">
@@ -283,8 +315,40 @@ export default function ReservationInfo() {
                   .reservation-calendar .fc .fc-daygrid-day-frame { padding: 6px 8px 12px; }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-today { background: #eef2ff; }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: #4338ca; font-weight: 700; }
-                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 10px; padding: 4px 8px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12); white-space: normal; overflow: hidden; }
-                  .reservation-calendar .fc .fc-daygrid-event:hover { transform: translateY(-1px); }
+                  .reservation-calendar .fc .fc-daygrid-event { padding: 4px 0; border: none; background: transparent !important; }
+                  .reservation-calendar .fc .fc-event-card {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    padding: 8px 10px;
+                    border-radius: 12px;
+                    border: 1px solid transparent;
+                    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+                  }
+                  .reservation-calendar .fc .fc-event-card__time {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 12px;
+                    font-weight: 600;
+                  }
+                  .reservation-calendar .fc .fc-event-card__dot {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 999px;
+                    display: inline-block;
+                  }
+                  .reservation-calendar .fc .fc-event-card__title {
+                    font-size: 13px;
+                    font-weight: 600;
+                    line-height: 1.2;
+                    color: inherit;
+                    word-break: keep-all;
+                  }
+                  .reservation-calendar .fc .fc-event-card__meta {
+                    font-size: 11px;
+                    color: rgba(15, 23, 42, 0.65);
+                  }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
                   .reservation-calendar .fc .fc-timegrid-slot { height: 32px; }
@@ -312,6 +376,7 @@ export default function ReservationInfo() {
                     locale="ko"
                     firstDay={0}
                     dateClick={onDateClick}
+                    eventContent={renderEventContent}
                     eventClick={(info) => {
                       const event = info.event;
                       setDetailEvent({

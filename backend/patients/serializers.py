@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Patient, MedicalRecord, PatientUser
+from .models import Patient, MedicalRecord, PatientUser, Appointment
 
 
 class PatientUserSignupSerializer(serializers.Serializer):
@@ -87,3 +87,92 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'account_id',
         ]
         read_only_fields = ['patient_id', 'account_id']
+
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    doctor_display = serializers.SerializerMethodField()
+    patient_display = serializers.SerializerMethodField()
+    patient_id = serializers.CharField(
+        source='patient_identifier',
+        allow_blank=True,
+        required=False,
+        read_only=False,
+    )
+    doctor_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Appointment
+        fields = [
+            'id',
+            'title',
+            'type',
+            'start_time',
+            'end_time',
+            'status',
+            'memo',
+            'patient',
+            'patient_id',
+            'patient_name',
+            'patient_gender',
+            'patient_age',
+            'doctor',
+            'doctor_id',
+            'doctor_username',
+            'doctor_name',
+            'doctor_department',
+            'doctor_display',
+            'patient_display',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'doctor_id',
+            'doctor_username',
+            'doctor_name',
+            'doctor_department',
+            'doctor_display',
+            'patient_display',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+
+    def validate(self, attrs):
+        start = attrs.get('start_time')
+        end = attrs.get('end_time')
+        if start and end and end <= start:
+            raise serializers.ValidationError({'end_time': '종료 일시는 시작 일시보다 이후여야 합니다.'})
+        return attrs
+
+    def create(self, validated_data):
+        print(f"[Serializer create] validated_data: {validated_data}")
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            validated_data['created_by'] = request.user
+            print(f"[Serializer create] created_by 설정: {request.user}")
+        else:
+            print(f"[Serializer create] 인증되지 않은 사용자")
+        appointment = super().create(validated_data)
+        print(f"[Serializer create] 예약 생성 완료: {appointment.id}")
+        return appointment
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+
+    def get_doctor_display(self, obj):
+        parts = [obj.doctor_name or obj.doctor_username]
+        if obj.doctor_department:
+            parts.append(obj.doctor_department)
+        if obj.doctor_code:
+            parts.append(obj.doctor_code)
+        return " / ".join(filter(None, parts))
+
+    def get_patient_display(self, obj):
+        if obj.patient_name and obj.patient_identifier:
+            return f"{obj.patient_name} ({obj.patient_identifier})"
+        return obj.patient_name or obj.patient_identifier or ""
+    
+    def get_doctor_id(self, obj):
+        return obj.doctor_code or ""

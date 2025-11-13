@@ -3,9 +3,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
+import {
+  createAppointmentApi,
+  deleteAppointmentApi,
+  getAppointmentsApi,
+  updateAppointmentApi,
+} from "@/lib/api";
 
 export type CalendarEvent = {
   id: string;
@@ -13,68 +20,201 @@ export type CalendarEvent = {
   start: string;
   end?: string;
   type?: string;
+  status?: string;
+  memo?: string;
+  patientId?: string;
+  patientName?: string;
+  patientGender?: string;
+  patientAge?: number;
+  patient?: number;
+  doctorId?: string;
+  doctorName?: string;
+  doctorDepartment?: string;
+};
+
+export type CreateCalendarEventInput = {
+  title: string;
+  start: string;
+  end?: string;
+  type?: string;
+  status?: string;
+  memo?: string;
+  doctor: string | number;
+  patient?: number;
   patientId?: string;
   patientName?: string;
   patientGender?: string;
   patientAge?: number;
 };
 
+export type UpdateCalendarEventInput = Partial<CreateCalendarEventInput>;
+
 type CalendarContextValue = {
   events: CalendarEvent[];
-  addEvent: (event: Omit<CalendarEvent, "id">) => void;
-  updateEvent: (id: string, updates: Partial<CalendarEvent>) => void;
-  removeEvent: (id: string) => void;
+  isLoading: boolean;
+  refresh: () => Promise<void>;
+  addEvent: (input: CreateCalendarEventInput) => Promise<CalendarEvent>;
+  updateEvent: (id: string, updates: UpdateCalendarEventInput) => Promise<CalendarEvent | null>;
+  removeEvent: (id: string) => Promise<void>;
 };
 
 const CalendarContext = createContext<CalendarContextValue | undefined>(undefined);
 
-const createId = () => Math.random().toString(36).slice(2, 10);
+const normalizeAppointmentList = (data: any) => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+};
 
-const initialEvents: CalendarEvent[] = [
-  {
-    id: createId(),
-    title: "진료 – 호흡기 내과",
-    start: new Date().toISOString(),
-    type: "검진",
-    patientId: "P-2025-001",
-    patientName: "김건강",
-    patientGender: "남",
-    patientAge: 42,
-  },
-  {
-    id: createId(),
-    title: "의국 회의",
-    start: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    end: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
-    type: "회의",
-  },
-];
+const toCalendarEvent = (item: any): CalendarEvent => ({
+  id: item?.id,
+  title: item?.title,
+  start: item?.start_time,
+  end: item?.end_time || undefined,
+  type: item?.type || undefined,
+  status: item?.status || undefined,
+  memo: item?.memo || undefined,
+  patientId: item?.patient_id || undefined,
+  patientName: item?.patient_name || undefined,
+  patientGender: item?.patient_gender || undefined,
+  patientAge: typeof item?.patient_age === "number" ? item.patient_age : undefined,
+  patient: typeof item?.patient === "number" ? item.patient : undefined,
+  doctorId: item?.doctor_id || undefined,
+  doctorName: item?.doctor_name || item?.doctor_username || undefined,
+  doctorDepartment: item?.doctor_department || undefined,
+});
+
+const toCreatePayload = (input: CreateCalendarEventInput) => {
+  const payload: Record<string, unknown> = {
+    title: input.title,
+    start_time: input.start,
+    type: input.type ?? "예약",
+    status: input.status ?? "scheduled",
+    doctor: typeof input.doctor === "string" ? Number(input.doctor) : input.doctor,
+  };
+  if (input.end) payload.end_time = input.end;
+  if (input.memo !== undefined) payload.memo = input.memo;
+  if (input.patient !== undefined) payload.patient = input.patient;
+  if (input.patientId !== undefined) payload.patient_id = input.patientId;
+  if (input.patientName !== undefined) payload.patient_name = input.patientName;
+  if (input.patientGender !== undefined) payload.patient_gender = input.patientGender;
+  if (input.patientAge !== undefined) payload.patient_age = input.patientAge;
+  
+  console.log("예약 등록 payload:", payload);
+  return payload;
+};
+
+const toUpdatePayload = (input: UpdateCalendarEventInput) => {
+  const payload: Record<string, unknown> = {};
+  if (input.title !== undefined) payload.title = input.title;
+  if (input.start !== undefined) payload.start_time = input.start;
+  if (input.end !== undefined) payload.end_time = input.end;
+  if (input.type !== undefined) payload.type = input.type;
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.memo !== undefined) payload.memo = input.memo;
+  if (input.doctor !== undefined) payload.doctor = input.doctor;
+  if (input.patient !== undefined) payload.patient = input.patient;
+  if (input.patientId !== undefined) payload.patient_id = input.patientId;
+  if (input.patientName !== undefined) payload.patient_name = input.patientName;
+  if (input.patientGender !== undefined) payload.patient_gender = input.patientGender;
+  if (input.patientAge !== undefined) payload.patient_age = input.patientAge;
+  return payload;
+};
 
 export function CalendarProvider({ children }: { children: ReactNode }) {
-  const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const addEvent = useCallback((event: Omit<CalendarEvent, "id">) => {
-    setEvents((prev) => [...prev, { ...event, id: createId() }]);
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await getAppointmentsApi({ page_size: 500 });
+      const list = normalizeAppointmentList(data);
+      setEvents(
+        list
+          .map(toCalendarEvent)
+          .sort(
+            (a: CalendarEvent, b: CalendarEvent) =>
+              new Date(a.start).getTime() - new Date(b.start).getTime(),
+          ),
+      );
+    } catch (error) {
+      console.error("예약 데이터를 불러오지 못했습니다.", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const updateEvent = useCallback((id: string, updates: Partial<CalendarEvent>) => {
-    setEvents((prev) =>
-      prev.map((event) => (event.id === id ? { ...event, ...updates } : event)),
-    );
+  useEffect(() => {
+    refresh().catch((error) => {
+      console.error("초기 예약 데이터 로딩 실패", error);
+    });
+  }, [refresh]);
+
+  const addEvent = useCallback(async (input: CreateCalendarEventInput) => {
+    console.log("addEvent 호출됨, input:", input);
+    try {
+      const payload = toCreatePayload(input);
+      console.log("API 호출 직전, payload:", payload);
+      const created = await createAppointmentApi(payload);
+      console.log("API 응답 받음:", created);
+      const event = toCalendarEvent(created);
+      setEvents((prev) =>
+        [...prev, event].sort(
+          (a: CalendarEvent, b: CalendarEvent) =>
+            new Date(a.start).getTime() - new Date(b.start).getTime(),
+        ),
+      );
+      return event;
+    } catch (error: any) {
+      console.error("예약 생성에 실패했습니다.", error);
+      console.error("에러 상세:", error?.response?.data || error?.message);
+      throw error;
+    }
   }, []);
 
-  const removeEvent = useCallback((id: string) => {
-    setEvents((prev) => prev.filter((event) => event.id !== id));
+  const updateEvent = useCallback(async (id: string, updates: UpdateCalendarEventInput) => {
+    try {
+      const payload = toUpdatePayload(updates);
+      const updated = await updateAppointmentApi(id, payload);
+      const event = toCalendarEvent(updated);
+      setEvents((prev) =>
+        prev
+          .map((item) => (item.id === id ? event : item))
+          .sort(
+            (a: CalendarEvent, b: CalendarEvent) =>
+              new Date(a.start).getTime() - new Date(b.start).getTime(),
+          ),
+      );
+      return event;
+    } catch (error) {
+      console.error("예약 수정에 실패했습니다.", error);
+      throw error;
+    }
+  }, []);
+
+  const removeEvent = useCallback(async (id: string) => {
+    try {
+      await deleteAppointmentApi(id);
+      setEvents((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error("예약 삭제에 실패했습니다.", error);
+      throw error;
+    }
   }, []);
 
   const value = useMemo(
     () => ({
       events,
+      isLoading,
+      refresh,
       addEvent,
       updateEvent,
       removeEvent,
     }),
-    [events, addEvent, updateEvent, removeEvent],
+    [events, isLoading, refresh, addEvent, updateEvent, removeEvent],
   );
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;

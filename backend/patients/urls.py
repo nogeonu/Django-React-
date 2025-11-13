@@ -6,11 +6,13 @@ from .views import (
     PatientSignupView,
     PatientLoginView,
     PatientProfileView,
+    AppointmentViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'patients', PatientViewSet)
 router.register(r'records', MedicalRecordViewSet)
+router.register(r'appointments', AppointmentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

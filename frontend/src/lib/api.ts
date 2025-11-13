@@ -2,12 +2,22 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+// CSRF 토큰 가져오기
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken',
 });
 
 // Request interceptor
@@ -95,6 +105,35 @@ export const updatePatientProfile = async (accountId: string, data: Record<strin
 
 export const patientSignupApi = async (data: { account_id: string; name: string; email: string; phone: string; password: string }) => {
   const res = await apiClient.post('/api/patients/signup/', data);
+  return res.data;
+};
+
+export const getAppointmentsApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/patients/appointments/', { params });
+  return res.data;
+};
+
+export const getPatientsApi = async (
+  params?: Record<string, unknown>,
+) => {
+  const res = await apiClient.get('/api/patients/patients/', {
+    params,
+  });
+  return res.data;
+};
+
+export const createAppointmentApi = async (data: Record<string, unknown>) => {
+  const res = await apiClient.post('/api/patients/appointments/', data);
+  return res.data;
+};
+
+export const updateAppointmentApi = async (id: string, data: Record<string, unknown>) => {
+  const res = await apiClient.patch(`/api/patients/appointments/${id}/`, data);
+  return res.data;
+};
+
+export const deleteAppointmentApi = async (id: string) => {
+  const res = await apiClient.delete(`/api/patients/appointments/${id}/`);
   return res.data;
 };
 

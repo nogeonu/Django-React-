@@ -369,6 +369,7 @@ export default function Dashboard() {
                 className="w-full justify-start" 
                 variant="outline"
                 data-testid="button-new-examination"
+                onClick={() => navigate('/reservation-info')}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 예약 검사 등록
