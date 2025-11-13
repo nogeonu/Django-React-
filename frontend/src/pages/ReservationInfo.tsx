@@ -176,23 +176,22 @@ export default function ReservationInfo() {
 
       <Card>
         <CardContent className="flex flex-col gap-6 p-4 xl:flex-row">
-          <div className="w-full space-y-4 xl:w-72">
+          <div className="w-full space-y-4 xl:w-80">
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold text-gray-800">달력</CardTitle>
                 <span className="text-xs text-muted-foreground">{currentTitle}</span>
               </CardHeader>
-              <CardContent className="pt-0 flex justify-center">
+              <CardContent className="pt-0 pl-2">
                 <MiniCalendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={onMiniSelect}
-                  className="rounded-2xl bg-slate-50 p-3 w-full max-w-[240px]"
+                  className="rounded-2xl bg-slate-50 px-4 py-3 w-full"
                   classNames={{
                     months: "flex flex-col gap-2",
                     month: "space-y-2",
                     caption: "flex items-center justify-between px-1 text-sm font-semibold text-slate-700",
-                    caption_label: "text-sm font-semibold",
                     nav: "flex items-center gap-2",
                     nav_button: "h-7 w-7 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition shadow-sm",
                     nav_button_previous: "",
