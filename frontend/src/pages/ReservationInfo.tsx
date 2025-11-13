@@ -191,7 +191,7 @@ export default function ReservationInfo() {
                   classNames={{
                     months: "flex flex-col gap-2",
                     month: "space-y-2",
-                    caption: "flex justify-between items-center text-sm font-semibold text-slate-700",
+                    caption: "flex items-center justify-between px-1 text-sm font-semibold text-slate-700",
                     caption_label: "text-sm font-semibold",
                     nav: "flex items-center gap-2",
                     nav_button: "h-7 w-7 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition shadow-sm",
