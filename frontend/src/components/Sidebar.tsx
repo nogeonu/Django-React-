@@ -20,10 +20,26 @@ const baseNavigation = {
   ],
 };
 
+const departmentLabelMap: Record<string, string> = {
+  admin: '원무과',
+  respiratory: '호흡기내과',
+  surgery: '외과',
+};
+
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const roleLabel = user
+    ? (user.department && departmentLabelMap[user.department])
+      ? departmentLabelMap[user.department]
+      : user.role === 'admin_staff'
+        ? departmentLabelMap.admin
+        : user.role === 'medical_staff'
+          ? '의료진'
+          : user.role
+    : '';
 
   const handleLogout = async () => {
     try {
@@ -98,7 +114,7 @@ export default function Sidebar() {
                   {(user.last_name || '') + (user.first_name ? ' ' + user.first_name : '')}
                 </div>
                 <div className="text-xs text-gray-500 truncate">
-                  {user.role === 'medical_staff' ? '의료진' : user.role === 'admin_staff' ? '원무과' : user.role}
+                  {roleLabel || user.role}
                 </div>
               </div>
             </div>
