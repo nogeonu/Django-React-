@@ -251,10 +251,6 @@ export default function ReservationInfo() {
 
           <div className="flex-1 min-w-0">
             <Card className="shadow-sm h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle className="text-lg font-semibold text-gray-800">{viewOptions.find((v) => v.key === activeView)?.label} 일정</CardTitle>
-                <span className="text-sm font-medium text-gray-500">{currentTitle}</span>
-              </CardHeader>
               <CardContent className="p-2 md:p-4">
                 <style>{`
                   .reservation-calendar .fc .fc-toolbar { margin-bottom: 0; }
