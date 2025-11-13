@@ -182,12 +182,12 @@ export default function ReservationInfo() {
                 <CardTitle className="text-base font-semibold text-gray-800">달력</CardTitle>
                 <span className="text-xs text-muted-foreground">{currentTitle}</span>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 flex justify-center">
                 <MiniCalendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={onMiniSelect}
-                  className="rounded-2xl bg-slate-50 p-3"
+                  className="rounded-2xl bg-slate-50 p-3 w-full max-w-[240px]"
                   classNames={{
                     months: "flex flex-col gap-2",
                     month: "space-y-2",
