@@ -260,13 +260,14 @@ export default function ReservationInfo() {
                   .reservation-calendar .fc .fc-toolbar { margin-bottom: 0; }
                   .reservation-calendar .fc { font-family: 'Pretendard', 'Inter', sans-serif; }
                   .reservation-calendar .fc .fc-scrollgrid { border-radius: 12px; overflow: hidden; }
+                  .reservation-calendar .fc table { width: 100%; table-layout: fixed; }
                   .reservation-calendar .fc .fc-col-header-cell-cushion { padding: 10px 8px; font-size: 13px; color: #475569; }
                   .reservation-calendar .fc .fc-daygrid-day-top { display: flex; align-items: center; justify-content: flex-end; padding: 8px; }
                   .reservation-calendar .fc .fc-daygrid-day-number { font-size: 13px; color: #475569; }
                   .reservation-calendar .fc .fc-daygrid-day-frame { padding: 6px 8px 12px; }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-today { background: #eef2ff; }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: #4338ca; font-weight: 700; }
-                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 10px; padding: 4px 8px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12); }
+                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 10px; padding: 4px 8px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12); white-space: normal; overflow: hidden; }
                   .reservation-calendar .fc .fc-daygrid-event:hover { transform: translateY(-1px); }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
