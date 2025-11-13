@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,12 +33,23 @@ const colorByType: Record<string, { bg: string; border: string; text: string }> 
   예약: { bg: "#E0E7FF", border: "#A5B4FC", text: "#1E1B4B" },
 };
 
+const viewOptions: { key: "day" | "week" | "month"; label: string }[] = [
+  { key: "day", label: "일간" },
+  { key: "week", label: "주간" },
+  { key: "month", label: "월간" },
+];
+
+const toFcView = (view: "day" | "week" | "month") =>
+  view === "day" ? "timeGridDay" : view === "week" ? "timeGridWeek" : "dayGridMonth";
+
 export default function ReservationInfo() {
   const calendarRef = useRef<FullCalendar | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [currentTitle, setCurrentTitle] = useState<string>(format(new Date(), "yyyy.MM"));
+  const [activeView, setActiveView] = useState<"day" | "week" | "month">("month");
   const [openDetail, setOpenDetail] = useState(false);
   const [detailEvent, setDetailEvent] = useState<DetailEvent | null>(null);
+  const navigate = useNavigate();
   const { events } = useCalendar();
 
   const fcEvents = useMemo(
@@ -71,20 +84,21 @@ export default function ReservationInfo() {
       .slice(0, 5);
   }, [events]);
 
+  const syncTitle = () => {
+    const api = calendarRef.current?.getApi();
+    if (api) setCurrentTitle(format(api.getDate(), "yyyy.MM"));
+  };
+
   const handlePrev = () => {
     const api = calendarRef.current?.getApi();
     api?.prev();
-    if (api) {
-      setCurrentTitle(format(api.getDate(), "yyyy.MM"));
-    }
+    syncTitle();
   };
 
   const handleNext = () => {
     const api = calendarRef.current?.getApi();
     api?.next();
-    if (api) {
-      setCurrentTitle(format(api.getDate(), "yyyy.MM"));
-    }
+    syncTitle();
   };
 
   const handleToday = () => {
@@ -92,7 +106,14 @@ export default function ReservationInfo() {
     api?.today();
     const now = new Date();
     setSelectedDate(now);
-    setCurrentTitle(format(now, "yyyy.MM"));
+    syncTitle();
+  };
+
+  const changeView = (view: "day" | "week" | "month") => {
+    setActiveView(view);
+    const api = calendarRef.current?.getApi();
+    api?.changeView(toFcView(view));
+    syncTitle();
   };
 
   const onDateClick = (arg: DateClickArg) => {
@@ -104,7 +125,7 @@ export default function ReservationInfo() {
     const api = calendarRef.current?.getApi();
     api?.gotoDate(date);
     setSelectedDate(date);
-    setCurrentTitle(format(date, "yyyy.MM"));
+    syncTitle();
   };
 
   const colorLegend = [
@@ -116,34 +137,58 @@ export default function ReservationInfo() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">예약 정보</h2>
           <p className="text-sm text-muted-foreground">의료 일정과 예약 현황을 한눈에 확인하세요.</p>
         </div>
-        <div className="inline-flex rounded-full border bg-white shadow-sm overflow-hidden">
-          <Button variant="ghost" size="sm" className="rounded-none border-r" onClick={handleToday}>
-            오늘
-          </Button>
-          <Button variant="ghost" size="icon" className="rounded-none border-r" onClick={handlePrev}>
-            ‹
-          </Button>
-          <Button variant="ghost" size="icon" className="rounded-none" onClick={handleNext}>
-            ›
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-full border bg-white shadow-sm overflow-hidden">
+            <Button variant="ghost" size="sm" className="rounded-none border-r" onClick={handleToday}>
+              오늘
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-none border-r" onClick={handlePrev}>
+              ‹
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-none" onClick={handleNext}>
+              ›
+            </Button>
+          </div>
+          <div className="inline-flex rounded-full border bg-white shadow-sm overflow-hidden">
+            {viewOptions.map((option) => (
+              <button
+                key={option.key}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  activeView === option.key
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-500 hover:bg-slate-100"
+                }`}
+                onClick={() => changeView(option.key)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate("/?reserve=1")}>예약 등록</Button>
         </div>
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-6 p-4 lg:flex-row">
-          <div className="w-full space-y-4 lg:w-64">
+        <CardContent className="flex flex-col gap-6 p-4 xl:flex-row">
+          <div className="w-full space-y-4 xl:w-72">
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold text-gray-800">달력</CardTitle>
                 <span className="text-xs text-muted-foreground">{currentTitle}</span>
               </CardHeader>
               <CardContent className="pt-0">
-                <MiniCalendar mode="single" selected={selectedDate} onSelect={onMiniSelect} className="rounded-lg border" />
+                <MiniCalendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={onMiniSelect}
+                  className="rounded-lg border"
+                />
               </CardContent>
             </Card>
 
@@ -204,43 +249,47 @@ export default function ReservationInfo() {
             </Card>
           </div>
 
-          <div className="flex-1">
-            <Card className="shadow-sm">
+          <div className="flex-1 min-w-0">
+            <Card className="shadow-sm h-full">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle className="text-lg font-semibold text-gray-800">월간 일정</CardTitle>
+                <CardTitle className="text-lg font-semibold text-gray-800">{viewOptions.find((v) => v.key === activeView)?.label} 일정</CardTitle>
                 <span className="text-sm font-medium text-gray-500">{currentTitle}</span>
               </CardHeader>
               <CardContent className="p-2 md:p-4">
                 <style>{`
-                  .reservation-calendar .fc .fc-daygrid-day-number { font-size: 13px; color: #475569; }
-                  .reservation-calendar .fc .fc-daygrid-day-top { display: flex; justify-content: flex-start; padding: 8px; }
-                  .reservation-calendar .fc .fc-daygrid-day-frame { padding: 4px 6px 12px; border-radius: 10px; }
-                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 8px; padding: 4px 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
-                  .reservation-calendar .fc .fc-daygrid-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15); }
-                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today { background: #eef2ff; border-radius: 16px; }
-                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: #4338ca; font-weight: 700; }
-                  .reservation-calendar .fc .fc-scrollgrid-sync-inner { padding: 4px; }
-                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
-                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background-color: #fafafa; }
+                  .reservation-calendar .fc .fc-toolbar { margin-bottom: 0; }
                   .reservation-calendar .fc { font-family: 'Pretendard', 'Inter', sans-serif; }
+                  .reservation-calendar .fc .fc-scrollgrid { border-radius: 12px; overflow: hidden; }
+                  .reservation-calendar .fc .fc-col-header-cell-cushion { padding: 10px 8px; font-size: 13px; color: #475569; }
+                  .reservation-calendar .fc .fc-daygrid-day-top { display: flex; align-items: center; justify-content: flex-end; padding: 8px; }
+                  .reservation-calendar .fc .fc-daygrid-day-number { font-size: 13px; color: #475569; }
+                  .reservation-calendar .fc .fc-daygrid-day-frame { padding: 6px 8px 12px; }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today { background: #eef2ff; }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: #4338ca; font-weight: 700; }
+                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 10px; padding: 4px 8px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12); }
+                  .reservation-calendar .fc .fc-daygrid-event:hover { transform: translateY(-1px); }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
+                  .reservation-calendar .fc .fc-timegrid-slot { height: 32px; }
+                  .reservation-calendar .fc .fc-timegrid-axis-cushion { font-size: 11px; color: #94a3b8; }
+                  .reservation-calendar .fc .fc-timegrid-event { border-radius: 10px; padding: 6px 8px; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.14); }
                 `}</style>
                 <div
                   className="reservation-calendar"
                   style={{
                     ["--fc-border-color" as any]: "#e5e7eb",
                     ["--fc-page-bg-color" as any]: "transparent",
-                    ["--fc-today-bg-color" as any]: "transparent",
                     ["--fc-neutral-bg-color" as any]: "transparent",
-                    ["--fc-list-event-hover-bg-color" as any]: "#f8fafc",
+                    ["--fc-today-bg-color" as any]: "transparent",
                   }}
                 >
                   <FullCalendar
                     ref={calendarRef as any}
-                    plugins={[dayGridPlugin, interactionPlugin]}
-                    initialView="dayGridMonth"
+                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                    initialView={toFcView(activeView)}
                     headerToolbar={false}
-                    events={fcEvents}
                     height="auto"
+                    events={fcEvents}
                     dayMaxEventRows={3}
                     eventDisplay="block"
                     locale="ko"
