@@ -187,7 +187,28 @@ export default function ReservationInfo() {
                   mode="single"
                   selected={selectedDate}
                   onSelect={onMiniSelect}
-                  className="rounded-lg border"
+                  className="rounded-2xl bg-slate-50 p-3"
+                  classNames={{
+                    months: "flex flex-col gap-2",
+                    month: "space-y-2",
+                    caption: "flex justify-between items-center text-sm font-semibold text-slate-700",
+                    caption_label: "text-sm font-semibold",
+                    nav: "flex items-center gap-2",
+                    nav_button: "h-7 w-7 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition shadow-sm",
+                    nav_button_previous: "",
+                    nav_button_next: "",
+                    table: "w-full border-collapse text-center text-sm text-slate-600",
+                    head_row: "",
+                    head_cell: "pb-1 font-semibold text-slate-400",
+                    row: "",
+                    cell: "h-8 w-8",
+                    day: "h-8 w-8 flex items-center justify-center rounded-full text-sm font-medium hover:bg-blue-50",
+                    day_selected: "bg-blue-600 text-white shadow-sm hover:bg-blue-600",
+                    day_today: "border border-blue-500 text-blue-600",
+                    day_outside: "text-slate-300",
+                    day_disabled: "opacity-50",
+                    day_hidden: "invisible",
+                  }}
                 />
               </CardContent>
             </Card>
