@@ -189,9 +189,11 @@ class PatientViewSet(viewsets.ModelViewSet):
                                 patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
                                 chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
                                 coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
+                                patient_fk_id,
                                 created_at, updated_at
                             ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s
                             )
                         """
                         cursor.execute(sql, [
@@ -211,6 +213,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                             serializer.validated_data['shortness_of_breath'],
                             serializer.validated_data['swallowing_difficulty'],
                             serializer.validated_data['chest_pain'],
+                            patient.id,
                             now,
                             now,
                         ])
@@ -484,16 +487,49 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         serializer = MedicalRecordCreateSerializer(data=request.data)
         if serializer.is_valid():
             try:
+                from django.contrib.auth.models import User
+                
                 patient = Patient.objects.get(patient_id=serializer.validated_data['patient_id'])
-                medical_record = MedicalRecord.objects.create(
-                    patient_id=serializer.validated_data['patient_id'],
-                    name=serializer.validated_data['name'],
-                    department=serializer.validated_data['department'],
-                    notes=serializer.validated_data.get('notes', '')
-                )
+                
+                # 담당 의사 조회
+                doctor = None
+                doctor_id = serializer.validated_data.get('doctor_id')
+                if doctor_id:
+                    try:
+                        doctor = User.objects.get(id=doctor_id)
+                    except User.DoesNotExist:
+                        return Response({
+                            'error': '존재하지 않는 의사입니다.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # managed=False이므로 raw SQL 사용
+                from django.utils import timezone
+                now = timezone.now()
+                with connections['default'].cursor() as cursor:
+                    sql = """
+                        INSERT INTO medical_record (
+                            patient_id, patient_fk_id, name, department, doctor_fk_id,
+                            status, notes, reception_start_time, is_treatment_completed
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                    """
+                    cursor.execute(sql, [
+                        serializer.validated_data['patient_id'],
+                        patient.id,
+                        serializer.validated_data['name'],
+                        serializer.validated_data['department'],
+                        doctor.id if doctor else None,
+                        '접수완료',
+                        serializer.validated_data.get('notes', ''),
+                        now,
+                        False,
+                    ])
+                    record_id = cursor.lastrowid
+                
                 return Response({
                     'message': '진료기록이 성공적으로 생성되었습니다.',
-                    'record_id': medical_record.id
+                    'record_id': record_id
                 }, status=status.HTTP_201_CREATED)
             except Patient.DoesNotExist:
                 return Response({

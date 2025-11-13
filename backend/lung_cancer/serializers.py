@@ -144,15 +144,30 @@ class LungCancerPredictionSerializer(serializers.Serializer):
 
 class MedicalRecordSerializer(serializers.ModelSerializer):
     """진료기록 시리얼라이저"""
+    doctor_name = serializers.SerializerMethodField()
+    doctor_department = serializers.SerializerMethodField()
     
     class Meta:
         model = MedicalRecord
         fields = [
             'id', 'patient_id', 'name', 'department', 'status', 'notes',
+            'doctor_ref', 'doctor_name', 'doctor_department',
             'reception_start_time', 'treatment_end_time', 'is_treatment_completed'
         ]
-        read_only_fields = ['id', 'reception_start_time']
+        read_only_fields = ['id', 'reception_start_time', 'doctor_name', 'doctor_department']
         ref_name = 'LungCancerMedicalRecord'
+    
+    def get_doctor_name(self, obj):
+        """담당 의사 이름 반환"""
+        if obj.doctor_ref:
+            return obj.doctor_ref.username
+        return None
+    
+    def get_doctor_department(self, obj):
+        """담당 의사 부서 반환"""
+        if obj.doctor_ref and hasattr(obj.doctor_ref, 'department'):
+            return obj.doctor_ref.department
+        return None
 
 
 class MedicalRecordCreateSerializer(serializers.Serializer):
@@ -160,6 +175,7 @@ class MedicalRecordCreateSerializer(serializers.Serializer):
     patient_id = serializers.CharField(max_length=10)
     name = serializers.CharField(max_length=100)
     department = serializers.ChoiceField(choices=[('호흡기내과', '호흡기내과'), ('외과', '외과')])
+    doctor_id = serializers.IntegerField(required=False, allow_null=True)  # 담당 의사 ID (auth_user.id)
     notes = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
@@ -170,6 +186,16 @@ class MedicalRecordCreateSerializer(serializers.Serializer):
             Patient.objects.get(patient_id=value)
         except Patient.DoesNotExist:
             raise serializers.ValidationError("존재하지 않는 환자입니다.")
+        return value
+    
+    def validate_doctor_id(self, value):
+        """담당 의사 검증"""
+        if value is not None:
+            from django.contrib.auth.models import User
+            try:
+                User.objects.get(id=value)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("존재하지 않는 의사입니다.")
         return value
 
 

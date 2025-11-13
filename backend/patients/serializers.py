@@ -26,12 +26,8 @@ class PatientUserSignupSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
+        # 1단계: 환자 계정(PatientUser) 먼저 생성 (부모)
         patient_id = Patient.generate_patient_id()
-        patient = Patient.objects.create(
-            patient_id=patient_id,
-            name=validated_data["name"],
-            phone=validated_data["phone"],
-        )
         user = PatientUser.objects.create_user(
             account_id=validated_data["account_id"],
             email=validated_data["email"],
@@ -41,9 +37,13 @@ class PatientUserSignupSerializer(serializers.Serializer):
             phone=validated_data["phone"],
         )
 
-        # 환자 정보와 연결
-        patient.user_account = user
-        patient.save(update_fields=["user_account"])
+        # 2단계: 환자 정보(Patient) 생성하고 계정과 연결 (자식)
+        patient = Patient.objects.create(
+            patient_id=patient_id,
+            name=validated_data["name"],
+            phone=validated_data["phone"],
+            user_account=user,  # 외래키 연결
+        )
 
         return user
 

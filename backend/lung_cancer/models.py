@@ -14,6 +14,13 @@ class Patient(CorePatient):
 class LungRecord(models.Model):
     """폐암 검사 기록 저장"""
     patient_id = models.CharField('환자ID', max_length=10)  # Patient 테이블 ID 직접 참조
+    patient_ref = models.ForeignKey(
+        CorePatient,
+        on_delete=models.PROTECT,
+        db_column='patient_fk_id',
+        related_name='lung_records_legacy',
+        verbose_name='환자',
+    )
     
     # 환자 기본 정보 (예측 시점 스냅샷)
     gender = models.CharField('성별', max_length=10)
@@ -46,6 +53,10 @@ class LungRecord(models.Model):
     
     def __str__(self):
         return f"{self.patient_id} - {self.created_at.strftime('%Y-%m-%d')}"
+
+    @property
+    def patient(self):  # backward compatibility helper
+        return self.patient_ref
 
 class LungResult(models.Model):
     """검사 결과 저장"""
@@ -81,8 +92,24 @@ class MedicalRecord(models.Model):
     # 기본 정보
     id = models.AutoField(primary_key=True)
     patient_id = models.CharField('환자ID', max_length=10)
+    patient_ref = models.ForeignKey(
+        CorePatient,
+        on_delete=models.PROTECT,
+        db_column='patient_fk_id',
+        related_name='medical_records_legacy',
+        verbose_name='환자',
+    )
     name = models.CharField('환자명', max_length=100)
     department = models.CharField('진료과', max_length=20, choices=DEPARTMENT_CHOICES)
+    doctor_ref = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        db_column='doctor_fk_id',
+        related_name='medical_records_as_doctor',
+        verbose_name='담당의사',
+        null=True,  # 기존 데이터 호환성
+        blank=True,
+    )
     status = models.CharField('진료상태', max_length=20, choices=STATUS_CHOICES, default='접수완료')
     notes = models.TextField('진료노트', blank=True, null=True)
     
@@ -107,3 +134,7 @@ class MedicalRecord(models.Model):
         self.is_treatment_completed = True
         self.treatment_end_time = timezone.now()
         self.save()
+
+    @property
+    def patient(self):  # backward compatibility helper
+        return self.patient_ref

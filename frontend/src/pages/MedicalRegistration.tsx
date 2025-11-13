@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, User, Stethoscope } from "lucide-react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, getDoctorsApi } from "@/lib/api";
 
 interface Patient {
   id: string;
@@ -16,11 +16,22 @@ interface Patient {
   age: number;
 }
 
+interface Doctor {
+  id: number;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  doctor_id?: string;
+  department?: string;
+}
+
 const MedicalRegistration: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [department, setDepartment] = useState('');
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +96,10 @@ const MedicalRegistration: React.FC = () => {
       alert('진료과를 선택해주세요.');
       return;
     }
+    if (!selectedDoctor) {
+      alert('진료 의사를 선택해주세요.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -92,6 +107,7 @@ const MedicalRegistration: React.FC = () => {
         patient_id: selectedPatient.id,
         name: selectedPatient.name,
         department: department,
+        doctor_id: parseInt(selectedDoctor),
         notes: notes
       });
       
@@ -101,6 +117,8 @@ const MedicalRegistration: React.FC = () => {
       setSelectedPatient(null);
       setSearchQuery('');
       setDepartment('');
+      setSelectedDoctor('');
+      setDoctors([]);
       setNotes('');
     } catch (error: any) {
       console.error('진료기록 생성 오류:', error);
@@ -109,6 +127,43 @@ const MedicalRegistration: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // 진료과 변경 시 해당 진료과의 의사 목록 로드
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      if (!department) {
+        setDoctors([]);
+        setSelectedDoctor('');
+        return;
+      }
+
+      // 한글 진료과명을 영어 코드로 변환
+      const departmentCodeMap: Record<string, string> = {
+        '호흡기내과': 'respiratory',
+        '외과': 'surgery',
+      };
+      
+      const departmentCode = departmentCodeMap[department];
+      
+      if (!departmentCode) {
+        console.error('알 수 없는 진료과:', department);
+        setDoctors([]);
+        return;
+      }
+
+      try {
+        console.log('의사 목록 요청:', departmentCode);
+        const doctorData = await getDoctorsApi(departmentCode);
+        console.log('의사 목록 응답:', doctorData);
+        setDoctors(doctorData.doctors || []);
+      } catch (error) {
+        console.error('의사 목록 로드 오류:', error);
+        setDoctors([]);
+      }
+    };
+
+    fetchDoctors();
+  }, [department]);
 
   // 키보드 네비게이션
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -283,7 +338,10 @@ const MedicalRegistration: React.FC = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="department">진료과</Label>
-                <Select value={department} onValueChange={setDepartment}>
+                <Select value={department} onValueChange={(value) => {
+                  setDepartment(value);
+                  setSelectedDoctor(''); // 진료과 변경 시 선택된 의사 초기화
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="진료과를 선택하세요" />
                   </SelectTrigger>
@@ -293,6 +351,36 @@ const MedicalRegistration: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* 진료 의사 선택 */}
+              {department && (
+                <div>
+                  <Label htmlFor="doctor">진료 의사</Label>
+                  <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="의사를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doctors.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          해당 진료과에 등록된 의사가 없습니다
+                        </SelectItem>
+                      ) : (
+                        doctors.map((doctor) => {
+                          const displayName = doctor.last_name && doctor.first_name 
+                            ? `${doctor.last_name}${doctor.first_name}` 
+                            : doctor.username;
+                          return (
+                            <SelectItem key={doctor.id} value={doctor.id.toString()}>
+                              {displayName} {doctor.doctor_id ? `(${doctor.doctor_id})` : ''}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="notes">메모 (선택사항)</Label>
@@ -309,7 +397,7 @@ const MedicalRegistration: React.FC = () => {
               <div className="flex gap-2 pt-4">
                 <Button 
                   onClick={handleSubmit}
-                  disabled={isSubmitting || !department}
+                  disabled={isSubmitting || !department || !selectedDoctor}
                   className="flex-1"
                   data-testid="button-submit-registration"
                 >
@@ -321,6 +409,8 @@ const MedicalRegistration: React.FC = () => {
                     setSelectedPatient(null);
                     setSearchQuery('');
                     setDepartment('');
+                    setSelectedDoctor('');
+                    setDoctors([]);
                     setNotes('');
                   }}
                   data-testid="button-reset-form"
