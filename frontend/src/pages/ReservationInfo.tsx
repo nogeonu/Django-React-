@@ -1,0 +1,341 @@
+import { useMemo, useRef, useState } from "react";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar as MiniCalendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { CalendarEvent, useCalendar } from "@/context/CalendarContext";
+
+type DetailEvent = {
+  id: string;
+  title: string;
+  start: string;
+  end?: string;
+  type?: string;
+  patientId?: string;
+  patientName?: string;
+  patientGender?: string;
+  patientAge?: number;
+};
+
+const colorByType: Record<string, { bg: string; border: string; text: string }> = {
+  검진: { bg: "#DBEAFE", border: "#93C5FD", text: "#0F172A" },
+  회의: { bg: "#DCFCE7", border: "#86EFAC", text: "#0F172A" },
+  내근: { bg: "#FEF3C7", border: "#FCD34D", text: "#0F172A" },
+  외근: { bg: "#FFE4E6", border: "#FDA4AF", text: "#0F172A" },
+  예약: { bg: "#E0E7FF", border: "#A5B4FC", text: "#1E1B4B" },
+};
+
+export default function ReservationInfo() {
+  const calendarRef = useRef<FullCalendar | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [currentTitle, setCurrentTitle] = useState<string>(format(new Date(), "yyyy.MM"));
+  const [openDetail, setOpenDetail] = useState(false);
+  const [detailEvent, setDetailEvent] = useState<DetailEvent | null>(null);
+  const { events } = useCalendar();
+
+  const fcEvents = useMemo(
+    () =>
+      events.map((event: CalendarEvent) => {
+        const palette = colorByType[event.type || "예약"] || colorByType["예약"];
+        return {
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+          textColor: palette.text,
+          extendedProps: {
+            type: event.type,
+            patientId: event.patientId,
+            patientName: event.patientName,
+            patientGender: event.patientGender,
+            patientAge: event.patientAge,
+          },
+        };
+      }),
+    [events],
+  );
+
+  const upcomingReservations = useMemo(() => {
+    const today = new Date();
+    return [...events]
+      .filter((event) => new Date(event.start).getTime() >= today.setHours(0, 0, 0, 0))
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+      .slice(0, 5);
+  }, [events]);
+
+  const handlePrev = () => {
+    const api = calendarRef.current?.getApi();
+    api?.prev();
+    if (api) {
+      setCurrentTitle(format(api.getDate(), "yyyy.MM"));
+    }
+  };
+
+  const handleNext = () => {
+    const api = calendarRef.current?.getApi();
+    api?.next();
+    if (api) {
+      setCurrentTitle(format(api.getDate(), "yyyy.MM"));
+    }
+  };
+
+  const handleToday = () => {
+    const api = calendarRef.current?.getApi();
+    api?.today();
+    const now = new Date();
+    setSelectedDate(now);
+    setCurrentTitle(format(now, "yyyy.MM"));
+  };
+
+  const onDateClick = (arg: DateClickArg) => {
+    setSelectedDate(arg.date);
+  };
+
+  const onMiniSelect = (date?: Date) => {
+    if (!date) return;
+    const api = calendarRef.current?.getApi();
+    api?.gotoDate(date);
+    setSelectedDate(date);
+    setCurrentTitle(format(date, "yyyy.MM"));
+  };
+
+  const colorLegend = [
+    { label: "검진", color: colorByType["검진"]?.border },
+    { label: "회의", color: colorByType["회의"]?.border },
+    { label: "내근", color: colorByType["내근"]?.border },
+    { label: "외근", color: colorByType["외근"]?.border },
+  ];
+
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">예약 정보</h2>
+          <p className="text-sm text-muted-foreground">의료 일정과 예약 현황을 한눈에 확인하세요.</p>
+        </div>
+        <div className="inline-flex rounded-full border bg-white shadow-sm overflow-hidden">
+          <Button variant="ghost" size="sm" className="rounded-none border-r" onClick={handleToday}>
+            오늘
+          </Button>
+          <Button variant="ghost" size="icon" className="rounded-none border-r" onClick={handlePrev}>
+            ‹
+          </Button>
+          <Button variant="ghost" size="icon" className="rounded-none" onClick={handleNext}>
+            ›
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-6 p-4 lg:flex-row">
+          <div className="w-full space-y-4 lg:w-64">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-gray-800">달력</CardTitle>
+                <span className="text-xs text-muted-foreground">{currentTitle}</span>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <MiniCalendar mode="single" selected={selectedDate} onSelect={onMiniSelect} className="rounded-lg border" />
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-gray-800">예약 범례</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                {colorLegend.map((item) => (
+                  <div key={item.label} className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    {item.label}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-gray-800">다가오는 예약</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                {upcomingReservations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">예정된 예약이 없습니다.</p>
+                ) : (
+                  upcomingReservations.map((event) => {
+                    const palette = colorByType[event.type || "예약"] || colorByType["예약"];
+                    return (
+                      <div key={event.id} className="rounded-lg border bg-white p-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900">{event.title}</span>
+                          <Badge
+                            variant="outline"
+                            style={{
+                              borderColor: palette.border,
+                              color: palette.text,
+                              backgroundColor: palette.bg,
+                            }}
+                            className="border-0"
+                          >
+                            {event.type || "예약"}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {format(new Date(event.start), "yyyy년 MM월 dd일 HH:mm")}
+                        </div>
+                        {event.patientName && (
+                          <div className="mt-1 text-xs text-gray-500">
+                            환자: {event.patientName}
+                            {event.patientId ? ` (${event.patientId})` : ""}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex-1">
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-lg font-semibold text-gray-800">월간 일정</CardTitle>
+                <span className="text-sm font-medium text-gray-500">{currentTitle}</span>
+              </CardHeader>
+              <CardContent className="p-2 md:p-4">
+                <style>{`
+                  .reservation-calendar .fc .fc-daygrid-day-number { font-size: 13px; color: #475569; }
+                  .reservation-calendar .fc .fc-daygrid-day-top { display: flex; justify-content: flex-start; padding: 8px; }
+                  .reservation-calendar .fc .fc-daygrid-day-frame { padding: 4px 6px 12px; border-radius: 10px; }
+                  .reservation-calendar .fc .fc-daygrid-event { border-radius: 8px; padding: 4px 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
+                  .reservation-calendar .fc .fc-daygrid-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15); }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today { background: #eef2ff; border-radius: 16px; }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: #4338ca; font-weight: 700; }
+                  .reservation-calendar .fc .fc-scrollgrid-sync-inner { padding: 4px; }
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
+                  .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background-color: #fafafa; }
+                  .reservation-calendar .fc { font-family: 'Pretendard', 'Inter', sans-serif; }
+                `}</style>
+                <div
+                  className="reservation-calendar"
+                  style={{
+                    ["--fc-border-color" as any]: "#e5e7eb",
+                    ["--fc-page-bg-color" as any]: "transparent",
+                    ["--fc-today-bg-color" as any]: "transparent",
+                    ["--fc-neutral-bg-color" as any]: "transparent",
+                    ["--fc-list-event-hover-bg-color" as any]: "#f8fafc",
+                  }}
+                >
+                  <FullCalendar
+                    ref={calendarRef as any}
+                    plugins={[dayGridPlugin, interactionPlugin]}
+                    initialView="dayGridMonth"
+                    headerToolbar={false}
+                    events={fcEvents}
+                    height="auto"
+                    dayMaxEventRows={3}
+                    eventDisplay="block"
+                    locale="ko"
+                    firstDay={0}
+                    dateClick={onDateClick}
+                    eventClick={(info) => {
+                      const event = info.event;
+                      setDetailEvent({
+                        id: event.id,
+                        title: event.title,
+                        start: event.startStr,
+                        end: event.endStr || undefined,
+                        type: (event.extendedProps as any)?.type,
+                        patientId: (event.extendedProps as any)?.patientId,
+                        patientName: (event.extendedProps as any)?.patientName,
+                        patientGender: (event.extendedProps as any)?.patientGender,
+                        patientAge: (event.extendedProps as any)?.patientAge,
+                      });
+                      setOpenDetail(true);
+                    }}
+                    eventDidMount={(info) => {
+                      const event = info.event;
+                      const type = (event.extendedProps as any)?.type || "";
+                      const patient = (event.extendedProps as any)?.patientName || "";
+                      const tooltipLines = [
+                        event.title,
+                        patient ? `환자: ${patient}` : "",
+                        type ? `유형: ${type}` : "",
+                        event.start ? `시작: ${new Date(event.start).toLocaleString("ko-KR")}` : "",
+                        event.end ? `종료: ${new Date(event.end).toLocaleString("ko-KR")}` : "",
+                      ].filter(Boolean);
+                      info.el.setAttribute("title", tooltipLines.join("\n"));
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={openDetail} onOpenChange={setOpenDetail}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">{detailEvent?.title || "예약 상세"}</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              예약에 대한 세부 정보를 확인하세요.
+            </DialogDescription>
+          </DialogHeader>
+          {detailEvent && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">유형</span>
+                <Badge variant="outline" className="text-xs">
+                  {detailEvent.type || "예약"}
+                </Badge>
+              </div>
+              <Separator />
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">시작</span>
+                  <span>{new Date(detailEvent.start).toLocaleString("ko-KR")}</span>
+                </div>
+                {detailEvent.end && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">종료</span>
+                    <span>{new Date(detailEvent.end).toLocaleString("ko-KR")}</span>
+                  </div>
+                )}
+                {detailEvent.patientName && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">환자</span>
+                    <span>
+                      {detailEvent.patientName}
+                      {detailEvent.patientId ? ` (${detailEvent.patientId})` : ""}
+                    </span>
+                  </div>
+                )}
+                {detailEvent.patientGender && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">성별</span>
+                    <span>{detailEvent.patientGender}</span>
+                  </div>
+                )}
+                {typeof detailEvent.patientAge === "number" && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">나이</span>
+                    <span>{detailEvent.patientAge}세</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

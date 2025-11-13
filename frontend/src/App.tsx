@@ -14,6 +14,7 @@ import LungCancerPrediction from "@/pages/LungCancerPrediction";
 import LungCancerStats from "@/pages/LungCancerStats";
 import MedicalRegistration from "@/pages/MedicalRegistration";
 import KnowledgeHub from "@/pages/KnowledgeHub";
+import ReservationInfo from "@/pages/ReservationInfo";
 import NotFound from "@/pages/NotFound";
 import Sidebar from "@/components/Sidebar";
 import Login from "@/pages/Login";
@@ -90,6 +91,14 @@ function AppContent() {
             element={
               <ProtectedRoute>
                 <MedicalRegistration />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reservation-info"
+            element={
+              <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+                <ReservationInfo />
               </ProtectedRoute>
             }
           />
