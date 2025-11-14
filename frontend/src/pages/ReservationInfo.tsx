@@ -307,13 +307,17 @@ export default function ReservationInfo() {
 
       setSubmitting(true);
       try {
-        await addEvent(eventData);
+        const newEvent = await addEvent(eventData);
+        console.log("예약 등록 성공:", newEvent);
+        
+        // 캘린더 새로고침
+        await refresh();
+        
         toast({
           title: "예약이 등록되었습니다.",
         });
         setOpenCreate(false);
         resetForm();
-        refresh();
       } catch (error: any) {
         console.error("예약 등록에 실패했습니다.", error);
         console.error("에러 상세:", error?.response?.data || error?.message);

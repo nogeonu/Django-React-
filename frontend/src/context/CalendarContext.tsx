@@ -161,12 +161,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       const created = await createAppointmentApi(payload);
       console.log("API 응답 받음:", created);
       const event = toCalendarEvent(created);
-      setEvents((prev) =>
-        [...prev, event].sort(
+      
+      // 즉시 UI에 반영
+      setEvents((prev) => {
+        const newEvents = [...prev, event].sort(
           (a: CalendarEvent, b: CalendarEvent) =>
             new Date(a.start).getTime() - new Date(b.start).getTime(),
-        ),
-      );
+        );
+        console.log("새로운 이벤트 목록:", newEvents);
+        return newEvents;
+      });
+      
       return event;
     } catch (error: any) {
       console.error("예약 생성에 실패했습니다.", error);
