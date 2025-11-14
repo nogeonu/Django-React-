@@ -45,8 +45,16 @@ def get_latest_release(request):
             return JsonResponse(filtered_data, status=200)
         elif response.status_code == 404:
             return JsonResponse(
-                {"error": "릴리즈를 찾을 수 없습니다."},
-                status=404
+                {
+                    "error": "릴리즈를 찾을 수 없습니다.",
+                    "message": "GitHub 저장소에 릴리즈가 아직 생성되지 않았습니다.",
+                    "tag_name": "",
+                    "name": "",
+                    "published_at": "",
+                    "body": "",
+                    "assets": [],
+                },
+                status=200  # 404가 아닌 200으로 반환하여 프론트엔드에서 처리
             )
         else:
             return JsonResponse(

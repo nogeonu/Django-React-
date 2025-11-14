@@ -204,13 +204,30 @@ export default function AppDownload() {
             )}
 
             {!loading && !error && (!release || !apkAsset) && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                <p className="text-gray-600">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center space-y-4">
+                <p className="text-gray-600 font-medium">
                   현재 다운로드 가능한 APK 파일이 없습니다.
                 </p>
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-gray-500">
                   새로운 버전이 곧 출시될 예정입니다.
                 </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-left">
+                  <p className="font-semibold text-blue-900 mb-2">📱 앱 준비 중</p>
+                  <p className="text-blue-700">
+                    Flutter 앱이 GitHub Actions를 통해 빌드되는 중이거나,<br />
+                    첫 번째 릴리즈가 아직 생성되지 않았습니다.
+                  </p>
+                  <p className="text-blue-700 mt-2">
+                    릴리즈가 생성되면 이 페이지에서 자동으로 최신 APK를 다운로드할 수 있습니다.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open("https://github.com/nogeonu/Flutter/releases", "_blank")}
+                  className="w-full"
+                >
+                  GitHub 릴리즈 페이지 확인하기 →
+                </Button>
               </div>
             )}
           </CardContent>
