@@ -65,6 +65,7 @@ export default function AppDownload() {
   };
 
   const apkAsset = release?.assets.find((asset) => asset.name.endsWith(".apk"));
+  const ipaAsset = release?.assets.find((asset) => asset.name.endsWith(".ipa"));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -130,7 +131,7 @@ export default function AppDownload() {
               최신 버전 다운로드
             </CardTitle>
             <CardDescription className="text-blue-100">
-              Android APK 파일을 다운로드하여 설치하세요
+              Android APK 또는 iOS IPA 파일을 다운로드하여 설치하세요
             </CardDescription>
           </CardHeader>
           <CardContent className="p-8">
@@ -150,7 +151,7 @@ export default function AppDownload() {
               </div>
             )}
 
-            {!loading && !error && release && apkAsset && (
+            {!loading && !error && release && (apkAsset || ipaAsset) && (
               <div className="space-y-6">
                 <div className="bg-gray-50 rounded-lg p-6 space-y-3">
                   <div className="flex items-center justify-between">
@@ -158,12 +159,6 @@ export default function AppDownload() {
                     <Badge variant="outline" className="text-base">
                       {release.tag_name}
                     </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">파일 크기</span>
-                    <span className="text-sm text-gray-900">
-                      {formatFileSize(apkAsset.size)}
-                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-600">배포일</span>
@@ -184,29 +179,62 @@ export default function AppDownload() {
                   </div>
                 )}
 
-                <Button
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-6 text-lg"
-                  onClick={() => window.open(apkAsset.browser_download_url, "_blank")}
-                >
-                  <Download className="w-5 h-5 mr-2" />
-                  APK 다운로드 ({formatFileSize(apkAsset.size)})
-                </Button>
+                {/* Android APK 다운로드 */}
+                {apkAsset && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      🤖 Android
+                    </h3>
+                    <Button
+                      size="lg"
+                      className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-6 text-lg"
+                      onClick={() => window.open(apkAsset.browser_download_url, "_blank")}
+                    >
+                      <Download className="w-5 h-5 mr-2" />
+                      Android APK 다운로드 ({formatFileSize(apkAsset.size)})
+                    </Button>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+                      <p className="font-medium mb-1">📱 Android 설치 안내</p>
+                      <p>
+                        APK 파일을 설치하려면 "출처를 알 수 없는 앱 설치" 권한이 필요합니다.<br />
+                        설정 → 보안 → 알 수 없는 출처 허용에서 활성화해주세요.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-                  <p className="font-medium mb-1">⚠️ 설치 안내</p>
-                  <p>
-                    APK 파일을 설치하려면 Android 기기의 "출처를 알 수 없는 앱 설치" 권한이
-                    필요할 수 있습니다. 설정 → 보안 → 알 수 없는 출처 허용에서 활성화해주세요.
-                  </p>
-                </div>
+                {/* iOS IPA 다운로드 */}
+                {ipaAsset && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      🍎 iOS
+                    </h3>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 font-semibold py-6 text-lg"
+                      onClick={() => window.open(ipaAsset.browser_download_url, "_blank")}
+                    >
+                      <Download className="w-5 h-5 mr-2" />
+                      iOS IPA 다운로드 ({formatFileSize(ipaAsset.size)})
+                    </Button>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                      <p className="font-medium mb-1">⚠️ iOS 설치 안내</p>
+                      <p className="space-y-1">
+                        <span className="block">• TestFlight 또는 개발자 프로비저닝 프로파일 필요</span>
+                        <span className="block">• 또는 AltStore, Sideloadly 등 사이드로딩 도구 사용</span>
+                        <span className="block">• 일반 사용자는 App Store 출시를 권장합니다</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {!loading && !error && (!release || !apkAsset) && (
+            {!loading && !error && (!release || (!apkAsset && !ipaAsset)) && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center space-y-4">
                 <p className="text-gray-600 font-medium">
-                  현재 다운로드 가능한 APK 파일이 없습니다.
+                  현재 다운로드 가능한 앱 파일이 없습니다.
                 </p>
                 <p className="text-sm text-gray-500">
                   새로운 버전이 곧 출시될 예정입니다.
@@ -223,7 +251,7 @@ export default function AppDownload() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => window.open("https://github.com/nogeonu/Flutter/releases", "_blank")}
+                  onClick={() => window.open("https://github.com/nogeonu/flutter-mobile/releases", "_blank")}
                   className="w-full"
                 >
                   GitHub 릴리즈 페이지 확인하기 →
@@ -239,12 +267,12 @@ export default function AppDownload() {
           <p className="mt-2">
             GitHub Repository:{" "}
             <a
-              href="https://github.com/nogeonu/Flutter"
+              href="https://github.com/nogeonu/flutter-mobile"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline"
             >
-              nogeonu/Flutter
+              nogeonu/flutter-mobile
             </a>
           </p>
         </div>

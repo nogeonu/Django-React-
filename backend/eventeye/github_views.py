@@ -14,7 +14,7 @@ def get_latest_release(request):
     GitHub의 최신 릴리즈 정보를 프록시로 가져옵니다.
     """
     owner = "nogeonu"
-    repo = "Flutter"
+    repo = "flutter-mobile"
     
     try:
         url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
