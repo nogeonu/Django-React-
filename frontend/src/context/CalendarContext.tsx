@@ -67,23 +67,32 @@ const normalizeAppointmentList = (data: any) => {
   return [];
 };
 
-const toCalendarEvent = (item: any): CalendarEvent => ({
-  id: item?.id,
-  title: item?.title,
-  start: item?.start_time,
-  end: item?.end_time || undefined,
-  type: item?.type || undefined,
-  status: item?.status || undefined,
-  memo: item?.memo || undefined,
-  patientId: item?.patient_id || undefined,
-  patientName: item?.patient_name || undefined,
-  patientGender: item?.patient_gender || undefined,
-  patientAge: typeof item?.patient_age === "number" ? item.patient_age : undefined,
-  patient: typeof item?.patient === "number" ? item.patient : undefined,
-  doctorId: item?.doctor_id || undefined,
-  doctorName: item?.doctor_name || item?.doctor_username || undefined,
-  doctorDepartment: item?.doctor_department || undefined,
-});
+const toCalendarEvent = (item: any): CalendarEvent => {
+  const event = {
+    id: String(item?.id || ''),
+    title: item?.title || '제목 없음',
+    start: item?.start_time || '',
+    end: item?.end_time || undefined,
+    type: item?.type || undefined,
+    status: item?.status || undefined,
+    memo: item?.memo || undefined,
+    patientId: item?.patient_id || undefined,
+    patientName: item?.patient_name || undefined,
+    patientGender: item?.patient_gender || undefined,
+    patientAge: typeof item?.patient_age === "number" ? item.patient_age : undefined,
+    patient: typeof item?.patient === "number" ? item.patient : undefined,
+    doctorId: item?.doctor_id || undefined,
+    doctorName: item?.doctor_name || item?.doctor_username || undefined,
+    doctorDepartment: item?.doctor_department || undefined,
+  };
+  
+  console.log("🔄 toCalendarEvent 변환:", {
+    원본: item,
+    변환결과: event
+  });
+  
+  return event;
+};
 
 const toCreatePayload = (input: CreateCalendarEventInput) => {
   const payload: Record<string, unknown> = {
@@ -127,20 +136,27 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const refresh = useCallback(async () => {
+    console.log("🔄 refresh() 호출 - 예약 데이터 새로고침 시작");
     setIsLoading(true);
     try {
       const data = await getAppointmentsApi({ page_size: 500 });
+      console.log("📥 API 응답 받음:", data);
+      
       const list = normalizeAppointmentList(data);
+      console.log("📋 정규화된 리스트 (총 " + list.length + "건):", list);
+      
+      const events = list.map(toCalendarEvent);
+      console.log("📅 변환된 이벤트 (총 " + events.length + "건):", events);
+      
       setEvents(
-        list
-          .map(toCalendarEvent)
-          .sort(
-            (a: CalendarEvent, b: CalendarEvent) =>
-              new Date(a.start).getTime() - new Date(b.start).getTime(),
-          ),
+        events.sort(
+          (a: CalendarEvent, b: CalendarEvent) =>
+            new Date(a.start).getTime() - new Date(b.start).getTime(),
+        ),
       );
+      console.log("✅ 이벤트 상태 업데이트 완료");
     } catch (error) {
-      console.error("예약 데이터를 불러오지 못했습니다.", error);
+      console.error("❌ 예약 데이터를 불러오지 못했습니다.", error);
       throw error;
     } finally {
       setIsLoading(false);
