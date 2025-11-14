@@ -161,6 +161,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
     ordering_fields = ['start_time', 'created_at']
     ordering = ['start_time']  # 가까운 일정 순으로 정렬
+    pagination_class = None  # 페이지네이션 비활성화 - 모든 예약 데이터 반환
 
     def get_queryset(self):
         queryset = super().get_queryset()
