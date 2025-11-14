@@ -148,6 +148,12 @@ export default function ReservationInfo() {
   const [patientResults, setPatientResults] = useState<PatientOption[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
 
+  // 페이지 로드 시 예약 데이터 불러오기
+  useEffect(() => {
+    console.log("🚀 ReservationInfo 마운트 - 초기 데이터 로드");
+    refresh().catch(err => console.error("초기 데이터 로드 실패:", err));
+  }, [refresh]);
+
   const resetForm = useCallback(() => {
     setForm({
       title: "",
