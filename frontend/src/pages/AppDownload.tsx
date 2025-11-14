@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Smartphone, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface ReleaseAsset {
@@ -68,72 +68,79 @@ export default function AppDownload() {
   const ipaAsset = release?.assets.find((asset) => asset.name.endsWith(".ipa"));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-12 max-w-5xl">
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* 헤더 */}
-        <div className="text-center mb-12">
-          <Badge className="mb-4 bg-blue-600 hover:bg-blue-700">
-            모바일 앱 다운로드
-          </Badge>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            건양대학교병원 환자 앱
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            언제 어디서나 간편하게 진료 예약, 건강 기록 확인, 의료진과의 소통이 가능한
-            스마트 헬스케어 애플리케이션입니다.
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Download className="w-8 h-8 text-blue-600" />
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">
+                MOBILE APP DOWNLOAD
+              </p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                건양대학교병원 환자 앱
+              </h1>
+            </div>
+          </div>
+          <p className="text-base text-gray-600 leading-relaxed">
+            언제 어디서나 간편하게 진료 예약, 건강 기록 확인, 의료진과의 소통이 가능한 스마트 헬스케어 애플리케이션입니다.
           </p>
         </div>
 
         {/* 기능 소개 */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <Card className="border-2 hover:border-blue-400 transition-colors">
-            <CardHeader>
-              <Smartphone className="w-10 h-10 text-blue-600 mb-2" />
-              <CardTitle className="text-lg">간편한 예약</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
-                병원 방문 없이 모바일에서 진료 예약부터 확인까지 한 번에
-              </p>
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
+          <Card className="border border-gray-200 bg-white hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <Smartphone className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-1">간편한 예약</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    병원 방문 없이 모바일에서 진료 예약부터 확인까지 한 번에
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-purple-400 transition-colors">
-            <CardHeader>
-              <Shield className="w-10 h-10 text-purple-600 mb-2" />
-              <CardTitle className="text-lg">안전한 개인정보</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
-                암호화된 통신으로 개인 건강 정보를 안전하게 보호합니다
-              </p>
+          <Card className="border border-gray-200 bg-white hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <Shield className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-1">안전한 개인정보</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    암호화된 통신으로 개인 건강 정보를 안전하게 보호합니다
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-green-400 transition-colors">
-            <CardHeader>
-              <Zap className="w-10 h-10 text-green-600 mb-2" />
-              <CardTitle className="text-lg">실시간 알림</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
-                예약 확인, 진료 일정 등 중요한 정보를 푸시 알림으로 전달
-              </p>
+          <Card className="border border-gray-200 bg-white hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <Zap className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-1">실시간 알림</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    예약 확인, 진료 일정 등 중요한 정보를 푸시 알림으로 전달
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* 다운로드 섹션 */}
-        <Card className="shadow-xl border-2">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Download className="w-6 h-6" />
-              최신 버전 다운로드
-            </CardTitle>
-            <CardDescription className="text-blue-100">
-              Android APK 또는 iOS IPA 파일을 다운로드하여 설치하세요
-            </CardDescription>
-          </CardHeader>
+        <Card className="border border-gray-200 bg-white shadow-sm">
           <CardContent className="p-8">
             {loading && (
               <div className="text-center py-8">
@@ -153,27 +160,34 @@ export default function AppDownload() {
 
             {!loading && !error && release && (apkAsset || ipaAsset) && (
               <div className="space-y-6">
-                <div className="bg-gray-50 rounded-lg p-6 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">버전</span>
-                    <Badge variant="outline" className="text-base">
-                      {release.tag_name}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">배포일</span>
-                    <span className="text-sm text-gray-900">
-                      {formatDate(release.published_at)}
-                    </span>
+                {/* 버전 정보 헤더 */}
+                <div className="flex items-start gap-3 pb-6 border-b border-gray-200">
+                  <Download className="w-6 h-6 text-blue-600 mt-1" />
+                  <div className="flex-1">
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">
+                      최신 버전 다운로드
+                    </h2>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">버전</span>
+                        <Badge variant="outline" className="font-semibold">
+                          {release.tag_name}
+                        </Badge>
+                      </div>
+                      <div className="text-gray-600">
+                        배포일: <span className="text-gray-900 font-medium">{formatDate(release.published_at)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {release.body && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">
+                  <div className="bg-blue-50 border-l-4 border-blue-600 p-6">
+                    <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <span className="text-blue-600">📋</span>
                       릴리즈 노트
                     </h3>
-                    <div className="bg-blue-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                    <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                       {release.body}
                     </div>
                   </div>
@@ -181,22 +195,28 @@ export default function AppDownload() {
 
                 {/* Android APK 다운로드 */}
                 {apkAsset && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      🤖 Android
-                    </h3>
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <span className="text-2xl">🤖</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-lg">Android</h3>
+                        <p className="text-sm text-gray-600">APK 파일 · {formatFileSize(apkAsset.size)}</p>
+                      </div>
+                    </div>
                     <Button
                       size="lg"
-                      className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-6 text-lg"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 text-base rounded-lg"
                       onClick={() => window.open(apkAsset.browser_download_url, "_blank")}
                     >
                       <Download className="w-5 h-5 mr-2" />
-                      Android APK 다운로드 ({formatFileSize(apkAsset.size)})
+                      Android APK 다운로드
                     </Button>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
-                      <p className="font-medium mb-1">📱 Android 설치 안내</p>
-                      <p>
-                        APK 파일을 설치하려면 "출처를 알 수 없는 앱 설치" 권한이 필요합니다.<br />
+                    <div className="mt-4 bg-green-50 border-l-4 border-green-600 p-4">
+                      <p className="text-sm font-semibold text-green-900 mb-2">📱 Android 설치 안내</p>
+                      <p className="text-sm text-green-800 leading-relaxed">
+                        APK 파일을 설치하려면 "출처를 알 수 없는 앱 설치" 권한이 필요합니다.
                         설정 → 보안 → 알 수 없는 출처 허용에서 활성화해주세요.
                       </p>
                     </div>
@@ -205,26 +225,32 @@ export default function AppDownload() {
 
                 {/* iOS IPA 다운로드 */}
                 {ipaAsset && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      🍎 iOS
-                    </h3>
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <span className="text-2xl">🍎</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-lg">iOS</h3>
+                        <p className="text-sm text-gray-600">IPA 파일 · {formatFileSize(ipaAsset.size)}</p>
+                      </div>
+                    </div>
                     <Button
                       size="lg"
                       variant="outline"
-                      className="w-full border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 font-semibold py-6 text-lg"
+                      className="w-full border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 font-semibold py-4 text-base rounded-lg"
                       onClick={() => window.open(ipaAsset.browser_download_url, "_blank")}
                     >
                       <Download className="w-5 h-5 mr-2" />
-                      iOS IPA 다운로드 ({formatFileSize(ipaAsset.size)})
+                      iOS IPA 다운로드
                     </Button>
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                      <p className="font-medium mb-1">⚠️ iOS 설치 안내</p>
-                      <p className="space-y-1">
-                        <span className="block">• TestFlight 또는 개발자 프로비저닝 프로파일 필요</span>
-                        <span className="block">• 또는 AltStore, Sideloadly 등 사이드로딩 도구 사용</span>
-                        <span className="block">• 일반 사용자는 App Store 출시를 권장합니다</span>
-                      </p>
+                    <div className="mt-4 bg-amber-50 border-l-4 border-amber-600 p-4">
+                      <p className="text-sm font-semibold text-amber-900 mb-2">⚠️ iOS 설치 안내</p>
+                      <ul className="text-sm text-amber-800 leading-relaxed space-y-1">
+                        <li>• TestFlight 또는 개발자 프로비저닝 프로파일 필요</li>
+                        <li>• 또는 AltStore, Sideloadly 등 사이드로딩 도구 사용</li>
+                        <li>• 일반 사용자는 App Store 출시를 권장합니다</li>
+                      </ul>
                     </div>
                   </div>
                 )}
@@ -261,20 +287,32 @@ export default function AppDownload() {
           </CardContent>
         </Card>
 
-        {/* 추가 정보 */}
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>앱 사용 중 문제가 발생하면 병원 고객센터(1234-5678)로 문의해주세요.</p>
-          <p className="mt-2">
-            GitHub Repository:{" "}
-            <a
-              href="https://github.com/nogeonu/flutter-mobile"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              nogeonu/flutter-mobile
-            </a>
-          </p>
+        {/* 하단 정보 */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <span className="text-xl">ℹ️</span>
+            </div>
+            <div className="flex-1 text-sm text-gray-600 leading-relaxed">
+              <p className="font-semibold text-gray-900 mb-2">
+                건양대학교 병원 · 환자 포털 서비스
+              </p>
+              <p>
+                앱 사용 중 문제가 발생하면 병원 고객센터(1234-5678)로 문의해주세요.
+              </p>
+              <p className="mt-2">
+                GitHub Repository:{" "}
+                <a
+                  href="https://github.com/nogeonu/flutter-mobile"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  nogeonu/flutter-mobile
+                </a>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
