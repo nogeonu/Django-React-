@@ -780,6 +780,16 @@ export default function ReservationInfo() {
                       firstDay={0}
                       dateClick={onDateClick}
                       eventContent={renderEventContent}
+                      datesSet={(dateInfo) => {
+                        console.log("📅 캘린더 날짜 범위 변경:", {
+                          start: dateInfo.startStr,
+                          end: dateInfo.endStr,
+                          view: dateInfo.view.type
+                        });
+                        // 날짜가 변경될 때마다 데이터 새로고침
+                        refresh().catch(err => console.error("날짜 변경 시 새로고침 실패:", err));
+                        setCurrentTitle(dateInfo.view.title);
+                      }}
                       eventClick={(info) => {
                         const event = info.event;
                         const props = event.extendedProps as any;
