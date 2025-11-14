@@ -157,14 +157,19 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['doctor', 'status', 'type', 'patient_id']
+    filterset_fields = ['doctor', 'status', 'type']
     search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
     ordering_fields = ['start_time', 'created_at']
-    ordering = ['-start_time']
+    ordering = ['start_time']  # 가까운 일정 순으로 정렬
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 의료진은 본인이 담당한 예약만 필터링할 수도 있음. 기본은 전체 조회.
+        
+        # patient_id로 필터링 (patient_identifier 필드 사용)
+        patient_id = self.request.query_params.get('patient_id')
+        if patient_id:
+            queryset = queryset.filter(patient_identifier=patient_id)
+        
         return queryset
 
     def get_serializer_context(self):
@@ -183,3 +188,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save()
+    
+    @action(detail=False, methods=['get'])
+    def my_appointments(self, request):
+        """환자 ID로 예약 목록 조회"""
+        patient_id = request.query_params.get('patient_id')
+        if not patient_id:
+            return Response(
+                {"detail": "patient_id 파라미터가 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        appointments = self.queryset.filter(patient_identifier=patient_id).order_by('start_time')
+        serializer = self.get_serializer(appointments, many=True)
+        return Response(serializer.data)

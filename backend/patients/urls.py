@@ -8,6 +8,10 @@ from .views import (
     PatientProfileView,
     AppointmentViewSet,
 )
+from .mobile_views import (
+    get_latest_apk_info,
+    record_apk_download,
+)
 
 router = DefaultRouter()
 router.register(r'patients', PatientViewSet)
@@ -19,4 +23,7 @@ urlpatterns = [
     path('signup/', PatientSignupView.as_view(), name='patient-signup'),
     path('login/', PatientLoginView.as_view(), name='patient-login'),
     path('profile/<str:account_id>/', PatientProfileView.as_view(), name='patient-profile'),
+    # 모바일 앱 관련
+    path('mobile/latest-apk/', get_latest_apk_info, name='latest-apk'),
+    path('mobile/download-stats/', record_apk_download, name='download-stats'),
 ]

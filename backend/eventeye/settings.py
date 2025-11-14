@@ -190,3 +190,6 @@ SWAGGER_SETTINGS = {
 REDOC_SETTINGS = {
     'LAZY_RENDERING': False,
 }
+
+# Flutter 모바일 앱 설정
+FLUTTER_GITHUB_REPO = 'nogeonu/flutter-mobile'  # GitHub 저장소 (owner/repo)

@@ -96,7 +96,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         source='patient_identifier',
         allow_blank=True,
         required=False,
-        read_only=False,
     )
     doctor_id = serializers.SerializerMethodField()
 
@@ -134,7 +133,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'doctor_department',
             'doctor_display',
             'patient_display',
-            'created_by',
             'created_at',
             'updated_at',
         ]
