@@ -6,6 +6,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from . import auth_views
+from . import github_views
 from django.http import JsonResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
@@ -55,6 +56,9 @@ urlpatterns = [
     path('api/auth/logout', auth_views.logout, name='logout'),
     path('api/auth/register', auth_views.register, name='register'),
     path('api/auth/doctors/', auth_views.list_doctors, name='doctor-list'),
+    
+    # GitHub API Proxy
+    path('api/github/latest-release', github_views.get_latest_release, name='github-latest-release'),
     
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

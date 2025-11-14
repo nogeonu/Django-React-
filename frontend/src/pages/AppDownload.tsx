@@ -26,15 +26,16 @@ export default function AppDownload() {
   useEffect(() => {
     const fetchLatestRelease = async () => {
       try {
-        const response = await fetch(
-          "https://api.github.com/repos/nogeonu/Flutter/releases/latest"
-        );
+        // Django 백엔드 프록시를 통해 GitHub API 호출
+        const response = await fetch("/api/github/latest-release");
         if (!response.ok) {
-          throw new Error("최신 릴리즈를 가져올 수 없습니다.");
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "최신 릴리즈를 가져올 수 없습니다.");
         }
         const data = await response.json();
         setRelease(data);
       } catch (err) {
+        console.error("GitHub 릴리즈 조회 오류:", err);
         setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.");
       } finally {
         setLoading(false);
