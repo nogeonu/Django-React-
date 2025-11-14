@@ -155,7 +155,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
 class AppointmentViewSet(viewsets.ModelViewSet):
     queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
     serializer_class = AppointmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['doctor', 'status', 'type', 'patient_id']
     search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
@@ -176,7 +176,10 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         print(f"[예약 등록] 요청 데이터: {self.request.data}")
         print(f"[예약 등록] 사용자: {self.request.user}")
         print(f"[예약 등록] 인증 여부: {self.request.user.is_authenticated}")
-        serializer.save(created_by=self.request.user)
+        if self.request.user.is_authenticated:
+            serializer.save(created_by=self.request.user)
+        else:
+            serializer.save()
 
     def perform_update(self, serializer):
         serializer.save()

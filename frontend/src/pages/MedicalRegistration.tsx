@@ -137,25 +137,16 @@ const MedicalRegistration: React.FC = () => {
         return;
       }
 
-      // 한글 진료과명을 영어 코드로 변환
-      const departmentCodeMap: Record<string, string> = {
-        '호흡기내과': 'respiratory',
-        '외과': 'surgery',
-      };
-      
-      const departmentCode = departmentCodeMap[department];
-      
-      if (!departmentCode) {
-        console.error('알 수 없는 진료과:', department);
-        setDoctors([]);
-        return;
-      }
-
       try {
-        console.log('의사 목록 요청:', departmentCode);
-        const doctorData = await getDoctorsApi(departmentCode);
+        console.log('의사 목록 요청:', department);
+        const doctorData = await getDoctorsApi();
         console.log('의사 목록 응답:', doctorData);
-        setDoctors(doctorData.doctors || []);
+        const list: Doctor[] = doctorData.doctors || [];
+        const filtered = list.filter((doctor) => {
+          const doctorDepartment = doctor.department?.trim();
+          return doctorDepartment === department;
+        });
+        setDoctors(filtered);
       } catch (error) {
         console.error('의사 목록 로드 오류:', error);
         setDoctors([]);
