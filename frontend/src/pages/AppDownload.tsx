@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Download, Smartphone, Shield, Zap } from "lucide-react";
+import { Download, Smartphone, Shield, Zap, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
 
 interface ReleaseAsset {
   name: string;
@@ -72,16 +73,24 @@ export default function AppDownload() {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* 헤더 */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Download className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">
-                MOBILE APP DOWNLOAD
-              </p>
-              <h1 className="text-3xl font-bold text-gray-900">
-                건양대학교병원 환자 앱
-              </h1>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Download className="w-8 h-8 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">
+                  MOBILE APP DOWNLOAD
+                </p>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  건양대학교병원 환자 앱
+                </h1>
+              </div>
             </div>
+            <Link to="/">
+              <Button variant="outline" className="flex items-center gap-2">
+                <Home className="w-4 h-4" />
+                홈으로
+              </Button>
+            </Link>
           </div>
           <p className="text-base text-gray-600 leading-relaxed">
             언제 어디서나 간편하게 진료 예약, 건강 기록 확인, 의료진과의 소통이 가능한 스마트 헬스케어 애플리케이션입니다.
