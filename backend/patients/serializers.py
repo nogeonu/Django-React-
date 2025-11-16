@@ -98,6 +98,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         required=False,
     )
     doctor_id = serializers.SerializerMethodField()
+    doctor_department = serializers.SerializerMethodField()
 
     class Meta:
         model = Appointment
@@ -159,10 +160,21 @@ class AppointmentSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
 
+    def get_doctor_department(self, obj):
+        """영어 진료과 코드를 한글로 변환"""
+        DEPARTMENT_MAP = {
+            'respiratory': '호흡기내과',
+            'surgery': '외과',
+            'admin': '관리자',
+        }
+        dept_code = obj.doctor_department if hasattr(obj, 'doctor_department') else None
+        return DEPARTMENT_MAP.get(dept_code, dept_code or '')
+
     def get_doctor_display(self, obj):
         parts = [obj.doctor_name or obj.doctor_username]
-        if obj.doctor_department:
-            parts.append(obj.doctor_department)
+        dept_korean = self.get_doctor_department(obj)
+        if dept_korean:
+            parts.append(dept_korean)
         if obj.doctor_code:
             parts.append(obj.doctor_code)
         return " / ".join(filter(None, parts))
