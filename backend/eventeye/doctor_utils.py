@@ -3,14 +3,25 @@ from typing import Optional
 from django.db import connection, IntegrityError, transaction
 from django.utils import timezone
 
-DEPARTMENT_ADMIN = "admin"
-DEPARTMENT_RESPIRATORY = "respiratory"
-DEPARTMENT_SURGERY = "surgery"
+DEPARTMENT_ADMIN = "원무과"
+DEPARTMENT_RESPIRATORY = "호흡기내과"
+DEPARTMENT_SURGERY = "외과"
 ALLOWED_DEPARTMENTS = {
   DEPARTMENT_ADMIN,
   DEPARTMENT_RESPIRATORY,
   DEPARTMENT_SURGERY,
 }
+
+# 하위 호환성을 위한 영어-한글 매핑
+DEPARTMENT_MAPPING = {
+    "admin": DEPARTMENT_ADMIN,
+    "respiratory": DEPARTMENT_RESPIRATORY,
+    "surgery": DEPARTMENT_SURGERY,
+}
+
+def normalize_department(dept: str) -> str:
+    """영어 진료과 코드를 한글로 변환 (하위 호환성)"""
+    return DEPARTMENT_MAPPING.get(dept, dept)
 
 
 def get_doctor_id(user_id: int) -> Optional[str]:
@@ -29,12 +40,14 @@ def get_department(user_id: int) -> Optional[str]:
 
 
 def set_department(user_id: int, department: str) -> None:
-    if department not in ALLOWED_DEPARTMENTS:
+    # 영어 코드가 들어오면 한글로 변환 (하위 호환성)
+    normalized_dept = normalize_department(department)
+    if normalized_dept not in ALLOWED_DEPARTMENTS:
         raise ValueError(f"Invalid department: {department}")
     with connection.cursor() as cursor:
         cursor.execute(
             "UPDATE auth_user SET department = %s WHERE id = %s",
-            [department, user_id],
+            [normalized_dept, user_id],
         )
 
 

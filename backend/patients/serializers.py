@@ -98,7 +98,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         required=False,
     )
     doctor_id = serializers.SerializerMethodField()
-    doctor_department = serializers.SerializerMethodField()
 
     class Meta:
         model = Appointment

@@ -8,9 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from .doctor_utils import (
     ALLOWED_DEPARTMENTS,
     DEPARTMENT_ADMIN,
+    DEPARTMENT_MAPPING,
     ensure_doctor_id,
     get_department,
     get_doctor_id,
+    normalize_department,
     set_department,
 )
 
@@ -97,6 +99,9 @@ def register(request):
     first_name = payload.get("first_name")
     last_name = payload.get("last_name")
     department = payload.get("department", DEPARTMENT_ADMIN)
+    
+    # 영어 코드가 들어오면 한글로 변환 (하위 호환성)
+    department = normalize_department(department)
 
     print(f"[회원가입] 받은 데이터: username={username}, department={department}, email={email}")
 
@@ -152,6 +157,8 @@ def register(request):
 def list_doctors(request):
     department = request.GET.get("department")
     if department:
+        # 영어 코드가 들어오면 한글로 변환 (하위 호환성)
+        department = normalize_department(department)
         if department not in ALLOWED_DEPARTMENTS:
             return JsonResponse({"detail": "Invalid department"}, status=400)
         if department == DEPARTMENT_ADMIN:
