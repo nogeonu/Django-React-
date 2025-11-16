@@ -26,26 +26,37 @@ class PatientUserSignupSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        # 1단계: 환자 계정(PatientUser) 먼저 생성 (부모)
-        patient_id = Patient.generate_patient_id()
-        user = PatientUser.objects.create_user(
-            account_id=validated_data["account_id"],
-            email=validated_data["email"],
-            password=validated_data["password"],
-            name=validated_data["name"],
-            patient_id=patient_id,
-            phone=validated_data["phone"],
-        )
+        try:
+            # 1단계: 환자 계정(PatientUser) 먼저 생성 (부모)
+            patient_id = Patient.generate_patient_id()
+            print(f"[환자 회원가입] 생성된 환자 ID: {patient_id}")
+            print(f"[환자 회원가입] 입력 데이터: {validated_data}")
+            
+            user = PatientUser.objects.create_user(
+                account_id=validated_data["account_id"],
+                email=validated_data["email"],
+                password=validated_data["password"],
+                name=validated_data["name"],
+                patient_id=patient_id,
+                phone=validated_data["phone"],
+            )
+            print(f"[환자 회원가입] PatientUser 생성 완료: {user.account_id}")
 
-        # 2단계: 환자 정보(Patient) 생성하고 계정과 연결 (자식)
-        patient = Patient.objects.create(
-            patient_id=patient_id,
-            name=validated_data["name"],
-            phone=validated_data["phone"],
-            user_account=user,  # 외래키 연결
-        )
+            # 2단계: 환자 정보(Patient) 생성하고 계정과 연결 (자식)
+            patient = Patient.objects.create(
+                patient_id=patient_id,
+                name=validated_data["name"],
+                phone=validated_data["phone"],
+                user_account=user,  # 외래키 연결
+            )
+            print(f"[환자 회원가입] Patient 생성 완료: {patient.patient_id}")
 
-        return user
+            return user
+        except Exception as e:
+            print(f"[환자 회원가입] 에러 발생: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
 
 
 class PatientSerializer(serializers.ModelSerializer):
@@ -159,21 +170,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
 
-    def get_doctor_department(self, obj):
-        """영어 진료과 코드를 한글로 변환"""
-        DEPARTMENT_MAP = {
-            'respiratory': '호흡기내과',
-            'surgery': '외과',
-            'admin': '관리자',
-        }
-        dept_code = obj.doctor_department if hasattr(obj, 'doctor_department') else None
-        return DEPARTMENT_MAP.get(dept_code, dept_code or '')
-
     def get_doctor_display(self, obj):
         parts = [obj.doctor_name or obj.doctor_username]
-        dept_korean = self.get_doctor_department(obj)
-        if dept_korean:
-            parts.append(dept_korean)
+        if obj.doctor_department:
+            parts.append(obj.doctor_department)
         if obj.doctor_code:
             parts.append(obj.doctor_code)
         return " / ".join(filter(None, parts))
