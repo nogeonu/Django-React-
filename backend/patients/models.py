@@ -120,21 +120,43 @@ class Patient(models.Model):
 
     @staticmethod
     def generate_patient_id() -> str:
+        from patients.models import PatientUser
         current_year = timezone.now().year
         prefix = f"P{current_year}"
-        latest = (
+        
+        # Patient와 PatientUser 둘 다 확인
+        latest_patient = (
             Patient.objects.filter(patient_id__startswith=prefix)
             .order_by('-patient_id')
             .values_list('patient_id', flat=True)
             .first()
         )
+        latest_patient_user = (
+            PatientUser.objects.filter(patient_id__startswith=prefix)
+            .order_by('-patient_id')
+            .values_list('patient_id', flat=True)
+            .first()
+        )
+        
+        # 둘 중 더 큰 번호 찾기
+        latest = None
+        if latest_patient and latest_patient_user:
+            latest = max(latest_patient, latest_patient_user)
+        elif latest_patient:
+            latest = latest_patient
+        elif latest_patient_user:
+            latest = latest_patient_user
+            
         if not latest:
             return f"{prefix}001"
 
         try:
             sequence = int(latest.replace(prefix, "")) + 1
         except ValueError:
-            sequence = Patient.objects.filter(patient_id__startswith=prefix).count() + 1
+            # 둘 다 count하고 큰 값 사용
+            patient_count = Patient.objects.filter(patient_id__startswith=prefix).count()
+            user_count = PatientUser.objects.filter(patient_id__startswith=prefix).count()
+            sequence = max(patient_count, user_count) + 1
         return f"{prefix}{sequence:03d}"
 
 
