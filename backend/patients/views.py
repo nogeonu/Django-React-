@@ -39,9 +39,16 @@ class PatientSignupView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             user = serializer.save()
-        except Exception:  # pragma: no cover
+        except Exception as e:  # pragma: no cover
+            import traceback
+            print(f"[환자 회원가입 VIEW] 에러 발생: {type(e).__name__}: {str(e)}")
+            traceback.print_exc()
             return Response(
-                {"detail": "환자 계정 생성 중 오류가 발생했습니다."},
+                {
+                    "detail": "환자 계정 생성 중 오류가 발생했습니다.",
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
