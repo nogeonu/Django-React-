@@ -175,11 +175,11 @@ export default function Signup() {
                     <SelectValue placeholder="원무과 또는 진료과를 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">원무과 (Admin Staff)</SelectItem>
-                    <SelectItem value="respiratory">
+                    <SelectItem value="원무과">원무과 (Admin Staff)</SelectItem>
+                    <SelectItem value="호흡기내과">
                       호흡기내과 (Medical Staff)
                     </SelectItem>
-                    <SelectItem value="surgery">
+                    <SelectItem value="외과">
                       외과 (Medical Staff)
                     </SelectItem>
                   </SelectContent>
