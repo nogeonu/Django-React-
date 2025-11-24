@@ -74,33 +74,34 @@ jobs:
             npm run build
 
             # Update Nginx configuration to serve media files
-            sudo tee /etc/nginx/sites-available/app >/dev/null <<NGINX_EOF
+            cat > /tmp/nginx-app.conf <<'NGINX_CONF'
             server {
                 listen 80;
                 server_name 34.42.223.43;
 
-                root ${APP_DIR}/frontend/dist;
+                root APP_DIR_PLACEHOLDER/frontend/dist;
                 index index.html;
 
                 location /api/ {
                     proxy_pass http://127.0.0.1:8000;
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
-                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto \$scheme;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
 
                 location /media/ {
-                    alias ${APP_DIR}/backend/media/;
+                    alias APP_DIR_PLACEHOLDER/backend/media/;
                     expires 30d;
                     add_header Cache-Control "public, immutable";
                 }
 
                 location / {
-                    try_files \$uri /index.html;
+                    try_files $uri /index.html;
                 }
             }
-            NGINX_EOF
+            NGINX_CONF
+            sed "s|APP_DIR_PLACEHOLDER|$APP_DIR|g" /tmp/nginx-app.conf | sudo tee /etc/nginx/sites-available/app > /dev/null
             sudo nginx -t && sudo systemctl reload nginx || true
 
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
