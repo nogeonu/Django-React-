@@ -75,29 +75,35 @@ jobs:
 
             # Update Nginx configuration to serve media files
             if [ ! -f /etc/nginx/sites-available/app ] || ! grep -q "location /media/" /etc/nginx/sites-available/app 2>/dev/null; then
-              {
-                echo 'server {'
-                echo '    listen 80;'
-                echo '    server_name 34.42.223.43;'
-                echo "    root $APP_DIR/frontend/dist;"
-                echo '    index index.html;'
-                echo '    location /api/ {'
-                echo '        proxy_pass http://127.0.0.1:8000;'
-                echo '        proxy_set_header Host $host;'
-                echo '        proxy_set_header X-Real-IP $remote_addr;'
-                echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
-                echo '        proxy_set_header X-Forwarded-Proto $scheme;'
-                echo '    }'
-                echo '    location /media/ {'
-                echo "        alias $APP_DIR/backend/media/;"
-                echo '        expires 30d;'
-                echo '        add_header Cache-Control "public, immutable";'
-                echo '    }'
-                echo '    location / {'
-                echo '        try_files $uri /index.html;'
-                echo '    }'
-                echo '}'
-              } | sudo tee /etc/nginx/sites-available/app > /dev/null
+              cat <<'NGINX_TEMPLATE' > /tmp/nginx-app.conf
+server {
+    listen 80;
+    server_name 34.42.223.43;
+
+    root __APP_DIR__/frontend/dist;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /media/ {
+        alias __APP_DIR__/backend/media/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}
+NGINX_TEMPLATE
+              sed -i "s|__APP_DIR__|$APP_DIR|g" /tmp/nginx-app.conf
+              sudo mv /tmp/nginx-app.conf /etc/nginx/sites-available/app
             fi
             sudo nginx -t && sudo systemctl reload nginx || true
 
