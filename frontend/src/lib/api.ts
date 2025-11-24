@@ -114,6 +114,13 @@ export const getPatientsApi = async (
   return res.data;
 };
 
+export const searchPatientsApi = async (searchTerm: string) => {
+  const res = await apiClient.get('/api/patients/patients/', {
+    params: { search: searchTerm },
+  });
+  return res.data;
+};
+
 export const createAppointmentApi = async (data: Record<string, unknown>) => {
   const res = await apiClient.post('/api/patients/appointments/', data);
   return res.data;
