@@ -148,12 +148,6 @@ export default function ReservationInfo() {
   const [patientResults, setPatientResults] = useState<PatientOption[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
 
-  // 페이지 로드 시 예약 데이터 불러오기
-  useEffect(() => {
-    console.log("🚀 ReservationInfo 마운트 - 초기 데이터 로드");
-    refresh().catch(err => console.error("초기 데이터 로드 실패:", err));
-  }, [refresh]);
-
   const resetForm = useCallback(() => {
     setForm({
       title: "",
@@ -313,17 +307,13 @@ export default function ReservationInfo() {
 
       setSubmitting(true);
       try {
-        const newEvent = await addEvent(eventData);
-        console.log("예약 등록 성공:", newEvent);
-        
-        // 캘린더 새로고침
-        await refresh();
-        
+        await addEvent(eventData);
         toast({
           title: "예약이 등록되었습니다.",
         });
         setOpenCreate(false);
         resetForm();
+        refresh();
       } catch (error: any) {
         console.error("예약 등록에 실패했습니다.", error);
         console.error("에러 상세:", error?.response?.data || error?.message);
@@ -719,32 +709,6 @@ export default function ReservationInfo() {
                     text-overflow: ellipsis;
                     white-space: nowrap;
                   }
-                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__time,
-                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__title,
-                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__meta {
-                    white-space: normal;
-                    overflow: visible;
-                    text-overflow: unset;
-                  }
-                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card__time {
-                    white-space: nowrap;
-                  }
-                  .reservation-calendar .fc .fc-timegrid-event .fc-event-card {
-                    height: 100%;
-                  }
-                  .reservation-calendar .fc .fc-daygrid-event .fc-event-card__time,
-                  .reservation-calendar .fc .fc-daygrid-event .fc-event-card__title,
-                  .reservation-calendar .fc .fc-daygrid-event .fc-event-card__meta {
-                    white-space: normal;
-                    overflow: visible;
-                    text-overflow: unset;
-                  }
-                  .reservation-calendar .fc .fc-daygrid-event .fc-event-card__time {
-                    white-space: nowrap;
-                  }
-                  .reservation-calendar .fc .fc-daygrid-event .fc-event-card {
-                    align-items: flex-start;
-                  }
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sat,
                   .reservation-calendar .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
                   .reservation-calendar .fc .fc-timegrid-slot { height: 40px; }
@@ -786,16 +750,6 @@ export default function ReservationInfo() {
                       firstDay={0}
                       dateClick={onDateClick}
                       eventContent={renderEventContent}
-                      datesSet={(dateInfo) => {
-                        console.log("📅 캘린더 날짜 범위 변경:", {
-                          start: dateInfo.startStr,
-                          end: dateInfo.endStr,
-                          view: dateInfo.view.type
-                        });
-                        // 날짜가 변경될 때마다 데이터 새로고침
-                        refresh().catch(err => console.error("날짜 변경 시 새로고침 실패:", err));
-                        setCurrentTitle(dateInfo.view.title);
-                      }}
                       eventClick={(info) => {
                         const event = info.event;
                         const props = event.extendedProps as any;

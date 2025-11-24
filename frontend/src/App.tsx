@@ -28,7 +28,6 @@ import Home from "@/pages/Home";
 import PatientMyPage from "@/pages/PatientMyPage";
 import PatientMedicalRecords from "@/pages/PatientMedicalRecords";
 import PatientDoctors from "@/pages/PatientDoctors";
-import AppDownload from "@/pages/AppDownload";
 
 const queryClient = new QueryClient();
 
@@ -43,7 +42,6 @@ function AppContent() {
     "/patient/mypage",
     "/patient/records",
     "/patient/doctors",
-    "/app-download",
   ].includes(location.pathname);
 
   return (
@@ -60,7 +58,6 @@ function AppContent() {
           <Route path="/patient/mypage" element={<PatientMyPage />} />
           <Route path="/patient/records" element={<PatientMedicalRecords />} />
           <Route path="/patient/doctors" element={<PatientDoctors />} />
-          <Route path="/app-download" element={<AppDownload />} />
 
           {/* 로그인 필수 라우트 */}
           <Route

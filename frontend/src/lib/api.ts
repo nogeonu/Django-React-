@@ -114,26 +114,6 @@ export const getPatientsApi = async (
   return res.data;
 };
 
-export const searchPatientsApi = async (searchTerm: string) => {
-  console.log('🔍 환자 검색 시작:', searchTerm);
-  try {
-    const res = await apiClient.get('/api/patients/patients/', {
-      params: { search: searchTerm, page_size: 10 },
-    });
-    console.log('✅ 환자 검색 응답:', res.data);
-    const data = res.data;
-    if (data && typeof data === 'object' && 'results' in data) {
-      console.log('📋 검색 결과 개수:', data.results.length);
-      return data.results as unknown[];
-    }
-    console.log('📋 검색 결과 (배열):', Array.isArray(data) ? data.length : 0);
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error('❌ 환자 검색 API 에러:', error);
-    throw error;
-  }
-};
-
 export const createAppointmentApi = async (data: Record<string, unknown>) => {
   const res = await apiClient.post('/api/patients/appointments/', data);
   return res.data;
