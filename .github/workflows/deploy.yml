@@ -61,6 +61,7 @@ jobs:
             source .venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
+            mkdir -p media/medical_images
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
