@@ -74,34 +74,40 @@ jobs:
             npm run build
 
             # Update Nginx configuration to serve media files
-            cat > /tmp/nginx-app.conf <<'NGINX_CONF'
-            server {
-                listen 80;
-                server_name 34.42.223.43;
+            if [ ! -f /etc/nginx/sites-available/app ] || ! grep -q "location /media/" /etc/nginx/sites-available/app 2>/dev/null; then
+              python3 -c "
+import sys
+app_dir = sys.argv[1]
+config = '''server {
+    listen 80;
+    server_name 34.42.223.43;
 
-                root APP_DIR_PLACEHOLDER/frontend/dist;
-                index index.html;
+    root ''' + app_dir + '''/frontend/dist;
+    index index.html;
 
-                location /api/ {
-                    proxy_pass http://127.0.0.1:8000;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                }
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
+    }
 
-                location /media/ {
-                    alias APP_DIR_PLACEHOLDER/backend/media/;
-                    expires 30d;
-                    add_header Cache-Control "public, immutable";
-                }
+    location /media/ {
+        alias ''' + app_dir + '''/backend/media/;
+        expires 30d;
+        add_header Cache-Control \"public, immutable\";
+    }
 
-                location / {
-                    try_files $uri /index.html;
-                }
-            }
-            NGINX_CONF
-            sed "s|APP_DIR_PLACEHOLDER|$APP_DIR|g" /tmp/nginx-app.conf | sudo tee /etc/nginx/sites-available/app > /dev/null
+    location / {
+        try_files \\$uri /index.html;
+    }
+}'''
+with open('/tmp/nginx-app.conf', 'w') as f:
+    f.write(config)
+" "$APP_DIR"
+              sudo cp /tmp/nginx-app.conf /etc/nginx/sites-available/app
+            fi
             sudo nginx -t && sudo systemctl reload nginx || true
 
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
