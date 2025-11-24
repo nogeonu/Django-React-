@@ -61,7 +61,6 @@ jobs:
             source .venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
-            mkdir -p media/medical_images
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
@@ -73,40 +72,5 @@ jobs:
             npm ci
             npm run build
 
-            # Update Nginx configuration to serve media files
-            if [ ! -f /etc/nginx/sites-available/app ] || ! grep -q "location /media/" /etc/nginx/sites-available/app 2>/dev/null; then
-              cat <<'NGINX_TEMPLATE' > /tmp/nginx-app.conf
-server {
-    listen 80;
-    server_name 34.42.223.43;
-
-    root __APP_DIR__/frontend/dist;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /media/ {
-        alias __APP_DIR__/backend/media/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    location / {
-        try_files $uri /index.html;
-    }
-}
-NGINX_TEMPLATE
-              sed -i "s|__APP_DIR__|$APP_DIR|g" /tmp/nginx-app.conf
-              sudo mv /tmp/nginx-app.conf /etc/nginx/sites-available/app
-            fi
-            sudo nginx -t && sudo systemctl reload nginx || true
-
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl reload nginx || sudo systemctl restart nginx
-
