@@ -176,6 +176,58 @@ export default function MedicalImages() {
     }
   };
 
+  const handleDownload = (image: MedicalImage) => {
+    if (!image.image_url) {
+      toast({
+        title: "다운로드 실패",
+        description: "이미지 URL이 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // 이미지 URL에서 파일명 추출
+      const url = new URL(image.image_url);
+      const pathParts = url.pathname.split('/');
+      const filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+      
+      // 이미지 다운로드
+      fetch(image.image_url)
+        .then(response => response.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = decodeURIComponent(filename);
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          
+          toast({
+            title: "다운로드 완료",
+            description: "이미지가 다운로드되었습니다.",
+          });
+        })
+        .catch(error => {
+          console.error('다운로드 오류:', error);
+          toast({
+            title: "다운로드 실패",
+            description: "이미지를 다운로드할 수 없습니다.",
+            variant: "destructive",
+          });
+        });
+    } catch (error) {
+      console.error('다운로드 오류:', error);
+      toast({
+        title: "다운로드 실패",
+        description: "이미지를 다운로드할 수 없습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getAnalysisStatusBadge = (image: MedicalImage) => {
     if (image.analysis_results && image.analysis_results.length > 0) {
       return (
@@ -389,6 +441,10 @@ export default function MedicalImages() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(image);
+                            }}
                             data-testid={`button-download-${image.id}`}
                           >
                             <Download className="w-3 h-3" />
@@ -542,7 +598,11 @@ export default function MedicalImages() {
                       <Play className="w-4 h-4 mr-2" />
                       {selectedImage.analysis_results && selectedImage.analysis_results.length > 0 ? "재분석" : "AI 분석"}
                     </Button>
-                    <Button variant="outline" data-testid="button-download-modal">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleDownload(selectedImage)}
+                      data-testid="button-download-modal"
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       다운로드
                     </Button>
