@@ -14,6 +14,7 @@ import {
   PhoneCall,
   Pill,
   Stethoscope,
+  Bot,
 } from "lucide-react";
 
 const navItems = [
@@ -401,6 +402,16 @@ function Home() {
             </Card>
           </div>
         </section>
+      <Button
+        onClick={() =>
+          toast({ title: "챗봇 상담", description: "LLM 챗봇 서비스가 곧 제공될 예정입니다." })
+        }
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-blue-600 px-5 py-4 text-white shadow-lg transition hover:bg-blue-700"
+      >
+        <Bot className="h-5 w-5" />
+        <span className="text-sm font-semibold">챗봇 상담</span>
+      </Button>
+
       </main>
 
       <footer className="border-t bg-white">
