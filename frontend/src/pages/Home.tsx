@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import {
   Calendar,
-  Camera,
   Clock,
   Download,
   Info,
