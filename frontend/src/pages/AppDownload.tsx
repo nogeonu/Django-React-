@@ -236,7 +236,7 @@ export default function AppDownload() {
                 {ipaAsset && (
                   <div className="rounded-lg border border-slate-200 bg-white p-6">
                     <div className="mb-4 flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-50">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-50">
                         <span className="text-2xl">🍎</span>
                       </div>
                       <div>
@@ -246,16 +246,15 @@ export default function AppDownload() {
                     </div>
                     <Button
                       size="lg"
-                      variant="outline"
-                      className="w-full rounded-lg border-2 border-slate-300 py-4 text-base font-semibold hover:border-slate-400 hover:bg-slate-50"
+                      className="w-full rounded-lg bg-rose-600 py-4 text-base font-semibold text-white hover:bg-rose-700"
                       onClick={() => window.open(ipaAsset.browser_download_url, "_blank")}
                     >
                       <Download className="mr-2 h-5 w-5" />
                       iOS IPA 다운로드
                     </Button>
-                    <div className="mt-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4">
-                      <p className="mb-2 text-sm font-semibold text-amber-900">⚠️ iOS 설치 안내</p>
-                      <ul className="space-y-1 text-sm leading-relaxed text-amber-800">
+                    <div className="mt-4 rounded-lg border-l-4 border-rose-500 bg-rose-50 p-4">
+                      <p className="mb-2 text-sm font-semibold text-rose-900">⚠️ iOS 설치 안내</p>
+                      <ul className="space-y-1 text-sm leading-relaxed text-rose-800">
                         <li>• TestFlight 또는 개발자 프로비저닝 프로파일 필요</li>
                         <li>• 또는 AltStore, Sideloadly 등 사이드로딩 도구 사용</li>
                         <li>• 일반 사용자는 App Store 출시를 권장합니다</li>
