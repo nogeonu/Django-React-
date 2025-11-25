@@ -318,11 +318,28 @@ export default function MedicalImages() {
                       data-testid={`image-card-${image.id}`}
                     >
                       <div className="aspect-video bg-gray-100 relative">
-                        <img
-                          src={image.image_url}
-                          alt={image.image_type}
-                          className="w-full h-full object-cover"
-                        />
+                        {image.image_url ? (
+                          <img
+                            src={image.image_url}
+                            alt={image.image_type}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="w-full h-full flex items-center justify-center bg-gray-100"
+                          style={{ display: image.image_url ? 'none' : 'flex' }}
+                        >
+                          <div className="text-center">
+                            <FileImage className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs text-gray-500">이미지 없음</p>
+                          </div>
+                        </div>
                         <div className="absolute top-2 right-2">
                           {getAnalysisStatusBadge(image)}
                         </div>
@@ -442,11 +459,28 @@ export default function MedicalImages() {
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  <img
-                    src={selectedImage.image_url}
-                    alt={selectedImage.image_type}
-                    className="w-full rounded-lg"
-                  />
+                  {selectedImage.image_url ? (
+                    <img
+                      src={selectedImage.image_url}
+                      alt={selectedImage.image_type}
+                      className="w-full rounded-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const placeholder = target.nextElementSibling as HTMLElement;
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className="w-full aspect-video flex items-center justify-center bg-gray-100 rounded-lg"
+                    style={{ display: selectedImage.image_url ? 'none' : 'flex' }}
+                  >
+                    <div className="text-center">
+                      <FileImage className="w-16 h-16 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">이미지를 불러올 수 없습니다</p>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="space-y-4">
