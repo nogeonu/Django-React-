@@ -18,10 +18,9 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "예약 / 조회 / 발급", link: "#reservations" },
-  { label: "의료진 / 진료과", link: "#doctors" },
+  { label: "예약 / 조회", link: "#reservations" },
+  { label: "의료진 / 진료과", link: "/patient/doctors" },
   { label: "이용안내", link: "#guide" },
-  { label: "건강정보", link: "#health" },
   { label: "병원소개", link: "#about" },
 ];
 
@@ -36,7 +35,6 @@ const heroQuickLinks = [
   },
   { icon: Calendar, label: "증명서발급", link: "#certificate" },
   { icon: Download, label: "앱 다운로드", link: "/app-download" },
-  { icon: Camera, label: "홍보영상", link: "#promo" },
   { icon: Stethoscope, label: "의료진 소개", link: "/patient/doctors" },
   { icon: Clock, label: "진료시간 안내", link: "#schedule" },
   { icon: Pill, label: "검진센터", link: "#checkup" },
@@ -51,23 +49,17 @@ const quickCallouts = [
   {
     title: "온라인 진료예약",
     content: "모바일로 빠르게 진료 예약하기",
-    link: "#appointments",
+    link: "/patient/login",
   },
   {
     title: "진료예약 조회",
     content: "예약 내역과 대기 순번을 실시간 확인",
-    link: "#appointments",
+    link: "/patient/login",
   },
   {
     title: "마이페이지",
     content: "내 정보를 확인하고 업데이트하세요",
     link: "/patient/mypage",
-    requiresPatient: true,
-  },
-  {
-    title: "진료 내역 조회",
-    content: "최근 진료 기록을 확인하세요",
-    link: "/patient/records",
     requiresPatient: true,
   },
 ];
@@ -89,7 +81,7 @@ const quickServices = [
     icon: Calendar,
     title: "온라인 진료예약",
     description: "모바일로 빠르게 진료 예약하기",
-    link: "#appointments",
+    link: "/patient/login",
   },
   {
     icon: Clock,
@@ -108,12 +100,6 @@ const quickServices = [
     title: "주차장 안내",
     description: "주차 가능 구역과 혼잡도 정보",
     link: "#parking",
-  },
-  {
-    icon: Camera,
-    title: "AR 내비게이션",
-    description: "증강현실로 병원 내부 안내를 받아보세요",
-    link: "#ar",
   },
 ];
 
@@ -238,7 +224,7 @@ function Home() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
-                  to="#appointments"
+                  to="/patient/login"
                   className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90"
                 >
                   진료예약 바로가기
@@ -261,34 +247,35 @@ function Home() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Link
-                    to="#appointments"
-                    className="flex h-20 flex-col justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                    to="/patient/login"
+                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
                     온라인 예약
                   </Link>
                   <Link
-                    to="#appointments"
-                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                    to="/patient/login"
+                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
                     예약 조회
                   </Link>
                   <Link
                     to={patientUser ? "/patient/records" : "/patient/login"}
-                    className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                   >
                     진료 내역 조회
                   </Link>
                   {patientUser ? (
-                    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">
-                      <Link to="/patient/mypage" className="hover:underline">
-                        {patientUser.name}님<br />
-                        마이페이지 이동
-                      </Link>
-                    </div>
+                    <Link
+                      to="/patient/mypage"
+                      className="flex h-20 flex-col items-center justify-center rounded-md border border-primary/30 bg-primary/5 px-3 py-2 font-semibold text-primary hover:underline"
+                    >
+                      {patientUser.name}님
+                      <span className="text-xs">마이페이지</span>
+                    </Link>
                   ) : (
                     <Link
                       to="/patient/login"
-                      className="rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
+                      className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
                     >
                       환자 로그인
                     </Link>
@@ -390,7 +377,7 @@ function Home() {
         </section>
 
         <section id="notices" className="bg-slate-50">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 md:grid-cols-[2fr_3fr]">
+          <div className="mx-auto max-w-6xl px-6 py-12">
             <Card className="border-slate-200">
               <CardHeader>
                 <CardTitle className="text-xl font-semibold text-slate-800">
@@ -413,147 +400,6 @@ function Home() {
                 ))}
               </CardContent>
             </Card>
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card
-                id="map"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-primary/10 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    실시간 병원 지도
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    층별 주요 시설과 이동 동선을 한 눈에 확인하세요. 비콘 기반
-                    위치 추적과 연동되어 안내 정확도가 높습니다.
-                  </p>
-                  <Link to="#" className="text-primary hover:underline">
-                    지도 열기 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="doctors"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-cyan-100 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    진료과 · 의료진 안내
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    진료과별 전문 의료진 정보를 확인하고, 담당 교수진의 진료
-                    일정과 전문 분야를 미리 살펴보세요.
-                  </p>
-                  <Link
-                    to="/patient/login"
-                    className="text-primary hover:underline"
-                  >
-                    의료진 정보 보기 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="waiting"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-slate-100 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    진료 대기 현황
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    접수한 진료과의 현재 대기 순서를 실시간으로 확인하고, 입실
-                    알림까지 받아보세요.
-                  </p>
-                  <Link to="#" className="text-primary hover:underline">
-                    대기 현황 보기 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="appointments"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-amber-100 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    온라인 진료 예약
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    모바일로 원하는 진료과와 의료진을 선택하여 예약하세요. 예약
-                    내역을 앱에서 바로 확인할 수 있습니다.
-                  </p>
-                  <Link
-                    to="/patient/login"
-                    className="text-primary hover:underline"
-                  >
-                    예약 방법 안내 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="pharmacy"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    약국 위치 안내
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    원내 조제실과 주변 협력 약국의 운영 시간, 혼잡도를 확인할 수
-                    있습니다.
-                  </p>
-                  <Link to="#" className="text-primary hover:underline">
-                    약국 정보 보기 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="ar"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-violet-100 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    AR 내비게이션
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    스마트폰 카메라를 통해 실시간으로 길 안내를 제공합니다.
-                    ARCore / ARKit 기반의 정밀 안내를 경험해보세요.
-                  </p>
-                  <Link to="#" className="text-primary hover:underline">
-                    AR 안내 시작 →
-                  </Link>
-                </CardContent>
-              </Card>
-              <Card
-                id="parking"
-                className="flex flex-col justify-between border-slate-200 bg-gradient-to-br from-sky-100 via-white to-white"
-              >
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-slate-800">
-                    주차장 이용 안내
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <p>
-                    주차 가능 구역과 혼잡도를 확인하고, 전용 QR코드로 요금
-                    정산을 빠르게 진행하세요.
-                  </p>
-                  <Link to="#parking" className="text-primary hover:underline">
-                    주차 정보 보기 →
-                  </Link>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         </section>
       </main>
