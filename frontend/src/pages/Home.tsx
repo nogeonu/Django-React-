@@ -209,7 +209,7 @@ function Home() {
             backgroundPosition: "center",
           }}
         >
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 pt-24 pb-14 text-white md:pt-32 md:grid-cols-[2fr,1fr]">
+          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-14 text-white md:grid-cols-[2fr,1fr]">
             <div className="space-y-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
                 생명존중 · 인간사랑을 실천하는
