@@ -118,6 +118,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# 프로덕션 도메인 설정 (이미지 URL 생성용)
+PRODUCTION_DOMAIN = config('PRODUCTION_DOMAIN', default='http://34.42.223.43')
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

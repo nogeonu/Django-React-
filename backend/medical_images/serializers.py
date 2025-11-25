@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import MedicalImage
 
 class MedicalImageSerializer(serializers.ModelSerializer):
@@ -24,6 +25,11 @@ class MedicalImageSerializer(serializers.ModelSerializer):
             request = self.context.get('request')
             if request:
                 url = request.build_absolute_uri(obj.image_file.url)
+                # localhost를 프로덕션 도메인으로 변경
+                if 'localhost' in url or '127.0.0.1' in url:
+                    url = url.replace('http://localhost:8000', settings.PRODUCTION_DOMAIN)
+                    url = url.replace('http://127.0.0.1:8000', settings.PRODUCTION_DOMAIN)
                 return url
-            return obj.image_file.url
+            # request가 없을 경우 프로덕션 도메인 사용
+            return f"{settings.PRODUCTION_DOMAIN}{obj.image_file.url}"
         return None
