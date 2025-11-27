@@ -73,25 +73,28 @@ jobs:
             npm run build
 
             # mosec 딥러닝 서비스 systemd 설정
-            sudo tee /etc/systemd/system/dl-service.service > /dev/null <<EOF
+            cat > /tmp/dl-service.service <<'SERVICE_EOF'
 [Unit]
 Description=Deep Learning Model Service (mosec)
 After=network.target
 
 [Service]
 Type=simple
-User=$USER
-WorkingDirectory=$APP_DIR/backend/dl_service
-Environment="PATH=$APP_DIR/backend/.venv/bin"
+User=__USER__
+WorkingDirectory=__APP_DIR__/backend/dl_service
+Environment="PATH=__APP_DIR__/backend/.venv/bin"
 Environment="MOSEC_PORT=5003"
-Environment="DL_MODEL_PATH=$APP_DIR/backend/dl_service/ml_model/best_breast_mri_model.pth"
-ExecStart=$APP_DIR/backend/.venv/bin/python app.py
+Environment="DL_MODEL_PATH=__APP_DIR__/backend/dl_service/ml_model/best_breast_mri_model.pth"
+ExecStart=__APP_DIR__/backend/.venv/bin/python app.py
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SERVICE_EOF
+            sed -i "s|__USER__|$USER|g" /tmp/dl-service.service
+            sed -i "s|__APP_DIR__|$APP_DIR|g" /tmp/dl-service.service
+            sudo mv /tmp/dl-service.service /etc/systemd/system/dl-service.service
             sudo systemctl daemon-reload
             sudo systemctl enable dl-service
             sudo systemctl restart dl-service || sudo systemctl start dl-service
