@@ -15,7 +15,13 @@ from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
 
 # 딥러닝 서비스 URL
-DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://localhost:5003')
+# 환경 변수에서 가져오거나, DEBUG 모드에 따라 자동 설정
+if settings.DEBUG:
+    # 로컬 개발 환경
+    DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://localhost:5003')
+else:
+    # 프로덕션 환경 (GCP 서버)
+    DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://127.0.0.1:5003')
 
 @method_decorator(csrf_exempt, name='dispatch')
 class MedicalImageViewSet(viewsets.ModelViewSet):
@@ -161,11 +167,17 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 return Response(serializer.data, status=status.HTTP_200_OK)
                 
             except requests.exceptions.ConnectionError as e:
+                # 로컬/프로덕션 환경에 따른 해결 방법 안내
+                if settings.DEBUG:
+                    solution = '로컬 개발 환경: 다음 명령어로 mosec 서비스를 실행하세요:\ncd backend/dl_service && python3 app.py'
+                else:
+                    solution = '프로덕션 환경: GCP 서버에서 mosec 서비스 상태를 확인하세요:\nsudo systemctl status dl-service\nsudo systemctl restart dl-service'
+                
                 return Response(
                     {
                         'error': '딥러닝 서비스에 연결할 수 없습니다.',
                         'detail': f'mosec 서비스가 실행되지 않았습니다. (URL: {DL_SERVICE_URL})',
-                        'solution': '다음 명령어로 mosec 서비스를 실행하세요: cd backend/dl_service && python3 app.py'
+                        'solution': solution
                     },
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
