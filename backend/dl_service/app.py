@@ -129,7 +129,7 @@ class InferenceWorker(Worker):
         except Exception as e:
             raise ValueError(f"요청 데이터 파싱 실패: {str(e)}")
     
-    def forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def forward(self, data):
         """
         모델 추론 수행
         
