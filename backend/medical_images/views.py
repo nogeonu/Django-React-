@@ -7,15 +7,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
 from django.http import FileResponse, Http404
-from django.views.decorators.http import require_http_methods
 import os
 import requests
 import base64
 import traceback
 import logging
 from urllib.parse import unquote
-from io import BytesIO
-from PIL import Image
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
 
@@ -169,19 +166,14 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     with open(image_path, 'rb') as f:
                         image_bytes = f.read()
                         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                        logger.info(f"✅ 이미지 파일 로드 성공 (path): {image_path}")
-                        print(f"✅ 이미지 파일 로드 성공 (path): {image_path}")
+                        logger.info(f"이미지 파일 로드 성공 (path): {image_path}")
             except (AttributeError, ValueError, OSError) as e:
-                logger.warning(f"⚠️ image_file.path 접근 실패: {e}")
-                print(f"⚠️ image_file.path 접근 실패: {e}")
+                logger.warning(f"image_file.path 접근 실패: {e}")
                 # 방법 2: MEDIA_ROOT에서 직접 찾기
                 try:
                     if medical_image.image_file.name:
-                        from urllib.parse import unquote
-                        
                         # 파일명 가져오기
                         file_name = medical_image.image_file.name
-                        original_file_name = file_name
                         
                         # medical_images/ 제거
                         if file_name.startswith('medical_images/'):
@@ -233,27 +225,23 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                                     with open(media_path, 'rb') as f:
                                         image_bytes = f.read()
                                         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                                        logger.info(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
-                                        print(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
+                                        logger.info(f"이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
                                         break
                             except Exception as path_error:
                                 continue
                                 
                 except Exception as e2:
-                    logger.error(f"❌ MEDIA_ROOT에서 이미지 찾기 실패: {e2}")
-                    print(f"❌ MEDIA_ROOT에서 이미지 찾기 실패: {e2}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.error(f"MEDIA_ROOT에서 이미지 찾기 실패: {e2}", exc_info=True)
             
             # base64로 로드 실패한 경우에만 URL 사용 (최후의 수단)
             if not image_base64:
-                print(f"⚠️ 파일 시스템에서 이미지를 찾지 못함. URL 사용 시도: {medical_image.image_file.name}")
+                logger.warning(f"파일 시스템에서 이미지를 찾지 못함. URL 사용 시도: {medical_image.image_file.name}")
                 # 프로덕션 환경에서는 항상 PRODUCTION_DOMAIN 사용
                 try:
                     image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
-                    print(f"⚠️ 이미지 URL 생성: {image_url}")
+                    logger.info(f"이미지 URL 생성: {image_url}")
                 except Exception as e:
-                    print(f"❌ 이미지 URL 생성 실패: {e}")
+                    logger.error(f"이미지 URL 생성 실패: {e}")
             
             # base64 또는 URL이 없으면 에러
             if not image_base64 and not image_url:
@@ -371,10 +359,7 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             # 모든 예외를 로깅하고 상세한 에러 메시지 반환
-            error_traceback = traceback.format_exc()
-            logger.error(f"AI 분석 중 예기치 않은 오류 발생: {str(e)}\n{error_traceback}")
-            print(f"❌ AI 분석 중 예기치 않은 오류 발생: {str(e)}")
-            print(error_traceback)
+            logger.error(f"AI 분석 중 예기치 않은 오류 발생: {str(e)}", exc_info=True)
             return Response(
                 {'error': f'예상치 못한 오류: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
