@@ -318,9 +318,9 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             except requests.exceptions.ConnectionError as e:
                 # 로컬/프로덕션 환경에 따른 해결 방법 안내
                 if settings.DEBUG:
-                    solution = '로컬 개발 환경: 다음 명령어로 mosec 서비스를 실행하세요:\ncd backend/dl_service && python3 app.py'
+                    solution = '로컬 개발 환경: 다음 명령어로 mosec 서비스를 실행하세요:\ncd backend/breast_ai_service && python3 app.py'
                 else:
-                    solution = '프로덕션 환경: GCP 서버에서 mosec 서비스 상태를 확인하세요:\nsudo systemctl status dl-service\nsudo systemctl restart dl-service'
+                    solution = '프로덕션 환경: GCP 서버에서 mosec 서비스 상태를 확인하세요:\nsudo systemctl status breast-ai-service\nsudo systemctl restart breast-ai-service'
                 
                 return Response(
                     {

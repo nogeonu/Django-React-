@@ -13,13 +13,13 @@
 
 #### 방법 1: 스크립트 사용 (권장)
 ```bash
-cd backend/dl_service
+cd backend/breast_ai_service
 ./start_local.sh
 ```
 
 #### 방법 2: 수동 실행
 ```bash
-cd backend/dl_service
+cd backend/breast_ai_service
 
 # mosec 설치 (처음 한 번만)
 pip3 install mosec torch torchvision
@@ -54,21 +54,21 @@ ssh -i ~/.ssh/your_key user@your-server-ip
 #### 2. systemd 서비스 확인
 ```bash
 # 서비스 상태 확인
-sudo systemctl status dl-service
+sudo systemctl status breast-ai-service
 
 # 서비스 시작
-sudo systemctl start dl-service
+sudo systemctl start breast-ai-service
 
 # 서비스 재시작
-sudo systemctl restart dl-service
+sudo systemctl restart breast-ai-service
 
 # 로그 확인
-sudo journalctl -u dl-service -f
+sudo journalctl -u breast-ai-service -f
 ```
 
 #### 3. 수동 실행 (디버깅용)
 ```bash
-cd /srv/django-react/app/backend/dl_service
+cd /srv/django-react/app/backend/breast_ai_service
 source ../.venv/bin/activate
 export MOSEC_PORT=5003
 python app.py
@@ -121,7 +121,7 @@ python3 app.py
 ### 2. 모델 파일을 찾을 수 없는 경우
 ```bash
 # 모델 경로 확인
-ls -lh backend/dl_service/ml_model/
+ls -lh backend/breast_ai_service/ml_model/
 
 # 환경 변수로 경로 지정
 export DL_MODEL_PATH=/path/to/your/model.pth
@@ -136,10 +136,10 @@ pip3 install mosec torch torchvision
 ### 4. GCP에서 서비스가 시작되지 않는 경우
 ```bash
 # 로그 확인
-sudo journalctl -u dl-service -n 50
+sudo journalctl -u breast-ai-service -n 50
 
 # 서비스 재시작
-sudo systemctl restart dl-service
+sudo systemctl restart breast-ai-service
 ```
 
 ## Django에서 호출하기

@@ -73,10 +73,10 @@ jobs:
             npm run build
 
             # mosec 딥러닝 서비스 systemd 설정
-            printf '[Unit]\nDescription=Deep Learning Model Service (mosec)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/dl_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5003"\nEnvironment="DL_MODEL_PATH=%s/backend/dl_service/ml_model/best_breast_mri_model.pth"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/dl-service.service > /dev/null
+            printf '[Unit]\nDescription=Breast MRI AI Service (mosec)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/breast_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5003"\nEnvironment="DL_MODEL_PATH=%s/backend/breast_ai_service/ml_model/best_breast_mri_model.pth"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/breast-ai-service.service > /dev/null
             sudo systemctl daemon-reload
-            sudo systemctl enable dl-service
-            sudo systemctl restart dl-service || sudo systemctl start dl-service
+            sudo systemctl enable breast-ai-service
+            sudo systemctl restart breast-ai-service || sudo systemctl start breast-ai-service
 
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx

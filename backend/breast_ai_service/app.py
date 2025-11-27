@@ -18,7 +18,7 @@ from io import BytesIO
 # 딥러닝 모델 로드
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # 모델 파일 경로 (환경 변수 또는 프로젝트 내부 경로)
-# dl_service/ml_model 디렉토리에 모델 파일 저장 (lung_cancer/ml_model 구조와 동일)
+# breast_ai_service/ml_model 디렉토리에 모델 파일 저장 (lung_cancer/ml_model 구조와 동일)
 model_path = os.environ.get(
     'DL_MODEL_PATH',
     os.path.join(current_dir, 'ml_model', 'best_breast_mri_model.pth')
