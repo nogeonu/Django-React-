@@ -9,10 +9,14 @@ from django.conf import settings
 import os
 import requests
 import base64
+import traceback
+import logging
 from io import BytesIO
 from PIL import Image
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
+
+logger = logging.getLogger(__name__)
 
 # 딥러닝 서비스 URL
 # 환경 변수 우선, 없으면 기본값 사용
@@ -218,6 +222,11 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            # 모든 예외를 로깅하고 상세한 에러 메시지 반환
+            error_traceback = traceback.format_exc()
+            logger.error(f"AI 분석 중 예기치 않은 오류 발생: {str(e)}\n{error_traceback}")
+            print(f"❌ AI 분석 중 예기치 않은 오류 발생: {str(e)}")
+            print(error_traceback)
             return Response(
                 {'error': f'예상치 못한 오류: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
