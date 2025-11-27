@@ -68,34 +68,81 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     with open(image_path, 'rb') as f:
                         image_bytes = f.read()
                         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                        logger.info(f"✅ 이미지 파일 로드 성공 (path): {image_path}")
                         print(f"✅ 이미지 파일 로드 성공 (path): {image_path}")
             except (AttributeError, ValueError, OSError) as e:
+                logger.warning(f"⚠️ image_file.path 접근 실패: {e}")
                 print(f"⚠️ image_file.path 접근 실패: {e}")
                 # 방법 2: MEDIA_ROOT에서 직접 찾기
                 try:
                     if medical_image.image_file.name:
-                        # 파일명에서 날짜 경로 제거 (YYYY/MM/DD/파일명 형식일 수 있음)
+                        from urllib.parse import unquote
+                        
+                        # 파일명 가져오기
                         file_name = medical_image.image_file.name
+                        original_file_name = file_name
+                        
                         # medical_images/ 제거
                         if file_name.startswith('medical_images/'):
                             file_name = file_name.replace('medical_images/', '', 1)
                         
-                        # 여러 경로 시도
+                        # URL 인코딩된 파일명 디코딩 시도
+                        decoded_file_name = unquote(file_name)
+                        
+                        # 여러 경로 시도 (한국어 파일명, URL 인코딩된 파일명 모두 시도)
                         possible_paths = [
                             os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),  # 전체 경로
-                            os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),  # 파일명만
-                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),  # basename만
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),  # 원본 파일명
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', decoded_file_name),  # 디코딩된 파일명
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),  # basename
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(decoded_file_name)),  # 디코딩된 basename
                         ]
                         
+                        # 날짜별 폴더 구조도 시도 (YYYY/MM/DD/파일명)
+                        if '/' in file_name:
+                            date_parts = file_name.split('/')
+                            if len(date_parts) >= 2:
+                                date_path = '/'.join(date_parts[:-1])
+                                filename_only = date_parts[-1]
+                                possible_paths.extend([
+                                    os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, filename_only),
+                                    os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, unquote(filename_only)),
+                                ])
+                        
+                        # MEDIA_ROOT의 medical_images 디렉토리에서 모든 파일 검색 (최후의 수단)
+                        medical_images_dir = os.path.join(settings.MEDIA_ROOT, 'medical_images')
+                        if os.path.exists(medical_images_dir):
+                            # 파일명의 일부만으로 검색 (확장자 제외)
+                            base_name = os.path.splitext(os.path.basename(file_name))[0]
+                            decoded_base_name = os.path.splitext(os.path.basename(decoded_file_name))[0]
+                            
+                            for root, dirs, files in os.walk(medical_images_dir):
+                                for f in files:
+                                    file_base = os.path.splitext(f)[0]
+                                    # 파일명의 일부가 일치하면 시도
+                                    if base_name in file_base or decoded_base_name in file_base or file_base in base_name or file_base in decoded_base_name:
+                                        full_path = os.path.join(root, f)
+                                        if full_path not in possible_paths:
+                                            possible_paths.append(full_path)
+                        
+                        # 모든 경로 시도
                         for media_path in possible_paths:
-                            if os.path.exists(media_path):
-                                with open(media_path, 'rb') as f:
-                                    image_bytes = f.read()
-                                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                                    print(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
-                                    break
+                            try:
+                                if os.path.exists(media_path) and os.path.isfile(media_path):
+                                    with open(media_path, 'rb') as f:
+                                        image_bytes = f.read()
+                                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                        logger.info(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
+                                        print(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
+                                        break
+                            except Exception as path_error:
+                                continue
+                                
                 except Exception as e2:
+                    logger.error(f"❌ MEDIA_ROOT에서 이미지 찾기 실패: {e2}")
                     print(f"❌ MEDIA_ROOT에서 이미지 찾기 실패: {e2}")
+                    import traceback
+                    traceback.print_exc()
             
             # base64로 로드 실패한 경우에만 URL 사용 (최후의 수단)
             if not image_base64:
