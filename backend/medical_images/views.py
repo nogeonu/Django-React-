@@ -1,10 +1,21 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import MedicalImage
+from django.conf import settings
+import os
+import requests
+import base64
+from io import BytesIO
+from PIL import Image
+from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
+
+# 딥러닝 서비스 URL
+DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://localhost:5003')
 
 @method_decorator(csrf_exempt, name='dispatch')
 class MedicalImageViewSet(viewsets.ModelViewSet):
@@ -24,3 +35,110 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             'request': self.request
         })
         return context
+    
+    @action(detail=True, methods=['post'])
+    def analyze(self, request, pk=None):
+        """
+        의료 이미지 AI 분석 엔드포인트
+        POST /api/medical-images/{id}/analyze/
+        """
+        try:
+            medical_image = self.get_object()
+            
+            if not medical_image.image_file:
+                return Response(
+                    {'error': '이미지 파일이 없습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 이미지 파일 읽기
+            image_path = medical_image.image_file.path
+            if not os.path.exists(image_path):
+                # 프로덕션 환경에서는 URL 사용
+                image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
+            else:
+                image_url = None
+                with open(image_path, 'rb') as f:
+                    image_bytes = f.read()
+                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # 딥러닝 서비스 호출
+            try:
+                # mosec 서비스는 /inference 엔드포인트 사용
+                if image_url:
+                    payload = {
+                        'image_url': image_url,
+                        'patient_id': medical_image.patient_id,
+                        'metadata': {
+                            'image_type': medical_image.image_type,
+                            'image_id': str(medical_image.id)
+                        }
+                    }
+                else:
+                    payload = {
+                        'image_data': image_base64,
+                        'patient_id': medical_image.patient_id,
+                        'metadata': {
+                            'image_type': medical_image.image_type,
+                            'image_id': str(medical_image.id)
+                        }
+                    }
+                
+                response = requests.post(
+                    f'{DL_SERVICE_URL}/inference',
+                    json=payload,
+                    timeout=60  # 딥러닝 추론은 시간이 걸릴 수 있음
+                )
+                
+                if response.status_code != 200:
+                    return Response(
+                        {'error': f'딥러닝 서비스 오류: {response.status_code}', 'detail': response.text},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                result = response.json()
+                
+                if not result.get('success'):
+                    return Response(
+                        {'error': result.get('error', '분석 실패')},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                analysis_data = result.get('data', {})
+                
+                # 분석 결과 저장
+                analysis_result = AIAnalysisResult.objects.create(
+                    image=medical_image,
+                    analysis_type='BREAST_MRI',  # 모델에 맞게 조정
+                    results=analysis_data.get('probabilities', {}),
+                    confidence=analysis_data.get('confidence'),
+                    findings=analysis_data.get('findings', ''),
+                    recommendations=analysis_data.get('recommendations', ''),
+                    model_version=analysis_data.get('model_version', '1.0.0')
+                )
+                
+                # 시리얼라이저로 응답 반환
+                serializer = self.get_serializer(medical_image)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+            except requests.exceptions.RequestException as e:
+                return Response(
+                    {'error': f'딥러닝 서비스 연결 실패: {str(e)}'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            except Exception as e:
+                return Response(
+                    {'error': f'분석 중 오류 발생: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except MedicalImage.DoesNotExist:
+            return Response(
+                {'error': '의료 이미지를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'예상치 못한 오류: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

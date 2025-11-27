@@ -1,10 +1,18 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import MedicalImage
+from .models import MedicalImage, AIAnalysisResult
+
+class AIAnalysisResultSerializer(serializers.ModelSerializer):
+    """AI 분석 결과 시리얼라이저"""
+    class Meta:
+        model = AIAnalysisResult
+        fields = '__all__'
+        read_only_fields = ('analysis_date',)
 
 class MedicalImageSerializer(serializers.ModelSerializer):
     patient_name = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
+    analysis_results = AIAnalysisResultSerializer(many=True, read_only=True)
     
     class Meta:
         model = MedicalImage
