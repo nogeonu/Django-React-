@@ -92,7 +92,10 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 
                 if response.status_code != 200:
                     return Response(
-                        {'error': f'딥러닝 서비스 오류: {response.status_code}', 'detail': response.text},
+                        {
+                            'error': f'딥러닝 서비스 오류: {response.status_code}',
+                            'detail': response.text
+                        },
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
                 
@@ -121,9 +124,29 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 serializer = self.get_serializer(medical_image)
                 return Response(serializer.data, status=status.HTTP_200_OK)
                 
+            except requests.exceptions.ConnectionError as e:
+                return Response(
+                    {
+                        'error': '딥러닝 서비스에 연결할 수 없습니다.',
+                        'detail': f'mosec 서비스가 실행되지 않았습니다. (URL: {DL_SERVICE_URL})',
+                        'solution': '다음 명령어로 mosec 서비스를 실행하세요: cd backend/dl_service && python3 app.py'
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            except requests.exceptions.Timeout as e:
+                return Response(
+                    {
+                        'error': '딥러닝 서비스 응답 시간 초과',
+                        'detail': '모델 추론에 시간이 너무 오래 걸립니다.'
+                    },
+                    status=status.HTTP_504_GATEWAY_TIMEOUT
+                )
             except requests.exceptions.RequestException as e:
                 return Response(
-                    {'error': f'딥러닝 서비스 연결 실패: {str(e)}'},
+                    {
+                        'error': f'딥러닝 서비스 연결 실패: {str(e)}',
+                        'detail': 'mosec 서비스가 실행 중인지 확인하세요.'
+                    },
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             except Exception as e:

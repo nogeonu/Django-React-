@@ -7,42 +7,72 @@
 - **용도**: 딥러닝 모델 (PyTorch, TensorFlow 등) 추론
 - **특징**: 동적 배칭, 파이프라인 스테이지, 다중 프로세스 지원
 
-## mosec이란?
+## 로컬 개발 환경
 
-mosec은 Rust로 구축된 고성능 모델 서빙 프레임워크입니다:
-- **고성능**: Rust 기반 웹 레이어로 빠른 처리 속도
-- **동적 배칭**: 요청을 자동으로 배치 처리하여 GPU 활용도 극대화
-- **파이프라인**: 전처리 → 추론 → 후처리를 파이프라인으로 구성
-- **다중 프로세스**: CPU, GPU, I/O 작업을 효율적으로 병렬 처리
-- **Python 인터페이스**: 오프라인 테스트와 동일한 코드로 서빙 가능
+### 1. 설치 및 실행
 
-## 설치 및 실행
-
-### 1. 의존성 설치
+#### 방법 1: 스크립트 사용 (권장)
 ```bash
-pip install mosec torch torchvision  # 필요한 딥러닝 라이브러리 추가
-```
-
-### 2. 서비스 실행
-```bash
-# 개발 환경
 cd backend/dl_service
+./start_local.sh
+```
+
+#### 방법 2: 수동 실행
+```bash
+cd backend/dl_service
+
+# mosec 설치 (처음 한 번만)
+pip3 install mosec torch torchvision
+
+# 환경 변수 설정 (선택사항)
+export MOSEC_PORT=5003
+export DL_MODEL_PATH=$(pwd)/ml_model/best_breast_mri_model.pth
+
+# 서비스 실행
+python3 app.py
+```
+
+### 2. 확인
+서비스가 정상적으로 실행되면 다음 메시지가 표시됩니다:
+```
+✅ 딥러닝 모델 로드 완료: ...
+🚀 딥러닝 모델 서비스 시작: http://0.0.0.0:5003
+```
+
+## 프로덕션 환경 (GCP)
+
+### 자동 배포
+GitHub Actions를 통해 자동으로 배포되며, systemd 서비스로 등록됩니다.
+
+### 수동 설정 (필요시)
+
+#### 1. SSH로 GCP 서버 접속
+```bash
+ssh -i ~/.ssh/your_key user@your-server-ip
+```
+
+#### 2. systemd 서비스 확인
+```bash
+# 서비스 상태 확인
+sudo systemctl status dl-service
+
+# 서비스 시작
+sudo systemctl start dl-service
+
+# 서비스 재시작
+sudo systemctl restart dl-service
+
+# 로그 확인
+sudo journalctl -u dl-service -f
+```
+
+#### 3. 수동 실행 (디버깅용)
+```bash
+cd /srv/django-react/app/backend/dl_service
+source ../.venv/bin/activate
+export MOSEC_PORT=5003
 python app.py
-
-# 프로덕션 (systemd 서비스로 등록)
-python app.py
 ```
-
-## 아키텍처
-
-mosec은 워커 기반 파이프라인 아키텍처를 사용합니다:
-
-```
-요청 → PreprocessWorker → InferenceWorker → PostprocessWorker → 응답
-         (전처리)          (모델 추론)        (후처리)
-```
-
-각 워커는 독립적으로 실행되며, 여러 인스턴스를 생성하여 병렬 처리할 수 있습니다.
 
 ## API 엔드포인트
 
@@ -52,8 +82,8 @@ POST http://localhost:5003/inference
 Content-Type: application/json
 
 {
-  "image_data": [0.1, 0.2, ...],
-  "text_data": "환자 증상 설명",
+  "image_data": "base64_encoded_image",
+  "image_url": "http://...",
   "patient_id": "P001",
   "metadata": {}
 }
@@ -65,13 +95,51 @@ Content-Type: application/json
   "success": true,
   "data": {
     "prediction": "예측 결과",
-    "confidence": 0.85,
-    "probabilities": {"class_0": 0.15, "class_1": 0.85},
+    "confidence": 85.5,
+    "probabilities": {"정상": 15.0, "이상": 85.0},
+    "findings": "AI 분석 결과: 이상 (신뢰도 85.50%)",
+    "recommendations": "높은 신뢰도로 진단되었습니다. 전문의 상담을 권장합니다.",
     "patient_id": "P001",
     "timestamp": "2025-01-01T12:00:00",
     "model_version": "1.0.0"
   }
 }
+```
+
+## 문제 해결
+
+### 1. 포트가 이미 사용 중인 경우
+```bash
+# 포트 사용 확인
+lsof -i :5003
+
+# 다른 포트 사용
+export MOSEC_PORT=5004
+python3 app.py
+```
+
+### 2. 모델 파일을 찾을 수 없는 경우
+```bash
+# 모델 경로 확인
+ls -lh backend/dl_service/ml_model/
+
+# 환경 변수로 경로 지정
+export DL_MODEL_PATH=/path/to/your/model.pth
+python3 app.py
+```
+
+### 3. mosec이 설치되지 않은 경우
+```bash
+pip3 install mosec torch torchvision
+```
+
+### 4. GCP에서 서비스가 시작되지 않는 경우
+```bash
+# 로그 확인
+sudo journalctl -u dl-service -n 50
+
+# 서비스 재시작
+sudo systemctl restart dl-service
 ```
 
 ## Django에서 호출하기
@@ -87,7 +155,7 @@ def predict_with_dl_model(data):
     response = requests.post(
         f'{DL_SERVICE_URL}/inference',
         json=data,
-        timeout=30
+        timeout=60
     )
     return response.json()
 ```
@@ -98,7 +166,7 @@ def predict_with_dl_model(data):
 ```python
 import torch
 
-model_path = os.path.join(current_dir, '..', 'models', 'model.pth')
+model_path = os.path.join(current_dir, 'ml_model', 'model.pth')
 model = torch.load(model_path, map_location='cpu')
 model.eval()
 ```
@@ -107,7 +175,7 @@ model.eval()
 ```python
 import tensorflow as tf
 
-model_path = os.path.join(current_dir, '..', 'models', 'model.h5')
+model_path = os.path.join(current_dir, 'ml_model', 'model.h5')
 model = tf.keras.models.load_model(model_path)
 ```
 
@@ -115,7 +183,7 @@ model = tf.keras.models.load_model(model_path)
 ```python
 import onnxruntime as ort
 
-model_path = os.path.join(current_dir, '..', 'models', 'model.onnx')
+model_path = os.path.join(current_dir, 'ml_model', 'model.onnx')
 session = ort.InferenceSession(model_path)
 ```
 
@@ -124,39 +192,11 @@ session = ort.InferenceSession(model_path)
 `app.py`에서 워커 수를 조정할 수 있습니다:
 
 ```python
-server.append_worker(PreprocessWorker, num=1)   # 전처리 워커 1개
-server.append_worker(InferenceWorker, num=2)   # 추론 워커 2개 (병렬 처리)
-server.append_worker(PostprocessWorker, num=1)   # 후처리 워커 1개
+server.append_worker(InferenceWorker, num=2)  # 추론 워커 2개
 ```
 
-- **전처리/후처리**: CPU 작업이므로 워커 수를 적게 설정
-- **추론**: GPU 작업이므로 워커 수를 늘려서 처리량 향상
-
-## 프로덕션 배포
-
-### systemd 서비스 등록
-`/etc/systemd/system/dl-service.service`:
-```ini
-[Unit]
-Description=Deep Learning Model Service (mosec)
-After=network.target
-
-[Service]
-User=your_user
-WorkingDirectory=/srv/django-react/app/backend/dl_service
-Environment="PATH=/srv/django-react/app/backend/venv/bin"
-ExecStart=/srv/django-react/app/backend/venv/bin/python app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable dl-service
-sudo systemctl start dl-service
-sudo systemctl status dl-service
-```
+- **CPU만 있는 경우**: CPU 코어 수에 맞춰 워커 수 조정
+- **GPU가 있는 경우**: GPU 개수에 맞춰 워커 수 조정
 
 ## 성능 최적화
 

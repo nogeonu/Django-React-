@@ -120,10 +120,13 @@ export default function MedicalImages() {
       });
       queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "AI 분석 중 오류가 발생했습니다.";
+      const solution = error?.response?.data?.solution;
+      
       toast({
         title: "분석 실패",
-        description: "AI 분석 중 오류가 발생했습니다.",
+        description: solution ? `${errorMessage}\n\n해결 방법: ${solution}` : errorMessage,
         variant: "destructive",
       });
     }
