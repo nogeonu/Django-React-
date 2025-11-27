@@ -53,42 +53,55 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # 이미지 파일 읽기
+            # 이미지 파일 읽기 - base64 우선, URL은 최후의 수단
             image_url = None
             image_base64 = None
             
-            # 로컬 환경에서는 항상 파일을 직접 읽기 시도
-            # 방법 1: image_file.path 사용
+            # 방법 1: image_file.path 사용 (가장 확실한 방법)
             try:
                 image_path = medical_image.image_file.path
                 if os.path.exists(image_path):
                     with open(image_path, 'rb') as f:
                         image_bytes = f.read()
                         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-            except (AttributeError, ValueError, OSError):
-                # image_file.path가 없는 경우, MEDIA_ROOT에서 직접 찾기
+                        print(f"✅ 이미지 파일 로드 성공 (path): {image_path}")
+            except (AttributeError, ValueError, OSError) as e:
+                print(f"⚠️ image_file.path 접근 실패: {e}")
+                # 방법 2: MEDIA_ROOT에서 직접 찾기
                 try:
                     if medical_image.image_file.name:
-                        media_path = os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name)
-                        if os.path.exists(media_path):
-                            with open(media_path, 'rb') as f:
-                                image_bytes = f.read()
-                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                except Exception:
-                    pass
+                        # 파일명에서 날짜 경로 제거 (YYYY/MM/DD/파일명 형식일 수 있음)
+                        file_name = medical_image.image_file.name
+                        # medical_images/ 제거
+                        if file_name.startswith('medical_images/'):
+                            file_name = file_name.replace('medical_images/', '', 1)
+                        
+                        # 여러 경로 시도
+                        possible_paths = [
+                            os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),  # 전체 경로
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),  # 파일명만
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),  # basename만
+                        ]
+                        
+                        for media_path in possible_paths:
+                            if os.path.exists(media_path):
+                                with open(media_path, 'rb') as f:
+                                    image_bytes = f.read()
+                                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                    print(f"✅ 이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
+                                    break
+                except Exception as e2:
+                    print(f"❌ MEDIA_ROOT에서 이미지 찾기 실패: {e2}")
             
-            # 로컬에서 파일을 찾지 못한 경우, 로컬 Django 서버 URL 사용
+            # base64로 로드 실패한 경우에만 URL 사용 (최후의 수단)
             if not image_base64:
-                # 로컬 개발 환경인지 확인
-                if settings.DEBUG:
-                    # 로컬 Django 서버 URL 사용
-                    try:
-                        image_url = request.build_absolute_uri(medical_image.image_file.url)
-                    except:
-                        image_url = f"http://localhost:8000{medical_image.image_file.url}"
-                else:
-                    # 프로덕션 환경
+                print(f"⚠️ 파일 시스템에서 이미지를 찾지 못함. URL 사용 시도: {medical_image.image_file.name}")
+                # 프로덕션 환경에서는 항상 PRODUCTION_DOMAIN 사용
+                try:
                     image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
+                    print(f"⚠️ 이미지 URL 생성: {image_url}")
+                except Exception as e:
+                    print(f"❌ 이미지 URL 생성 실패: {e}")
             
             # base64 또는 URL이 없으면 에러
             if not image_base64 and not image_url:
