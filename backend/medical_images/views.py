@@ -54,8 +54,10 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
         """
         try:
             medical_image = self.get_object()
+            logger.info(f"이미지 서빙 요청: ID={pk}, 파일명={medical_image.image_file.name if medical_image.image_file else 'None'}")
             
             if not medical_image.image_file:
+                logger.warning(f"이미지 파일이 없음: ID={pk}")
                 raise Http404("이미지 파일이 없습니다.")
             
             # 이미지 파일 경로 찾기
@@ -66,8 +68,19 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 if hasattr(medical_image.image_file, 'path'):
                     image_path = medical_image.image_file.path
                     if os.path.exists(image_path):
-                        return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
-            except (AttributeError, ValueError, OSError):
+                        logger.info(f"이미지 파일 찾음 (path): {image_path}")
+                        ext = os.path.splitext(image_path)[1].lower()
+                        content_type_map = {
+                            '.jpg': 'image/jpeg',
+                            '.jpeg': 'image/jpeg',
+                            '.png': 'image/png',
+                            '.gif': 'image/gif',
+                            '.bmp': 'image/bmp',
+                        }
+                        content_type = content_type_map.get(ext, 'image/jpeg')
+                        return FileResponse(open(image_path, 'rb'), content_type=content_type)
+            except (AttributeError, ValueError, OSError) as e:
+                logger.warning(f"image_file.path 접근 실패: {e}")
                 pass
             
             # 방법 2: MEDIA_ROOT에서 찾기
@@ -118,9 +131,11 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         '.bmp': 'image/bmp',
                     }
                     content_type = content_type_map.get(ext, 'image/jpeg')
+                    logger.info(f"이미지 파일 찾음 (MEDIA_ROOT): {image_path}, content_type={content_type}")
                     return FileResponse(open(image_path, 'rb'), content_type=content_type)
             
-            raise Http404("이미지 파일을 찾을 수 없습니다.")
+            logger.error(f"이미지 파일을 찾을 수 없음: ID={pk}, 파일명={medical_image.image_file.name}, MEDIA_ROOT={settings.MEDIA_ROOT}")
+            raise Http404(f"이미지 파일을 찾을 수 없습니다. (파일명: {medical_image.image_file.name})")
             
         except MedicalImage.DoesNotExist:
             raise Http404("의료 이미지를 찾을 수 없습니다.")
