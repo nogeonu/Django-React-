@@ -15,13 +15,9 @@ from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
 
 # 딥러닝 서비스 URL
-# 환경 변수에서 가져오거나, DEBUG 모드에 따라 자동 설정
-if settings.DEBUG:
-    # 로컬 개발 환경
-    DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://localhost:5003')
-else:
-    # 프로덕션 환경 (GCP 서버)
-    DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://127.0.0.1:5003')
+# 환경 변수 우선, 없으면 기본값 사용
+# GCP 서버에서는 같은 서버 내부 통신이므로 127.0.0.1 사용
+DL_SERVICE_URL = os.environ.get('DL_SERVICE_URL', 'http://127.0.0.1:5003')
 
 @method_decorator(csrf_exempt, name='dispatch')
 class MedicalImageViewSet(viewsets.ModelViewSet):
