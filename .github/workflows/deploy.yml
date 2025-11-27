@@ -73,27 +73,31 @@ jobs:
             npm run build
 
             # mosec 딥러닝 서비스 systemd 설정
-            cat > /tmp/dl-service.service <<'SERVICE_EOF'
-[Unit]
+            python3 -c "
+import os
+app_dir = os.environ.get('APP_DIR', '$APP_DIR')
+user = os.environ.get('USER', '$USER')
+service_content = f'''[Unit]
 Description=Deep Learning Model Service (mosec)
 After=network.target
 
 [Service]
 Type=simple
-User=__USER__
-WorkingDirectory=__APP_DIR__/backend/dl_service
-Environment="PATH=__APP_DIR__/backend/.venv/bin"
-Environment="MOSEC_PORT=5003"
-Environment="DL_MODEL_PATH=__APP_DIR__/backend/dl_service/ml_model/best_breast_mri_model.pth"
-ExecStart=__APP_DIR__/backend/.venv/bin/python app.py
+User={user}
+WorkingDirectory={app_dir}/backend/dl_service
+Environment=\"PATH={app_dir}/backend/.venv/bin\"
+Environment=\"MOSEC_PORT=5003\"
+Environment=\"DL_MODEL_PATH={app_dir}/backend/dl_service/ml_model/best_breast_mri_model.pth\"
+ExecStart={app_dir}/backend/.venv/bin/python app.py
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-SERVICE_EOF
-            sed -i "s|__USER__|$USER|g" /tmp/dl-service.service
-            sed -i "s|__APP_DIR__|$APP_DIR|g" /tmp/dl-service.service
+'''
+with open('/tmp/dl-service.service', 'w') as f:
+    f.write(service_content)
+"
             sudo mv /tmp/dl-service.service /etc/systemd/system/dl-service.service
             sudo systemctl daemon-reload
             sudo systemctl enable dl-service
