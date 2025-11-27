@@ -399,25 +399,44 @@ export default function MedicalImages() {
                           {getAnalysisStatusBadge(image)}
                         </div>
                         <div className="absolute top-2 left-2">
-                          <Badge variant="secondary">
+                          <Badge 
+                            variant={image.image_type === 'MRI' ? 'default' : 'secondary'}
+                            className={image.image_type === 'MRI' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          >
                             {image.image_type}
                           </Badge>
                         </div>
+                        {image.analysis_results && image.analysis_results.length > 0 && (
+                          <div className="absolute top-2 right-2">
+                            <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              분석 완료
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="p-4">
-                        <h3 className="font-medium text-gray-900 mb-1" data-testid={`text-image-type-${image.id}`}>
-                          {image.image_type}
-                        </h3>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-medium text-gray-900" data-testid={`text-image-type-${image.id}`}>
+                            {image.image_type}
+                          </h3>
+                          {image.analysis_results && image.analysis_results.length > 0 && (
+                            <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              분석 완료
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500 mb-3">
                           {new Date(image.taken_date || '').toLocaleDateString('ko-KR')}
                         </p>
                         
                         {image.analysis_results && image.analysis_results.length > 0 && (
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-gray-600">신뢰도</span>
-                              <span className={`text-xs font-medium ${getConfidenceColor(image.analysis_results[0].confidence || 0)}`}>
+                          <div className="mb-3 bg-gray-50 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-gray-700">신뢰도</span>
+                              <span className={`text-lg font-bold ${getConfidenceColor(image.analysis_results[0].confidence || 0)}`}>
                                 {image.analysis_results[0].confidence}%
                               </span>
                             </div>
@@ -565,26 +584,34 @@ export default function MedicalImages() {
                   
                   {selectedImage.analysis_results && selectedImage.analysis_results.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-gray-900 mb-2">AI 분석 결과</h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">AI 분석 결과</h4>
+                        <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          분석 완료
+                        </Badge>
+                      </div>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">신뢰도:</span>
-                          <span className={`font-medium ${getConfidenceColor(selectedImage.analysis_results[0].confidence || 0)}`}>
-                            {selectedImage.analysis_results[0].confidence}%
-                          </span>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-gray-700">신뢰도</span>
+                            <span className={`text-2xl font-bold ${getConfidenceColor(selectedImage.analysis_results[0].confidence || 0)}`}>
+                              {selectedImage.analysis_results[0].confidence}%
+                            </span>
+                          </div>
                         </div>
                         
                         <div>
                           <span className="text-sm text-gray-600 block mb-1">발견사항:</span>
-                          <p className="text-sm text-gray-900">{selectedImage.analysis_results[0].findings}</p>
+                          <p className="text-sm text-gray-900 bg-blue-50 p-3 rounded-lg">{selectedImage.analysis_results[0].findings}</p>
                         </div>
                         
                         <div>
                           <span className="text-sm text-gray-600 block mb-1">권장사항:</span>
-                          <p className="text-sm text-gray-900">{selectedImage.analysis_results[0].recommendations}</p>
+                          <p className="text-sm text-gray-900 bg-amber-50 p-3 rounded-lg">{selectedImage.analysis_results[0].recommendations}</p>
                         </div>
                         
-                        <div className="flex justify-between text-xs text-gray-500">
+                        <div className="flex justify-between text-xs text-gray-500 pt-2 border-t">
                           <span>분석일: {new Date(selectedImage.analysis_results[0].analysis_date || '').toLocaleDateString('ko-KR')}</span>
                           <span>모델: {selectedImage.analysis_results[0].model_version}</span>
                         </div>
