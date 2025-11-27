@@ -52,15 +52,51 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 )
             
             # 이미지 파일 읽기
-            image_path = medical_image.image_file.path
-            if not os.path.exists(image_path):
-                # 프로덕션 환경에서는 URL 사용
-                image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
-            else:
-                image_url = None
-                with open(image_path, 'rb') as f:
-                    image_bytes = f.read()
-                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            image_url = None
+            image_base64 = None
+            
+            # 로컬 환경에서는 항상 파일을 직접 읽기 시도
+            # 방법 1: image_file.path 사용
+            try:
+                image_path = medical_image.image_file.path
+                if os.path.exists(image_path):
+                    with open(image_path, 'rb') as f:
+                        image_bytes = f.read()
+                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            except (AttributeError, ValueError, OSError):
+                # image_file.path가 없는 경우, MEDIA_ROOT에서 직접 찾기
+                try:
+                    if medical_image.image_file.name:
+                        media_path = os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name)
+                        if os.path.exists(media_path):
+                            with open(media_path, 'rb') as f:
+                                image_bytes = f.read()
+                                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                except Exception:
+                    pass
+            
+            # 로컬에서 파일을 찾지 못한 경우, 로컬 Django 서버 URL 사용
+            if not image_base64:
+                # 로컬 개발 환경인지 확인
+                if settings.DEBUG:
+                    # 로컬 Django 서버 URL 사용
+                    try:
+                        image_url = request.build_absolute_uri(medical_image.image_file.url)
+                    except:
+                        image_url = f"http://localhost:8000{medical_image.image_file.url}"
+                else:
+                    # 프로덕션 환경
+                    image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
+            
+            # base64 또는 URL이 없으면 에러
+            if not image_base64 and not image_url:
+                return Response(
+                    {
+                        'error': '이미지 파일을 읽을 수 없습니다.',
+                        'detail': f'파일명: {getattr(medical_image.image_file, "name", "N/A")}, MEDIA_ROOT: {settings.MEDIA_ROOT}'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             # 딥러닝 서비스 호출
             try:
