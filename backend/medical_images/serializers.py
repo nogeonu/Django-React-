@@ -29,15 +29,19 @@ class MedicalImageSerializer(serializers.ModelSerializer):
             return ''
     
     def get_image_url(self, obj):
+        """
+        이미지 URL 생성 - API 엔드포인트 사용 (한국어 파일명 문제 해결)
+        """
         if obj.image_file:
             request = self.context.get('request')
             if request:
-                url = request.build_absolute_uri(obj.image_file.url)
+                # API 엔드포인트를 통해 이미지 서빙 (한국어 파일명 문제 해결)
+                url = request.build_absolute_uri(f'/api/medical-images/{obj.id}/image/')
                 # localhost를 프로덕션 도메인으로 변경
                 if 'localhost' in url or '127.0.0.1' in url:
                     url = url.replace('http://localhost:8000', settings.PRODUCTION_DOMAIN)
                     url = url.replace('http://127.0.0.1:8000', settings.PRODUCTION_DOMAIN)
                 return url
             # request가 없을 경우 프로덕션 도메인 사용
-            return f"{settings.PRODUCTION_DOMAIN}{obj.image_file.url}"
+            return f"{settings.PRODUCTION_DOMAIN}/api/medical-images/{obj.id}/image/"
         return None

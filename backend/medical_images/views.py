@@ -6,11 +6,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
+from django.http import FileResponse, Http404
+from django.views.decorators.http import require_http_methods
 import os
 import requests
 import base64
 import traceback
 import logging
+from urllib.parse import unquote
 from io import BytesIO
 from PIL import Image
 from .models import MedicalImage, AIAnalysisResult
@@ -41,6 +44,89 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             'request': self.request
         })
         return context
+    
+    @action(detail=True, methods=['get'])
+    def image(self, request, pk=None):
+        """
+        이미지 파일 직접 서빙 엔드포인트
+        GET /api/medical-images/{id}/image/
+        한국어 파일명 문제를 해결하기 위해 이미지를 직접 서빙
+        """
+        try:
+            medical_image = self.get_object()
+            
+            if not medical_image.image_file:
+                raise Http404("이미지 파일이 없습니다.")
+            
+            # 이미지 파일 경로 찾기
+            image_path = None
+            
+            # 방법 1: image_file.path 사용
+            try:
+                if hasattr(medical_image.image_file, 'path'):
+                    image_path = medical_image.image_file.path
+                    if os.path.exists(image_path):
+                        return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
+            except (AttributeError, ValueError, OSError):
+                pass
+            
+            # 방법 2: MEDIA_ROOT에서 찾기
+            if not image_path:
+                file_name = medical_image.image_file.name
+                if file_name.startswith('medical_images/'):
+                    file_name = file_name.replace('medical_images/', '', 1)
+                
+                # 여러 경로 시도
+                possible_paths = [
+                    os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', unquote(file_name)),
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path) and os.path.isfile(path):
+                        image_path = path
+                        break
+                
+                # 파일명 일부로 검색 (최후의 수단)
+                if not image_path:
+                    medical_images_dir = os.path.join(settings.MEDIA_ROOT, 'medical_images')
+                    if os.path.exists(medical_images_dir):
+                        base_name = os.path.splitext(os.path.basename(file_name))[0]
+                        decoded_base_name = os.path.splitext(os.path.basename(unquote(file_name)))[0]
+                        
+                        for root, dirs, files in os.walk(medical_images_dir):
+                            for f in files:
+                                file_base = os.path.splitext(f)[0]
+                                if base_name in file_base or decoded_base_name in file_base or file_base in base_name or file_base in decoded_base_name:
+                                    full_path = os.path.join(root, f)
+                                    if os.path.exists(full_path):
+                                        image_path = full_path
+                                        break
+                            if image_path:
+                                break
+                
+                if image_path and os.path.exists(image_path):
+                    # 파일 확장자에 따라 content_type 결정
+                    ext = os.path.splitext(image_path)[1].lower()
+                    content_type_map = {
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.png': 'image/png',
+                        '.gif': 'image/gif',
+                        '.bmp': 'image/bmp',
+                    }
+                    content_type = content_type_map.get(ext, 'image/jpeg')
+                    return FileResponse(open(image_path, 'rb'), content_type=content_type)
+            
+            raise Http404("이미지 파일을 찾을 수 없습니다.")
+            
+        except MedicalImage.DoesNotExist:
+            raise Http404("의료 이미지를 찾을 수 없습니다.")
+        except Exception as e:
+            logger.error(f"이미지 서빙 중 오류: {str(e)}")
+            raise Http404(f"이미지를 불러올 수 없습니다: {str(e)}")
     
     @action(detail=True, methods=['post'])
     def analyze(self, request, pk=None):
