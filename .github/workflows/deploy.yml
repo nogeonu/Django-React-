@@ -73,32 +73,7 @@ jobs:
             npm run build
 
             # mosec 딥러닝 서비스 systemd 설정
-            python3 -c "
-import os
-app_dir = os.environ.get('APP_DIR', '$APP_DIR')
-user = os.environ.get('USER', '$USER')
-service_content = f'''[Unit]
-Description=Deep Learning Model Service (mosec)
-After=network.target
-
-[Service]
-Type=simple
-User={user}
-WorkingDirectory={app_dir}/backend/dl_service
-Environment=\"PATH={app_dir}/backend/.venv/bin\"
-Environment=\"MOSEC_PORT=5003\"
-Environment=\"DL_MODEL_PATH={app_dir}/backend/dl_service/ml_model/best_breast_mri_model.pth\"
-ExecStart={app_dir}/backend/.venv/bin/python app.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-'''
-with open('/tmp/dl-service.service', 'w') as f:
-    f.write(service_content)
-"
-            sudo mv /tmp/dl-service.service /etc/systemd/system/dl-service.service
+            printf '[Unit]\nDescription=Deep Learning Model Service (mosec)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/dl_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5003"\nEnvironment="DL_MODEL_PATH=%s/backend/dl_service/ml_model/best_breast_mri_model.pth"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/dl-service.service > /dev/null
             sudo systemctl daemon-reload
             sudo systemctl enable dl-service
             sudo systemctl restart dl-service || sudo systemctl start dl-service
