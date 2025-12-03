@@ -13,7 +13,10 @@ from typing import Dict, Any
 from datetime import datetime
 import json
 import base64
+import logging
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 # 딥러닝 모델 로드
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -148,12 +151,12 @@ class InferenceWorker(Worker):
         analysis_type = data.get('analysis_type', 'classification')
         
         # 세그멘테이션 모델은 아직 구현되지 않음
+        # 임시로 분류 모델을 사용 (나중에 세그멘테이션 모델 추가 시 변경)
         if analysis_type == 'segmentation':
-            return {
-                'success': False,
-                'error': '세그멘테이션 모델이 아직 준비되지 않았습니다. 곧 추가될 예정입니다.',
-                'data': None
-            }
+            # TODO: 세그멘테이션 모델 추가 시 이 부분을 세그멘테이션 모델로 변경
+            # 현재는 임시로 분류 모델 사용
+            logger.warning("세그멘테이션 모델이 없어 분류 모델을 사용합니다.")
+            analysis_type = 'classification'  # 임시로 classification으로 변경
         
         # classification만 현재 지원
         if analysis_type != 'classification':
