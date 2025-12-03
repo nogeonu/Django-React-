@@ -86,13 +86,23 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 if file_name.startswith('medical_images/'):
                     file_name = file_name.replace('medical_images/', '', 1)
                 
-                # 여러 경로 시도
+                # 여러 경로 시도 (새로운 경로 구조: medical_images/patient_id/YYYY/MM/DD/파일명)
                 possible_paths = [
-                    os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),
-                    os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),
-                    os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),
-                    os.path.join(settings.MEDIA_ROOT, 'medical_images', unquote(file_name)),
+                    os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),  # 전체 경로
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),  # 상대 경로
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),  # 파일명만
+                    os.path.join(settings.MEDIA_ROOT, 'medical_images', unquote(file_name)),  # 디코딩된 경로
                 ]
+                
+                # patient_id를 포함한 경로도 시도 (새로운 경로 구조)
+                if medical_image.patient_id:
+                    # patient_id/YYYY/MM/DD/파일명 형식
+                    if '/' in file_name:
+                        # 날짜 경로가 포함된 경우
+                        date_and_file = file_name
+                        possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
+                    # 파일명만 있는 경우 날짜 경로 추정 시도
+                    possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
                 
                 for path in possible_paths:
                     if os.path.exists(path) and os.path.isfile(path):
@@ -191,7 +201,18 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                             os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(decoded_file_name)),  # 디코딩된 basename
                         ]
                         
-                        # 날짜별 폴더 구조도 시도 (YYYY/MM/DD/파일명)
+                        # patient_id를 포함한 경로 시도 (새로운 경로 구조: medical_images/patient_id/YYYY/MM/DD/파일명)
+                        if medical_image.patient_id:
+                            # patient_id/YYYY/MM/DD/파일명 형식
+                            if '/' in file_name:
+                                # 날짜 경로가 포함된 경우
+                                date_and_file = file_name
+                                possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
+                                possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), decoded_file_name))
+                            # 파일명만 있는 경우
+                            possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
+                        
+                        # 날짜별 폴더 구조도 시도 (YYYY/MM/DD/파일명) - 기존 형식 호환성
                         if '/' in file_name:
                             date_parts = file_name.split('/')
                             if len(date_parts) >= 2:
@@ -201,6 +222,12 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                                     os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, filename_only),
                                     os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, unquote(filename_only)),
                                 ])
+                                # patient_id 포함 경로도 추가
+                                if medical_image.patient_id:
+                                    possible_paths.extend([
+                                        os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_path, filename_only),
+                                        os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_path, unquote(filename_only)),
+                                    ])
                         
                         # MEDIA_ROOT의 medical_images 디렉토리에서 모든 파일 검색 (최후의 수단)
                         medical_images_dir = os.path.join(settings.MEDIA_ROOT, 'medical_images')
