@@ -100,7 +100,7 @@ class AIAnalysisResult(models.Model):
         verbose_name="의료 이미지"
     )
     analysis_type = models.CharField(
-        max_length=20,
+        max_length=30,  # BREAST_MRI_CLASSIFICATION (25자)를 수용하기 위해 30으로 증가
         choices=ANALYSIS_TYPE_CHOICES,
         default='BREAST_MRI',
         verbose_name="분석 유형"
