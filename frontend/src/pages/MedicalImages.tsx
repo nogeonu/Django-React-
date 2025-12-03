@@ -11,7 +11,8 @@ import {
   CheckCircle,
   Clock,
   Box,
-  X
+  X,
+  Activity
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -330,6 +331,39 @@ export default function MedicalImages() {
     });
   };
 
+  const handleTumorAnalysis = (image: MedicalImage) => {
+    if (!image.analysis_results || image.analysis_results.length === 0) {
+      toast({
+        title: "종양분석 불가",
+        description: "먼저 이미지 분석을 완료해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 종양분석 페이지로 이동 (분석 결과와 이미지 정보 전달)
+    const tumorAnalysisData = {
+      imageId: image.id,
+      imageUrl: image.image_url,
+      analysisResult: image.analysis_results[0],
+      imageType: image.image_type,
+      patientId: image.patient,
+      patientName: image.patient_name,
+      takenDate: image.taken_date,
+    };
+    
+    // 세션 스토리지에 데이터 저장
+    sessionStorage.setItem('tumor_analysis_data', JSON.stringify(tumorAnalysisData));
+    
+    // 새 탭에서 종양분석 페이지 열기
+    window.open('/tumor-analysis', '_blank');
+    
+    toast({
+      title: "종양분석 열기",
+      description: "새 탭에서 상세한 종양 분석 결과를 확인할 수 있습니다.",
+    });
+  };
+
   const getAnalysisStatusBadge = (image: MedicalImage) => {
     if (image.analysis_results && image.analysis_results.length > 0) {
       return (
@@ -597,7 +631,7 @@ export default function MedicalImages() {
                           </div>
                         )}
                         
-                        <div className="flex space-x-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -623,18 +657,33 @@ export default function MedicalImages() {
                             <Download className="w-3 h-3" />
                           </Button>
                           {image.analysis_results && image.analysis_results.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handle3DVisualization(image);
-                              }}
-                              data-testid={`button-3d-visualization-${image.id}`}
-                            >
-                              <Box className="w-3 h-3 mr-1" />
-                              3D 시각화
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handle3DVisualization(image);
+                                }}
+                                data-testid={`button-3d-visualization-${image.id}`}
+                              >
+                                <Box className="w-3 h-3 mr-1" />
+                                3D 시각화
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTumorAnalysis(image);
+                                }}
+                                data-testid={`button-tumor-analysis-${image.id}`}
+                              >
+                                <Activity className="w-3 h-3 mr-1" />
+                                종양분석
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -784,7 +833,7 @@ export default function MedicalImages() {
                     </div>
                   )}
                   
-                  <div className="flex space-x-3 pt-4">
+                  <div className="flex flex-wrap gap-3 pt-4">
                     <Button
                       onClick={() => handleAiAnalysis(selectedImage)}
                       disabled={aiAnalysisMutation.isPending}
@@ -802,14 +851,25 @@ export default function MedicalImages() {
                       다운로드
                     </Button>
                     {selectedImage.analysis_results && selectedImage.analysis_results.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handle3DVisualization(selectedImage)}
-                        data-testid="button-3d-visualization-modal"
-                      >
-                        <Box className="w-4 h-4 mr-2" />
-                        3D 시각화
-                      </Button>
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handle3DVisualization(selectedImage)}
+                          data-testid="button-3d-visualization-modal"
+                        >
+                          <Box className="w-4 h-4 mr-2" />
+                          3D 시각화
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                          onClick={() => handleTumorAnalysis(selectedImage)}
+                          data-testid="button-tumor-analysis-modal"
+                        >
+                          <Activity className="w-4 h-4 mr-2" />
+                          종양분석
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
