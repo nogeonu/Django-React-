@@ -275,17 +275,36 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         }
                     }
                 
+                # 딥러닝 서비스 헬스 체크 먼저 수행
+                try:
+                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
+                    if health_response.status_code != 200:
+                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
+                except Exception as health_error:
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
+                    return Response(
+                        {
+                            'error': '딥러닝 서비스에 연결할 수 없습니다.',
+                            'detail': f'mosec 서비스가 실행되지 않았거나 응답하지 않습니다. (URL: {DL_SERVICE_URL})',
+                            'solution': 'GCP 서버에서 다음 명령어로 서비스 상태를 확인하세요:\nsudo systemctl status breast-ai-service\nsudo systemctl restart breast-ai-service'
+                        },
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                
+                # 타임아웃을 120초로 증가 (대용량 이미지 처리 시간 고려)
                 response = requests.post(
                     f'{DL_SERVICE_URL}/inference',
                     json=payload,
-                    timeout=60  # 딥러닝 추론은 시간이 걸릴 수 있음
+                    timeout=120  # 딥러닝 추론은 시간이 걸릴 수 있음 (60초 -> 120초로 증가)
                 )
                 
                 if response.status_code != 200:
+                    error_detail = response.text[:500] if response.text else '응답 없음'
+                    logger.error(f"딥러닝 서비스 오류: {response.status_code}, 상세: {error_detail}")
                     return Response(
                         {
                             'error': f'딥러닝 서비스 오류: {response.status_code}',
-                            'detail': response.text
+                            'detail': error_detail
                         },
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
@@ -331,12 +350,14 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             except requests.exceptions.Timeout as e:
+                logger.error(f"딥러닝 서비스 타임아웃: {str(e)}, URL: {DL_SERVICE_URL}")
                 return Response(
                     {
                         'error': '딥러닝 서비스 응답 시간 초과',
-                        'detail': '모델 추론에 시간이 너무 오래 걸립니다.'
+                        'detail': f'모델 추론에 시간이 너무 오래 걸립니다. (타임아웃: 120초)',
+                        'solution': '이미지 크기를 줄이거나, 서버 리소스를 확인하세요. 딥러닝 서비스가 정상적으로 실행 중인지 확인: sudo systemctl status breast-ai-service'
                     },
-                    status=status.HTTP_504_GATEWAY_TIMEOUT
+                    status=status.HTTP_408_REQUEST_TIMEOUT  # 408으로 명확하게 반환
                 )
             except requests.exceptions.RequestException as e:
                 return Response(

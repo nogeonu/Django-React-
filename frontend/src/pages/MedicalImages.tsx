@@ -9,7 +9,8 @@ import {
   Download,
   AlertTriangle,
   CheckCircle,
-  Clock
+  Clock,
+  Box
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -229,6 +230,37 @@ export default function MedicalImages() {
         variant: "destructive",
       });
     }
+  };
+
+  const handle3DVisualization = (image: MedicalImage) => {
+    if (!image.analysis_results || image.analysis_results.length === 0) {
+      toast({
+        title: "3D 시각화 불가",
+        description: "먼저 이미지 분석을 완료해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 3D 시각화 페이지로 이동 (분석 결과와 이미지 정보 전달)
+    const visualizationData = {
+      imageId: image.id,
+      imageUrl: image.image_url,
+      analysisResult: image.analysis_results[0],
+      imageType: image.image_type,
+      patientId: image.patient,
+    };
+    
+    // 세션 스토리지에 데이터 저장
+    sessionStorage.setItem('3d_visualization_data', JSON.stringify(visualizationData));
+    
+    // 새 탭에서 3D 시각화 페이지 열기
+    window.open('/3d-visualization', '_blank');
+    
+    toast({
+      title: "3D 시각화 열기",
+      description: "새 탭에서 3D 시각화를 확인할 수 있습니다.",
+    });
   };
 
   const getAnalysisStatusBadge = (image: MedicalImage) => {
@@ -471,6 +503,20 @@ export default function MedicalImages() {
                           >
                             <Download className="w-3 h-3" />
                           </Button>
+                          {image.analysis_results && image.analysis_results.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handle3DVisualization(image);
+                              }}
+                              data-testid={`button-3d-visualization-${image.id}`}
+                            >
+                              <Box className="w-3 h-3 mr-1" />
+                              3D 시각화
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -636,6 +682,16 @@ export default function MedicalImages() {
                       <Download className="w-4 h-4 mr-2" />
                       다운로드
                     </Button>
+                    {selectedImage.analysis_results && selectedImage.analysis_results.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handle3DVisualization(selectedImage)}
+                        data-testid="button-3d-visualization-modal"
+                      >
+                        <Box className="w-4 h-4 mr-2" />
+                        3D 시각화
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
