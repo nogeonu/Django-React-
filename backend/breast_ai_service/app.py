@@ -136,12 +136,33 @@ class InferenceWorker(Worker):
         Args:
             data: 요청 데이터 딕셔너리
                 - image_data: 이미지 데이터 (list 또는 numpy array)
+                - image_url: 이미지 URL
+                - analysis_type: 'segmentation' 또는 'classification' (기본값: 'classification')
                 - patient_id: 환자 ID (선택)
                 - metadata: 추가 메타데이터 (선택)
         
         Returns:
             예측 결과 딕셔너리
         """
+        # analysis_type 확인 (기본값: classification)
+        analysis_type = data.get('analysis_type', 'classification')
+        
+        # 세그멘테이션 모델은 아직 구현되지 않음
+        if analysis_type == 'segmentation':
+            return {
+                'success': False,
+                'error': '세그멘테이션 모델이 아직 준비되지 않았습니다. 곧 추가될 예정입니다.',
+                'data': None
+            }
+        
+        # classification만 현재 지원
+        if analysis_type != 'classification':
+            return {
+                'success': False,
+                'error': f'지원하지 않는 분석 타입입니다: {analysis_type}',
+                'data': None
+            }
+        
         if not self.model_loaded:
             return {
                 'success': False,

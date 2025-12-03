@@ -86,6 +86,8 @@ class AIAnalysisResult(models.Model):
     """AI 분석 결과 모델"""
     ANALYSIS_TYPE_CHOICES = [
         ('BREAST_MRI', '유방 MRI'),
+        ('BREAST_MRI_SEGMENTATION', '유방 MRI 세그멘테이션'),
+        ('BREAST_MRI_CLASSIFICATION', '유방 MRI 종양분석'),
         ('LUNG_CT', '폐 CT'),
         ('XRAY', 'X-ray'),
         ('OTHER', '기타'),

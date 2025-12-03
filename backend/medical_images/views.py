@@ -153,8 +153,9 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def analyze(self, request, pk=None):
         """
-        의료 이미지 AI 분석 엔드포인트
+        의료 이미지 AI 분석 엔드포인트 (1차: 세그멘테이션)
         POST /api/medical-images/{id}/analyze/
+        analysis_type: 'segmentation' (기본값) 또는 'classification'
         """
         try:
             medical_image = self.get_object()
@@ -164,6 +165,9 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     {'error': '이미지 파일이 없습니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+            # 분석 타입 가져오기 (기본값: segmentation)
+            analysis_type = request.data.get('analysis_type', 'segmentation')
             
             # 이미지 파일 읽기 - base64 우선, URL은 최후의 수단
             image_url = None
@@ -287,6 +291,7 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     payload = {
                         'image_url': image_url,
                         'patient_id': medical_image.patient_id,
+                        'analysis_type': analysis_type,  # 'segmentation' 또는 'classification'
                         'metadata': {
                             'image_type': medical_image.image_type,
                             'image_id': str(medical_image.id)
@@ -296,6 +301,7 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     payload = {
                         'image_data': image_base64,
                         'patient_id': medical_image.patient_id,
+                        'analysis_type': analysis_type,  # 'segmentation' 또는 'classification'
                         'metadata': {
                             'image_type': medical_image.image_type,
                             'image_id': str(medical_image.id)
@@ -347,9 +353,11 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 analysis_data = result.get('data', {})
                 
                 # 분석 결과 저장
+                # analysis_type이 segmentation이면 'BREAST_MRI_SEGMENTATION', classification이면 'BREAST_MRI_CLASSIFICATION'
+                db_analysis_type = 'BREAST_MRI_SEGMENTATION' if analysis_type == 'segmentation' else 'BREAST_MRI_CLASSIFICATION'
                 analysis_result = AIAnalysisResult.objects.create(
                     image=medical_image,
-                    analysis_type='BREAST_MRI',  # 모델에 맞게 조정
+                    analysis_type=db_analysis_type,
                     results=analysis_data.get('probabilities', {}),
                     confidence=analysis_data.get('confidence'),
                     findings=analysis_data.get('findings', ''),
@@ -408,6 +416,233 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
         except Exception as e:
             # 모든 예외를 로깅하고 상세한 에러 메시지 반환
             logger.error(f"AI 분석 중 예기치 않은 오류 발생: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'예상치 못한 오류: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def tumor_analysis(self, request, pk=None):
+        """
+        종양분석 엔드포인트 (2차: 분류 모델)
+        POST /api/medical-images/{id}/tumor_analysis/
+        세그멘테이션 결과를 기반으로 종양이 악성인지 양성인지 분류
+        """
+        try:
+            medical_image = self.get_object()
+            
+            if not medical_image.image_file:
+                return Response(
+                    {'error': '이미지 파일이 없습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 세그멘테이션 분석 결과가 있는지 확인
+            segmentation_results = medical_image.analysis_results.filter(
+                analysis_type='BREAST_MRI_SEGMENTATION'
+            )
+            
+            if not segmentation_results.exists():
+                return Response(
+                    {
+                        'error': '세그멘테이션 분석이 필요합니다.',
+                        'detail': '먼저 이미지 분석을 완료해주세요.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 이미지 파일 읽기
+            image_url = None
+            image_base64 = None
+            
+            # 방법 1: image_file.path 사용
+            try:
+                image_path = medical_image.image_file.path
+                if os.path.exists(image_path):
+                    with open(image_path, 'rb') as f:
+                        image_bytes = f.read()
+                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                        logger.info(f"이미지 파일 로드 성공 (path): {image_path}")
+            except (AttributeError, ValueError, OSError) as e:
+                logger.warning(f"image_file.path 접근 실패: {e}")
+                # 방법 2: MEDIA_ROOT에서 직접 찾기
+                try:
+                    if medical_image.image_file.name:
+                        file_name = medical_image.image_file.name
+                        if file_name.startswith('medical_images/'):
+                            file_name = file_name.replace('medical_images/', '', 1)
+                        
+                        decoded_file_name = unquote(file_name)
+                        possible_paths = [
+                            os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', decoded_file_name),
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(file_name)),
+                            os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(decoded_file_name)),
+                        ]
+                        
+                        # patient_id를 포함한 경로도 시도
+                        if medical_image.patient_id:
+                            if '/' in file_name:
+                                date_and_file = file_name
+                                possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
+                            possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
+                        
+                        for media_path in possible_paths:
+                            try:
+                                if os.path.exists(media_path) and os.path.isfile(media_path):
+                                    with open(media_path, 'rb') as f:
+                                        image_bytes = f.read()
+                                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                        logger.info(f"이미지 파일 로드 성공 (MEDIA_ROOT): {media_path}")
+                                        break
+                            except Exception as path_error:
+                                continue
+                                
+                except Exception as e2:
+                    logger.error(f"MEDIA_ROOT에서 이미지 찾기 실패: {e2}", exc_info=True)
+            
+            # base64로 로드 실패한 경우에만 URL 사용
+            if not image_base64:
+                logger.warning(f"파일 시스템에서 이미지를 찾지 못함. URL 사용 시도: {medical_image.image_file.name}")
+                try:
+                    image_url = f"{settings.PRODUCTION_DOMAIN}{medical_image.image_file.url}"
+                    logger.info(f"이미지 URL 생성: {image_url}")
+                except Exception as e:
+                    logger.error(f"이미지 URL 생성 실패: {e}")
+            
+            if not image_base64 and not image_url:
+                return Response(
+                    {
+                        'error': '이미지 파일을 읽을 수 없습니다.',
+                        'detail': f'파일명: {getattr(medical_image.image_file, "name", "N/A")}, MEDIA_ROOT: {settings.MEDIA_ROOT}'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 딥러닝 서비스 호출 (classification 타입)
+            try:
+                if image_url:
+                    payload = {
+                        'image_url': image_url,
+                        'patient_id': medical_image.patient_id,
+                        'analysis_type': 'classification',  # 분류 모델 사용
+                        'metadata': {
+                            'image_type': medical_image.image_type,
+                            'image_id': str(medical_image.id),
+                            'segmentation_result_id': str(segmentation_results.first().id) if segmentation_results.exists() else None
+                        }
+                    }
+                else:
+                    payload = {
+                        'image_data': image_base64,
+                        'patient_id': medical_image.patient_id,
+                        'analysis_type': 'classification',  # 분류 모델 사용
+                        'metadata': {
+                            'image_type': medical_image.image_type,
+                            'image_id': str(medical_image.id),
+                            'segmentation_result_id': str(segmentation_results.first().id) if segmentation_results.exists() else None
+                        }
+                    }
+                
+                # 딥러닝 서비스 헬스 체크
+                try:
+                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
+                    if health_response.status_code != 200:
+                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
+                except Exception as health_error:
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
+                    return Response(
+                        {
+                            'error': '딥러닝 서비스에 연결할 수 없습니다.',
+                            'detail': f'mosec 서비스가 실행되지 않았거나 응답하지 않습니다. (URL: {DL_SERVICE_URL})',
+                            'solution': 'GCP 서버에서 다음 명령어로 서비스 상태를 확인하세요:\nsudo systemctl status breast-ai-service\nsudo systemctl restart breast-ai-service'
+                        },
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                
+                response = requests.post(
+                    f'{DL_SERVICE_URL}/inference',
+                    json=payload,
+                    timeout=120
+                )
+                
+                if response.status_code != 200:
+                    error_detail = response.text[:500] if response.text else '응답 없음'
+                    logger.error(f"딥러닝 서비스 오류: {response.status_code}, 상세: {error_detail}")
+                    return Response(
+                        {
+                            'error': f'딥러닝 서비스 오류: {response.status_code}',
+                            'detail': error_detail
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                result = response.json()
+                
+                if not result.get('success'):
+                    return Response(
+                        {'error': result.get('error', '종양분석 실패')},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                analysis_data = result.get('data', {})
+                
+                # 종양분석 결과 저장
+                tumor_analysis_result = AIAnalysisResult.objects.create(
+                    image=medical_image,
+                    analysis_type='BREAST_MRI_CLASSIFICATION',
+                    results=analysis_data.get('probabilities', {}),
+                    confidence=analysis_data.get('confidence'),
+                    findings=analysis_data.get('findings', ''),
+                    recommendations=analysis_data.get('recommendations', ''),
+                    model_version=analysis_data.get('model_version', '1.0.0')
+                )
+                
+                # 시리얼라이저로 응답 반환
+                serializer = self.get_serializer(medical_image)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+            except requests.exceptions.ConnectionError as e:
+                return Response(
+                    {
+                        'error': '딥러닝 서비스에 연결할 수 없습니다.',
+                        'detail': f'mosec 서비스가 실행되지 않았습니다. (URL: {DL_SERVICE_URL})',
+                        'solution': 'GCP 서버에서 다음 명령어로 서비스 상태를 확인하세요:\nsudo systemctl status breast-ai-service\nsudo systemctl restart breast-ai-service'
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            except requests.exceptions.Timeout as e:
+                logger.error(f"딥러닝 서비스 타임아웃: {str(e)}, URL: {DL_SERVICE_URL}")
+                return Response(
+                    {
+                        'error': '딥러닝 서비스 응답 시간 초과',
+                        'detail': f'모델 추론에 시간이 너무 오래 걸립니다. (타임아웃: 120초)',
+                        'solution': '이미지 크기를 줄이거나, 서버 리소스를 확인하세요.'
+                    },
+                    status=status.HTTP_408_REQUEST_TIMEOUT
+                )
+            except requests.exceptions.RequestException as e:
+                return Response(
+                    {
+                        'error': f'딥러닝 서비스 연결 실패: {str(e)}',
+                        'detail': 'mosec 서비스가 실행 중인지 확인하세요.'
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            except Exception as e:
+                return Response(
+                    {'error': f'종양분석 중 오류 발생: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except MedicalImage.DoesNotExist:
+            return Response(
+                {'error': '의료 이미지를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"종양분석 중 예기치 않은 오류 발생: {str(e)}", exc_info=True)
             return Response(
                 {'error': f'예상치 못한 오류: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
