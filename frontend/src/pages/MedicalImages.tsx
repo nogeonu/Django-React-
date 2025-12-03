@@ -89,29 +89,6 @@ export default function MedicalImages() {
     enabled: !!selectedPatient,
   });
 
-  const uploadImageMutation = useMutation({
-    mutationFn: async (imageData: any) => {
-      const response = await apiRequest("POST", "/api/medical-images/", imageData);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "업로드 완료",
-        description: "의료 이미지가 성공적으로 업로드되었습니다.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
-    },
-    onError: (error: any) => {
-      console.error('이미지 업로드 오류:', error);
-      const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "이미지 업로드 중 오류가 발생했습니다.";
-      toast({
-        title: "업로드 실패",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
-  });
-
   const aiAnalysisMutation = useMutation({
     mutationFn: async (imageId: string) => {
       const response = await apiRequest("POST", `/api/medical-images/${imageId}/analyze/`);
