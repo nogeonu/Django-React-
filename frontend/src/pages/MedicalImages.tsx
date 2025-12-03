@@ -10,7 +10,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Box
+  Box,
+  X
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,8 @@ export default function MedicalImages() {
   const [selectedPatient, setSelectedPatient] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedImage, setSelectedImage] = useState<MedicalImage | null>(null);
+  const [selectedImagesForAnalysis, setSelectedImagesForAnalysis] = useState<Set<string>>(new Set());
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -146,25 +149,50 @@ export default function MedicalImages() {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    try {
-      const formData = new FormData();
-      formData.append('patient_id', selectedPatient);
-      formData.append('image_type', 'MRI'); // 기본값, 실제로는 사용자가 선택
-      formData.append('image_file', file);
-      formData.append('description', '');
-      formData.append('taken_date', new Date().toISOString());
-      formData.append('doctor_notes', '');
+    const fileArray = Array.from(files);
+    
+    toast({
+      title: "업로드 시작",
+      description: `${fileArray.length}개의 이미지를 업로드합니다...`,
+    });
 
-      uploadImageMutation.mutate(formData);
-    } catch (error) {
-      toast({
-        title: "파일 처리 실패",
-        description: "파일을 처리하는 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+    // 여러 파일을 순차적으로 업로드
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      try {
+        const formData = new FormData();
+        formData.append('patient_id', selectedPatient);
+        formData.append('image_type', 'MRI'); // 기본값, 실제로는 사용자가 선택
+        formData.append('image_file', file);
+        formData.append('description', '');
+        formData.append('taken_date', new Date().toISOString());
+        formData.append('doctor_notes', '');
+
+        await apiRequest("POST", "/api/medical-images/", formData);
+      } catch (error) {
+        console.error(`이미지 ${i + 1} 업로드 실패:`, error);
+        toast({
+          title: `파일 ${i + 1} 업로드 실패`,
+          description: `${file.name} 업로드 중 오류가 발생했습니다.`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    // 모든 업로드 완료 후 목록 갱신
+    queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
+    
+    toast({
+      title: "업로드 완료",
+      description: `${fileArray.length}개의 이미지가 성공적으로 업로드되었습니다.`,
+    });
+
+    // 파일 입력 초기화
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -178,6 +206,68 @@ export default function MedicalImages() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleBatchAnalysis = () => {
+    if (selectedImagesForAnalysis.size === 0) {
+      toast({
+        title: "이미지 선택 필요",
+        description: "분석할 이미지를 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowAnalysisModal(true);
+  };
+
+  const handleConfirmBatchAnalysis = async () => {
+    const selectedIds = Array.from(selectedImagesForAnalysis);
+    
+    toast({
+      title: "일괄 분석 시작",
+      description: `${selectedIds.length}개의 이미지를 분석합니다...`,
+    });
+
+    setShowAnalysisModal(false);
+
+    // 선택된 이미지들을 순차적으로 분석
+    for (const imageId of selectedIds) {
+      try {
+        await apiRequest("POST", `/api/medical-images/${imageId}/analyze/`);
+      } catch (error) {
+        console.error(`이미지 ${imageId} 분석 실패:`, error);
+      }
+    }
+
+    // 분석 완료 후 목록 갱신
+    queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
+    
+    toast({
+      title: "일괄 분석 완료",
+      description: `${selectedIds.length}개의 이미지 분석이 완료되었습니다.`,
+    });
+
+    // 선택 초기화
+    setSelectedImagesForAnalysis(new Set());
+  };
+
+  const toggleImageSelection = (imageId: string) => {
+    const newSelection = new Set(selectedImagesForAnalysis);
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId);
+    } else {
+      newSelection.add(imageId);
+    }
+    setSelectedImagesForAnalysis(newSelection);
+  };
+
+  const selectAllImages = () => {
+    const allImageIds = filteredImages.map((img: MedicalImage) => img.id);
+    setSelectedImagesForAnalysis(new Set(allImageIds));
+  };
+
+  const deselectAllImages = () => {
+    setSelectedImagesForAnalysis(new Set());
   };
 
   const handleDownload = (image: MedicalImage) => {
@@ -358,15 +448,57 @@ export default function MedicalImages() {
           </CardContent>
         </Card>
 
-        {/* Hidden File Input */}
+        {/* Hidden File Input - multiple 속성 추가 */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
           onChange={handleFileChange}
           data-testid="input-file-upload"
         />
+
+        {/* 일괄 분석 버튼 (이미지가 선택된 경우에만 표시) */}
+        {selectedPatient && filteredImages.length > 0 && (
+          <Card className="mb-6 bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm font-medium text-gray-700">
+                    선택된 이미지: <span className="text-blue-600 font-bold">{selectedImagesForAnalysis.size}개</span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={selectAllImages}
+                      data-testid="button-select-all"
+                    >
+                      전체 선택
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={deselectAllImages}
+                      data-testid="button-deselect-all"
+                    >
+                      선택 해제
+                    </Button>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleBatchAnalysis}
+                  disabled={selectedImagesForAnalysis.size === 0}
+                  data-testid="button-batch-analysis"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  선택한 이미지 분석 ({selectedImagesForAnalysis.size})
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Image Grid */}
         {selectedPatient ? (
@@ -405,6 +537,20 @@ export default function MedicalImages() {
                       data-testid={`image-card-${image.id}`}
                     >
                       <div className="aspect-video bg-gray-100 relative">
+                        {/* 체크박스 - 왼쪽 상단 */}
+                        <div 
+                          className="absolute top-3 left-3 z-10"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedImagesForAnalysis.has(image.id)}
+                            onChange={() => toggleImageSelection(image.id)}
+                            className="w-5 h-5 cursor-pointer accent-blue-600"
+                            data-testid={`checkbox-image-${image.id}`}
+                          />
+                        </div>
+
                         {image.image_url ? (
                           <img
                             src={image.image_url}
@@ -427,10 +573,14 @@ export default function MedicalImages() {
                             <p className="text-xs text-gray-500">이미지 없음</p>
                           </div>
                         </div>
+                        
+                        {/* 분석 상태 배지 - 오른쪽 상단 */}
                         <div className="absolute top-2 right-2">
                           {getAnalysisStatusBadge(image)}
                         </div>
-                        <div className="absolute top-2 left-2">
+                        
+                        {/* 이미지 타입 배지 - 하단 왼쪽 */}
+                        <div className="absolute bottom-2 left-2">
                           <Badge 
                             variant={image.image_type === 'MRI' ? 'default' : 'secondary'}
                             className={image.image_type === 'MRI' ? 'bg-purple-600 hover:bg-purple-700' : ''}
@@ -438,14 +588,6 @@ export default function MedicalImages() {
                             {image.image_type}
                           </Badge>
                         </div>
-                        {image.analysis_results && image.analysis_results.length > 0 && (
-                          <div className="absolute top-2 right-2">
-                            <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              분석 완료
-                            </Badge>
-                          </div>
-                        )}
                       </div>
                       
                       <div className="p-4">
@@ -694,6 +836,95 @@ export default function MedicalImages() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 분석 확인 모달 */}
+      {showAnalysisModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowAnalysisModal(false)}
+          data-testid="modal-batch-analysis"
+        >
+          <div
+            className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-semibold">일괄 분석 확인</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAnalysisModal(false)}
+                  data-testid="button-close-batch-modal"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  다음 <span className="font-bold text-blue-600">{selectedImagesForAnalysis.size}개</span>의 이미지를 분석하시겠습니까?
+                </p>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                  {filteredImages
+                    .filter((img: MedicalImage) => selectedImagesForAnalysis.has(img.id))
+                    .map((image: MedicalImage) => (
+                      <div
+                        key={image.id}
+                        className="border rounded-lg overflow-hidden"
+                      >
+                        <div className="aspect-video bg-gray-100 relative">
+                          {image.image_url ? (
+                            <img
+                              src={image.image_url}
+                              alt={image.image_type}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <FileImage className="w-8 h-8 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="absolute top-1 right-1">
+                            <Badge 
+                              variant={image.image_type === 'MRI' ? 'default' : 'secondary'}
+                              className="text-xs"
+                            >
+                              {image.image_type}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs text-gray-600 truncate">
+                            {new Date(image.taken_date || '').toLocaleDateString('ko-KR')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAnalysisModal(false)}
+                  data-testid="button-cancel-batch-analysis"
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleConfirmBatchAnalysis}
+                  data-testid="button-confirm-batch-analysis"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  분석 시작
+                </Button>
               </div>
             </div>
           </div>
