@@ -39,7 +39,7 @@ def medical_image_upload_path(instance, filename):
     """
     의료 이미지 파일 저장 경로 생성
     파일명을 영어로 변환하여 저장
-    경로 구조: medical_images/patient_id/YYYY/MM/DD/파일명
+    경로 구조: medical_images/patient_id/images/YYYY/MM/DD/파일명
     """
     # 파일명 정리
     safe_filename = sanitize_filename(filename)
@@ -53,8 +53,8 @@ def medical_image_upload_path(instance, filename):
     # 날짜별 폴더 구조
     date_path = timezone.now().strftime('%Y/%m/%d')
     
-    # 경로: medical_images/patient_id/YYYY/MM/DD/파일명
-    return os.path.join('medical_images', str(patient_id), date_path, safe_filename)
+    # 경로: medical_images/patient_id/images/YYYY/MM/DD/파일명
+    return os.path.join('medical_images', str(patient_id), 'images', date_path, safe_filename)
 
 class MedicalImage(models.Model):
     IMAGE_TYPE_CHOICES = [

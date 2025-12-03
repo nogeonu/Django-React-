@@ -7,12 +7,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
 from django.http import FileResponse, Http404
+from django.utils import timezone
 import os
 import requests
 import base64
 import traceback
 import logging
 from urllib.parse import unquote
+from PIL import Image
+from io import BytesIO
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
 
@@ -86,7 +89,7 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 if file_name.startswith('medical_images/'):
                     file_name = file_name.replace('medical_images/', '', 1)
                 
-                # 여러 경로 시도 (새로운 경로 구조: medical_images/patient_id/YYYY/MM/DD/파일명)
+                # 여러 경로 시도 (새로운 경로 구조: medical_images/patient_id/images/YYYY/MM/DD/파일명)
                 possible_paths = [
                     os.path.join(settings.MEDIA_ROOT, medical_image.image_file.name),  # 전체 경로
                     os.path.join(settings.MEDIA_ROOT, 'medical_images', file_name),  # 상대 경로
@@ -94,15 +97,19 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     os.path.join(settings.MEDIA_ROOT, 'medical_images', unquote(file_name)),  # 디코딩된 경로
                 ]
                 
-                # patient_id를 포함한 경로도 시도 (새로운 경로 구조)
+                # patient_id를 포함한 경로도 시도 (새로운 경로 구조: images/ 폴더 포함)
                 if medical_image.patient_id:
-                    # patient_id/YYYY/MM/DD/파일명 형식
+                    # patient_id/images/YYYY/MM/DD/파일명 형식 (새 구조)
                     if '/' in file_name:
                         # 날짜 경로가 포함된 경우
                         date_and_file = file_name
-                        possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
-                    # 파일명만 있는 경우 날짜 경로 추정 시도
-                    possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
+                        possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', date_and_file))
+                        # 기존 구조 호환성 (images/ 없이)
+                        possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
+                    # 파일명만 있는 경우
+                    possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', os.path.basename(file_name)))
+                    # 기존 구조 호환성
+                    possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
                 
                 for path in possible_paths:
                     if os.path.exists(path) and os.path.isfile(path):
@@ -205,16 +212,20 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                             os.path.join(settings.MEDIA_ROOT, 'medical_images', os.path.basename(decoded_file_name)),  # 디코딩된 basename
                         ]
                         
-                        # patient_id를 포함한 경로 시도 (새로운 경로 구조: medical_images/patient_id/YYYY/MM/DD/파일명)
+                        # patient_id를 포함한 경로 시도 (새로운 경로 구조: medical_images/patient_id/images/YYYY/MM/DD/파일명)
                         if medical_image.patient_id:
-                            # patient_id/YYYY/MM/DD/파일명 형식
+                            # patient_id/images/YYYY/MM/DD/파일명 형식 (새 구조)
                             if '/' in file_name:
                                 # 날짜 경로가 포함된 경우
                                 date_and_file = file_name
-                                possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
-                                possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), decoded_file_name))
+                                possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', date_and_file))
+                                possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', decoded_file_name))
+                                # 기존 구조 호환성 (images/ 없이)
+                                possible_paths.insert(3, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_and_file))
                             # 파일명만 있는 경우
-                            possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
+                            possible_paths.insert(1, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', os.path.basename(file_name)))
+                            # 기존 구조 호환성
+                            possible_paths.insert(2, os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), os.path.basename(file_name)))
                         
                         # 날짜별 폴더 구조도 시도 (YYYY/MM/DD/파일명) - 기존 형식 호환성
                         if '/' in file_name:
@@ -226,9 +237,12 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                                     os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, filename_only),
                                     os.path.join(settings.MEDIA_ROOT, 'medical_images', date_path, unquote(filename_only)),
                                 ])
-                                # patient_id 포함 경로도 추가
+                                # patient_id 포함 경로도 추가 (새 구조: images/ 포함)
                                 if medical_image.patient_id:
                                     possible_paths.extend([
+                                        os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', date_path, filename_only),
+                                        os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), 'images', date_path, unquote(filename_only)),
+                                        # 기존 구조 호환성
                                         os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_path, filename_only),
                                         os.path.join(settings.MEDIA_ROOT, 'medical_images', str(medical_image.patient_id), date_path, unquote(filename_only)),
                                     ])
@@ -355,10 +369,69 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 # 분석 결과 저장
                 # analysis_type이 segmentation이면 'BREAST_MRI_SEGMENTATION', classification이면 'BREAST_MRI_CLASSIFICATION'
                 db_analysis_type = 'BREAST_MRI_SEGMENTATION' if analysis_type == 'segmentation' else 'BREAST_MRI_CLASSIFICATION'
+                
+                # 세그멘테이션 결과인 경우 마스크 이미지 저장
+                mask_path = None
+                if analysis_type == 'segmentation' and analysis_data.get('mask_image'):
+                    try:
+                        # 마스크 이미지 데이터 가져오기 (base64 또는 이미지 데이터)
+                        mask_data = analysis_data.get('mask_image')
+                        
+                        # base64 디코딩
+                        if isinstance(mask_data, str):
+                            if mask_data.startswith('data:image'):
+                                mask_data = mask_data.split(',')[1]
+                            mask_bytes = base64.b64decode(mask_data)
+                        else:
+                            # 이미 바이너리인 경우
+                            mask_bytes = mask_data
+                        
+                        # PIL Image로 변환
+                        mask_image = Image.open(BytesIO(mask_bytes))
+                        
+                        # 마스크 저장 경로 생성: medical_images/patient_id/masks/YYYY/MM/DD/파일명
+                        date_path = timezone.now().strftime('%Y/%m/%d')
+                        original_filename = os.path.basename(medical_image.image_file.name)
+                        filename_without_ext = os.path.splitext(original_filename)[0]
+                        mask_filename = f"{filename_without_ext}_mask.png"
+                        
+                        mask_dir = os.path.join(
+                            settings.MEDIA_ROOT,
+                            'medical_images',
+                            str(medical_image.patient_id),
+                            'masks',
+                            date_path
+                        )
+                        os.makedirs(mask_dir, exist_ok=True)
+                        
+                        mask_path = os.path.join(mask_dir, mask_filename)
+                        mask_image.save(mask_path, 'PNG')
+                        
+                        # 상대 경로 저장 (MEDIA_ROOT 기준)
+                        mask_relative_path = os.path.join(
+                            'medical_images',
+                            str(medical_image.patient_id),
+                            'masks',
+                            date_path,
+                            mask_filename
+                        )
+                        
+                        logger.info(f"마스크 이미지 저장 완료: {mask_path}")
+                        
+                        # 마스크 경로를 results에 추가
+                        if not analysis_data.get('results'):
+                            analysis_data['results'] = {}
+                        analysis_data['results']['mask_path'] = mask_relative_path
+                        analysis_data['results']['mask_url'] = f"{settings.MEDIA_URL}{mask_relative_path}"
+                        
+                    except Exception as mask_error:
+                        logger.error(f"마스크 이미지 저장 실패: {str(mask_error)}", exc_info=True)
+                        # 마스크 저장 실패해도 분석 결과는 저장
+                
                 analysis_result = AIAnalysisResult.objects.create(
                     image=medical_image,
                     analysis_type=db_analysis_type,
-                    results=analysis_data.get('probabilities', {}),
+                    results=analysis_data.get('results', analysis_data.get('probabilities', {})),
                     confidence=analysis_data.get('confidence'),
                     findings=analysis_data.get('findings', ''),
                     recommendations=analysis_data.get('recommendations', ''),
