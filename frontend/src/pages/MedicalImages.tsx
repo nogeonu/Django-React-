@@ -99,7 +99,7 @@ export default function MedicalImages() {
       });
       return response;
     },
-    onSuccess: async (data, variables) => {
+    onSuccess: async (_data, variables) => {
       toast({
         title: "AI 분석 완료",
         description: "이미지 분석이 완료되었습니다.",
