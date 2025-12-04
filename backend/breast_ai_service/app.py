@@ -25,10 +25,10 @@ class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
@@ -39,7 +39,7 @@ class DoubleConv(nn.Module):
 
 class UNet(nn.Module):
     """UNet 세그멘테이션 모델 (원본 모델 구조)"""
-    def __init__(self, in_channels=3, out_channels=1):
+    def __init__(self, in_channels=1, out_channels=1):
         super(UNet, self).__init__()
         
         # Downsampling path (Encoder)
@@ -67,7 +67,7 @@ class UNet(nn.Module):
         ])
         
         # Final output layer
-        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1, bias=False)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
     
     def forward(self, x):
@@ -289,13 +289,17 @@ class InferenceWorker(Worker):
             # 원본 이미지 크기 저장
             original_size = image.size
             
+            # RGB를 그레이스케일로 변환 (모델이 in_channels=1로 학습됨)
+            if image.mode != 'L':
+                image = image.convert('L')
+            
             # 세그멘테이션 전처리 (256x256)
             transform = transforms.Compose([
                 transforms.Resize((256, 256)),
                 transforms.ToTensor(),
             ])
             
-            input_tensor = transform(image).unsqueeze(0)  # [1, 3, 256, 256]
+            input_tensor = transform(image).unsqueeze(0)  # [1, 1, 256, 256]
             
             # 세그멘테이션 추론
             with torch.no_grad():
