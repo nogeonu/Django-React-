@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Upload, 
@@ -68,6 +68,7 @@ export default function MedicalImages() {
   const [selectedImage, setSelectedImage] = useState<MedicalImage | null>(null);
   const [selectedImagesForAnalysis, setSelectedImagesForAnalysis] = useState<Set<string>>(new Set());
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [overlayImageCache, setOverlayImageCache] = useState<Map<string, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,12 +99,36 @@ export default function MedicalImages() {
       });
       return response;
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       toast({
         title: "AI 분석 완료",
         description: "이미지 분석이 완료되었습니다.",
       });
       queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
+      
+      // 분석 완료 후 오버레이 이미지 미리 생성
+      setTimeout(async () => {
+        const updatedImages = await queryClient.fetchQuery({
+          queryKey: ["medical-images", selectedPatient],
+          queryFn: async () => {
+            const response = await apiRequest("GET", `/api/medical-images/?patient_id=${selectedPatient}`);
+            return response.results || response || [];
+          },
+        });
+        
+        const analyzedImage = updatedImages.find((img: MedicalImage) => img.id === variables);
+        if (analyzedImage) {
+          const maskUrl = getMaskUrl(analyzedImage);
+          if (maskUrl && analyzedImage.image_url) {
+            try {
+              const overlayUrl = await createOverlayImage(analyzedImage.image_url, maskUrl);
+              setOverlayImageCache(prev => new Map(prev).set(analyzedImage.id, overlayUrl));
+            } catch (error) {
+              console.error('오버레이 이미지 생성 실패:', error);
+            }
+          }
+        }
+      }, 1000); // 쿼리 무효화 후 데이터 갱신 대기
     },
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error?.message || "AI 분석 중 오류가 발생했습니다.";
@@ -251,7 +276,133 @@ export default function MedicalImages() {
     setSelectedImagesForAnalysis(new Set());
   };
 
-  const handleDownload = (image: MedicalImage) => {
+  // 오버레이 이미지 생성 함수 (원본 이미지 + 마스크)
+  const createOverlayImage = async (originalImageUrl: string, maskImageUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const originalImg = new Image();
+      const maskImg = new Image();
+      
+      originalImg.crossOrigin = 'anonymous';
+      maskImg.crossOrigin = 'anonymous';
+      
+      let loadedCount = 0;
+      const checkLoaded = () => {
+        loadedCount++;
+        if (loadedCount === 2) {
+          try {
+            // Canvas 생성
+            const canvas = document.createElement('canvas');
+            canvas.width = originalImg.width;
+            canvas.height = originalImg.height;
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+              reject(new Error('Canvas context를 가져올 수 없습니다.'));
+              return;
+            }
+            
+            // 원본 이미지 그리기
+            ctx.drawImage(originalImg, 0, 0);
+            
+            // 마스크 이미지를 Canvas에 그리기
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = maskImg.width;
+            maskCanvas.height = maskImg.height;
+            const maskCtx = maskCanvas.getContext('2d');
+            
+            if (!maskCtx) {
+              reject(new Error('마스크 Canvas context를 가져올 수 없습니다.'));
+              return;
+            }
+            
+            maskCtx.drawImage(maskImg, 0, 0);
+            const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+            
+            // 마스크가 있는 부분에 빨간색 오버레이
+            ctx.globalCompositeOperation = 'source-over';
+            const scaleX = canvas.width / maskCanvas.width;
+            const scaleY = canvas.height / maskCanvas.height;
+            
+            for (let y = 0; y < maskCanvas.height; y++) {
+              for (let x = 0; x < maskCanvas.width; x++) {
+                const idx = (y * maskCanvas.width + x) * 4;
+                const alpha = maskData.data[idx + 3] / 255;
+                
+                if (alpha > 0.1) {
+                  // 빨간색 반투명 오버레이
+                  ctx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.6})`;
+                  ctx.fillRect(x * scaleX, y * scaleY, scaleX, scaleY);
+                }
+              }
+            }
+            
+            // Canvas를 이미지 URL로 변환
+            const dataUrl = canvas.toDataURL('image/png');
+            resolve(dataUrl);
+          } catch (error) {
+            reject(error);
+          }
+        }
+      };
+      
+      originalImg.onload = checkLoaded;
+      maskImg.onload = checkLoaded;
+      originalImg.onerror = () => reject(new Error('원본 이미지를 로드할 수 없습니다.'));
+      maskImg.onerror = () => reject(new Error('마스크 이미지를 로드할 수 없습니다.'));
+      
+      originalImg.src = originalImageUrl;
+      maskImg.src = maskImageUrl;
+    });
+  };
+
+  // 세그멘테이션 결과에서 마스크 URL 가져오기
+  const getMaskUrl = (image: MedicalImage): string | null => {
+    const segmentationResult = image.analysis_results?.find(
+      (result: AIAnalysisResult) => result.analysis_type === 'BREAST_MRI_SEGMENTATION'
+    );
+    
+    if (segmentationResult?.results?.mask_url) {
+      // 상대 경로인 경우 절대 URL로 변환
+      const maskUrl = segmentationResult.results.mask_url;
+      if (maskUrl.startsWith('http')) {
+        return maskUrl;
+      } else if (maskUrl.startsWith('/')) {
+        return `${window.location.origin}${maskUrl}`;
+      } else {
+        return `${window.location.origin}/media/${maskUrl}`;
+      }
+    }
+    
+    return null;
+  };
+
+  // 표시할 이미지 URL 가져오기 (오버레이 포함, 캐시 사용)
+  const getDisplayImageUrl = (image: MedicalImage): string | null => {
+    if (!image.image_url) return null;
+    
+    // 캐시에 있으면 캐시 사용
+    if (overlayImageCache.has(image.id)) {
+      return overlayImageCache.get(image.id) || image.image_url;
+    }
+    
+    // 세그멘테이션 결과가 있으면 오버레이 이미지 생성 (비동기)
+    const maskUrl = getMaskUrl(image);
+    if (maskUrl) {
+      createOverlayImage(image.image_url, maskUrl)
+        .then(overlayUrl => {
+          setOverlayImageCache(prev => new Map(prev).set(image.id, overlayUrl));
+        })
+        .catch(error => {
+          console.error('오버레이 이미지 생성 실패:', error);
+        });
+      // 생성 중에는 원본 표시
+      return image.image_url;
+    }
+    
+    return image.image_url;
+  };
+
+  const handleDownload = async (image: MedicalImage) => {
     if (!image.image_url) {
       toast({
         title: "다운로드 실패",
@@ -262,37 +413,60 @@ export default function MedicalImages() {
     }
 
     try {
-      // 이미지 URL에서 파일명 추출
-      const url = new URL(image.image_url);
-      const pathParts = url.pathname.split('/');
-      const filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+      // 세그멘테이션 결과가 있으면 오버레이 이미지 다운로드
+      const maskUrl = getMaskUrl(image);
+      let imageUrl = image.image_url;
+      let filename = `medical_image_${image.id}.png`;
+      
+      if (maskUrl) {
+        // 오버레이 이미지 생성
+        try {
+          imageUrl = await createOverlayImage(image.image_url, maskUrl);
+          filename = `medical_image_${image.id}_overlay.png`;
+        } catch (overlayError) {
+          console.error('오버레이 이미지 생성 실패, 원본 다운로드:', overlayError);
+          // 오버레이 실패 시 원본 다운로드
+        }
+      } else {
+        // 원본 이미지 파일명 추출
+        const url = new URL(image.image_url);
+        const pathParts = url.pathname.split('/');
+        filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+      }
       
       // 이미지 다운로드
-      fetch(image.image_url)
-        .then(response => response.blob())
-        .then(blob => {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = decodeURIComponent(filename);
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          
-          toast({
-            title: "다운로드 완료",
-            description: "이미지가 다운로드되었습니다.",
+      if (imageUrl.startsWith('data:')) {
+        // Data URL인 경우 (오버레이 이미지)
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // 일반 URL인 경우
+        fetch(imageUrl)
+          .then(response => response.blob())
+          .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = decodeURIComponent(filename);
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          })
+          .catch(error => {
+            console.error('다운로드 오류:', error);
+            throw error;
           });
-        })
-        .catch(error => {
-          console.error('다운로드 오류:', error);
-          toast({
-            title: "다운로드 실패",
-            description: "이미지를 다운로드할 수 없습니다.",
-            variant: "destructive",
-          });
-        });
+      }
+      
+      toast({
+        title: "다운로드 완료",
+        description: maskUrl ? "오버레이 이미지가 다운로드되었습니다." : "이미지가 다운로드되었습니다.",
+      });
     } catch (error) {
       console.error('다운로드 오류:', error);
       toast({
@@ -412,6 +586,26 @@ export default function MedicalImages() {
     image.image_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (image.description && image.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  // 세그멘테이션 결과가 있는 이미지에 대해 오버레이 이미지 자동 생성
+  useEffect(() => {
+    filteredImages.forEach((image: MedicalImage) => {
+      // 이미 캐시에 있으면 스킵
+      if (overlayImageCache.has(image.id)) return;
+      
+      // 세그멘테이션 결과가 있고 이미지 URL이 있으면 오버레이 생성
+      const maskUrl = getMaskUrl(image);
+      if (maskUrl && image.image_url) {
+        createOverlayImage(image.image_url, maskUrl)
+          .then(overlayUrl => {
+            setOverlayImageCache(prev => new Map(prev).set(image.id, overlayUrl));
+          })
+          .catch(error => {
+            console.error(`이미지 ${image.id} 오버레이 생성 실패:`, error);
+          });
+      }
+    });
+  }, [filteredImages, overlayImageCache]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -583,9 +777,10 @@ export default function MedicalImages() {
                           />
                         </div>
 
-                        {image.image_url ? (
+                        {getDisplayImageUrl(image) ? (
                           <img
-                            src={image.image_url}
+                            key={overlayImageCache.get(image.id) ? `overlay-${image.id}` : `original-${image.id}`}
+                            src={getDisplayImageUrl(image) || image.image_url}
                             alt={image.image_type}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -778,9 +973,10 @@ export default function MedicalImages() {
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  {selectedImage.image_url ? (
+                  {getDisplayImageUrl(selectedImage) ? (
                     <img
-                      src={selectedImage.image_url}
+                      key={overlayImageCache.get(selectedImage.id) ? `overlay-modal-${selectedImage.id}` : `original-modal-${selectedImage.id}`}
+                      src={getDisplayImageUrl(selectedImage) || selectedImage.image_url}
                       alt={selectedImage.image_type}
                       className="w-full rounded-lg"
                       onError={(e) => {
