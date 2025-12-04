@@ -139,8 +139,8 @@ class InferenceWorker(Worker):
                 print(f"🔄 세그멘테이션 모델 로딩 중: {segmentation_model_path}")
                 seg_loaded = torch.load(segmentation_model_path, map_location='cpu')
                 
-                # UNet 모델 생성
-                self.segmentation_model = UNet(in_channels=3, out_channels=1)
+                # UNet 모델 생성 (그레이스케일 입력)
+                self.segmentation_model = UNet(in_channels=1, out_channels=1)
                 
                 # state_dict 로드
                 if isinstance(seg_loaded, dict):
