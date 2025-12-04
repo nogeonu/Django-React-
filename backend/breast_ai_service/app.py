@@ -6,6 +6,7 @@ mosec은 Rust 기반의 고성능 모델 서빙 프레임워크로, 동적 배�
 from mosec import Worker, Server
 import os
 import torch
+import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
@@ -18,12 +19,89 @@ from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
+# UNet 모델 아키텍처 정의
+class UNet(nn.Module):
+    """UNet 세그멘테이션 모델"""
+    def __init__(self, in_channels=3, out_channels=1):
+        super(UNet, self).__init__()
+        
+        # Encoder (Contracting Path)
+        self.enc1 = self.conv_block(in_channels, 64)
+        self.enc2 = self.conv_block(64, 128)
+        self.enc3 = self.conv_block(128, 256)
+        self.enc4 = self.conv_block(256, 512)
+        
+        # Bottleneck
+        self.bottleneck = self.conv_block(512, 1024)
+        
+        # Decoder (Expansive Path)
+        self.upconv4 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
+        self.dec4 = self.conv_block(1024, 512)
+        self.upconv3 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.dec3 = self.conv_block(512, 256)
+        self.upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.dec2 = self.conv_block(256, 128)
+        self.upconv1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.dec1 = self.conv_block(128, 64)
+        
+        # Final output layer
+        self.out = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+    def conv_block(self, in_channels, out_channels):
+        return nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+    
+    def forward(self, x):
+        # Encoder
+        enc1 = self.enc1(x)
+        enc2 = self.enc2(self.pool(enc1))
+        enc3 = self.enc3(self.pool(enc2))
+        enc4 = self.enc4(self.pool(enc3))
+        
+        # Bottleneck
+        bottleneck = self.bottleneck(self.pool(enc4))
+        
+        # Decoder with skip connections
+        dec4 = self.upconv4(bottleneck)
+        dec4 = torch.cat([dec4, enc4], dim=1)
+        dec4 = self.dec4(dec4)
+        
+        dec3 = self.upconv3(dec4)
+        dec3 = torch.cat([dec3, enc3], dim=1)
+        dec3 = self.dec3(dec3)
+        
+        dec2 = self.upconv2(dec3)
+        dec2 = torch.cat([dec2, enc2], dim=1)
+        dec2 = self.dec2(dec2)
+        
+        dec1 = self.upconv1(dec2)
+        dec1 = torch.cat([dec1, enc1], dim=1)
+        dec1 = self.dec1(dec1)
+        
+        # Output
+        return torch.sigmoid(self.out(dec1))
+
 # 딥러닝 모델 로드
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # 모델 파일 경로 (환경 변수 또는 프로젝트 내부 경로)
-# breast_ai_service/ml_model 디렉토리에 모델 파일 저장 (lung_cancer/ml_model 구조와 동일)
-model_path = os.environ.get(
-    'DL_MODEL_PATH',
+# breast_ai_service/ml_model 디렉토리에 모델 파일 저장
+
+# 세그멘테이션 모델 (UNet)
+segmentation_model_path = os.environ.get(
+    'SEGMENTATION_MODEL_PATH',
+    os.path.join(current_dir, 'ml_model', 'unet_pytorch_best.pth')
+)
+
+# 분류 모델 (ResNet 등)
+classification_model_path = os.environ.get(
+    'CLASSIFICATION_MODEL_PATH',
     os.path.join(current_dir, 'ml_model', 'best_breast_mri_model.pth')
 )
 
@@ -37,92 +115,107 @@ class InferenceWorker(Worker):
     """
     def __init__(self):
         super().__init__()
-        # 모델 로드
-        self.model = None
-        self.model_loaded = False
+        # 두 개의 모델 로드: 세그멘테이션과 분류
+        self.segmentation_model = None
+        self.classification_model = None
+        self.segmentation_loaded = False
+        self.classification_loaded = False
+        self.class_names = ['Benign', 'Malignant']  # 분류 모델용
         
-        if os.path.exists(model_path):
+        # 1. 세그멘테이션 모델 로드 (UNet)
+        if os.path.exists(segmentation_model_path):
             try:
-                loaded = torch.load(model_path, map_location='cpu')
+                print(f"🔄 세그멘테이션 모델 로딩 중: {segmentation_model_path}")
+                seg_loaded = torch.load(segmentation_model_path, map_location='cpu')
                 
-                # 모델이 딕셔너리로 저장된 경우 처리
-                if isinstance(loaded, dict):
-                    if 'model_state_dict' in loaded:
-                        # state_dict와 메타데이터가 있는 경우
-                        self.model_data = loaded
-                        self.model_state_dict = loaded['model_state_dict']
-                        self.model_name = loaded.get('model_name', 'unknown')
-                        self.num_classes = loaded.get('num_classes', 2)
-                        self.class_names = loaded.get('class_names', ['정상', '이상'])
-                        
-                        # 모델 아키텍처 재구성 시도
-                        try:
-                            # ResNet 모델 아키텍처 시도
-                            if 'resnet' in self.model_name.lower():
-                                from torchvision import models
-                                if '18' in self.model_name.lower():
-                                    self.model = models.resnet18(pretrained=False)
-                                elif '34' in self.model_name.lower():
-                                    self.model = models.resnet34(pretrained=False)
-                                elif '50' in self.model_name.lower():
-                                    self.model = models.resnet50(pretrained=False)
-                                elif '101' in self.model_name.lower():
-                                    self.model = models.resnet101(pretrained=False)
-                                elif '152' in self.model_name.lower():
-                                    self.model = models.resnet152(pretrained=False)
-                                else:
-                                    # 기본값으로 ResNet50 사용
-                                    self.model = models.resnet50(pretrained=False)
-                                
-                                # 마지막 레이어를 num_classes에 맞게 수정
-                                self.model.fc = torch.nn.Linear(self.model.fc.in_features, self.num_classes)
-                                self.model.load_state_dict(self.model_state_dict)
-                                self.model.eval()
-                                self.model_loaded = True
-                                print(f"✅ 딥러닝 모델 로드 완료: {self.model_name} ({self.num_classes} classes)")
-                                print(f"   클래스: {self.class_names}")
-                            else:
-                                # 모델 아키텍처를 알 수 없는 경우
-                                print(f"⚠️  모델 아키텍처를 알 수 없습니다: {self.model_name}")
-                                print("⚠️  모델을 사용하려면 아키텍처 정의가 필요합니다.")
-                                self.model = None
-                                self.model_loaded = False
-                        except Exception as e:
-                            print(f"⚠️  모델 아키텍처 재구성 실패: {str(e)}")
-                            import traceback
-                            traceback.print_exc()
-                            self.model = None
-                            self.model_loaded = False
-                    elif 'model' in loaded:
-                        # 모델이 'model' 키로 저장된 경우
-                        self.model = loaded['model']
-                        if hasattr(self.model, 'eval'):
-                            self.model.eval()
-                        self.model_loaded = True
-                        self.class_names = loaded.get('class_names', ['정상', '이상'])
-                        print(f"✅ 딥러닝 모델 로드 완료: {model_path}")
+                # UNet 모델 생성
+                self.segmentation_model = UNet(in_channels=3, out_channels=1)
+                
+                # state_dict 로드
+                if isinstance(seg_loaded, dict):
+                    if 'model_state_dict' in seg_loaded:
+                        self.segmentation_model.load_state_dict(seg_loaded['model_state_dict'])
+                    elif 'state_dict' in seg_loaded:
+                        self.segmentation_model.load_state_dict(seg_loaded['state_dict'])
                     else:
-                        # 다른 딕셔너리 형식
-                        print(f"⚠️  모델 형식 확인 필요: {list(loaded.keys())}")
-                        self.model = loaded
-                        self.model_loaded = True
-                        print(f"✅ 딥러닝 모델 로드 완료 (딕셔너리 형식): {model_path}")
+                        self.segmentation_model.load_state_dict(seg_loaded)
                 else:
-                    # 모델 객체인 경우
-                    self.model = loaded
-                    if hasattr(self.model, 'eval'):
-                        self.model.eval()
-                    self.model_loaded = True
-                    self.class_names = ['정상', '이상']  # 기본값
-                    print(f"✅ 딥러닝 모델 로드 완료: {model_path}")
+                    # 모델 객체 자체인 경우
+                    self.segmentation_model = seg_loaded
+                
+                self.segmentation_model.eval()
+                self.segmentation_loaded = True
+                print(f"✅ 세그멘테이션 모델 로드 완료 (UNet)")
+                
             except Exception as e:
-                print(f"❌ 모델 로드 실패: {str(e)}")
+                print(f"❌ 세그멘테이션 모델 로드 실패: {str(e)}")
                 import traceback
                 traceback.print_exc()
-                self.model_loaded = False
+                self.segmentation_loaded = False
         else:
-            print(f"❌ 모델 파일을 찾을 수 없습니다: {model_path}")
-            self.model_loaded = False
+            print(f"⚠️  세그멘테이션 모델 파일을 찾을 수 없습니다: {segmentation_model_path}")
+            self.segmentation_loaded = False
+        
+        # 2. 분류 모델 로드 (ResNet 등)
+        if os.path.exists(classification_model_path):
+            try:
+                print(f"🔄 분류 모델 로딩 중: {classification_model_path}")
+                cls_loaded = torch.load(classification_model_path, map_location='cpu')
+                
+                if isinstance(cls_loaded, dict):
+                    if 'model_state_dict' in cls_loaded:
+                        # state_dict와 메타데이터가 있는 경우
+                        model_name = cls_loaded.get('model_name', 'unknown')
+                        num_classes = cls_loaded.get('num_classes', 2)
+                        self.class_names = cls_loaded.get('class_names', ['Benign', 'Malignant'])
+                        
+                        # ResNet 모델 아키텍처 재구성
+                        if 'resnet' in model_name.lower():
+                            from torchvision import models
+                            if '18' in model_name.lower():
+                                self.classification_model = models.resnet18(pretrained=False)
+                            elif '34' in model_name.lower():
+                                self.classification_model = models.resnet34(pretrained=False)
+                            elif '50' in model_name.lower():
+                                self.classification_model = models.resnet50(pretrained=False)
+                            else:
+                                self.classification_model = models.resnet50(pretrained=False)
+                            
+                            # 마지막 레이어 수정
+                            self.classification_model.fc = nn.Linear(self.classification_model.fc.in_features, num_classes)
+                            self.classification_model.load_state_dict(cls_loaded['model_state_dict'])
+                            self.classification_model.eval()
+                            self.classification_loaded = True
+                            print(f"✅ 분류 모델 로드 완료: {model_name} ({num_classes} classes)")
+                        else:
+                            print(f"⚠️  알 수 없는 모델 아키텍처: {model_name}")
+                            self.classification_loaded = False
+                    elif 'model' in cls_loaded:
+                        self.classification_model = cls_loaded['model']
+                        self.classification_model.eval()
+                        self.classification_loaded = True
+                        print(f"✅ 분류 모델 로드 완료")
+                    else:
+                        self.classification_model = cls_loaded
+                        if hasattr(self.classification_model, 'eval'):
+                            self.classification_model.eval()
+                        self.classification_loaded = True
+                        print(f"✅ 분류 모델 로드 완료 (딕셔너리 형식)")
+                else:
+                    self.classification_model = cls_loaded
+                    if hasattr(self.classification_model, 'eval'):
+                        self.classification_model.eval()
+                    self.classification_loaded = True
+                    print(f"✅ 분류 모델 로드 완료 (모델 객체)")
+                    
+            except Exception as e:
+                print(f"❌ 분류 모델 로드 실패: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                self.classification_loaded = False
+        else:
+            print(f"⚠️  분류 모델 파일을 찾을 수 없습니다: {classification_model_path}")
+            self.classification_loaded = False
     
     def deserialize(self, data: bytes) -> Dict[str, Any]:
         """요청 데이터 역직렬화 (JSON)"""
@@ -138,138 +231,183 @@ class InferenceWorker(Worker):
         
         Args:
             data: 요청 데이터 딕셔너리
-                - image_data: 이미지 데이터 (list 또는 numpy array)
+                - image_data: 이미지 데이터 (base64 string)
                 - image_url: 이미지 URL
-                - analysis_type: 'segmentation' 또는 'classification' (기본값: 'classification')
+                - analysis_type: 'segmentation' 또는 'classification' (기본값: 'segmentation')
                 - patient_id: 환자 ID (선택)
                 - metadata: 추가 메타데이터 (선택)
         
         Returns:
             예측 결과 딕셔너리
         """
-        # analysis_type 확인 (기본값: classification)
-        analysis_type = data.get('analysis_type', 'classification')
+        # analysis_type 확인 (기본값: segmentation)
+        analysis_type = data.get('analysis_type', 'segmentation')
         
-        # 세그멘테이션 모델은 아직 구현되지 않음
-        # 임시로 분류 모델을 사용 (나중에 세그멘테이션 모델 추가 시 변경)
+        # 세그멘테이션 분석
         if analysis_type == 'segmentation':
-            # TODO: 세그멘테이션 모델 추가 시 이 부분을 세그멘테이션 모델로 변경
-            # 현재는 임시로 분류 모델 사용
-            logger.warning("세그멘테이션 모델이 없어 분류 모델을 사용합니다.")
-            analysis_type = 'classification'  # 임시로 classification으로 변경
-        
-        # classification만 현재 지원
-        if analysis_type != 'classification':
+            return self._run_segmentation(data)
+        # 분류 분석 (종양분석)
+        elif analysis_type == 'classification':
+            return self._run_classification(data)
+        else:
             return {
                 'success': False,
                 'error': f'지원하지 않는 분석 타입입니다: {analysis_type}',
                 'data': None
             }
-        
-        if not self.model_loaded:
+    
+    def _run_segmentation(self, data):
+        """세그멘테이션 모델 실행 (UNet)"""
+        if not self.segmentation_loaded:
             return {
                 'success': False,
-                'error': '딥러닝 모델이 로드되지 않았습니다. 모델 파일을 확인해주세요.',
+                'error': '세그멘테이션 모델이 로드되지 않았습니다.',
                 'data': None
             }
         
         try:
-            # 이미지 데이터 처리 (base64 또는 URL)
-            image_data = data.get('image_data')
-            image_url = data.get('image_url')
-            
-            if not image_data and not image_url:
+            # 이미지 로드
+            image = self._load_image(data)
+            if image is None:
                 return {
                     'success': False,
-                    'error': 'image_data 또는 image_url이 제공되지 않았습니다.',
+                    'error': '이미지를 로드할 수 없습니다.',
                     'data': None
                 }
             
-            # 이미지 로드
+            # 원본 이미지 크기 저장
+            original_size = image.size
+            
+            # 세그멘테이션 전처리 (256x256)
+            transform = transforms.Compose([
+                transforms.Resize((256, 256)),
+                transforms.ToTensor(),
+            ])
+            
+            input_tensor = transform(image).unsqueeze(0)  # [1, 3, 256, 256]
+            
+            # 세그멘테이션 추론
+            with torch.no_grad():
+                mask = self.segmentation_model(input_tensor)  # [1, 1, 256, 256]
+                mask = mask.squeeze().cpu().numpy()  # [256, 256]
+            
+            # 마스크를 원본 크기로 복원
+            mask_resized = Image.fromarray((mask * 255).astype(np.uint8), mode='L')
+            mask_resized = mask_resized.resize(original_size, Image.BILINEAR)
+            
+            # 마스크를 base64로 인코딩
+            buffered = BytesIO()
+            mask_resized.save(buffered, format="PNG")
+            mask_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            # 종양 영역 계산
+            mask_array = np.array(mask_resized) / 255.0
+            tumor_area = np.sum(mask_array > 0.5)
+            total_area = mask_array.size
+            tumor_percentage = (tumor_area / total_area) * 100
+            
+            # 결과 생성
+            findings = f"종양 세그멘테이션 완료. 종양 영역: {tumor_percentage:.2f}%"
+            if tumor_percentage > 10:
+                recommendations = "종양 영역이 감지되었습니다. 종양분석 버튼을 눌러 악성/양성 분석을 진행해주세요."
+            elif tumor_percentage > 1:
+                recommendations = "작은 종양 영역이 감지되었습니다. 종양분석을 권장합니다."
+            else:
+                recommendations = "종양 영역이 거의 감지되지 않았습니다. 재촬영 또는 전문의 상담을 권장합니다."
+            
+            return {
+                'success': True,
+                'data': {
+                    'mask_image': mask_base64,
+                    'tumor_percentage': round(tumor_percentage, 2),
+                    'findings': findings,
+                    'recommendations': recommendations,
+                    'patient_id': data.get('patient_id'),
+                    'timestamp': datetime.now().isoformat(),
+                    'model_version': 'UNet-1.0.0'
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"세그멘테이션 오류: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': f'세그멘테이션 중 오류 발생: {str(e)}',
+                'data': None
+            }
+    
+    def _load_image(self, data):
+        """이미지 로드 헬퍼 메서드"""
+        image_data = data.get('image_data')
+        image_url = data.get('image_url')
+        
+        if not image_data and not image_url:
+            return None
+        
+        try:
             if image_data:
                 # base64 디코딩
                 if isinstance(image_data, str):
-                    try:
-                        if image_data.startswith('data:image'):
-                            # data:image/png;base64,xxx 형식
-                            image_data = image_data.split(',')[1]
-                        image_bytes = base64.b64decode(image_data)
-                        image = Image.open(BytesIO(image_bytes)).convert('RGB')
-                    except Exception as e:
-                        return {
-                            'success': False,
-                            'error': f'이미지 디코딩 실패: {str(e)}',
-                            'data': None
-                        }
+                    if image_data.startswith('data:image'):
+                        image_data = image_data.split(',')[1]
+                    image_bytes = base64.b64decode(image_data)
+                    return Image.open(BytesIO(image_bytes)).convert('RGB')
                 else:
-                    # numpy array인 경우
-                    try:
-                        image_array = np.array(image_data)
-                        if image_array.dtype != np.uint8:
-                            image_array = (image_array * 255).astype(np.uint8)
-                        image = Image.fromarray(image_array).convert('RGB')
-                    except Exception as e:
-                        return {
-                            'success': False,
-                            'error': f'이미지 배열 변환 실패: {str(e)}',
-                            'data': None
-                        }
+                    # numpy array
+                    image_array = np.array(image_data)
+                    if image_array.dtype != np.uint8:
+                        image_array = (image_array * 255).astype(np.uint8)
+                    return Image.fromarray(image_array).convert('RGB')
             elif image_url:
-                # URL에서 이미지 로드 (requests 필요)
-                try:
-                    import requests
-                    response = requests.get(image_url, timeout=10)
-                    response.raise_for_status()  # HTTP 오류 확인
-                    image = Image.open(BytesIO(response.content)).convert('RGB')
-                except Exception as e:
-                    return {
-                        'success': False,
-                        'error': f'이미지 URL 로드 실패: {str(e)}',
-                        'data': None
-                    }
-            else:
+                import requests
+                response = requests.get(image_url, timeout=10)
+                response.raise_for_status()
+                return Image.open(BytesIO(response.content)).convert('RGB')
+        except Exception as e:
+            logger.error(f"이미지 로드 실패: {str(e)}")
+            return None
+        
+        return None
+    
+    def _run_classification(self, data):
+        """분류 모델 실행 (악성/양성 판별)"""
+        if not self.classification_loaded:
+            return {
+                'success': False,
+                'error': '분류 모델이 로드되지 않았습니다.',
+                'data': None
+            }
+        
+        try:
+            # 이미지 로드
+            image = self._load_image(data)
+            if image is None:
                 return {
                     'success': False,
-                    'error': 'image_data 또는 image_url이 제공되지 않았습니다.',
+                    'error': '이미지를 로드할 수 없습니다.',
                     'data': None
                 }
             
-            # 이미지 전처리 (모델에 맞게 조정 필요)
-            # 일반적인 ResNet 스타일 전처리
+            # 분류 전처리 (224x224, ImageNet normalize)
             transform = transforms.Compose([
-                transforms.Resize((224, 224)),  # 모델 입력 크기에 맞게 조정
+                transforms.Resize((224, 224)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
             
-            input_tensor = transform(image).unsqueeze(0)  # 배치 차원 추가
+            input_tensor = transform(image).unsqueeze(0)  # [1, 3, 224, 224]
             
-            # 모델 추론
+            # 분류 추론
             with torch.no_grad():
-                if self.model is None:
-                    return {
-                        'success': False,
-                        'error': '모델이 로드되지 않았습니다.',
-                        'data': None
-                    }
-                
-                # 모델 객체인 경우
-                if hasattr(self.model, '__call__'):
-                    output = self.model(input_tensor)
-                else:
-                    return {
-                        'success': False,
-                        'error': '모델이 호출 가능한 객체가 아닙니다.',
-                        'data': None
-                    }
-                
+                output = self.classification_model(input_tensor)
                 probabilities = torch.softmax(output, dim=1)
                 prediction_idx = torch.argmax(probabilities, dim=1).item()
                 confidence = float(probabilities[0][prediction_idx]) * 100
             
             # 클래스 이름 매핑
-            class_names = getattr(self, 'class_names', ['Benign', 'Malignant'])
-            prediction = class_names[prediction_idx] if prediction_idx < len(class_names) else f'Class_{prediction_idx}'
+            prediction = self.class_names[prediction_idx] if prediction_idx < len(self.class_names) else f'Class_{prediction_idx}'
             
             # 한국어 변환
             class_name_kr = {
@@ -283,23 +421,23 @@ class InferenceWorker(Worker):
             # 확률 딕셔너리 생성
             prob_dict = {}
             for i, prob in enumerate(probabilities[0]):
-                class_name = class_names[i] if i < len(class_names) else f'Class_{i}'
+                class_name = self.class_names[i] if i < len(self.class_names) else f'Class_{i}'
                 prob_dict[class_name] = float(prob) * 100
             
             # 발견사항 및 권장사항 생성
-            findings = f"AI 분석 결과: {prediction_kr} ({prediction}) (신뢰도 {confidence:.2f}%)"
+            findings = f"AI 종양 분석 결과: {prediction_kr} ({prediction}) (신뢰도 {confidence:.2f}%)"
             if prediction == 'Malignant' or prediction == '악성':
                 if confidence >= 80:
-                    recommendations = "악성 가능성이 높습니다. 즉시 전문의 상담 및 추가 검사가 필요합니다."
+                    recommendations = "악성 종양 가능성이 높습니다. 즉시 전문의 상담 및 추가 검사가 필요합니다."
                 elif confidence >= 60:
-                    recommendations = "악성 가능성이 있습니다. 전문의 상담을 권장합니다."
+                    recommendations = "악성 종양 가능성이 있습니다. 전문의 상담을 권장합니다."
                 else:
-                    recommendations = "악성 가능성이 낮지만, 전문의 상담을 권장합니다."
+                    recommendations = "악성 종양 가능성이 낮지만, 전문의 상담을 권장합니다."
             else:  # Benign
                 if confidence >= 80:
-                    recommendations = "양성으로 판단됩니다. 정기적인 검진을 권장합니다."
+                    recommendations = "양성 종양으로 판단됩니다. 정기적인 검진을 권장합니다."
                 elif confidence >= 60:
-                    recommendations = "양성 가능성이 높습니다. 추가 검사가 필요할 수 있습니다."
+                    recommendations = "양성 종양 가능성이 높습니다. 추가 검사가 필요할 수 있습니다."
                 else:
                     recommendations = "신뢰도가 낮습니다. 재촬영 또는 추가 검사를 고려해주세요."
             
@@ -314,14 +452,17 @@ class InferenceWorker(Worker):
                     'recommendations': recommendations,
                     'patient_id': data.get('patient_id'),
                     'timestamp': datetime.now().isoformat(),
-                    'model_version': '1.0.0'
+                    'model_version': 'ResNet-1.0.0'
                 }
             }
             
         except Exception as e:
+            logger.error(f"분류 오류: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
-                'error': f'예측 중 오류 발생: {str(e)}',
+                'error': f'분류 중 오류 발생: {str(e)}',
                 'data': None
             }
     
