@@ -145,11 +145,17 @@ class InferenceWorker(Worker):
                 # state_dict 로드
                 if isinstance(seg_loaded, dict):
                     if 'model_state_dict' in seg_loaded:
-                        self.segmentation_model.load_state_dict(seg_loaded['model_state_dict'])
+                        state_dict = seg_loaded['model_state_dict']
                     elif 'state_dict' in seg_loaded:
-                        self.segmentation_model.load_state_dict(seg_loaded['state_dict'])
+                        state_dict = seg_loaded['state_dict']
                     else:
-                        self.segmentation_model.load_state_dict(seg_loaded)
+                        state_dict = seg_loaded
+                    
+                    # final_conv.bias가 있으면 제거 (코드에서는 bias=False로 설정됨)
+                    if 'final_conv.bias' in state_dict:
+                        state_dict = {k: v for k, v in state_dict.items() if k != 'final_conv.bias'}
+                    
+                    self.segmentation_model.load_state_dict(state_dict, strict=False)
                 else:
                     # 모델 객체 자체인 경우
                     self.segmentation_model = seg_loaded
