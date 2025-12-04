@@ -312,6 +312,9 @@ class InferenceWorker(Worker):
                 mask = self.segmentation_model(input_tensor)  # [1, 1, 256, 256]
                 mask = mask.squeeze().cpu().numpy()  # [256, 256]
             
+            # 마스크 통계 로깅 (디버깅용)
+            logger.info(f"마스크 통계 - 최소값: {mask.min():.4f}, 최대값: {mask.max():.4f}, 평균값: {mask.mean():.4f}")
+            
             # 마스크를 원본 크기로 복원
             mask_resized = Image.fromarray((mask * 255).astype(np.uint8), mode='L')
             mask_resized = mask_resized.resize(original_size, Image.BILINEAR)
@@ -321,11 +324,30 @@ class InferenceWorker(Worker):
             mask_resized.save(buffered, format="PNG")
             mask_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
-            # 종양 영역 계산
+            # 종양 영역 계산 (임계값을 낮춰서 더 많은 영역 감지)
             mask_array = np.array(mask_resized) / 255.0
-            tumor_area = np.sum(mask_array > 0.5)
+            # 여러 임계값으로 시도
+            tumor_area_05 = np.sum(mask_array > 0.5)
+            tumor_area_03 = np.sum(mask_array > 0.3)
+            tumor_area_01 = np.sum(mask_array > 0.1)
             total_area = mask_array.size
+            
+            # 가장 높은 임계값에서 종양 영역이 있으면 그것을 사용, 없으면 낮은 임계값 사용
+            if tumor_area_05 > 0:
+                tumor_area = tumor_area_05
+                threshold = 0.5
+            elif tumor_area_03 > 0:
+                tumor_area = tumor_area_03
+                threshold = 0.3
+            elif tumor_area_01 > 0:
+                tumor_area = tumor_area_01
+                threshold = 0.1
+            else:
+                tumor_area = 0
+                threshold = 0.5
+            
             tumor_percentage = (tumor_area / total_area) * 100
+            logger.info(f"종양 영역 계산 - 임계값: {threshold}, 종양 픽셀: {tumor_area}, 전체 픽셀: {total_area}, 비율: {tumor_percentage:.2f}%")
             
             # 결과 생성
             findings = f"종양 세그멘테이션 완료. 종양 영역: {tumor_percentage:.2f}%"

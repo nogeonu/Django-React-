@@ -322,13 +322,16 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         }
                     }
                 
-                # 딥러닝 서비스 헬스 체크 먼저 수행
+                # 딥러닝 서비스 헬스 체크 먼저 수행 (선택적, 실패해도 계속 진행)
                 try:
-                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
-                    if health_response.status_code != 200:
-                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
+                    # mosec은 /health 대신 / 엔드포인트 사용
+                    health_response = requests.get(f'{DL_SERVICE_URL}/', timeout=5)
+                    if health_response.status_code == 200:
+                        logger.info("딥러닝 서비스 헬스 체크 성공")
+                    else:
+                        logger.warning(f"딥러닝 서비스 응답: {health_response.status_code}")
                 except Exception as health_error:
-                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패 (계속 진행): {health_error}")
                     return Response(
                         {
                             'error': '딥러닝 서비스에 연결할 수 없습니다.',
@@ -618,13 +621,16 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         }
                     }
                 
-                # 딥러닝 서비스 헬스 체크
+                # 딥러닝 서비스 헬스 체크 (선택적, 실패해도 계속 진행)
                 try:
-                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
-                    if health_response.status_code != 200:
-                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
+                    # mosec은 /health 대신 / 엔드포인트 사용
+                    health_response = requests.get(f'{DL_SERVICE_URL}/', timeout=5)
+                    if health_response.status_code == 200:
+                        logger.info("딥러닝 서비스 헬스 체크 성공")
+                    else:
+                        logger.warning(f"딥러닝 서비스 응답: {health_response.status_code}")
                 except Exception as health_error:
-                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패 (계속 진행): {health_error}")
                     return Response(
                         {
                             'error': '딥러닝 서비스에 연결할 수 없습니다.',
