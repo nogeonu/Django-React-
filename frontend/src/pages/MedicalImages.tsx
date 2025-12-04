@@ -376,16 +376,43 @@ export default function MedicalImages() {
     return null;
   };
 
-  // 표시할 이미지 URL 가져오기 (오버레이 포함, 캐시 사용)
+  // 세그멘테이션 결과에서 오버레이 URL 가져오기 (서버에 저장된 오버레이 이미지)
+  const getOverlayUrl = (image: MedicalImage): string | null => {
+    const segmentationResult = image.analysis_results?.find(
+      (result: AIAnalysisResult) => result.analysis_type === 'BREAST_MRI_SEGMENTATION'
+    );
+    
+    if (segmentationResult?.results?.overlay_url) {
+      // 상대 경로인 경우 절대 URL로 변환
+      const overlayUrl = segmentationResult.results.overlay_url;
+      if (overlayUrl.startsWith('http')) {
+        return overlayUrl;
+      } else if (overlayUrl.startsWith('/')) {
+        return `${window.location.origin}${overlayUrl}`;
+      } else {
+        return `${window.location.origin}/media/${overlayUrl}`;
+      }
+    }
+    
+    return null;
+  };
+
+  // 표시할 이미지 URL 가져오기 (오버레이 포함)
   const getDisplayImageUrl = (image: MedicalImage): string | null => {
     if (!image.image_url) return null;
     
-    // 캐시에 있으면 캐시 사용
+    // 서버에 저장된 오버레이 이미지가 있으면 우선 사용
+    const overlayUrl = getOverlayUrl(image);
+    if (overlayUrl) {
+      return overlayUrl;
+    }
+    
+    // 캐시에 있으면 캐시 사용 (프론트엔드에서 생성한 오버레이)
     if (overlayImageCache.has(image.id)) {
       return overlayImageCache.get(image.id) || image.image_url;
     }
     
-    // 세그멘테이션 결과가 있으면 오버레이 이미지 생성 (비동기)
+    // 세그멘테이션 결과가 있으면 오버레이 이미지 생성 (비동기, 서버에 저장된 것이 없을 때만)
     const maskUrl = getMaskUrl(image);
     if (maskUrl) {
       createOverlayImage(image.image_url, maskUrl)
@@ -413,25 +440,37 @@ export default function MedicalImages() {
     }
 
     try {
-      // 세그멘테이션 결과가 있으면 오버레이 이미지 다운로드
-      const maskUrl = getMaskUrl(image);
+      // 서버에 저장된 오버레이 이미지가 있으면 우선 사용
+      const overlayUrl = getOverlayUrl(image);
       let imageUrl = image.image_url;
       let filename = `medical_image_${image.id}.png`;
       
-      if (maskUrl) {
-        // 오버레이 이미지 생성
-        try {
-          imageUrl = await createOverlayImage(image.image_url, maskUrl);
-          filename = `medical_image_${image.id}_overlay.png`;
-        } catch (overlayError) {
-          console.error('오버레이 이미지 생성 실패, 원본 다운로드:', overlayError);
-          // 오버레이 실패 시 원본 다운로드
-        }
-      } else {
-        // 원본 이미지 파일명 추출
-        const url = new URL(image.image_url);
+      if (overlayUrl) {
+        // 서버에 저장된 오버레이 이미지 다운로드
+        imageUrl = overlayUrl;
+        const url = new URL(overlayUrl);
         const pathParts = url.pathname.split('/');
-        filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+        filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}_overlay.png`;
+      } else {
+        // 서버에 오버레이가 없으면 프론트엔드에서 생성
+        const maskUrl = getMaskUrl(image);
+        if (maskUrl) {
+          try {
+            imageUrl = await createOverlayImage(image.image_url, maskUrl);
+            filename = `medical_image_${image.id}_overlay.png`;
+          } catch (overlayError) {
+            console.error('오버레이 이미지 생성 실패, 원본 다운로드:', overlayError);
+            // 오버레이 실패 시 원본 다운로드
+            const url = new URL(image.image_url);
+            const pathParts = url.pathname.split('/');
+            filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+          }
+        } else {
+          // 원본 이미지 파일명 추출
+          const url = new URL(image.image_url);
+          const pathParts = url.pathname.split('/');
+          filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
+        }
       }
       
       // 이미지 다운로드
@@ -463,9 +502,10 @@ export default function MedicalImages() {
           });
       }
       
+      const hasOverlay = overlayUrl || getMaskUrl(image);
       toast({
         title: "다운로드 완료",
-        description: maskUrl ? "오버레이 이미지가 다운로드되었습니다." : "이미지가 다운로드되었습니다.",
+        description: hasOverlay ? "오버레이 이미지가 다운로드되었습니다." : "이미지가 다운로드되었습니다.",
       });
     } catch (error) {
       console.error('다운로드 오류:', error);

@@ -16,6 +16,7 @@ import logging
 from urllib.parse import unquote
 from PIL import Image
 from io import BytesIO
+import numpy as np
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
 
@@ -420,6 +421,70 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         )
                         
                         logger.info(f"마스크 이미지 저장 완료: {mask_path}")
+                        
+                        # 오버레이 이미지 생성 및 저장 (원본 + 마스크)
+                        try:
+                            # 원본 이미지 로드
+                            original_image_path = medical_image.image_file.path
+                            original_image = Image.open(original_image_path).convert('RGB')
+                            
+                            # 마스크 이미지를 원본 크기로 리사이즈
+                            mask_resized = mask_image.resize(original_image.size, Image.BILINEAR)
+                            
+                            # 오버레이 이미지 생성 (마스크 영역을 빨간색으로 표시)
+                            overlay_image = original_image.copy()
+                            
+                            # 마스크를 numpy 배열로 변환
+                            mask_array = np.array(mask_resized.convert('L')) / 255.0
+                            
+                            # 빨간색 오버레이 생성
+                            overlay_array = np.array(overlay_image)
+                            red_overlay = np.zeros_like(overlay_array)
+                            red_overlay[:, :, 0] = 255  # 빨간색
+                            red_overlay[:, :, 1] = 0
+                            red_overlay[:, :, 2] = 0
+                            
+                            # 마스크가 있는 부분에 빨간색 오버레이 적용 (60% 투명도)
+                            mask_3d = np.stack([mask_array, mask_array, mask_array], axis=2)
+                            overlay_array = overlay_array * (1 - mask_3d * 0.6) + red_overlay * (mask_3d * 0.6)
+                            overlay_array = overlay_array.astype(np.uint8)
+                            
+                            overlay_image = Image.fromarray(overlay_array)
+                            
+                            # 오버레이 이미지 저장 경로: medical_images/patient_id/overlays/YYYY/MM/DD/파일명
+                            overlay_filename = f"{filename_without_ext}_overlay.png"
+                            overlay_dir = os.path.join(
+                                settings.MEDIA_ROOT,
+                                'medical_images',
+                                str(medical_image.patient_id),
+                                'overlays',
+                                date_path
+                            )
+                            os.makedirs(overlay_dir, exist_ok=True)
+                            
+                            overlay_path = os.path.join(overlay_dir, overlay_filename)
+                            overlay_image.save(overlay_path, 'PNG')
+                            
+                            # 상대 경로 저장
+                            overlay_relative_path = os.path.join(
+                                'medical_images',
+                                str(medical_image.patient_id),
+                                'overlays',
+                                date_path,
+                                overlay_filename
+                            )
+                            
+                            logger.info(f"오버레이 이미지 저장 완료: {overlay_path}")
+                            
+                            # 오버레이 경로를 results에 추가
+                            if not analysis_data.get('results'):
+                                analysis_data['results'] = {}
+                            analysis_data['results']['overlay_path'] = overlay_relative_path
+                            analysis_data['results']['overlay_url'] = f"{settings.MEDIA_URL}{overlay_relative_path}"
+                            
+                        except Exception as overlay_error:
+                            logger.error(f"오버레이 이미지 생성/저장 실패: {str(overlay_error)}", exc_info=True)
+                            # 오버레이 실패해도 분석 결과는 저장
                         
                         # 마스크 경로를 results에 추가
                         if not analysis_data.get('results'):
