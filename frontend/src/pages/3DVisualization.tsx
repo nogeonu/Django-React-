@@ -1,19 +1,47 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Download, ArrowLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, RefreshCw, Download, ArrowLeft, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/api";
+
+interface Patient {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+}
 
 export default function Visualization3D() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [patientId, setPatientId] = useState<string | null>(searchParams.get("patient_id") || null);
-  const [visualizationType, setVisualizationType] = useState<string>("voxel");
+  const [visualizationType, setVisualizationType] = useState<string>("slices"); // 기본값을 slices로 변경
   const [htmlContent, setHtmlContent] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [patientSearchTerm, setPatientSearchTerm] = useState<string>("");
+  const [showPatientList, setShowPatientList] = useState<boolean>(false);
+
+  // 환자 목록 불러오기
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/lung_cancer/patients/");
+      return response.results || response || [];
+    },
+  });
+
+  // 환자 검색 필터링
+  const filteredPatients = (patients as Patient[]).filter((patient: Patient) =>
+    patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+    patient.id.toString().includes(patientSearchTerm)
+  );
 
   // 세션 스토리지에서 데이터 가져오기
   useEffect(() => {
@@ -80,6 +108,18 @@ export default function Visualization3D() {
     }
   };
 
+  // 페이지 외부 클릭 시 환자 목록 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.relative')) {
+        setShowPatientList(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // 페이지 로드 시 자동 생성
   useEffect(() => {
     if (patientId) {
@@ -119,7 +159,7 @@ export default function Visualization3D() {
       <div className="mb-6">
         <Button
           variant="outline"
-          onClick={() => window.history.back()}
+          onClick={() => navigate(-1)}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -140,15 +180,52 @@ export default function Visualization3D() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">환자 ID</label>
-              <input
-                type="text"
-                value={patientId || ""}
-                onChange={(e) => setPatientId(e.target.value)}
-                placeholder="환자 ID 입력"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="relative">
+              <label className="text-sm font-medium mb-2 block">환자 선택</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  value={patientSearchTerm}
+                  onChange={(e) => {
+                    setPatientSearchTerm(e.target.value);
+                    setShowPatientList(true);
+                  }}
+                  onFocus={() => setShowPatientList(true)}
+                  placeholder="환자 이름 또는 ID 검색"
+                  className="w-full"
+                />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              </div>
+              {showPatientList && filteredPatients.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {filteredPatients.map((patient: Patient) => (
+                    <div
+                      key={patient.id}
+                      onClick={() => {
+                        setPatientId(patient.id.toString());
+                        setPatientSearchTerm(patient.name);
+                        setShowPatientList(false);
+                      }}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-200 last:border-b-0"
+                    >
+                      <div className="font-medium">{patient.name}</div>
+                      <div className="text-sm text-gray-500">
+                        ID: {patient.id} | {patient.age}세 | {patient.gender === 'M' ? '남' : '여'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {showPatientList && filteredPatients.length === 0 && patientSearchTerm && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-center text-gray-500">
+                  검색 결과가 없습니다.
+                </div>
+              )}
+              {patientId && (
+                <div className="mt-2 text-sm text-gray-600">
+                  선택된 환자 ID: <span className="font-semibold">{patientId}</span>
+                </div>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">시각화 타입</label>
@@ -157,9 +234,9 @@ export default function Visualization3D() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="slices">슬라이스 탐색기</SelectItem>
                   <SelectItem value="voxel">복셀 기반 (점 마커)</SelectItem>
                   <SelectItem value="mesh">메쉬 기반</SelectItem>
-                  <SelectItem value="slices">슬라이스 탐색기</SelectItem>
                 </SelectContent>
               </Select>
             </div>
