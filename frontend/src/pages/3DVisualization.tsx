@@ -179,7 +179,7 @@ export default function Visualization3D() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="relative">
               <label className="text-sm font-medium mb-2 block">환자 선택</label>
               <div className="relative">
@@ -240,7 +240,7 @@ export default function Visualization3D() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div>
               <Button
                 onClick={generateVisualization}
                 disabled={loading || !patientId}

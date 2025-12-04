@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { 
   Upload, 
   FileImage, 
@@ -63,6 +64,7 @@ interface AIAnalysisResult {
 }
 
 export default function MedicalImages() {
+  const navigate = useNavigate();
   const [selectedPatient, setSelectedPatient] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedImage, setSelectedImage] = useState<MedicalImage | null>(null);
@@ -569,7 +571,6 @@ export default function MedicalImages() {
 
     // 3D 시각화 페이지로 이동 (patient_id를 쿼리 파라미터로 전달)
     const patientId = image.patient;
-    const visualizationUrl = `/3d-visualization?patient_id=${patientId}`;
     
     // 세션 스토리지에 데이터 저장 (선택적)
     const visualizationData = {
@@ -581,13 +582,8 @@ export default function MedicalImages() {
     };
     sessionStorage.setItem('3d_visualization_data', JSON.stringify(visualizationData));
     
-    // 새 탭에서 3D 시각화 페이지 열기
-    window.open(visualizationUrl, '_blank');
-    
-    toast({
-      title: "3D 시각화 열기",
-      description: "새 탭에서 3D 시각화를 확인할 수 있습니다.",
-    });
+    // 같은 탭에서 3D 시각화 페이지로 이동
+    navigate(`/3d-visualization?patient_id=${patientId}`);
   };
 
   const tumorAnalysisMutation = useMutation({
