@@ -231,27 +231,67 @@ export default function MedicalImages() {
     
     toast({
       title: "일괄 분석 시작",
-      description: `${selectedIds.length}개의 이미지를 분석합니다...`,
+      description: `${selectedIds.length}개의 이미지를 세그멘테이션 분석합니다...`,
     });
 
     setShowAnalysisModal(false);
 
-    // 선택된 이미지들을 순차적으로 분석
+    let successCount = 0;
+    let failCount = 0;
+
+    // 선택된 이미지들을 순차적으로 분석 (세그멘테이션 모델 사용)
     for (const imageId of selectedIds) {
       try {
-        await apiRequest("POST", `/api/medical-images/${imageId}/analyze/`);
+        await apiRequest("POST", `/api/medical-images/${imageId}/analyze/`, {
+          analysis_type: 'segmentation'
+        });
+        successCount++;
       } catch (error) {
         console.error(`이미지 ${imageId} 분석 실패:`, error);
+        failCount++;
       }
     }
 
     // 분석 완료 후 목록 갱신
     queryClient.invalidateQueries({ queryKey: ["medical-images", selectedPatient] });
     
-    toast({
-      title: "일괄 분석 완료",
-      description: `${selectedIds.length}개의 이미지 분석이 완료되었습니다.`,
-    });
+    // 오버레이 이미지 미리 생성
+    setTimeout(async () => {
+      const updatedImages = await queryClient.fetchQuery({
+        queryKey: ["medical-images", selectedPatient],
+        queryFn: async () => {
+          const response = await apiRequest("GET", `/api/medical-images/?patient_id=${selectedPatient}`);
+          return response.results || response || [];
+        },
+      });
+      
+      for (const image of updatedImages) {
+        if (selectedIds.includes(image.id)) {
+          const maskUrl = getMaskUrl(image);
+          if (maskUrl && image.image_url) {
+            try {
+              const overlayUrl = await createOverlayImage(image.image_url, maskUrl);
+              setOverlayImageCache(prev => new Map(prev).set(image.id, overlayUrl));
+            } catch (error) {
+              console.error(`이미지 ${image.id} 오버레이 생성 실패:`, error);
+            }
+          }
+        }
+      }
+    }, 1000);
+
+    if (failCount > 0) {
+      toast({
+        title: "일괄 분석 완료 (일부 실패)",
+        description: `${successCount}개 성공, ${failCount}개 실패`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "일괄 분석 완료",
+        description: `${successCount}개의 이미지 세그멘테이션 분석이 완료되었습니다.`,
+      });
+    }
 
     // 선택 초기화
     setSelectedImagesForAnalysis(new Set());
