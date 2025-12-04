@@ -179,7 +179,7 @@ export default function Visualization3D() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <label className="text-sm font-medium mb-2 block">환자 선택</label>
               <div className="relative">
@@ -227,7 +227,7 @@ export default function Visualization3D() {
                 </div>
               )}
             </div>
-            <div>
+            <div className="flex flex-col">
               <label className="text-sm font-medium mb-2 block">시각화 타입</label>
               <Select value={visualizationType} onValueChange={setVisualizationType}>
                 <SelectTrigger>
@@ -240,7 +240,8 @@ export default function Visualization3D() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="flex flex-col">
+              <label className="text-sm font-medium mb-2 block opacity-0">시각화 생성</label>
               <Button
                 onClick={generateVisualization}
                 disabled={loading || !patientId}
