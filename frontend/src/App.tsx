@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Patients from "@/pages/Patients";
 import MedicalImages from "@/pages/MedicalImages";
+import Visualization3D from "@/pages/3DVisualization";
 import LungCancerPrediction from "@/pages/LungCancerPrediction";
 import LungCancerStats from "@/pages/LungCancerStats";
 import MedicalRegistration from "@/pages/MedicalRegistration";
@@ -112,6 +113,14 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
                 <MedicalImages />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/3d-visualization"
+            element={
+              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+                <Visualization3D />
               </ProtectedRoute>
             }
           />

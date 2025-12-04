@@ -527,20 +527,22 @@ export default function MedicalImages() {
       return;
     }
 
-    // 3D 시각화 페이지로 이동 (분석 결과와 이미지 정보 전달)
+    // 3D 시각화 페이지로 이동 (patient_id를 쿼리 파라미터로 전달)
+    const patientId = image.patient;
+    const visualizationUrl = `/3d-visualization?patient_id=${patientId}`;
+    
+    // 세션 스토리지에 데이터 저장 (선택적)
     const visualizationData = {
       imageId: image.id,
       imageUrl: image.image_url,
       analysisResult: image.analysis_results[0],
       imageType: image.image_type,
-      patientId: image.patient,
+      patientId: patientId,
     };
-    
-    // 세션 스토리지에 데이터 저장
     sessionStorage.setItem('3d_visualization_data', JSON.stringify(visualizationData));
     
     // 새 탭에서 3D 시각화 페이지 열기
-    window.open('/3d-visualization', '_blank');
+    window.open(visualizationUrl, '_blank');
     
     toast({
       title: "3D 시각화 열기",

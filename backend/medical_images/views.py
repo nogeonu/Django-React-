@@ -19,6 +19,7 @@ from io import BytesIO
 import numpy as np
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
+from . import visualization
 
 logger = logging.getLogger(__name__)
 
@@ -789,5 +790,55 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             logger.error(f"종양분석 중 예기치 않은 오류 발생: {str(e)}", exc_info=True)
             return Response(
                 {'error': f'예상치 못한 오류: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def generate_3d_visualization(self, request):
+        """
+        3D 시각화 HTML 생성
+        GET /api/medical-images/generate_3d_visualization/?patient_id=1&visualization_type=voxel
+        """
+        try:
+            patient_id = request.query_params.get('patient_id')
+            visualization_type = request.query_params.get('visualization_type', 'voxel')  # 'voxel', 'mesh', 'slices'
+            
+            if not patient_id:
+                return Response(
+                    {'error': 'patient_id 파라미터가 필요합니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # 환자 이미지가 있는지 확인
+            images_count = MedicalImage.objects.filter(patient_id=patient_id).count()
+            if images_count == 0:
+                return Response(
+                    {'error': f'환자 ID {patient_id}의 이미지를 찾을 수 없습니다.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            logger.info(f"3D 시각화 생성 시작: patient_id={patient_id}, type={visualization_type}")
+            
+            # 3D 시각화 HTML 생성
+            html_content = visualization.generate_3d_visualization_html(
+                patient_id=patient_id,
+                visualization_type=visualization_type
+            )
+            
+            if html_content is None:
+                return Response(
+                    {'error': '3D 시각화 생성에 실패했습니다. 이미지가 충분하지 않거나 처리 중 오류가 발생했습니다.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            # HTML 응답 반환
+            from django.http import HttpResponse
+            response = HttpResponse(html_content, content_type='text/html; charset=utf-8')
+            return response
+            
+        except Exception as e:
+            logger.error(f"3D 시각화 생성 중 오류: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'3D 시각화 생성 중 오류 발생: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
