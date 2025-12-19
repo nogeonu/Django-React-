@@ -27,16 +27,7 @@ interface PatientInfo {
   scanner_manufacturer?: string;
 }
 
-// ... (skipping unchanged lines)
 
-// Store patient ID and Name for context
-if (selectedPatient) {
-  sessionStorage.setItem('currentPatientId', selectedPatient);
-  const patient = systemPatients.find(p => p.patient_id === selectedPatient) || patients.find(p => p.patient_id === selectedPatient);
-  if (patient && patient.name) {
-    sessionStorage.setItem('currentPatientName', patient.name);
-  }
-}
 
 interface SystemPatient {
   id: number;
@@ -700,8 +691,8 @@ export default function MRIViewer() {
                           // Store patient ID and Name for context
                           if (selectedPatient) {
                             sessionStorage.setItem('currentPatientId', selectedPatient);
-                            const patient = patients.find(p => p.patient_id === selectedPatient);
-                            if (patient) {
+                            const patient = systemPatients.find(p => p.patient_id === selectedPatient) || patients.find(p => p.patient_id === selectedPatient);
+                            if (patient && patient.name) {
                               sessionStorage.setItem('currentPatientName', patient.name);
                             }
                           }
