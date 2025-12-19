@@ -8,6 +8,7 @@ from rest_framework import status
 from django.http import HttpResponse
 from .orthanc_client import OrthancClient
 import traceback
+import requests
 
 
 @api_view(['GET'])
@@ -73,10 +74,28 @@ def orthanc_patient_detail(request, patient_id):
         
         # 먼저 DICOM PatientID 태그로 환자 찾기 시도
         orthanc_patient_id = client.find_patient_by_patient_id(patient_id)
-        if not orthanc_patient_id:
-            # 찾지 못하면 직접 시도 (Orthanc 내부 ID일 수 있음)
-            orthanc_patient_id = patient_id
         
+        # 찾지 못했으면 직접 접근 시도 (Orthanc 내부 ID일 수 있음)
+        if not orthanc_patient_id:
+            try:
+                # 직접 접근 시도
+                response = requests.get(
+                    f"{client.base_url}/patients/{patient_id}",
+                    auth=client.auth
+                )
+                response.raise_for_status()
+                orthanc_patient_id = patient_id
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    # 찾을 수 없음
+                    return Response({
+                        'success': False,
+                        'error': f'Patient ID "{patient_id}" not found in Orthanc. Please check if the DICOM file was uploaded with this PatientID.',
+                        'suggestion': 'Upload a DICOM file with PatientID matching this patient first.'
+                    }, status=status.HTTP_404_NOT_FOUND)
+                raise
+        
+        # Orthanc 내부 ID로 정보 가져오기
         patient_info = client.get_patient_info(orthanc_patient_id)
         studies = client.get_patient_studies(orthanc_patient_id)
         

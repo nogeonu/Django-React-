@@ -56,10 +56,17 @@ class OrthancClient:
                 return patient_ids[0]
             
             # find가 실패하면 모든 환자를 순회하면서 PatientID 태그 확인
+            # 직접 API 호출하여 순환 호출 방지
             all_patients = self.get_patients()
             for orthanc_patient_id in all_patients:
                 try:
-                    info = self.get_patient_info(orthanc_patient_id)
+                    # 직접 API 호출 (get_patient_info 호출하지 않음)
+                    response = requests.get(
+                        f"{self.base_url}/patients/{orthanc_patient_id}",
+                        auth=self.auth
+                    )
+                    response.raise_for_status()
+                    info = response.json()
                     tags = info.get('MainDicomTags', {})
                     if tags.get('PatientID') == patient_id:
                         return orthanc_patient_id
@@ -69,6 +76,8 @@ class OrthancClient:
             return None
         except Exception as e:
             print(f"Error finding patient by PatientID {patient_id}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_patient_info(self, patient_id: str) -> Dict[str, Any]:
