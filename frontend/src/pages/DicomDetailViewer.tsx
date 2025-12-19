@@ -86,6 +86,19 @@ export default function DicomDetailViewer() {
         }
     };
 
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        if (allImages.length === 0) return;
+
+        const delta = e.deltaY > 0 ? 1 : -1;
+        const newIndex = Math.max(0, Math.min(allImages.length - 1, currentIndex + delta));
+
+        if (newIndex !== currentIndex) {
+            const newImage = allImages[newIndex];
+            navigate(`/dicom-viewer/${newImage.instance_id}`);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-900 text-white">
             {/* Header */}
@@ -146,6 +159,7 @@ export default function DicomDetailViewer() {
                     <div
                         id="dicom-image-container"
                         className="flex-1 bg-black flex items-center justify-center overflow-hidden relative"
+                        onWheel={handleWheel}
                     >
                         {loading ? (
                             <div className="text-gray-400">이미지 로딩 중...</div>
