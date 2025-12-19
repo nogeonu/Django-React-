@@ -18,7 +18,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [isCollapsed]);
 
   const toggleSidebar = () => {
-    setIsCollapsed((prev) => !prev);
+    setIsCollapsed((prev: boolean) => !prev);
   };
 
   return (
