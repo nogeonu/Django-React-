@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, User as UserIcon, LogOut, Scan } from 'lucide-react';
+import { Activity, Users, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, User as UserIcon, LogOut, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
