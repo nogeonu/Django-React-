@@ -106,13 +106,13 @@ class OrthancClient:
                     if len(found_patient_ids) < 10:
                         found_patient_ids.append((orthanc_patient_id, stored_patient_id))
                     
-                    # 대소문자 구분 없이 비교 (PatientID는 보통 대소문자 구분 없음)
-                    if stored_patient_id and stored_patient_id.strip().upper() == patient_id.strip().upper():
-                        logger.info(f"Found patient via iteration: {orthanc_patient_id} for PatientID '{patient_id}' (stored as '{stored_patient_id}')")
-                        return orthanc_patient_id
-                    # 정확히 일치하는 경우도 확인
-                    elif stored_patient_id == patient_id:
+                    # 정확히 일치하는 경우 먼저 확인 (가장 확실)
+                    if stored_patient_id == patient_id:
                         logger.info(f"Found patient via iteration (exact match): {orthanc_patient_id} for PatientID '{patient_id}'")
+                        return orthanc_patient_id
+                    # 대소문자 구분 없이 비교 (PatientID는 보통 대소문자 구분 없음)
+                    elif stored_patient_id and stored_patient_id.strip().upper() == patient_id.strip().upper():
+                        logger.info(f"Found patient via iteration (case-insensitive): {orthanc_patient_id} for PatientID '{patient_id}' (stored as '{stored_patient_id}')")
                         return orthanc_patient_id
                 except Exception as e:
                     logger.debug(f"Error checking patient {orthanc_patient_id}: {e}")

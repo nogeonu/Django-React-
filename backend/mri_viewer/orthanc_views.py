@@ -139,32 +139,38 @@ def orthanc_patient_detail(request, patient_id):
                         logger.error(f"Patient '{patient_id}' not found after all attempts. Total patients in Orthanc: {len(all_patients)}")
                         logger.error(f"Available Orthanc patient IDs (first 10): {all_patients[:10]}")
                         
-                        # 모든 환자의 실제 PatientID 태그 확인해서 로깅
-                        logger.error("=== All stored DICOM PatientIDs ===")
+                        # 모든 환자의 실제 PatientID 태그 확인해서 로깅 (제한 없이 모두 확인)
+                        logger.error("=== Searching all stored DICOM PatientIDs ===")
                         for idx, pid in enumerate(all_patients):
                             try:
                                 pat_info = requests.get(f"{client.base_url}/patients/{pid}", auth=client.auth).json()
                                 actual_pid = pat_info.get('MainDicomTags', {}).get('PatientID', 'N/A')
                                 patient_name = pat_info.get('MainDicomTags', {}).get('PatientName', 'N/A')
-                                logger.error(f"  [{idx+1}] Orthanc ID: {pid} -> DICOM PatientID: '{actual_pid}' | PatientName: '{patient_name}'")
                                 
-                                # 정확히 일치하는지, 대소문자 무시하고 일치하는지 확인
+                                # 처음 10개만 상세 로깅, 나머지는 간단히
+                                if idx < 10:
+                                    logger.error(f"  [{idx+1}] Orthanc ID: {pid} -> DICOM PatientID: '{actual_pid}' | PatientName: '{patient_name}'")
+                                
+                                # 정확히 일치하는지 먼저 확인
                                 if actual_pid == patient_id:
-                                    logger.error(f"      -> EXACT MATCH FOUND! (but was not returned by find_patient_by_patient_id)")
-                                    # 마지막 시도: 이 ID를 사용
+                                    logger.error(f"      -> EXACT MATCH FOUND! Orthanc ID: {pid} for PatientID '{patient_id}'")
                                     orthanc_patient_id = pid
                                     logger.error(f"      -> Using this as orthanc_patient_id: {orthanc_patient_id}")
                                     break
-                                elif actual_pid.strip().upper() == patient_id.strip().upper():
-                                    logger.error(f"      -> CASE-INSENSITIVE MATCH FOUND! (stored: '{actual_pid}', searched: '{patient_id}')")
+                                # 대소문자 무시하고 일치하는지 확인
+                                elif actual_pid and actual_pid.strip().upper() == patient_id.strip().upper():
+                                    logger.error(f"      -> CASE-INSENSITIVE MATCH FOUND! Orthanc ID: {pid} (stored: '{actual_pid}', searched: '{patient_id}')")
                                     orthanc_patient_id = pid
                                     logger.error(f"      -> Using this as orthanc_patient_id: {orthanc_patient_id}")
                                     break
                             except Exception as pid_error:
                                 logger.debug(f"Error checking patient {pid}: {pid_error}")
-                                if idx >= 20:  # 최대 20개만 확인
-                                    break
-                        logger.error("=== End of PatientID list ===")
+                                continue  # 제한 없이 계속 확인
+                        
+                        if orthanc_patient_id:
+                            logger.error(f"=== Found patient via fallback: {orthanc_patient_id} ===")
+                        else:
+                            logger.error("=== End of PatientID list - NO MATCH FOUND ===")
                     except Exception as log_error:
                         logger.error(f"Error while logging patient list: {log_error}", exc_info=True)
                     
@@ -178,8 +184,9 @@ def orthanc_patient_detail(request, patient_id):
                         }, status=status.HTTP_404_NOT_FOUND)
                     else:
                         logger.info(f"Found patient via fallback iteration: {orthanc_patient_id}")
-                raise
-                raise
+                else:
+                    # 404가 아닌 다른 HTTP 에러인 경우
+                    raise
         
         logger.debug(f"Using orthanc_patient_id: {orthanc_patient_id}")
         
