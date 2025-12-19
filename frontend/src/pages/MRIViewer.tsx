@@ -212,24 +212,43 @@ export default function MRIViewer() {
   };
 
   const fetchOrthancImages = async (patientId: string) => {
+    setImageLoading(true);
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
       const data = await response.json();
-      if (data.success && data.images) {
+      
+      if (!response.ok) {
+        throw new Error(data.error || `서버 오류 (${response.status})`);
+      }
+      
+      if (data.success && data.images && data.images.length > 0) {
         setOrthancImages(data.images);
         setShowOrthancImages(true);
+        setSelectedImage(0); // 첫 번째 이미지 선택
         toast({
           title: "Orthanc 이미지 로드 완료",
           description: `${data.images.length}개의 이미지를 불러왔습니다.`,
         });
+      } else {
+        setOrthancImages([]);
+        setShowOrthancImages(false);
+        toast({
+          title: "알림",
+          description: data.success ? "이 환자의 Orthanc 이미지가 없습니다." : (data.error || "이미지를 불러올 수 없습니다."),
+          variant: "default",
+        });
       }
     } catch (error) {
       console.error("Orthanc 이미지 로드 실패:", error);
+      setOrthancImages([]);
+      setShowOrthancImages(false);
       toast({
         title: "오류",
-        description: "Orthanc 이미지를 불러오는데 실패했습니다.",
+        description: error instanceof Error ? error.message : "Orthanc 이미지를 불러오는데 실패했습니다.",
         variant: "destructive",
       });
+    } finally {
+      setImageLoading(false);
     }
   };
 
@@ -284,8 +303,13 @@ export default function MRIViewer() {
           description: data.message || "파일이 Orthanc에 저장되었습니다.",
         });
         // 업로드 후 이미지 목록 새로고침
-        if (selectedPatient) {
-          fetchOrthancImages(selectedPatient);
+        // 실제 저장된 patient_id 사용 (있으면), 없으면 selectedPatient 사용
+        const patientIdToLoad = data.patient_id || selectedPatient;
+        if (patientIdToLoad) {
+          // 약간의 지연을 두고 이미지 로드 (Orthanc 인덱싱 시간)
+          setTimeout(() => {
+            fetchOrthancImages(patientIdToLoad);
+          }, 1000);
         }
       } else {
         throw new Error(data.error || "업로드 실패");

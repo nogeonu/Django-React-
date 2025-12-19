@@ -202,11 +202,16 @@ def orthanc_upload_dicom(request):
                         'errors': errors
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
+                # 업로드된 DICOM에서 실제 Patient ID 확인 (DICOM 파일의 PatientID 태그 사용)
+                # nifti_to_dicom_slices에서 이미 patient_id를 DICOM 태그에 설정했으므로 그대로 사용
+                actual_patient_id = patient_id or "UNKNOWN"
+                
                 return Response({
                     'success': True,
                     'message': f'NIfTI 파일이 변환되어 업로드되었습니다. {uploaded_count}/{len(dicom_slices)} 슬라이스 업로드 완료.',
                     'slices_uploaded': uploaded_count,
                     'total_slices': len(dicom_slices),
+                    'patient_id': actual_patient_id,  # 실제 저장된 Patient ID 반환
                     'errors': errors if errors else None
                 })
             except Exception as e:
@@ -220,9 +225,24 @@ def orthanc_upload_dicom(request):
             dicom_data = uploaded_file.read()
             result = client.upload_dicom(dicom_data)
             
+            # 업로드된 인스턴스의 Patient ID 확인
+            actual_patient_id = patient_id
+            try:
+                # result에 'ID' 키가 있으면 인스턴스 ID
+                if 'ID' in result:
+                    instance_id = result['ID']
+                    instance_info = client.get_instance_info(instance_id)
+                    # 인스턴스에서 환자 정보 가져오기
+                    tags = instance_info.get('MainDicomTags', {})
+                    if 'PatientID' in tags:
+                        actual_patient_id = tags['PatientID']
+            except Exception as e:
+                print(f"Patient ID 확인 중 오류 (무시): {e}")
+            
             return Response({
                 'success': True,
                 'result': result,
+                'patient_id': actual_patient_id,  # 실제 저장된 Patient ID 반환
                 'message': 'DICOM file uploaded successfully'
             })
     except Exception as e:
