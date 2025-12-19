@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from . import views, orthanc_views
 
 urlpatterns = [
@@ -13,7 +14,7 @@ urlpatterns = [
     path('orthanc/patients/', orthanc_views.orthanc_patients, name='orthanc-patients'),
     path('orthanc/patients/<str:patient_id>/', orthanc_views.orthanc_patient_detail, name='orthanc-patient-detail'),
     path('orthanc/instances/<str:instance_id>/preview/', orthanc_views.orthanc_instance_preview, name='orthanc-instance-preview'),
-    path('orthanc/upload/', orthanc_views.orthanc_upload_dicom, name='orthanc-upload'),
+    path('orthanc/upload/', csrf_exempt(orthanc_views.orthanc_upload_dicom), name='orthanc-upload'),
     path('orthanc/patients/<str:patient_id>/delete/', orthanc_views.orthanc_delete_patient, name='orthanc-delete-patient'),
 ]
 

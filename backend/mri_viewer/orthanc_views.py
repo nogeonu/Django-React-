@@ -6,7 +6,6 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
 from .orthanc_client import OrthancClient
 import traceback
 
@@ -124,7 +123,6 @@ def orthanc_instance_preview(request, instance_id):
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
-@csrf_exempt
 def orthanc_upload_dicom(request):
     """DICOM 또는 NIfTI 파일 업로드"""
     try:
