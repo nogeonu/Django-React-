@@ -685,9 +685,13 @@ export default function MRIViewer() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          // Store patient ID for context
+                          // Store patient ID and Name for context
                           if (selectedPatient) {
                             sessionStorage.setItem('currentPatientId', selectedPatient);
+                            const patient = patients.find(p => p.patient_id === selectedPatient);
+                            if (patient) {
+                              sessionStorage.setItem('currentPatientName', patient.name);
+                            }
                           }
                           navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
                         }}
