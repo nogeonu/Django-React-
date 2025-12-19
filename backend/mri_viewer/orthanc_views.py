@@ -67,11 +67,18 @@ def orthanc_patients(request):
 
 @api_view(['GET'])
 def orthanc_patient_detail(request, patient_id):
-    """환자 상세 정보 및 이미지"""
+    """환자 상세 정보 및 이미지 (DICOM PatientID 또는 Orthanc 내부 ID 사용)"""
     try:
         client = OrthancClient()
-        patient_info = client.get_patient_info(patient_id)
-        studies = client.get_patient_studies(patient_id)
+        
+        # 먼저 DICOM PatientID 태그로 환자 찾기 시도
+        orthanc_patient_id = client.find_patient_by_patient_id(patient_id)
+        if not orthanc_patient_id:
+            # 찾지 못하면 직접 시도 (Orthanc 내부 ID일 수 있음)
+            orthanc_patient_id = patient_id
+        
+        patient_info = client.get_patient_info(orthanc_patient_id)
+        studies = client.get_patient_studies(orthanc_patient_id)
         
         images = []
         for study_id in studies:

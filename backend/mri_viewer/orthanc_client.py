@@ -89,7 +89,7 @@ class OrthancClient:
             raise
     
     def get_patient_studies(self, patient_id: str) -> List[str]:
-        """환자의 Study 목록"""
+        """환자의 Study 목록 (Orthanc 내부 ID 사용)"""
         response = requests.get(f"{self.base_url}/patients/{patient_id}/studies", auth=self.auth)
         response.raise_for_status()
         return response.json()
