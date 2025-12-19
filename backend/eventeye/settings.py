@@ -197,3 +197,8 @@ REDOC_SETTINGS = {
 
 # Flutter 모바일 앱 설정
 FLUTTER_GITHUB_REPO = 'nogeonu/flutter-mobile'  # GitHub 저장소 (owner/repo)
+
+# File upload size limits (for NIfTI and DICOM files)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500 MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
