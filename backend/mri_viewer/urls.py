@@ -11,6 +11,7 @@ urlpatterns = [
     
     # Orthanc PACS API
     path('orthanc/system/', orthanc_views.orthanc_system_info, name='orthanc-system'),
+    path('orthanc/debug/patients/', orthanc_views.orthanc_debug_patients, name='orthanc-debug-patients'),
     path('orthanc/patients/', orthanc_views.orthanc_patients, name='orthanc-patients'),
     path('orthanc/patients/<str:patient_id>/', orthanc_views.orthanc_patient_detail, name='orthanc-patient-detail'),
     path('orthanc/instances/<str:instance_id>/preview/', orthanc_views.orthanc_instance_preview, name='orthanc-instance-preview'),

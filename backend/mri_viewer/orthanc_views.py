@@ -12,6 +12,45 @@ import requests
 
 
 @api_view(['GET'])
+def orthanc_debug_patients(request):
+    """디버깅용: 모든 환자와 그들의 PatientID 목록"""
+    try:
+        client = OrthancClient()
+        all_patients = client.get_patients()
+        
+        patient_list = []
+        for orthanc_id in all_patients:
+            try:
+                response = requests.get(f"{client.base_url}/patients/{orthanc_id}", auth=client.auth)
+                response.raise_for_status()
+                info = response.json()
+                tags = info.get('MainDicomTags', {})
+                patient_list.append({
+                    'orthanc_id': orthanc_id,
+                    'dicom_patient_id': tags.get('PatientID', 'N/A'),
+                    'patient_name': tags.get('PatientName', 'N/A'),
+                })
+            except:
+                patient_list.append({
+                    'orthanc_id': orthanc_id,
+                    'dicom_patient_id': 'ERROR',
+                    'patient_name': 'ERROR',
+                })
+        
+        return Response({
+            'success': True,
+            'total_patients': len(all_patients),
+            'patients': patient_list
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
 def orthanc_system_info(request):
     """Orthanc 시스템 정보"""
     try:

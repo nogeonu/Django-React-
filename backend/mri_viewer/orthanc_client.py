@@ -40,9 +40,15 @@ class OrthancClient:
     
     def find_patient_by_patient_id(self, patient_id: str) -> Optional[str]:
         """DICOM PatientID 태그로 환자 찾기 (Orthanc 내부 ID 반환)"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
-            # Orthanc의 find API 사용
-            query = {"PatientID": patient_id}
+            logger.debug(f"Searching for PatientID: '{patient_id}'")
+            
+            # Orthanc의 find API 사용 (Level을 Patient로 지정)
+            query = {"Level": "Patient", "Query": {"PatientID": patient_id}}
+            logger.debug(f"Querying Orthanc /tools/find with: {query}")
             response = requests.post(
                 f"{self.base_url}/tools/find",
                 json=query,
@@ -50,14 +56,19 @@ class OrthancClient:
             )
             response.raise_for_status()
             patient_ids = response.json()
+            logger.debug(f"/tools/find returned {len(patient_ids) if patient_ids else 0} results: {patient_ids}")
             
             # 반환된 ID 중 첫 번째 사용 (일반적으로 하나)
             if patient_ids and len(patient_ids) > 0:
+                logger.info(f"Found patient via /tools/find: {patient_ids[0]} for PatientID '{patient_id}'")
                 return patient_ids[0]
             
             # find가 실패하면 모든 환자를 순회하면서 PatientID 태그 확인
-            # 직접 API 호출하여 순환 호출 방지
+            logger.warning(f"/tools/find did not find PatientID '{patient_id}', falling back to iteration")
             all_patients = self.get_patients()
+            logger.debug(f"Found {len(all_patients)} total patients in Orthanc, iterating...")
+            
+            found_patient_ids = []  # 디버깅용: 실제 저장된 PatientID 목록
             for orthanc_patient_id in all_patients:
                 try:
                     # 직접 API 호출 (get_patient_info 호출하지 않음)
@@ -68,14 +79,29 @@ class OrthancClient:
                     response.raise_for_status()
                     info = response.json()
                     tags = info.get('MainDicomTags', {})
-                    if tags.get('PatientID') == patient_id:
+                    stored_patient_id = tags.get('PatientID', '')
+                    
+                    # 디버깅: 처음 몇 개만 로깅
+                    if len(found_patient_ids) < 10:
+                        found_patient_ids.append((orthanc_patient_id, stored_patient_id))
+                    
+                    # 대소문자 구분 없이 비교 (PatientID는 보통 대소문자 구분 없음)
+                    if stored_patient_id and stored_patient_id.strip().upper() == patient_id.strip().upper():
+                        logger.info(f"Found patient via iteration: {orthanc_patient_id} for PatientID '{patient_id}' (stored as '{stored_patient_id}')")
                         return orthanc_patient_id
-                except:
+                    # 정확히 일치하는 경우도 확인
+                    elif stored_patient_id == patient_id:
+                        logger.info(f"Found patient via iteration (exact match): {orthanc_patient_id} for PatientID '{patient_id}'")
+                        return orthanc_patient_id
+                except Exception as e:
+                    logger.debug(f"Error checking patient {orthanc_patient_id}: {e}")
                     continue
             
+            # 로깅: 찾지 못했을 때 실제 저장된 PatientID 목록 출력
+            logger.warning(f"PatientID '{patient_id}' not found. Sample stored PatientIDs: {found_patient_ids}")
             return None
         except Exception as e:
-            print(f"Error finding patient by PatientID {patient_id}: {e}")
+            logger.error(f"Error finding patient by PatientID {patient_id}: {e}", exc_info=True)
             import traceback
             traceback.print_exc()
             return None
