@@ -211,15 +211,29 @@ def orthanc_upload_dicom(request):
                 # 각 DICOM 슬라이스를 Orthanc에 업로드
                 uploaded_count = 0
                 errors = []
+                uploaded_instance_ids = []  # 업로드된 인스턴스 ID 저장
                 for idx, dicom_slice in enumerate(dicom_slices):
                     try:
                         result = client.upload_dicom(dicom_slice)
                         uploaded_count += 1
+                        if 'ID' in result:
+                            uploaded_instance_ids.append(result['ID'])
                     except Exception as e:
                         error_msg = f"슬라이스 {idx+1} 업로드 실패: {str(e)}"
                         errors.append(error_msg)
                         print(error_msg)
                         continue
+                
+                # 업로드된 첫 번째 인스턴스의 PatientID 확인
+                actual_patient_id = patient_id or "UNKNOWN"
+                if uploaded_instance_ids:
+                    try:
+                        first_instance = client.get_instance_info(uploaded_instance_ids[0])
+                        tags = first_instance.get('MainDicomTags', {})
+                        actual_patient_id = tags.get('PatientID', patient_id or "UNKNOWN")
+                        print(f"업로드된 DICOM의 실제 PatientID: {actual_patient_id}")
+                    except Exception as e:
+                        print(f"PatientID 확인 중 오류: {e}")
                 
                 if uploaded_count == 0:
                     return Response({
@@ -228,9 +242,7 @@ def orthanc_upload_dicom(request):
                         'errors': errors
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
-                # 업로드된 DICOM에서 실제 Patient ID 확인 (DICOM 파일의 PatientID 태그 사용)
-                # nifti_to_dicom_slices에서 이미 patient_id를 DICOM 태그에 설정했으므로 그대로 사용
-                actual_patient_id = patient_id or "UNKNOWN"
+                # actual_patient_id는 위에서 이미 설정됨
                 
                 return Response({
                     'success': True,
@@ -247,12 +259,36 @@ def orthanc_upload_dicom(request):
                     'traceback': traceback.format_exc()
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            # DICOM 파일인 경우 직접 업로드
+            # DICOM 파일인 경우
             dicom_data = uploaded_file.read()
+            
+            # patient_id가 제공된 경우 DICOM 파일의 PatientID 태그 수정
+            if patient_id:
+                try:
+                    import pydicom
+                    from io import BytesIO
+                    
+                    # DICOM 파일 읽기
+                    dicom_file = pydicom.dcmread(BytesIO(dicom_data))
+                    
+                    # PatientID와 PatientName 수정
+                    dicom_file.PatientID = str(patient_id)
+                    if not hasattr(dicom_file, 'PatientName') or not dicom_file.PatientName:
+                        dicom_file.PatientName = str(patient_id)
+                    
+                    # 수정된 DICOM을 바이트로 변환
+                    output = BytesIO()
+                    pydicom.dcmwrite(output, dicom_file, write_like_original=False)
+                    dicom_data = output.getvalue()
+                    print(f"DICOM 파일의 PatientID를 {patient_id}로 수정했습니다.")
+                except Exception as e:
+                    print(f"DICOM 파일 PatientID 수정 실패 (원본 파일 그대로 업로드): {e}")
+            
+            # Orthanc에 업로드
             result = client.upload_dicom(dicom_data)
             
             # 업로드된 인스턴스의 Patient ID 확인
-            actual_patient_id = patient_id
+            actual_patient_id = patient_id or "UNKNOWN"
             try:
                 # result에 'ID' 키가 있으면 인스턴스 ID
                 if 'ID' in result:
@@ -262,6 +298,7 @@ def orthanc_upload_dicom(request):
                     tags = instance_info.get('MainDicomTags', {})
                     if 'PatientID' in tags:
                         actual_patient_id = tags['PatientID']
+                        print(f"업로드된 DICOM의 실제 PatientID: {actual_patient_id}")
             except Exception as e:
                 print(f"Patient ID 확인 중 오류 (무시): {e}")
             
