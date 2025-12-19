@@ -46,22 +46,43 @@ class OrthancClient:
         try:
             logger.debug(f"Searching for PatientID: '{patient_id}'")
             
-            # Orthanc의 find API 사용 (Level을 Patient로 지정)
-            query = {"Level": "Patient", "Query": {"PatientID": patient_id}}
-            logger.debug(f"Querying Orthanc /tools/find with: {query}")
-            response = requests.post(
-                f"{self.base_url}/tools/find",
-                json=query,
-                auth=self.auth
-            )
-            response.raise_for_status()
-            patient_ids = response.json()
-            logger.debug(f"/tools/find returned {len(patient_ids) if patient_ids else 0} results: {patient_ids}")
+            # 방법 1: 간단한 형식 시도
+            query1 = {"PatientID": patient_id}
+            logger.debug(f"Trying Orthanc /tools/find with simple format: {query1}")
+            try:
+                response = requests.post(
+                    f"{self.base_url}/tools/find",
+                    json=query1,
+                    auth=self.auth
+                )
+                response.raise_for_status()
+                patient_ids = response.json()
+                logger.debug(f"/tools/find (simple) returned {len(patient_ids) if patient_ids else 0} results: {patient_ids}")
+                
+                if patient_ids and len(patient_ids) > 0:
+                    logger.info(f"Found patient via /tools/find (simple): {patient_ids[0]} for PatientID '{patient_id}'")
+                    return patient_ids[0]
+            except Exception as e1:
+                logger.debug(f"Simple format failed: {e1}")
             
-            # 반환된 ID 중 첫 번째 사용 (일반적으로 하나)
-            if patient_ids and len(patient_ids) > 0:
-                logger.info(f"Found patient via /tools/find: {patient_ids[0]} for PatientID '{patient_id}'")
-                return patient_ids[0]
+            # 방법 2: 구조화된 형식 시도
+            query2 = {"Level": "Patient", "Query": {"PatientID": patient_id}}
+            logger.debug(f"Trying Orthanc /tools/find with structured format: {query2}")
+            try:
+                response = requests.post(
+                    f"{self.base_url}/tools/find",
+                    json=query2,
+                    auth=self.auth
+                )
+                response.raise_for_status()
+                patient_ids = response.json()
+                logger.debug(f"/tools/find (structured) returned {len(patient_ids) if patient_ids else 0} results: {patient_ids}")
+                
+                if patient_ids and len(patient_ids) > 0:
+                    logger.info(f"Found patient via /tools/find (structured): {patient_ids[0]} for PatientID '{patient_id}'")
+                    return patient_ids[0]
+            except Exception as e2:
+                logger.debug(f"Structured format failed: {e2}")
             
             # find가 실패하면 모든 환자를 순회하면서 PatientID 태그 확인
             logger.warning(f"/tools/find did not find PatientID '{patient_id}', falling back to iteration")
