@@ -61,7 +61,7 @@ export default function Sidebar() {
               : '/';
 
             // 역할 및 진료과에 따라 다른 메뉴 표시
-            let departmentMenuItems = [];
+            let departmentMenuItems: Array<{ name: string; href: string; icon: any }> = [];
 
             if (user) {
               if (user.role === 'admin_staff') {
