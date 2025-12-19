@@ -397,14 +397,24 @@ def orthanc_upload_dicom(request):
                 try:
                     import pydicom
                     from io import BytesIO
+                    from patients.models import Patient
                     
                     # DICOM 파일 읽기
                     dicom_file = pydicom.dcmread(BytesIO(dicom_data))
                     
-                    # PatientID와 PatientName 수정
+                    # PatientID 수정
                     dicom_file.PatientID = str(patient_id)
-                    if not hasattr(dicom_file, 'PatientName') or not dicom_file.PatientName:
+                    
+                    # 데이터베이스에서 환자 정보 조회하여 PatientName 설정
+                    try:
+                        patient = Patient.objects.get(patient_id=patient_id)
+                        patient_name = patient.name if hasattr(patient, 'name') and patient.name else str(patient_id)
+                        dicom_file.PatientName = patient_name
+                        print(f"환자 정보 조회 성공: PatientID={patient_id}, PatientName={patient_name}")
+                    except Patient.DoesNotExist:
+                        # 환자 정보가 없으면 Patient ID를 이름으로 사용
                         dicom_file.PatientName = str(patient_id)
+                        print(f"환자 정보 없음, PatientName을 PatientID로 설정: {patient_id}")
                     
                     # 수정된 DICOM을 바이트로 변환
                     output = BytesIO()
