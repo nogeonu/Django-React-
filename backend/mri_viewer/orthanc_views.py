@@ -69,11 +69,16 @@ def orthanc_patients(request):
 @api_view(['GET'])
 def orthanc_patient_detail(request, patient_id):
     """환자 상세 정보 및 이미지 (DICOM PatientID 또는 Orthanc 내부 ID 사용)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         client = OrthancClient()
+        logger.debug(f"Looking up patient with ID: {patient_id}")
         
         # 먼저 DICOM PatientID 태그로 환자 찾기 시도
         orthanc_patient_id = client.find_patient_by_patient_id(patient_id)
+        logger.debug(f"find_patient_by_patient_id result: {orthanc_patient_id}")
         
         # 찾지 못했으면 직접 접근 시도 (Orthanc 내부 ID일 수 있음)
         if not orthanc_patient_id:
@@ -85,9 +90,24 @@ def orthanc_patient_detail(request, patient_id):
                 )
                 response.raise_for_status()
                 orthanc_patient_id = patient_id
+                logger.debug(f"Direct access succeeded, using patient_id as orthanc_patient_id: {orthanc_patient_id}")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    # 찾을 수 없음
+                    # 찾을 수 없음 - 모든 환자 목록과 PatientID를 로깅
+                    try:
+                        all_patients = client.get_patients()
+                        logger.warning(f"Patient '{patient_id}' not found. Available Orthanc patient IDs: {all_patients[:5]}...")  # 처음 5개만
+                        # 각 환자의 실제 PatientID 태그도 확인해서 로깅
+                        for pid in all_patients[:5]:
+                            try:
+                                pat_info = requests.get(f"{client.base_url}/patients/{pid}", auth=client.auth).json()
+                                actual_pid = pat_info.get('MainDicomTags', {}).get('PatientID', 'N/A')
+                                logger.warning(f"  Orthanc ID {pid} -> DICOM PatientID: {actual_pid}")
+                            except:
+                                pass
+                    except Exception as log_error:
+                        logger.error(f"Error while logging patient list: {log_error}")
+                    
                     return Response({
                         'success': False,
                         'error': f'Patient ID "{patient_id}" not found in Orthanc. Please check if the DICOM file was uploaded with this PatientID.',
@@ -95,9 +115,19 @@ def orthanc_patient_detail(request, patient_id):
                     }, status=status.HTTP_404_NOT_FOUND)
                 raise
         
-        # Orthanc 내부 ID로 정보 가져오기
-        patient_info = client.get_patient_info(orthanc_patient_id)
+        logger.debug(f"Using orthanc_patient_id: {orthanc_patient_id}")
+        
+        # Orthanc 내부 ID로 직접 정보 가져오기 (get_patient_info는 재검색을 시도할 수 있으므로 직접 호출)
+        try:
+            response = requests.get(f"{client.base_url}/patients/{orthanc_patient_id}", auth=client.auth)
+            response.raise_for_status()
+            patient_info = response.json()
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Failed to get patient info for orthanc_patient_id {orthanc_patient_id}: {e}")
+            raise
+        
         studies = client.get_patient_studies(orthanc_patient_id)
+        logger.debug(f"Found {len(studies)} studies for patient {orthanc_patient_id}")
         
         images = []
         for study_id in studies:
@@ -119,13 +149,29 @@ def orthanc_patient_detail(request, patient_id):
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
                     })
         
+        logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id}")
         return Response({
             'success': True,
             'patient': patient_info,
             'images': images,
-            'image_count': len(images)
+            'image_count': len(images),
+            'orthanc_patient_id': orthanc_patient_id  # 디버깅용
         })
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error while fetching patient detail for {patient_id}: {e}", exc_info=True)
+        if e.response.status_code == 404:
+            return Response({
+                'success': False,
+                'error': f'Patient ID "{patient_id}" not found in Orthanc.',
+                'traceback': traceback.format_exc()
+            }, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            'success': False,
+            'error': f'Orthanc API error: {str(e)}',
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
+        logger.error(f"Error fetching patient detail for {patient_id}: {e}", exc_info=True)
         return Response({
             'success': False,
             'error': str(e),
