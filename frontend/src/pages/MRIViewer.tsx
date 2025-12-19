@@ -304,7 +304,8 @@ export default function MRIViewer() {
         });
         // 업로드 후 이미지 목록 새로고침
         // 실제 저장된 patient_id 사용 (있으면), 없으면 selectedPatient 사용
-        const patientIdToLoad = data.patient_id || selectedPatient;
+        const patientIdToLoad = data.patient_id || data.actual_patient_id || selectedPatient;
+        console.log('Upload successful, using patient_id:', patientIdToLoad, 'from response:', data);
         if (patientIdToLoad) {
           // 약간의 지연을 두고 이미지 로드 (Orthanc 인덱싱 시간)
           setTimeout(() => {
