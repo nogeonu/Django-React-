@@ -16,10 +16,8 @@ import logging
 from urllib.parse import unquote
 from PIL import Image
 from io import BytesIO
-import numpy as np
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
-from . import visualization
 
 logger = logging.getLogger(__name__)
 
@@ -324,16 +322,13 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         }
                     }
                 
-                # 딥러닝 서비스 헬스 체크 먼저 수행 (선택적, 실패해도 계속 진행)
+                # 딥러닝 서비스 헬스 체크 먼저 수행
                 try:
-                    # mosec은 /health 대신 / 엔드포인트 사용
-                    health_response = requests.get(f'{DL_SERVICE_URL}/', timeout=5)
-                    if health_response.status_code == 200:
-                        logger.info("딥러닝 서비스 헬스 체크 성공")
-                    else:
-                        logger.warning(f"딥러닝 서비스 응답: {health_response.status_code}")
+                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
+                    if health_response.status_code != 200:
+                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
                 except Exception as health_error:
-                    logger.warning(f"딥러닝 서비스 헬스 체크 실패 (계속 진행): {health_error}")
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
                     return Response(
                         {
                             'error': '딥러닝 서비스에 연결할 수 없습니다.',
@@ -422,70 +417,6 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         )
                         
                         logger.info(f"마스크 이미지 저장 완료: {mask_path}")
-                        
-                        # 오버레이 이미지 생성 및 저장 (원본 + 마스크)
-                        try:
-                            # 원본 이미지 로드
-                            original_image_path = medical_image.image_file.path
-                            original_image = Image.open(original_image_path).convert('RGB')
-                            
-                            # 마스크 이미지를 원본 크기로 리사이즈
-                            mask_resized = mask_image.resize(original_image.size, Image.BILINEAR)
-                            
-                            # 오버레이 이미지 생성 (마스크 영역을 빨간색으로 표시)
-                            overlay_image = original_image.copy()
-                            
-                            # 마스크를 numpy 배열로 변환
-                            mask_array = np.array(mask_resized.convert('L')) / 255.0
-                            
-                            # 빨간색 오버레이 생성
-                            overlay_array = np.array(overlay_image)
-                            red_overlay = np.zeros_like(overlay_array)
-                            red_overlay[:, :, 0] = 255  # 빨간색
-                            red_overlay[:, :, 1] = 0
-                            red_overlay[:, :, 2] = 0
-                            
-                            # 마스크가 있는 부분에 빨간색 오버레이 적용 (60% 투명도)
-                            mask_3d = np.stack([mask_array, mask_array, mask_array], axis=2)
-                            overlay_array = overlay_array * (1 - mask_3d * 0.6) + red_overlay * (mask_3d * 0.6)
-                            overlay_array = overlay_array.astype(np.uint8)
-                            
-                            overlay_image = Image.fromarray(overlay_array)
-                            
-                            # 오버레이 이미지 저장 경로: medical_images/patient_id/overlays/YYYY/MM/DD/파일명
-                            overlay_filename = f"{filename_without_ext}_overlay.png"
-                            overlay_dir = os.path.join(
-                                settings.MEDIA_ROOT,
-                                'medical_images',
-                                str(medical_image.patient_id),
-                                'overlays',
-                                date_path
-                            )
-                            os.makedirs(overlay_dir, exist_ok=True)
-                            
-                            overlay_path = os.path.join(overlay_dir, overlay_filename)
-                            overlay_image.save(overlay_path, 'PNG')
-                            
-                            # 상대 경로 저장
-                            overlay_relative_path = os.path.join(
-                                'medical_images',
-                                str(medical_image.patient_id),
-                                'overlays',
-                                date_path,
-                                overlay_filename
-                            )
-                            
-                            logger.info(f"오버레이 이미지 저장 완료: {overlay_path}")
-                            
-                            # 오버레이 경로를 results에 추가
-                            if not analysis_data.get('results'):
-                                analysis_data['results'] = {}
-                            analysis_data['results']['overlay_path'] = overlay_relative_path
-                            analysis_data['results']['overlay_url'] = f"{settings.MEDIA_URL}{overlay_relative_path}"
-                            
-                        except Exception as overlay_error:
-                            logger.error(f"오버레이 이미지 생성/저장 실패: {str(overlay_error)}", exc_info=True)
-                            # 오버레이 실패해도 분석 결과는 저장
                         
                         # 마스크 경로를 results에 추가
                         if not analysis_data.get('results'):
@@ -687,16 +618,13 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         }
                     }
                 
-                # 딥러닝 서비스 헬스 체크 (선택적, 실패해도 계속 진행)
+                # 딥러닝 서비스 헬스 체크
                 try:
-                    # mosec은 /health 대신 / 엔드포인트 사용
-                    health_response = requests.get(f'{DL_SERVICE_URL}/', timeout=5)
-                    if health_response.status_code == 200:
-                        logger.info("딥러닝 서비스 헬스 체크 성공")
-                    else:
-                        logger.warning(f"딥러닝 서비스 응답: {health_response.status_code}")
+                    health_response = requests.get(f'{DL_SERVICE_URL}/health', timeout=5)
+                    if health_response.status_code != 200:
+                        logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_response.status_code}")
                 except Exception as health_error:
-                    logger.warning(f"딥러닝 서비스 헬스 체크 실패 (계속 진행): {health_error}")
+                    logger.warning(f"딥러닝 서비스 헬스 체크 실패: {health_error}")
                     return Response(
                         {
                             'error': '딥러닝 서비스에 연결할 수 없습니다.',
@@ -790,55 +718,5 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             logger.error(f"종양분석 중 예기치 않은 오류 발생: {str(e)}", exc_info=True)
             return Response(
                 {'error': f'예상치 못한 오류: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def generate_3d_visualization(self, request):
-        """
-        3D 시각화 HTML 생성
-        GET /api/medical-images/generate_3d_visualization/?patient_id=1&visualization_type=voxel
-        """
-        try:
-            patient_id = request.query_params.get('patient_id')
-            visualization_type = request.query_params.get('visualization_type', 'voxel')  # 'voxel', 'mesh', 'slices'
-            
-            if not patient_id:
-                return Response(
-                    {'error': 'patient_id 파라미터가 필요합니다.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # 환자 이미지가 있는지 확인
-            images_count = MedicalImage.objects.filter(patient_id=patient_id).count()
-            if images_count == 0:
-                return Response(
-                    {'error': f'환자 ID {patient_id}의 이미지를 찾을 수 없습니다.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            logger.info(f"3D 시각화 생성 시작: patient_id={patient_id}, type={visualization_type}")
-            
-            # 3D 시각화 HTML 생성
-            html_content = visualization.generate_3d_visualization_html(
-                patient_id=patient_id,
-                visualization_type=visualization_type
-            )
-            
-            if html_content is None:
-                return Response(
-                    {'error': '3D 시각화 생성에 실패했습니다. 이미지가 충분하지 않거나 처리 중 오류가 발생했습니다.'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
-            # HTML 응답 반환
-            from django.http import HttpResponse
-            response = HttpResponse(html_content, content_type='text/html; charset=utf-8')
-            return response
-            
-        except Exception as e:
-            logger.error(f"3D 시각화 생성 중 오류: {str(e)}", exc_info=True)
-            return Response(
-                {'error': f'3D 시각화 생성 중 오류 발생: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

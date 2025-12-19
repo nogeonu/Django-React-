@@ -504,7 +504,7 @@ export default function ReservationInfo() {
         </div>
 
         {/* 날짜 네비게이션 */}
-        <div className="flex items-center justify-between bg-white rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center gap-6">
             <h2 className="text-3xl font-bold text-gray-800">{currentTitle}</h2>
             <div className="flex items-center gap-2">
@@ -613,7 +613,7 @@ export default function ReservationInfo() {
                     upcomingReservations.map((event: any) => {
                       const palette = colorByType[event.type || "예약"] || colorByType["예약"];
                       return (
-                        <div key={event.id} className="rounded-lg border-2 bg-white p-3 shadow-sm hover:shadow-md transition-shadow">
+                        <div key={event.id} className="rounded-lg border-2 bg-white border-gray-200 p-3 shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold text-gray-900">{event.title}</span>
                             <Badge

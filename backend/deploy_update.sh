@@ -69,3 +69,4 @@ sudo journalctl -u breast-ai-service --since "1 minute ago" --no-pager | grep -E
 echo ""
 echo "=== 배포 업데이트 완료 ==="
 
+

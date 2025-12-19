@@ -78,3 +78,4 @@ echo "   2. 서비스 재시작: sudo systemctl restart breast-ai-service"
 echo "   3. 서비스 상태: sudo systemctl status breast-ai-service"
 echo "   4. 로그 확인: sudo journalctl -u breast-ai-service -f"
 
+

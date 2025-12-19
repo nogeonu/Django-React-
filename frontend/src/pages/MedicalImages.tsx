@@ -170,23 +170,23 @@ export default function MedicalImages() {
     // 여러 파일을 순차적으로 업로드
     for (let i = 0; i < fileArray.length; i++) {
       const file = fileArray[i];
-      try {
-        const formData = new FormData();
-        formData.append('patient_id', selectedPatient);
-        formData.append('image_type', 'MRI'); // 기본값, 실제로는 사용자가 선택
-        formData.append('image_file', file);
-        formData.append('description', '');
-        formData.append('taken_date', new Date().toISOString());
-        formData.append('doctor_notes', '');
+    try {
+      const formData = new FormData();
+      formData.append('patient_id', selectedPatient);
+      formData.append('image_type', 'MRI'); // 기본값, 실제로는 사용자가 선택
+      formData.append('image_file', file);
+      formData.append('description', '');
+      formData.append('taken_date', new Date().toISOString());
+      formData.append('doctor_notes', '');
 
         await apiRequest("POST", "/api/medical-images/", formData);
-      } catch (error) {
+    } catch (error) {
         console.error(`이미지 ${i + 1} 업로드 실패:`, error);
-        toast({
+      toast({
           title: `파일 ${i + 1} 업로드 실패`,
           description: `${file.name} 업로드 중 오류가 발생했습니다.`,
-          variant: "destructive",
-        });
+        variant: "destructive",
+      });
       }
     }
 
@@ -503,8 +503,8 @@ export default function MedicalImages() {
           } catch (overlayError) {
             console.error('오버레이 이미지 생성 실패, 원본 다운로드:', overlayError);
             // 오버레이 실패 시 원본 다운로드
-            const url = new URL(image.image_url);
-            const pathParts = url.pathname.split('/');
+      const url = new URL(image.image_url);
+      const pathParts = url.pathname.split('/');
             filename = pathParts[pathParts.length - 1] || `medical_image_${image.id}.jpg`;
           }
         } else {
@@ -527,16 +527,16 @@ export default function MedicalImages() {
       } else {
         // 일반 URL인 경우
         fetch(imageUrl)
-          .then(response => response.blob())
-          .then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = decodeURIComponent(filename);
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+        .then(response => response.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = decodeURIComponent(filename);
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
           })
           .catch(error => {
             console.error('다운로드 오류:', error);
@@ -545,17 +545,17 @@ export default function MedicalImages() {
       }
       
       const hasOverlay = overlayUrl || getMaskUrl(image);
-      toast({
-        title: "다운로드 완료",
+          toast({
+            title: "다운로드 완료",
         description: hasOverlay ? "오버레이 이미지가 다운로드되었습니다." : "이미지가 다운로드되었습니다.",
-      });
+          });
     } catch (error) {
-      console.error('다운로드 오류:', error);
-      toast({
-        title: "다운로드 실패",
-        description: "이미지를 다운로드할 수 없습니다.",
-        variant: "destructive",
-      });
+          console.error('다운로드 오류:', error);
+          toast({
+            title: "다운로드 실패",
+            description: "이미지를 다운로드할 수 없습니다.",
+            variant: "destructive",
+          });
     }
   };
 
@@ -688,7 +688,7 @@ export default function MedicalImages() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div>

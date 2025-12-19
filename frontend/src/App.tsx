@@ -30,10 +30,12 @@ import PatientMyPage from "@/pages/PatientMyPage";
 import PatientMedicalRecords from "@/pages/PatientMedicalRecords";
 import PatientDoctors from "@/pages/PatientDoctors";
 import AppDownload from "@/pages/AppDownload";
+import Profile from "@/pages/Profile";
+import Settings from "@/pages/Settings";
 
 const queryClient = new QueryClient();
 
-function AppContent() {
+function AppContentInner() {
   const location = useLocation();
   const isPublicPage = [
     "/",
@@ -106,6 +108,22 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
 
           {/* 의료진만 접근 가능한 페이지 */}
           <Route
@@ -156,16 +174,22 @@ function AppContent() {
   );
 }
 
+function AppContent() {
+  return (
+    <Router>
+      <AppContentInner />
+      <Toaster />
+    </Router>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <CalendarProvider>
-            <Router>
-              <AppContent />
-              <Toaster />
-            </Router>
+            <AppContent />
           </CalendarProvider>
         </AuthProvider>
       </TooltipProvider>

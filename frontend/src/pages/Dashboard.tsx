@@ -17,6 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
+import NotificationDropdown from "@/components/NotificationDropdown";
+import UserProfileDropdown from "@/components/UserProfileDropdown";
+import { useAuth } from "@/context/AuthContext";
  
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -59,6 +62,7 @@ export default function Dashboard() {
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
@@ -201,15 +205,21 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Activity className="text-blue-600 text-2xl mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">병원 환자관리 시스템</h1>
+              <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
             </div>
-            <div className="flex items-center space-x-2">
-              {location.pathname === '/' && (
+            <div className="flex items-center space-x-3">
+              {/* 알림 드롭다운 */}
+              <NotificationDropdown />
+              
+              {/* 사용자 프로필 드롭다운 */}
+              {user ? (
+                <UserProfileDropdown />
+              ) : location.pathname === '/' ? (
                 <>
                   <Button size="sm" variant="outline" onClick={() => navigate('/login')}>
                     로그인
@@ -218,7 +228,7 @@ export default function Dashboard() {
                     회원가입
                   </Button>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

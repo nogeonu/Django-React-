@@ -188,7 +188,7 @@ class InferenceWorker(Worker):
                         
                         # ResNet 모델 아키텍처 재구성
                         if 'resnet' in model_name.lower():
-                            from torchvision import models
+                                from torchvision import models
                             if '18' in model_name.lower():
                                 self.classification_model = models.resnet18(pretrained=False)
                             elif '34' in model_name.lower():
@@ -393,22 +393,22 @@ class InferenceWorker(Worker):
             if image_data:
                 # base64 디코딩
                 if isinstance(image_data, str):
-                    if image_data.startswith('data:image'):
-                        image_data = image_data.split(',')[1]
-                    image_bytes = base64.b64decode(image_data)
+                        if image_data.startswith('data:image'):
+                            image_data = image_data.split(',')[1]
+                        image_bytes = base64.b64decode(image_data)
                     return Image.open(BytesIO(image_bytes)).convert('RGB')
                 else:
                     # numpy array
-                    image_array = np.array(image_data)
-                    if image_array.dtype != np.uint8:
-                        image_array = (image_array * 255).astype(np.uint8)
+                        image_array = np.array(image_data)
+                        if image_array.dtype != np.uint8:
+                            image_array = (image_array * 255).astype(np.uint8)
                     return Image.fromarray(image_array).convert('RGB')
             elif image_url:
-                import requests
-                response = requests.get(image_url, timeout=10)
+                    import requests
+                    response = requests.get(image_url, timeout=10)
                 response.raise_for_status()
                 return Image.open(BytesIO(response.content)).convert('RGB')
-        except Exception as e:
+                except Exception as e:
             logger.error(f"이미지 로드 실패: {str(e)}")
             return None
         
@@ -417,11 +417,11 @@ class InferenceWorker(Worker):
     def _run_classification(self, data):
         """분류 모델 실행 (악성/양성 판별)"""
         if not self.classification_loaded:
-            return {
-                'success': False,
+                    return {
+                        'success': False,
                 'error': '분류 모델이 로드되지 않았습니다.',
-                'data': None
-            }
+                        'data': None
+                    }
         
         try:
             # 이미지 로드

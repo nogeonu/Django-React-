@@ -76,3 +76,4 @@ echo "5. 서비스 상태 확인 (10초 대기 후):"
 sleep 10
 sudo systemctl status breast-ai-service --no-pager -l | head -30
 
+
