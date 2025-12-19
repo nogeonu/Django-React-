@@ -104,12 +104,6 @@ export default function MRIViewer() {
       // 환자 정보 시스템에서 환자 목록 가져오기
       const systemData = await getPatientsApi({ page_size: 1000 });
       if (systemData.results && systemData.results.length > 0) {
-        const formattedPatients = systemData.results.map((p: SystemPatient) => ({
-          patient_id: p.patient_id,
-          name: p.name,
-          age: p.age,
-          gender: p.gender,
-        }));
         setSystemPatients(systemData.results);
         
         // MRI API에서도 환자 목록 가져오기 (폴백용)
