@@ -214,6 +214,15 @@ export default function MRIViewer() {
     setCurrentSlice(newSlice);
   };
 
+  const handleOrthancWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    if (orthancImages.length === 0) return;
+
+    const delta = e.deltaY > 0 ? 1 : -1;
+    const newImage = Math.max(0, Math.min(orthancImages.length - 1, selectedImage + delta));
+    setSelectedImage(newImage);
+  };
+
   const handleSliderChange = (value: number[]) => {
     setCurrentSlice(value[0]);
   };
@@ -658,6 +667,7 @@ export default function MRIViewer() {
                   <div
                     className="relative bg-black rounded-lg overflow-hidden"
                     style={{ height: "600px" }}
+                    onWheel={handleOrthancWheel}
                   >
                     <img
                       src={orthancImages[selectedImage].preview_url}
