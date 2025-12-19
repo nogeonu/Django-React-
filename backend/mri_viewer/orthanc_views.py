@@ -126,15 +126,23 @@ def orthanc_instance_preview(request, instance_id):
 def orthanc_upload_dicom(request):
     """DICOM 또는 NIfTI 파일 업로드"""
     try:
+        # 디버깅 로그
+        print(f"Request method: {request.method}")
+        print(f"Request FILES keys: {list(request.FILES.keys())}")
+        print(f"Request data keys: {list(request.data.keys())}")
+        
         if 'file' not in request.FILES:
             return Response({
                 'success': False,
-                'error': 'No file provided'
+                'error': f'No file provided. Available keys: {list(request.FILES.keys())}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         uploaded_file = request.FILES['file']
         file_name = uploaded_file.name.lower()
+        file_size = uploaded_file.size
         patient_id = request.data.get('patient_id', None)
+        
+        print(f"Uploaded file: {file_name}, size: {file_size} bytes, patient_id: {patient_id}")
         
         client = OrthancClient()
         
