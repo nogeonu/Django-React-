@@ -116,8 +116,9 @@ def orthanc_patient_detail(request, patient_id):
         logger.debug(f"Looking up patient with ID: {patient_id}")
         
         # 먼저 DICOM PatientID 태그로 환자 찾기 시도
+        logger.info(f"=== Starting patient lookup for PatientID: '{patient_id}' ===")
         orthanc_patient_id = client.find_patient_by_patient_id(patient_id)
-        logger.debug(f"find_patient_by_patient_id result: {orthanc_patient_id}")
+        logger.info(f"find_patient_by_patient_id result: {orthanc_patient_id}")
         
         # 찾지 못했으면 직접 접근 시도 (Orthanc 내부 ID일 수 있음)
         if not orthanc_patient_id:
@@ -132,26 +133,52 @@ def orthanc_patient_detail(request, patient_id):
                 logger.debug(f"Direct access succeeded, using patient_id as orthanc_patient_id: {orthanc_patient_id}")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    # 찾을 수 없음 - 모든 환자 목록과 PatientID를 로깅
+                    # 찾을 수 없음 - 모든 환자 목록과 PatientID를 로깅 (더 자세히)
                     try:
                         all_patients = client.get_patients()
-                        logger.warning(f"Patient '{patient_id}' not found. Available Orthanc patient IDs: {all_patients[:5]}...")  # 처음 5개만
-                        # 각 환자의 실제 PatientID 태그도 확인해서 로깅
-                        for pid in all_patients[:5]:
+                        logger.error(f"Patient '{patient_id}' not found after all attempts. Total patients in Orthanc: {len(all_patients)}")
+                        logger.error(f"Available Orthanc patient IDs (first 10): {all_patients[:10]}")
+                        
+                        # 모든 환자의 실제 PatientID 태그 확인해서 로깅
+                        logger.error("=== All stored DICOM PatientIDs ===")
+                        for idx, pid in enumerate(all_patients):
                             try:
                                 pat_info = requests.get(f"{client.base_url}/patients/{pid}", auth=client.auth).json()
                                 actual_pid = pat_info.get('MainDicomTags', {}).get('PatientID', 'N/A')
-                                logger.warning(f"  Orthanc ID {pid} -> DICOM PatientID: {actual_pid}")
-                            except:
-                                pass
+                                patient_name = pat_info.get('MainDicomTags', {}).get('PatientName', 'N/A')
+                                logger.error(f"  [{idx+1}] Orthanc ID: {pid} -> DICOM PatientID: '{actual_pid}' | PatientName: '{patient_name}'")
+                                
+                                # 정확히 일치하는지, 대소문자 무시하고 일치하는지 확인
+                                if actual_pid == patient_id:
+                                    logger.error(f"      -> EXACT MATCH FOUND! (but was not returned by find_patient_by_patient_id)")
+                                    # 마지막 시도: 이 ID를 사용
+                                    orthanc_patient_id = pid
+                                    logger.error(f"      -> Using this as orthanc_patient_id: {orthanc_patient_id}")
+                                    break
+                                elif actual_pid.strip().upper() == patient_id.strip().upper():
+                                    logger.error(f"      -> CASE-INSENSITIVE MATCH FOUND! (stored: '{actual_pid}', searched: '{patient_id}')")
+                                    orthanc_patient_id = pid
+                                    logger.error(f"      -> Using this as orthanc_patient_id: {orthanc_patient_id}")
+                                    break
+                            except Exception as pid_error:
+                                logger.debug(f"Error checking patient {pid}: {pid_error}")
+                                if idx >= 20:  # 최대 20개만 확인
+                                    break
+                        logger.error("=== End of PatientID list ===")
                     except Exception as log_error:
-                        logger.error(f"Error while logging patient list: {log_error}")
+                        logger.error(f"Error while logging patient list: {log_error}", exc_info=True)
                     
-                    return Response({
-                        'success': False,
-                        'error': f'Patient ID "{patient_id}" not found in Orthanc. Please check if the DICOM file was uploaded with this PatientID.',
-                        'suggestion': 'Upload a DICOM file with PatientID matching this patient first.'
-                    }, status=status.HTTP_404_NOT_FOUND)
+                    # fallback에서 찾았는지 확인
+                    if not orthanc_patient_id:
+                        return Response({
+                            'success': False,
+                            'error': f'Patient ID "{patient_id}" not found in Orthanc. Please check if the DICOM file was uploaded with this PatientID.',
+                            'suggestion': 'Upload a DICOM file with PatientID matching this patient first.',
+                            'debug': 'Check server logs for detailed patient list'
+                        }, status=status.HTTP_404_NOT_FOUND)
+                    else:
+                        logger.info(f"Found patient via fallback iteration: {orthanc_patient_id}")
+                raise
                 raise
         
         logger.debug(f"Using orthanc_patient_id: {orthanc_patient_id}")
