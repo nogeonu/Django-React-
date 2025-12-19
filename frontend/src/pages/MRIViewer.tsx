@@ -261,9 +261,18 @@ export default function MRIViewer() {
         // JSON 에러 응답인 경우
         try {
           const errorData = await response.json();
-          throw new Error(errorData.error || errorData.message || `서버 오류 (${response.status})`);
-        } catch {
-          throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
+          const errorMsg = errorData.error || errorData.message || errorData.detail || `서버 오류 (${response.status})`;
+          console.error('Server error response:', errorData);
+          throw new Error(errorMsg);
+        } catch (jsonError) {
+          // JSON 파싱 실패 시 텍스트로 읽기
+          try {
+            const text = await response.text();
+            console.error('Server error text:', text);
+            throw new Error(`서버 오류 (${response.status}): ${text.substring(0, 200)}`);
+          } catch {
+            throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
+          }
         }
       }
 
