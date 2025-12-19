@@ -13,9 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, User, Activity, Scan, Eye, EyeOff } from "lucide-react";
+import { Loader2, User, Activity, Scan, Eye, EyeOff, Upload, Database, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getPatientsApi } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 
 interface PatientInfo {
   patient_id: string;
@@ -31,6 +32,15 @@ interface SystemPatient {
   age?: number;
   gender?: string;
   phone?: string;
+}
+
+interface OrthancImage {
+  instance_id: string;
+  series_id: string;
+  study_id: string;
+  series_description: string;
+  instance_number: string;
+  preview_url: string;
 }
 
 interface SeriesInfo {
@@ -76,6 +86,11 @@ export default function MRIViewer() {
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [axis, setAxis] = useState<"axial" | "sagittal" | "coronal">("axial");
+  const [orthancImages, setOrthancImages] = useState<OrthancImage[]>([]);
+  const [showOrthancImages, setShowOrthancImages] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
@@ -196,6 +211,70 @@ export default function MRIViewer() {
     setCurrentSlice(value[0]);
   };
 
+  const fetchOrthancImages = async (patientId: string) => {
+    try {
+      const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
+      const data = await response.json();
+      if (data.success && data.images) {
+        setOrthancImages(data.images);
+        setShowOrthancImages(true);
+        toast({
+          title: "Orthanc 이미지 로드 완료",
+          description: `${data.images.length}개의 이미지를 불러왔습니다.`,
+        });
+      }
+    } catch (error) {
+      console.error("Orthanc 이미지 로드 실패:", error);
+      toast({
+        title: "오류",
+        description: "Orthanc 이미지를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/mri/orthanc/upload/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "업로드 성공!",
+          description: "DICOM 파일이 Orthanc에 저장되었습니다.",
+        });
+        // 업로드 후 이미지 목록 새로고침
+        if (selectedPatient) {
+          fetchOrthancImages(selectedPatient);
+        }
+      } else {
+        throw new Error(data.error || "업로드 실패");
+      }
+    } catch (error) {
+      toast({
+        title: "업로드 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (loading && !patientDetail) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -210,12 +289,23 @@ export default function MRIViewer() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">유방 MRI 뷰어</h1>
-          <p className="text-gray-500 mt-1">3D 의료 영상 분석 및 세그멘테이션</p>
+          <p className="text-gray-500 mt-1">3D 의료 영상 분석 및 Orthanc PACS 연동</p>
         </div>
-        <Badge variant="outline" className="text-lg px-4 py-2">
-          <Activity className="h-4 w-4 mr-2" />
-          실시간 분석
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => selectedPatient && fetchOrthancImages(selectedPatient)}
+            disabled={!selectedPatient}
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Orthanc 이미지
+          </Button>
+          <Badge variant="outline" className="text-lg px-4 py-2">
+            <Activity className="h-4 w-4 mr-2" />
+            실시간 분석
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -259,6 +349,40 @@ export default function MRIViewer() {
                   총 {systemPatients.length}명의 환자
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* DICOM 업로드 */}
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <Upload className="h-5 w-5" />
+                DICOM 업로드
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-600">
+                DICOM 파일을 Orthanc PACS 서버에 업로드합니다.
+              </p>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".dcm,.dicom"
+                onChange={handleFileUpload}
+                disabled={uploading}
+                className="cursor-pointer"
+              />
+              {uploading && (
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  업로드 중...
+                </div>
+              )}
+              <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
+                <p>• DICOM 파일만 업로드 가능</p>
+                <p>• 업로드 후 자동으로 Orthanc에 저장</p>
+                <p>• Web UI: 34.42.223.43/orthanc/ui/app/#/</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -384,16 +508,97 @@ export default function MRIViewer() {
           <Card className="h-full">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>MRI 이미지</CardTitle>
-                {patientDetail && (
-                  <Badge variant="secondary">
-                    슬라이스 {currentSlice + 1} / {patientDetail.num_slices}
-                  </Badge>
-                )}
+                <CardTitle className="flex items-center gap-2">
+                  {showOrthancImages ? (
+                    <>
+                      <Database className="h-5 w-5" />
+                      Orthanc 이미지
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="h-5 w-5" />
+                      MRI 이미지
+                    </>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {showOrthancImages && orthancImages.length > 0 && (
+                    <Badge variant="secondary">
+                      이미지 {selectedImage + 1} / {orthancImages.length}
+                    </Badge>
+                  )}
+                  {patientDetail && !showOrthancImages && (
+                    <Badge variant="secondary">
+                      슬라이스 {currentSlice + 1} / {patientDetail.num_slices}
+                    </Badge>
+                  )}
+                  {showOrthancImages && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowOrthancImages(false)}
+                    >
+                      NIfTI 보기
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {patientDetail ? (
+              {showOrthancImages && orthancImages.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Orthanc 이미지 뷰어 */}
+                  <div
+                    className="relative bg-black rounded-lg overflow-hidden"
+                    style={{ height: "600px" }}
+                  >
+                    <img
+                      src={orthancImages[selectedImage].preview_url}
+                      alt={`Instance ${orthancImages[selectedImage].instance_id}`}
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-2 rounded text-sm">
+                      <p>Series: {orthancImages[selectedImage].series_description || 'N/A'}</p>
+                      <p>Instance: {orthancImages[selectedImage].instance_number}</p>
+                    </div>
+                  </div>
+
+                  {/* 이미지 슬라이더 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>이미지 선택</Label>
+                      <span className="text-sm text-gray-500">
+                        {selectedImage + 1} / {orthancImages.length}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[selectedImage]}
+                      onValueChange={(value) => setSelectedImage(value[0])}
+                      max={orthancImages.length - 1}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* 네비게이션 버튼 */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedImage(Math.max(0, selectedImage - 1))}
+                      disabled={selectedImage === 0}
+                    >
+                      이전
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedImage(Math.min(orthancImages.length - 1, selectedImage + 1))}
+                      disabled={selectedImage === orthancImages.length - 1}
+                    >
+                      다음
+                    </Button>
+                  </div>
+                </div>
+              ) : patientDetail ? (
                 <div className="space-y-4">
                   {/* 이미지 뷰어 */}
                   <div

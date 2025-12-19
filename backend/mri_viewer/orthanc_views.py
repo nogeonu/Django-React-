@@ -1,0 +1,170 @@
+"""
+Orthanc PACS 서버 연동 API Views
+"""
+from rest_framework.decorators import api_view, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework import status
+from django.http import HttpResponse
+from .orthanc_client import OrthancClient
+import traceback
+
+
+@api_view(['GET'])
+def orthanc_system_info(request):
+    """Orthanc 시스템 정보"""
+    try:
+        client = OrthancClient()
+        system_info = client.get_system_info()
+        statistics = client.get_statistics()
+        
+        return Response({
+            'success': True,
+            'system': system_info,
+            'statistics': statistics
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def orthanc_patients(request):
+    """Orthanc 환자 목록"""
+    try:
+        client = OrthancClient()
+        patient_ids = client.get_patients()
+        
+        patients = []
+        for patient_id in patient_ids:
+            try:
+                info = client.get_patient_info(patient_id)
+                patients.append({
+                    'id': patient_id,
+                    'main_dicom_tags': info.get('MainDicomTags', {}),
+                    'studies': info.get('Studies', []),
+                    'type': info.get('Type', ''),
+                })
+            except Exception as e:
+                print(f"Error getting patient {patient_id}: {e}")
+                continue
+        
+        return Response({
+            'success': True,
+            'patients': patients,
+            'count': len(patients)
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def orthanc_patient_detail(request, patient_id):
+    """환자 상세 정보 및 이미지"""
+    try:
+        client = OrthancClient()
+        patient_info = client.get_patient_info(patient_id)
+        studies = client.get_patient_studies(patient_id)
+        
+        images = []
+        for study_id in studies:
+            study_info = client.get_study_info(study_id)
+            series_list = client.get_study_series(study_id)
+            
+            for series_id in series_list:
+                series_info = client.get_series_info(series_id)
+                instances = client.get_series_instances(series_id)
+                
+                for instance_id in instances:
+                    instance_info = client.get_instance_info(instance_id)
+                    images.append({
+                        'instance_id': instance_id,
+                        'series_id': series_id,
+                        'study_id': study_id,
+                        'series_description': series_info.get('MainDicomTags', {}).get('SeriesDescription', ''),
+                        'instance_number': instance_info.get('MainDicomTags', {}).get('InstanceNumber', ''),
+                        'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
+                    })
+        
+        return Response({
+            'success': True,
+            'patient': patient_info,
+            'images': images,
+            'image_count': len(images)
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def orthanc_instance_preview(request, instance_id):
+    """Instance 미리보기 이미지 (PNG)"""
+    try:
+        client = OrthancClient()
+        image_data = client.get_instance_preview(instance_id)
+        return HttpResponse(image_data, content_type='image/png')
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def orthanc_upload_dicom(request):
+    """DICOM 파일 업로드"""
+    try:
+        if 'file' not in request.FILES:
+            return Response({
+                'success': False,
+                'error': 'No file provided'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        dicom_file = request.FILES['file']
+        dicom_data = dicom_file.read()
+        
+        client = OrthancClient()
+        result = client.upload_dicom(dicom_data)
+        
+        return Response({
+            'success': True,
+            'result': result,
+            'message': 'DICOM file uploaded successfully'
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+def orthanc_delete_patient(request, patient_id):
+    """환자 데이터 삭제"""
+    try:
+        client = OrthancClient()
+        client.delete_patient(patient_id)
+        
+        return Response({
+            'success': True,
+            'message': f'Patient {patient_id} deleted successfully'
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
