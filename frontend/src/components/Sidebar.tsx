@@ -8,7 +8,6 @@ const baseNavigation = {
     { name: "환자 정보", href: "/patients", icon: Users },
     { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
     { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
-    { name: "의료 이미지", href: "/images", icon: FileImage },
     { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
     { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
     { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
@@ -41,25 +40,25 @@ export default function Sidebar() {
         <Activity className="text-blue-600 text-2xl mr-3" />
         <h1 className="text-lg font-bold text-gray-900">병원 관리 시스템</h1>
       </div>
-      
+
       <nav className="mt-6 flex-1">
         <div className="px-3">
           {(() => {
             const dashboardHref = user
               ? (user.role === 'medical_staff' ? '/medical_staff' : '/admin_staff')
               : '/';
-            
+
             // 역할에 따라 다른 메뉴 표시
-            const navigationItems = user 
+            const navigationItems = user
               ? [
-                  { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-                  ...(baseNavigation[user.role as keyof typeof baseNavigation] || baseNavigation.admin_staff)
-                ]
+                { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+                ...(baseNavigation[user.role as keyof typeof baseNavigation] || baseNavigation.admin_staff)
+              ]
               : [
-                  { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-                  ...baseNavigation.medical_staff
-                ];
-            
+                { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+                ...baseNavigation.medical_staff
+              ];
+
             return navigationItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -67,18 +66,16 @@ export default function Sidebar() {
                   key={item.name}
                   to={item.href}
                   className={({ isActive }) =>
-                    `group flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 transition-colors ${
-                      isActive
-                        ? "bg-blue-100 text-blue-700"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`
+                    `group flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 transition-colors ${isActive
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    }`
                   }
                   data-testid={`nav-${item.href.slice(1) || 'dashboard'}`}
                 >
                   <Icon
-                    className={`mr-3 h-5 w-5 ${
-                      false ? "text-blue-500" : "text-gray-400 group-hover:text-gray-500"
-                    }`}
+                    className={`mr-3 h-5 w-5 ${false ? "text-blue-500" : "text-gray-400 group-hover:text-gray-500"
+                      }`}
                   />
                   {item.name}
                 </NavLink>
@@ -119,7 +116,6 @@ export default function Sidebar() {
             '/signup',
             '/patients',
             '/medical-registration',
-            '/images',
             '/lung-cancer',
             '/lung-cancer-stats',
           ];

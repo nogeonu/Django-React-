@@ -9,7 +9,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Patients from "@/pages/Patients";
-import MedicalImages from "@/pages/MedicalImages";
 import Visualization3D from "@/pages/3DVisualization";
 import LungCancerPrediction from "@/pages/LungCancerPrediction";
 import LungCancerStats from "@/pages/LungCancerStats";
@@ -127,14 +126,6 @@ function AppContentInner() {
           />
 
           {/* 의료진만 접근 가능한 페이지 */}
-          <Route
-            path="/images"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <MedicalImages />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/3d-visualization"
             element={
