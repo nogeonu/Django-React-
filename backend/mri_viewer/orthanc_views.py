@@ -284,21 +284,34 @@ def orthanc_upload_dicom(request):
     try:
         # 디버깅 로그
         print(f"Request method: {request.method}")
-        print(f"Request FILES keys: {list(request.FILES.keys())}")
-        print(f"Request data keys: {list(request.data.keys())}")
         
         if 'file' not in request.FILES:
             return Response({
                 'success': False,
-                'error': f'No file provided. Available keys: {list(request.FILES.keys())}'
+                'error': f'No file provided.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         uploaded_file = request.FILES['file']
         file_name = uploaded_file.name.lower()
-        file_size = uploaded_file.size
         patient_id = request.data.get('patient_id', None)
         
-        print(f"Uploaded file: {file_name}, size: {file_size} bytes, patient_id: {patient_id}")
+        # 환자 이름 조회
+        patient_name = "UNKNOWN"
+        if patient_id:
+            try:
+                from patients.models import Patient
+                patient = Patient.objects.filter(patient_id=patient_id).first()
+                if patient:
+                    patient_name = patient.name
+                    print(f"Found patient name for {patient_id}: {patient_name}")
+                else:
+                    print(f"Patient ID {patient_id} not found in database, using ID as name")
+                    patient_name = patient_id
+            except Exception as e:
+                print(f"Error fetching patient name: {e}")
+                patient_name = patient_id
+
+        print(f"Uploading file: {file_name}, patient: {patient_name} ({patient_id})")
         
         client = OrthancClient()
         
@@ -323,7 +336,7 @@ def orthanc_upload_dicom(request):
                     dicom_slices = nifti_to_dicom_slices(
                         BytesIO(file_data),
                         patient_id=patient_id or "UNKNOWN",
-                        patient_name=patient_id or "UNKNOWN"
+                        patient_name=patient_name  # DB에서 찾은 이름 전달
                     )
                 except Exception as e:
                     return Response({
@@ -361,7 +374,6 @@ def orthanc_upload_dicom(request):
                         first_instance = client.get_instance_info(uploaded_instance_ids[0])
                         tags = first_instance.get('MainDicomTags', {})
                         actual_patient_id = tags.get('PatientID', patient_id or "UNKNOWN")
-                        print(f"업로드된 DICOM의 실제 PatientID: {actual_patient_id}")
                     except Exception as e:
                         print(f"PatientID 확인 중 오류: {e}")
                 
@@ -372,14 +384,12 @@ def orthanc_upload_dicom(request):
                         'errors': errors
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
-                # actual_patient_id는 위에서 이미 설정됨
-                
                 return Response({
                     'success': True,
                     'message': f'NIfTI 파일이 변환되어 업로드되었습니다. {uploaded_count}/{len(dicom_slices)} 슬라이스 업로드 완료.',
                     'slices_uploaded': uploaded_count,
-                    'total_slices': len(dicom_slices),
-                    'patient_id': actual_patient_id,  # 실제 저장된 Patient ID 반환
+                    'patient_id': actual_patient_id,
+                    'patient_name': patient_name,
                     'errors': errors if errors else None
                 })
             except Exception as e:
@@ -397,32 +407,25 @@ def orthanc_upload_dicom(request):
                 try:
                     import pydicom
                     from io import BytesIO
-                    from patients.models import Patient
                     
                     # DICOM 파일 읽기
                     dicom_file = pydicom.dcmread(BytesIO(dicom_data))
                     
-                    # PatientID 수정
-                    dicom_file.PatientID = str(patient_id)
+                    # 한글 지원을 위해 문자셋 설정
+                    dicom_file.SpecificCharacterSet = 'ISO_IR 192'  # UTF-8
                     
-                    # 데이터베이스에서 환자 정보 조회하여 PatientName 설정
-                    try:
-                        patient = Patient.objects.get(patient_id=patient_id)
-                        patient_name = patient.name if hasattr(patient, 'name') and patient.name else str(patient_id)
-                        dicom_file.PatientName = patient_name
-                        print(f"환자 정보 조회 성공: PatientID={patient_id}, PatientName={patient_name}")
-                    except Patient.DoesNotExist:
-                        # 환자 정보가 없으면 Patient ID를 이름으로 사용
-                        dicom_file.PatientName = str(patient_id)
-                        print(f"환자 정보 없음, PatientName을 PatientID로 설정: {patient_id}")
+                    # PatientID와 PatientName 수정
+                    dicom_file.PatientID = str(patient_id)
+                    dicom_file.PatientName = str(patient_name)  # DB에서 가져온 실제 이름 사용
+                    
+                    print(f"Modifying DICOM tags: ID={patient_id}, Name={patient_name}")
                     
                     # 수정된 DICOM을 바이트로 변환
                     output = BytesIO()
                     pydicom.dcmwrite(output, dicom_file, write_like_original=False)
                     dicom_data = output.getvalue()
-                    print(f"DICOM 파일의 PatientID를 {patient_id}로 수정했습니다.")
                 except Exception as e:
-                    print(f"DICOM 파일 PatientID 수정 실패 (원본 파일 그대로 업로드): {e}")
+                    print(f"DICOM 파일 태그 수정 실패 (원본 파일 그대로 업로드): {e}")
             
             # Orthanc에 업로드
             result = client.upload_dicom(dicom_data)
@@ -430,22 +433,20 @@ def orthanc_upload_dicom(request):
             # 업로드된 인스턴스의 Patient ID 확인
             actual_patient_id = patient_id or "UNKNOWN"
             try:
-                # result에 'ID' 키가 있으면 인스턴스 ID
                 if 'ID' in result:
                     instance_id = result['ID']
                     instance_info = client.get_instance_info(instance_id)
-                    # 인스턴스에서 환자 정보 가져오기
                     tags = instance_info.get('MainDicomTags', {})
                     if 'PatientID' in tags:
                         actual_patient_id = tags['PatientID']
-                        print(f"업로드된 DICOM의 실제 PatientID: {actual_patient_id}")
             except Exception as e:
                 print(f"Patient ID 확인 중 오류 (무시): {e}")
             
             return Response({
                 'success': True,
                 'result': result,
-                'patient_id': actual_patient_id,  # 실제 저장된 Patient ID 반환
+                'patient_id': actual_patient_id,
+                'patient_name': patient_name,
                 'message': 'DICOM file uploaded successfully'
             })
     except Exception as e:
