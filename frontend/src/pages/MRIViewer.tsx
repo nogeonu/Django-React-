@@ -106,6 +106,13 @@ export default function MRIViewer() {
     }
   }, [selectedPatient]);
 
+  // 환자 선택 시 Orthanc 이미지 자동 로드
+  useEffect(() => {
+    if (selectedPatient) {
+      fetchOrthancImages(selectedPatient);
+    }
+  }, [selectedPatient]);
+
   // 슬라이스 이미지 로드
   useEffect(() => {
     if (selectedPatient && patientDetail) {
