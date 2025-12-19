@@ -124,7 +124,7 @@ def orthanc_instance_preview(request, instance_id):
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def orthanc_upload_dicom(request):
-    """DICOM 파일 업로드"""
+    """DICOM 또는 NIfTI 파일 업로드"""
     try:
         if 'file' not in request.FILES:
             return Response({
@@ -132,17 +132,54 @@ def orthanc_upload_dicom(request):
                 'error': 'No file provided'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        dicom_file = request.FILES['file']
-        dicom_data = dicom_file.read()
+        uploaded_file = request.FILES['file']
+        file_name = uploaded_file.name.lower()
+        patient_id = request.data.get('patient_id', None)
         
         client = OrthancClient()
-        result = client.upload_dicom(dicom_data)
         
-        return Response({
-            'success': True,
-            'result': result,
-            'message': 'DICOM file uploaded successfully'
-        })
+        # 파일 확장자 확인
+        if file_name.endswith('.nii') or file_name.endswith('.nii.gz'):
+            # NIfTI 파일인 경우 DICOM으로 변환
+            from .utils import nifti_to_dicom_slices
+            from io import BytesIO
+            
+            # 파일을 메모리로 읽기
+            file_data = uploaded_file.read()
+            
+            # NIfTI를 DICOM 슬라이스들로 변환
+            dicom_slices = nifti_to_dicom_slices(
+                BytesIO(file_data),
+                patient_id=patient_id or "UNKNOWN",
+                patient_name=patient_id or "UNKNOWN"
+            )
+            
+            # 각 DICOM 슬라이스를 Orthanc에 업로드
+            uploaded_count = 0
+            for dicom_slice in dicom_slices:
+                try:
+                    result = client.upload_dicom(dicom_slice)
+                    uploaded_count += 1
+                except Exception as e:
+                    print(f"Error uploading DICOM slice: {e}")
+                    continue
+            
+            return Response({
+                'success': True,
+                'message': f'NIfTI file converted and uploaded successfully. {uploaded_count} slices uploaded.',
+                'slices_uploaded': uploaded_count,
+                'total_slices': len(dicom_slices)
+            })
+        else:
+            # DICOM 파일인 경우 직접 업로드
+            dicom_data = uploaded_file.read()
+            result = client.upload_dicom(dicom_data)
+            
+            return Response({
+                'success': True,
+                'result': result,
+                'message': 'DICOM file uploaded successfully'
+            })
     except Exception as e:
         return Response({
             'success': False,

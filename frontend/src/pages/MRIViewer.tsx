@@ -357,17 +357,18 @@ export default function MRIViewer() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Upload className="h-5 w-5" />
-                DICOM 업로드
+                파일 업로드 (DICOM/NIfTI)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-gray-600">
-                DICOM 파일을 Orthanc PACS 서버에 업로드합니다.
+                DICOM 또는 NIfTI 파일을 Orthanc PACS 서버에 업로드합니다.
+                NIfTI 파일은 자동으로 DICOM으로 변환됩니다.
               </p>
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept=".dcm,.dicom"
+                accept=".dcm,.dicom,.nii,.nii.gz"
                 onChange={handleFileUpload}
                 disabled={uploading}
                 className="cursor-pointer"
@@ -379,7 +380,8 @@ export default function MRIViewer() {
                 </div>
               )}
               <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                <p>• DICOM 파일만 업로드 가능</p>
+                <p>• DICOM 파일 (.dcm, .dicom) 업로드 가능</p>
+                <p>• NIfTI 파일 (.nii, .nii.gz) 업로드 가능 (자동 변환)</p>
                 <p>• 업로드 후 자동으로 Orthanc에 저장</p>
                 <p>• Web UI: 34.42.223.43/orthanc/ui/app/#/</p>
               </div>

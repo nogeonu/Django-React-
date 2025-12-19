@@ -5,6 +5,11 @@ from pathlib import Path
 import base64
 from io import BytesIO
 from PIL import Image
+import pydicom
+from pydicom.dataset import Dataset, FileDataset
+from pydicom.uid import generate_uid
+from datetime import datetime
+import uuid
 
 
 def load_nifti_file(file_path):
@@ -112,4 +117,141 @@ def load_mri_series(image_files):
             'shape': data.shape
         })
     return series_data
+
+
+def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None):
+    """
+    NIfTI 파일을 DICOM 슬라이스들로 변환
+    
+    Args:
+        nifti_file: 파일 경로 또는 파일 객체
+        patient_id: 환자 ID (선택사항)
+        patient_name: 환자 이름 (선택사항)
+    
+    Returns:
+        List[bytes]: DICOM 인스턴스들의 바이트 데이터 리스트
+    """
+    # NIfTI 파일 로드
+    if hasattr(nifti_file, 'read'):
+        # 파일 객체인 경우
+        # 파일 포인터를 처음으로 되돌림
+        if hasattr(nifti_file, 'seek'):
+            nifti_file.seek(0)
+        nii_img = nib.load(nifti_file)
+    else:
+        # 파일 경로인 경우
+        nii_img = nib.load(nifti_file)
+    
+    volume = nii_img.get_fdata()
+    header = nii_img.header
+    
+    # 환자 정보 설정
+    if patient_id is None:
+        patient_id = "UNKNOWN"
+    if patient_name is None:
+        patient_name = patient_id
+    
+    # DICOM 메타데이터 생성
+    study_instance_uid = generate_uid()
+    series_instance_uid = generate_uid()
+    
+    # 볼륨의 shape 확인 및 처리
+    if len(volume.shape) == 2:
+        # 2D 이미지인 경우
+        volume = volume[:, :, np.newaxis]  # 3D로 변환
+        num_slices = 1
+    elif len(volume.shape) == 3:
+        num_slices = volume.shape[2]
+    elif len(volume.shape) == 4:
+        num_slices = volume.shape[2]
+        volume = volume[:, :, :, 0]  # 첫 번째 시간 단계만 사용
+    else:
+        raise ValueError(f"Unsupported volume shape: {volume.shape}")
+    
+    dicom_slices = []
+    
+    for slice_idx in range(num_slices):
+        # 슬라이스 추출
+        slice_data = volume[:, :, slice_idx]
+        
+        # 픽셀 값을 정수형으로 변환 (DICOM은 정수형 필요)
+        # NIfTI 데이터를 Hounsfield Unit 범위로 가정
+        if slice_data.dtype != np.uint16:
+            # 데이터를 적절한 범위로 스케일링
+            min_val = slice_data.min()
+            max_val = slice_data.max()
+            
+            if max_val > 32767:
+                # float 데이터인 경우 -1024 to 3071 (일반적인 CT 범위)로 매핑
+                slice_data = np.clip(slice_data, -1024, 3071)
+                slice_data = slice_data.astype(np.int16)
+            else:
+                slice_data = slice_data.astype(np.int16)
+        
+        # DICOM 데이터셋 생성
+        ds = Dataset()
+        
+        # 필수 DICOM 태그
+        ds.PatientID = str(patient_id)
+        ds.PatientName = str(patient_name)
+        ds.PatientBirthDate = ""
+        ds.PatientSex = ""
+        
+        ds.StudyInstanceUID = study_instance_uid
+        ds.StudyDate = datetime.now().strftime("%Y%m%d")
+        ds.StudyTime = datetime.now().strftime("%H%M%S")
+        ds.StudyID = str(uuid.uuid4())[:8]
+        ds.StudyDescription = "MRI Study"
+        
+        ds.SeriesInstanceUID = series_instance_uid
+        ds.SeriesNumber = "1"
+        ds.SeriesDescription = "NIfTI Converted Series"
+        ds.Modality = "MR"
+        
+        ds.InstanceNumber = str(slice_idx + 1)
+        ds.SOPInstanceUID = generate_uid()
+        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.4"  # MR Image Storage
+        
+        # 이미지 파라미터
+        ds.Rows = slice_data.shape[0]
+        ds.Columns = slice_data.shape[1]
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 1 if slice_data.dtype == np.int16 else 0
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        
+        # 슬라이스 위치 (간단한 추정)
+        try:
+            if hasattr(header, 'get'):
+                pixdim = header.get('pixdim', [1, 1, 1, 1])
+                slice_thickness = float(pixdim[3]) if len(pixdim) > 3 else 1.0
+            else:
+                slice_thickness = 1.0
+        except:
+            slice_thickness = 1.0
+        
+        slice_location = slice_idx * slice_thickness
+        ds.SliceLocation = str(slice_location)
+        ds.SliceThickness = str(slice_thickness)
+        
+        # 픽셀 데이터 (numpy 배열을 직접 할당)
+        ds.PixelData = slice_data.tobytes()
+        
+        # 파일로 저장 (메모리)
+        buffer = BytesIO()
+        file_meta = Dataset()
+        file_meta.MediaStorageSOPClassUID = ds.SOPClassUID
+        file_meta.MediaStorageSOPInstanceUID = ds.SOPInstanceUID
+        file_meta.ImplementationClassUID = "1.2.3.4.5.6.7.8.9"
+        
+        ds.file_meta = file_meta
+        ds.is_implicit_VR = False
+        ds.is_little_endian = True
+        
+        pydicom.dcmwrite(buffer, ds, write_like_original=False)
+        dicom_slices.append(buffer.getvalue())
+    
+    return dicom_slices
 
