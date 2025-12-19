@@ -3,8 +3,19 @@ import { Activity, Users, BarChart3, Stethoscope, TrendingUp, ClipboardList, Boo
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
-const baseNavigation = {
-  medical_staff: [
+const departmentNavigation = {
+  호흡기내과: [
+    { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
+    { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
+    { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
+  ],
+  방사선과: [
+    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
+  ],
+  영상의학과: [
+    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
+  ],
+  외과: [
     { name: "환자 정보", href: "/patients", icon: Users },
     { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
     { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
@@ -13,12 +24,13 @@ const baseNavigation = {
     { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
   ],
-  admin_staff: [
-    { name: "환자 정보", href: "/patients", icon: Users },
-    { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
-    { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
-  ],
 };
+
+const adminNavigation = [
+  { name: "환자 정보", href: "/patients", icon: Users },
+  { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
+  { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
+];
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -48,16 +60,26 @@ export default function Sidebar() {
               ? (user.role === 'medical_staff' ? '/medical_staff' : '/admin_staff')
               : '/';
 
-            // 역할에 따라 다른 메뉴 표시
-            const navigationItems = user
-              ? [
-                { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-                ...(baseNavigation[user.role as keyof typeof baseNavigation] || baseNavigation.admin_staff)
-              ]
-              : [
-                { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-                ...baseNavigation.medical_staff
-              ];
+            // 역할 및 진료과에 따라 다른 메뉴 표시
+            let departmentMenuItems = [];
+
+            if (user) {
+              if (user.role === 'admin_staff') {
+                departmentMenuItems = adminNavigation;
+              } else if (user.role === 'medical_staff') {
+                // 진료과별 메뉴 가져오기
+                const deptMenu = departmentNavigation[user.department as keyof typeof departmentNavigation];
+                departmentMenuItems = deptMenu || departmentNavigation['외과']; // 기본값: 외과 메뉴
+              }
+            } else {
+              // 로그인하지 않은 경우 외과 메뉴 표시 (fallback)
+              departmentMenuItems = departmentNavigation['외과'];
+            }
+
+            const navigationItems = [
+              { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+              ...departmentMenuItems
+            ];
 
             return navigationItems.map((item) => {
               const Icon = item.icon;
