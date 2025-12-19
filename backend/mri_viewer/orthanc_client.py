@@ -16,8 +16,8 @@ class OrthancClient:
         password: str = None
     ):
         self.base_url = (base_url or os.getenv('ORTHANC_URL', 'http://localhost:8042')).rstrip('/')
-        self.username = username or os.getenv('ORTHANC_USER')
-        self.password = password or os.getenv('ORTHANC_PASSWORD')
+        self.username = username or os.getenv('ORTHANC_USER', 'admin')
+        self.password = password or os.getenv('ORTHANC_PASSWORD', 'admin123')
         self.auth = (self.username, self.password) if self.username and self.password else None
     
     def get_system_info(self) -> Dict[str, Any]:
