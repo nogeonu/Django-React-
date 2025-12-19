@@ -37,8 +37,12 @@ export default function DicomDetailViewer() {
 
             // Try to get patient context from session storage
             const patientId = sessionStorage.getItem('currentPatientId');
+            console.log('Loading patient data for:', patientId);
+
             if (patientId) {
                 const response = await apiRequest('GET', `/api/mri/orthanc/patients/${patientId}/`);
+                console.log('Patient API response:', response);
+
                 if (response.success && response.images) {
                     setAllImages(response.images);
                     const index = response.images.findIndex((img: OrthancImage) => img.instance_id === instanceId);
@@ -46,7 +50,13 @@ export default function DicomDetailViewer() {
                         setCurrentIndex(index);
                     }
                 }
-                setPatientInfo(response);
+
+                // Set patient info with fallback to sessionStorage
+                setPatientInfo({
+                    patient_id: response.patient_id || patientId,
+                    patient_name: response.patient_name || response.name || sessionStorage.getItem('currentPatientName') || 'Unknown',
+                    ...response
+                });
             }
         } catch (error) {
             console.error('Failed to load image:', error);
