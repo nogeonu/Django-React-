@@ -15,12 +15,22 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, User, Activity, Scan, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getPatientsApi } from "@/lib/api";
 
 interface PatientInfo {
   patient_id: string;
   age?: number;
   tumor_subtype?: string;
   scanner_manufacturer?: string;
+}
+
+interface SystemPatient {
+  id: number;
+  patient_id: string;
+  name: string;
+  age?: number;
+  gender?: string;
+  phone?: string;
 }
 
 interface SeriesInfo {
@@ -52,10 +62,11 @@ interface PatientDetailInfo {
   num_slices: number;
 }
 
-const API_BASE_URL = "http://localhost:5000/api/mri";
+const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
   const [patients, setPatients] = useState<PatientInfo[]>([]);
+  const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
   const [currentSlice, setCurrentSlice] = useState(0);
@@ -90,12 +101,42 @@ export default function MRIViewer() {
   const fetchPatients = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/patients/`);
-      const data = await response.json();
-      if (data.success) {
-        setPatients(data.patients);
-        if (data.patients.length > 0) {
-          setSelectedPatient(data.patients[0].patient_id);
+      // 환자 정보 시스템에서 환자 목록 가져오기
+      const systemData = await getPatientsApi({ page_size: 1000 });
+      if (systemData.results && systemData.results.length > 0) {
+        const formattedPatients = systemData.results.map((p: SystemPatient) => ({
+          patient_id: p.patient_id,
+          name: p.name,
+          age: p.age,
+          gender: p.gender,
+        }));
+        setSystemPatients(systemData.results);
+        
+        // MRI API에서도 환자 목록 가져오기 (폴백용)
+        try {
+          const mriResponse = await fetch(`${API_BASE_URL}/patients/`);
+          const mriData = await mriResponse.json();
+          if (mriData.success && mriData.patients) {
+            setPatients(mriData.patients);
+          }
+        } catch (mriError) {
+          // MRI API 실패는 무시 (시스템 환자만 사용)
+          console.log("MRI API failed, using system patients only");
+        }
+        
+        // 첫 번째 환자 선택
+        if (systemData.results.length > 0) {
+          setSelectedPatient(systemData.results[0].patient_id);
+        }
+      } else {
+        // 시스템 환자가 없으면 MRI API 사용
+        const response = await fetch(`${API_BASE_URL}/patients/`);
+        const data = await response.json();
+        if (data.success && data.patients) {
+          setPatients(data.patients);
+          if (data.patients.length > 0) {
+            setSelectedPatient(data.patients[0].patient_id);
+          }
         }
       }
     } catch (error) {
@@ -194,19 +235,36 @@ export default function MRIViewer() {
                 환자 선택
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <Select value={selectedPatient || ""} onValueChange={setSelectedPatient}>
                 <SelectTrigger>
                   <SelectValue placeholder="환자를 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map((patient) => (
-                    <SelectItem key={patient.patient_id} value={patient.patient_id}>
-                      {patient.patient_id}
+                  {systemPatients.length > 0 ? (
+                    systemPatients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.patient_id}>
+                        {patient.name} ({patient.patient_id})
+                      </SelectItem>
+                    ))
+                  ) : patients.length > 0 ? (
+                    patients.map((patient) => (
+                      <SelectItem key={patient.patient_id} value={patient.patient_id}>
+                        {patient.patient_id}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      환자 없음
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
+              {systemPatients.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  총 {systemPatients.length}명의 환자
+                </p>
+              )}
             </CardContent>
           </Card>
 
