@@ -127,7 +127,7 @@ export default function MRIViewer() {
       const systemData = await getPatientsApi({ page_size: 1000 });
       if (systemData.results && systemData.results.length > 0) {
         setSystemPatients(systemData.results);
-        
+
         // MRI API에서도 환자 목록 가져오기 (폴백용)
         try {
           const mriResponse = await fetch(`${API_BASE_URL}/patients/`);
@@ -139,7 +139,7 @@ export default function MRIViewer() {
           // MRI API 실패는 무시 (시스템 환자만 사용)
           console.log("MRI API failed, using system patients only");
         }
-        
+
         // 첫 번째 환자 선택
         if (systemData.results.length > 0) {
           setSelectedPatient(systemData.results[0].patient_id);
@@ -223,11 +223,11 @@ export default function MRIViewer() {
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
-      
+
       if (data.success && data.images && data.images.length > 0) {
         setOrthancImages(data.images);
         setShowOrthancImages(true);
@@ -260,67 +260,102 @@ export default function MRIViewer() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     setUploading(true);
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as string[],
+      totalFiles: files.length
+    };
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (selectedPatient) {
-        formData.append('patient_id', selectedPatient);
-      }
+      // Upload each file sequentially
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
 
-      const response = await fetch('/api/mri/orthanc/upload/', {
-        method: 'POST',
-        body: formData,
-      });
-
-      // 응답이 성공적인지 확인
-      if (!response.ok) {
-        // HTML 에러 페이지인 경우 텍스트로 읽기
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-          await response.text(); // HTML 응답 읽기 (에러 메시지에 사용하지 않음)
-          throw new Error(`서버 오류 (${response.status}): HTML 응답을 받았습니다. 서버 로그를 확인하세요.`);
-        }
-        // JSON 에러 응답인 경우
         try {
-          const errorData = await response.json();
-          const errorMsg = errorData.error || errorData.message || errorData.detail || `서버 오류 (${response.status})`;
-          console.error('Server error response:', errorData);
-          throw new Error(errorMsg);
-        } catch (jsonError) {
-          // JSON 파싱 실패 시 텍스트로 읽기
-          try {
-            const text = await response.text();
-            console.error('Server error text:', text);
-            throw new Error(`서버 오류 (${response.status}): ${text.substring(0, 200)}`);
-          } catch {
-            throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
+          const formData = new FormData();
+          formData.append('file', file);
+          if (selectedPatient) {
+            formData.append('patient_id', selectedPatient);
           }
+
+          const response = await fetch('/api/mri/orthanc/upload/', {
+            method: 'POST',
+            body: formData,
+          });
+
+          // 응답이 성공적인지 확인
+          if (!response.ok) {
+            // HTML 에러 페이지인 경우 텍스트로 읽기
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+              await response.text();
+              throw new Error(`서버 오류 (${response.status})`);
+            }
+            // JSON 에러 응답인 경우
+            try {
+              const errorData = await response.json();
+              const errorMsg = errorData.error || errorData.message || errorData.detail || `서버 오류 (${response.status})`;
+              throw new Error(errorMsg);
+            } catch (jsonError) {
+              try {
+                const text = await response.text();
+                throw new Error(`서버 오류 (${response.status}): ${text.substring(0, 100)}`);
+              } catch {
+                throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
+              }
+            }
+          }
+
+          const data = await response.json();
+
+          if (data.success) {
+            results.success++;
+          } else {
+            results.failed++;
+            results.errors.push(`${file.name}: ${data.error || '업로드 실패'}`);
+          }
+        } catch (error) {
+          results.failed++;
+          const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
+          results.errors.push(`${file.name}: ${errorMsg}`);
+          console.error(`Upload error for ${file.name}:`, error);
         }
       }
 
-      const data = await response.json();
+      // Show summary toast
+      if (results.success > 0) {
+        const message = results.totalFiles === 1
+          ? "파일이 Orthanc에 저장되었습니다."
+          : `${results.success}개 파일 업로드 완료${results.failed > 0 ? `, ${results.failed}개 실패` : ''}`;
 
-      if (data.success) {
         toast({
-          title: "업로드 성공!",
-          description: data.message || "파일이 Orthanc에 저장되었습니다.",
+          title: "업로드 완료!",
+          description: message,
+          variant: results.failed > 0 ? "default" : "default",
         });
+
         // 업로드 후 이미지 목록 새로고침
-        // 실제 저장된 patient_id 사용 (있으면), 없으면 selectedPatient 사용
-        const patientIdToLoad = data.patient_id || data.actual_patient_id || selectedPatient;
-        console.log('Upload successful, using patient_id:', patientIdToLoad, 'from response:', data);
-        if (patientIdToLoad) {
-          // 약간의 지연을 두고 이미지 로드 (Orthanc 인덱싱 시간)
+        if (selectedPatient) {
           setTimeout(() => {
-            fetchOrthancImages(patientIdToLoad);
+            fetchOrthancImages(selectedPatient);
           }, 1000);
         }
       } else {
-        throw new Error(data.error || "업로드 실패");
+        // All failed
+        toast({
+          title: "업로드 실패",
+          description: `모든 파일 업로드 실패 (${results.failed}개)`,
+          variant: "destructive",
+        });
+      }
+
+      if (results.errors.length > 0) {
+        console.error('Upload errors:', results.errors);
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -425,16 +460,23 @@ export default function MRIViewer() {
             <CardContent className="space-y-3">
               <p className="text-sm text-gray-600">
                 DICOM 또는 NIfTI 파일을 Orthanc PACS 서버에 업로드합니다.
-                NIfTI 파일은 자동으로 DICOM으로 변환됩니다.
+                여러 파일을 동시에 선택하거나 폴더 전체를 업로드할 수 있습니다.
               </p>
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept=".dcm,.dicom,.nii,.nii.gz"
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="cursor-pointer"
-              />
+
+              {/* 여러 파일 선택 */}
+              <div>
+                <Label className="text-xs text-gray-500 mb-1">파일 선택 (여러 개 가능)</Label>
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".dcm,.dicom,.nii,.nii.gz"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  multiple
+                  className="cursor-pointer"
+                />
+              </div>
+
               {uploading && (
                 <div className="flex items-center gap-2 text-sm text-blue-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -442,6 +484,7 @@ export default function MRIViewer() {
                 </div>
               )}
               <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
+                <p>• 여러 파일 동시 선택 가능 (Ctrl/Cmd + 클릭)</p>
                 <p>• DICOM 파일 (.dcm, .dicom) 업로드 가능</p>
                 <p>• NIfTI 파일 (.nii, .nii.gz) 업로드 가능 (자동 변환)</p>
                 <p>• 업로드 후 자동으로 Orthanc에 저장</p>
