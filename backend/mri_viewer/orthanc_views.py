@@ -141,35 +141,72 @@ def orthanc_upload_dicom(request):
         # 파일 확장자 확인
         if file_name.endswith('.nii') or file_name.endswith('.nii.gz'):
             # NIfTI 파일인 경우 DICOM으로 변환
-            from .utils import nifti_to_dicom_slices
-            from io import BytesIO
-            
-            # 파일을 메모리로 읽기
-            file_data = uploaded_file.read()
-            
-            # NIfTI를 DICOM 슬라이스들로 변환
-            dicom_slices = nifti_to_dicom_slices(
-                BytesIO(file_data),
-                patient_id=patient_id or "UNKNOWN",
-                patient_name=patient_id or "UNKNOWN"
-            )
-            
-            # 각 DICOM 슬라이스를 Orthanc에 업로드
-            uploaded_count = 0
-            for dicom_slice in dicom_slices:
+            try:
+                from .utils import nifti_to_dicom_slices
+                from io import BytesIO
+                
+                # 파일을 메모리로 읽기
+                file_data = uploaded_file.read()
+                
+                if len(file_data) == 0:
+                    return Response({
+                        'success': False,
+                        'error': 'Uploaded file is empty'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # NIfTI를 DICOM 슬라이스들로 변환
                 try:
-                    result = client.upload_dicom(dicom_slice)
-                    uploaded_count += 1
+                    dicom_slices = nifti_to_dicom_slices(
+                        BytesIO(file_data),
+                        patient_id=patient_id or "UNKNOWN",
+                        patient_name=patient_id or "UNKNOWN"
+                    )
                 except Exception as e:
-                    print(f"Error uploading DICOM slice: {e}")
-                    continue
-            
-            return Response({
-                'success': True,
-                'message': f'NIfTI file converted and uploaded successfully. {uploaded_count} slices uploaded.',
-                'slices_uploaded': uploaded_count,
-                'total_slices': len(dicom_slices)
-            })
+                    return Response({
+                        'success': False,
+                        'error': f'NIfTI 파일 변환 실패: {str(e)}',
+                        'traceback': traceback.format_exc()
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                if not dicom_slices or len(dicom_slices) == 0:
+                    return Response({
+                        'success': False,
+                        'error': 'DICOM 슬라이스 변환 결과가 비어있습니다.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # 각 DICOM 슬라이스를 Orthanc에 업로드
+                uploaded_count = 0
+                errors = []
+                for idx, dicom_slice in enumerate(dicom_slices):
+                    try:
+                        result = client.upload_dicom(dicom_slice)
+                        uploaded_count += 1
+                    except Exception as e:
+                        error_msg = f"슬라이스 {idx+1} 업로드 실패: {str(e)}"
+                        errors.append(error_msg)
+                        print(error_msg)
+                        continue
+                
+                if uploaded_count == 0:
+                    return Response({
+                        'success': False,
+                        'error': '모든 슬라이스 업로드 실패',
+                        'errors': errors
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                return Response({
+                    'success': True,
+                    'message': f'NIfTI 파일이 변환되어 업로드되었습니다. {uploaded_count}/{len(dicom_slices)} 슬라이스 업로드 완료.',
+                    'slices_uploaded': uploaded_count,
+                    'total_slices': len(dicom_slices),
+                    'errors': errors if errors else None
+                })
+            except Exception as e:
+                return Response({
+                    'success': False,
+                    'error': f'NIfTI 파일 처리 중 오류: {str(e)}',
+                    'traceback': traceback.format_exc()
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             # DICOM 파일인 경우 직접 업로드
             dicom_data = uploaded_file.read()

@@ -241,18 +241,38 @@ export default function MRIViewer() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (selectedPatient) {
+        formData.append('patient_id', selectedPatient);
+      }
 
       const response = await fetch('/api/mri/orthanc/upload/', {
         method: 'POST',
         body: formData,
       });
 
+      // 응답이 성공적인지 확인
+      if (!response.ok) {
+        // HTML 에러 페이지인 경우 텍스트로 읽기
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+          await response.text(); // HTML 응답 읽기 (에러 메시지에 사용하지 않음)
+          throw new Error(`서버 오류 (${response.status}): HTML 응답을 받았습니다. 서버 로그를 확인하세요.`);
+        }
+        // JSON 에러 응답인 경우
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || errorData.message || `서버 오류 (${response.status})`);
+        } catch {
+          throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
+        }
+      }
+
       const data = await response.json();
 
       if (data.success) {
         toast({
           title: "업로드 성공!",
-          description: "DICOM 파일이 Orthanc에 저장되었습니다.",
+          description: data.message || "파일이 Orthanc에 저장되었습니다.",
         });
         // 업로드 후 이미지 목록 새로고침
         if (selectedPatient) {
@@ -262,6 +282,7 @@ export default function MRIViewer() {
         throw new Error(data.error || "업로드 실패");
       }
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "업로드 실패",
         description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
