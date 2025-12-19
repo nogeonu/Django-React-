@@ -21,9 +21,21 @@ import { Input } from "@/components/ui/input";
 
 interface PatientInfo {
   patient_id: string;
+  name?: string;
   age?: number;
   tumor_subtype?: string;
   scanner_manufacturer?: string;
+}
+
+// ... (skipping unchanged lines)
+
+// Store patient ID and Name for context
+if (selectedPatient) {
+  sessionStorage.setItem('currentPatientId', selectedPatient);
+  const patient = systemPatients.find(p => p.patient_id === selectedPatient) || patients.find(p => p.patient_id === selectedPatient);
+  if (patient && patient.name) {
+    sessionStorage.setItem('currentPatientName', patient.name);
+  }
 }
 
 interface SystemPatient {
