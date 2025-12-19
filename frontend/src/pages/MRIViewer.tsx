@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -75,6 +76,7 @@ interface PatientDetailInfo {
 const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
