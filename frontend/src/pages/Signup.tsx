@@ -182,6 +182,12 @@ export default function Signup() {
                     <SelectItem value="외과">
                       외과 (Medical Staff)
                     </SelectItem>
+                    <SelectItem value="방사선과">
+                      방사선과 (Medical Staff)
+                    </SelectItem>
+                    <SelectItem value="영상의학과">
+                      영상의학과 (Medical Staff)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

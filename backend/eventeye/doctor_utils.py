@@ -6,10 +6,14 @@ from django.utils import timezone
 DEPARTMENT_ADMIN = "원무과"
 DEPARTMENT_RESPIRATORY = "호흡기내과"
 DEPARTMENT_SURGERY = "외과"
+DEPARTMENT_RADIOLOGY = "방사선과"
+DEPARTMENT_IMAGING = "영상의학과"
 ALLOWED_DEPARTMENTS = {
   DEPARTMENT_ADMIN,
   DEPARTMENT_RESPIRATORY,
   DEPARTMENT_SURGERY,
+  DEPARTMENT_RADIOLOGY,
+  DEPARTMENT_IMAGING,
 }
 
 # 하위 호환성을 위한 영어-한글 매핑
@@ -17,6 +21,8 @@ DEPARTMENT_MAPPING = {
     "admin": DEPARTMENT_ADMIN,
     "respiratory": DEPARTMENT_RESPIRATORY,
     "surgery": DEPARTMENT_SURGERY,
+    "radiology": DEPARTMENT_RADIOLOGY,
+    "imaging": DEPARTMENT_IMAGING,
 }
 
 def normalize_department(dept: str) -> str:
