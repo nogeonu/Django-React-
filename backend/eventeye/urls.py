@@ -21,6 +21,7 @@ def api_root(request):
             'medical_images': '/api/medical-images/',
             'dashboard': '/api/dashboard/',
             'lung_cancer': '/api/lung_cancer/',
+            'mri_viewer': '/api/mri/',
             'admin': '/admin/',
             'swagger': '/swagger/',
             'redoc': '/redoc/'
@@ -50,6 +51,7 @@ urlpatterns = [
     path('api/dashboard/', include('dashboard.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),
     path('api/literature/', include('literature.urls')),
+    path('api/mri/', include('mri_viewer.urls')),
     # Auth endpoints
     path('api/auth/login', auth_views.login, name='login'),
     path('api/auth/me', auth_views.me, name='me'),

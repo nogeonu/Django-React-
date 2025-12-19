@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, User as UserIcon, LogOut } from 'lucide-react';
+import { Activity, Users, FileImage, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, User as UserIcon, LogOut, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
@@ -9,6 +9,7 @@ const baseNavigation = {
     { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
     { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
     { name: "의료 이미지", href: "/images", icon: FileImage },
+    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
     { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
     { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },

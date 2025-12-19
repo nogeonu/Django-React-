@@ -27,3 +27,5 @@ torch>=2.0.0
 torchvision>=0.15.0
 gunicorn==21.2.0
 cryptography==41.0.7
+nibabel==5.2.0
+SimpleITK==2.3.1
