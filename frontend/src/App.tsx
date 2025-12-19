@@ -17,6 +17,7 @@ import KnowledgeHub from "@/pages/KnowledgeHub";
 import ReservationInfo from "@/pages/ReservationInfo";
 import NotFound from "@/pages/NotFound";
 import MRIViewer from "@/pages/MRIViewer";
+import DicomDetailViewer from "@/pages/DicomDetailViewer";
 import Sidebar from "@/components/Sidebar";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -139,6 +140,14 @@ function AppContentInner() {
             element={
               <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
                 <MRIViewer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dicom-viewer/:instanceId"
+            element={
+              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+                <DicomDetailViewer />
               </ProtectedRoute>
             }
           />

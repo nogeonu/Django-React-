@@ -678,6 +678,22 @@ export default function MRIViewer() {
                       <p>Series: {orthancImages[selectedImage].series_description || 'N/A'}</p>
                       <p>Instance: {orthancImages[selectedImage].instance_number}</p>
                     </div>
+                    <div className="absolute top-4 right-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          // Store patient ID for context
+                          if (selectedPatient) {
+                            sessionStorage.setItem('currentPatientId', selectedPatient);
+                          }
+                          navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
+                        }}
+                        className="bg-white/90 hover:bg-white border-gray-300"
+                      >
+                        자세히보기
+                      </Button>
+                    </div>
                   </div>
 
                   {/* 이미지 슬라이더 */}
