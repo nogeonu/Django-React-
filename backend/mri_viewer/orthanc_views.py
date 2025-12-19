@@ -203,15 +203,26 @@ def orthanc_patient_detail(request, patient_id):
         logger.debug(f"Found {len(studies)} studies for patient {orthanc_patient_id}")
         
         images = []
-        for study_id in studies:
+        for study in studies:
+            # Extract ID from dict if needed (Orthanc returns list of dicts)
+            study_id = study if isinstance(study, str) else study.get('ID')
+            logger.debug(f"Processing study: {study_id}")
+            
             study_info = client.get_study_info(study_id)
             series_list = client.get_study_series(study_id)
             
-            for series_id in series_list:
+            for series in series_list:
+                # Extract ID from dict if needed
+                series_id = series if isinstance(series, str) else series.get('ID')
+                logger.debug(f"Processing series: {series_id}")
+                
                 series_info = client.get_series_info(series_id)
                 instances = client.get_series_instances(series_id)
                 
-                for instance_id in instances:
+                for instance in instances:
+                    # Extract ID from dict if needed
+                    instance_id = instance if isinstance(instance, str) else instance.get('ID')
+                    
                     instance_info = client.get_instance_info(instance_id)
                     images.append({
                         'instance_id': instance_id,
