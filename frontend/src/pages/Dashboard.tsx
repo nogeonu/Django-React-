@@ -17,11 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
-import NotificationDropdown from "@/components/NotificationDropdown";
-import UserProfileDropdown from "@/components/UserProfileDropdown";
-import { useAuth } from "@/context/AuthContext";
- 
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 interface Patient {
   id: string;
@@ -59,10 +55,8 @@ export default function Dashboard() {
   const [isCompleting, setIsCompleting] = useState(false);
   
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
