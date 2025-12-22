@@ -33,6 +33,7 @@ import PatientDoctors from "@/pages/PatientDoctors";
 import AppDownload from "@/pages/AppDownload";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
+import MedicalLayout from "@/components/MedicalLayout";
 
 const queryClient = new QueryClient();
 
@@ -49,138 +50,140 @@ function AppContentInner() {
     "/patient/doctors",
     "/app-download",
   ].includes(location.pathname);
-  
-  // DICOM 상세 뷰어는 사이드바 숨김 (이미지에 집중)
+
+  // DICOM 상세 뷰어는 사이드바 숨김
   const isDicomViewer = location.pathname.startsWith("/dicom-viewer/");
+
+  const medicalStaffRoutes = (
+    <Routes>
+      <Route
+        path="/medical_staff"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin_staff"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patients"
+        element={
+          <ProtectedRoute>
+            <Patients />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/medical-registration"
+        element={
+          <ProtectedRoute>
+            <MedicalRegistration />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reservation-info"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <ReservationInfo />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/3d-visualization"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <Visualization3D />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mri-viewer"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <MRIViewer />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lung-cancer"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <LungCancerPrediction />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lung-cancer-stats"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <LungCancerStats />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/knowledge-hub"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <KnowledgeHub />
+          </ProtectedRoute>
+        }
+      />
+      {/* 404 Route for internal pages */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       {!isPublicPage && !isDicomViewer && <Sidebar />}
       <div className={isPublicPage || isDicomViewer ? "flex-1" : "flex-1 ml-64"}>
-        <Routes>
-          {/* 공개 라우트 */}
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/patient/login" element={<PatientLogin />} />
-          <Route path="/patient/signup" element={<PatientSignup />} />
-          <Route path="/patient/mypage" element={<PatientMyPage />} />
-          <Route path="/patient/records" element={<PatientMedicalRecords />} />
-          <Route path="/patient/doctors" element={<PatientDoctors />} />
-          <Route path="/app-download" element={<AppDownload />} />
-
-          {/* 로그인 필수 라우트 */}
-          <Route
-            path="/medical_staff"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin_staff"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 공통 접근 가능 페이지 */}
-          <Route
-            path="/patients"
-            element={
-              <ProtectedRoute>
-                <Patients />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/medical-registration"
-            element={
-              <ProtectedRoute>
-                <MedicalRegistration />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reservation-info"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
-                <ReservationInfo />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 의료진만 접근 가능한 페이지 */}
-          <Route
-            path="/3d-visualization"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <Visualization3D />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/mri-viewer"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <MRIViewer />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dicom-viewer/:instanceId"
-            element={
+        {isPublicPage || isDicomViewer ? (
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/patient/login" element={<PatientLogin />} />
+            <Route path="/patient/signup" element={<PatientSignup />} />
+            <Route path="/patient/mypage" element={<PatientMyPage />} />
+            <Route path="/patient/records" element={<PatientMedicalRecords />} />
+            <Route path="/patient/doctors" element={<PatientDoctors />} />
+            <Route path="/app-download" element={<AppDownload />} />
+            <Route path="/dicom-viewer/:instanceId" element={
               <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
                 <DicomDetailViewer />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/lung-cancer"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <LungCancerPrediction />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/lung-cancer-stats"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <LungCancerStats />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/knowledge-hub"
-            element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <KnowledgeHub />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            } />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        ) : (
+          <MedicalLayout>
+            {medicalStaffRoutes}
+          </MedicalLayout>
+        )}
       </div>
     </div>
   );
