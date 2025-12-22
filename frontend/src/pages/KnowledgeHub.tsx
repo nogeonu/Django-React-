@@ -118,7 +118,7 @@ export default function KnowledgeHub() {
   useEffect(() => {
     searchLiterature();
     searchNews();
-  }, [currentDept]); # user 변경 시 쿼리 변경 -> currentDept 변경 -> 검색 실행 순서
+  }, [currentDept]); // user 변경 시 쿼리 변경 -> currentDept 변경 -> 검색 실행 순서
 
   const searchLiterature = async () => {
     if (!searchQuery.trim()) return;
@@ -468,8 +468,8 @@ export default function KnowledgeHub() {
                         {item.type && (
                           <span
                             className={`text-xs font-medium px-2 py-1 rounded-full ${item.type === 'domestic'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-emerald-100 text-emerald-700'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-emerald-100 text-emerald-700'
                               }`}
                           >
                             {item.type === 'domestic' ? '국내' : '해외'}
