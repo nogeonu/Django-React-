@@ -127,45 +127,37 @@ export default function DicomDetailViewer() {
                         <div className="h-6 w-px bg-gray-600" />
                         <h1 className="text-xl font-bold">DICOM 상세 뷰어</h1>
                     </div>
-                    {allImages.length > 0 && (
-                        <Badge variant="secondary" className="text-sm">
-                            이미지 {currentIndex + 1} / {allImages.length}
-                        </Badge>
-                    )}
+                    <div className="flex items-center gap-4">
+                        {patientInfo && (
+                            <div className="flex items-center gap-4 text-sm">
+                                <div>
+                                    <span className="text-gray-400">Patient ID: </span>
+                                    <span className="text-white font-medium">{patientInfo.patient_id || 'N/A'}</span>
+                                </div>
+                                <div className="h-4 w-px bg-gray-600" />
+                                <div>
+                                    <span className="text-gray-400">이름: </span>
+                                    <span className="text-white font-medium">{patientInfo.patient_name || 'N/A'}</span>
+                                </div>
+                            </div>
+                        )}
+                        {allImages.length > 0 && (
+                            <Badge variant="secondary" className="text-sm">
+                                이미지 {currentIndex + 1} / {allImages.length}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Main Content */}
             <div className="flex h-[calc(100vh-73px)]">
-                {/* Left Sidebar - Patient Info */}
-                {patientInfo && (
-                    <div className="w-80 bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto">
-                        <Card className="bg-gray-900 border-gray-700">
-                            <CardHeader>
-                                <CardTitle className="text-white">환자 정보</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                                <div>
-                                    <p className="text-gray-400">Patient ID</p>
-                                    <p className="text-white font-medium">{patientInfo.patient_id || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-gray-400">이름</p>
-                                    <p className="text-white font-medium">{patientInfo.patient_name || 'N/A'}</p>
-                                </div>
-                                {allImages[currentIndex]?.series_description && (
-                                    <div>
-                                        <p className="text-gray-400">Series</p>
-                                        <p className="text-white font-medium">{allImages[currentIndex].series_description}</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
+                {/* Left Sidebar - Patient Info (Hidden for better image viewing) */}
+                {/* 사이드바는 숨기고 이미지만 전체 화면으로 표시 */}
+                {/* 환자 정보는 헤더에 표시되거나 필요시 주석 해제 가능 */}
 
-                {/* Center - Image Display */}
-                <div className="flex-1 flex flex-col">
+                {/* Center - Image Display (Full Width) */}
+                <div className="flex-1 flex flex-col w-full">
                     <div
                         id="dicom-image-container"
                         className="flex-1 bg-black flex items-center justify-center overflow-hidden relative"

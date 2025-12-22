@@ -49,11 +49,14 @@ function AppContentInner() {
     "/patient/doctors",
     "/app-download",
   ].includes(location.pathname);
+  
+  // DICOM 상세 뷰어는 사이드바 숨김 (이미지에 집중)
+  const isDicomViewer = location.pathname.startsWith("/dicom-viewer/");
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {!isPublicPage && <Sidebar />}
-      <div className={isPublicPage ? "flex-1" : "flex-1 ml-64"}>
+      {!isPublicPage && !isDicomViewer && <Sidebar />}
+      <div className={isPublicPage || isDicomViewer ? "flex-1" : "flex-1 ml-64"}>
         <Routes>
           {/* 공개 라우트 */}
           <Route path="/" element={<Home />} />
