@@ -204,37 +204,29 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Activity className="text-blue-600 text-2xl mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
-            </div>
-            <div className="flex items-center space-x-3">
-              {/* 알림 드롭다운 */}
-              <NotificationDropdown />
-              
-              {/* 사용자 프로필 드롭다운 */}
-              {user ? (
-                <UserProfileDropdown />
-              ) : location.pathname === '/' ? (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => navigate('/login')}>
-                    로그인
-                  </Button>
-                  <Button size="sm" onClick={() => navigate('/signup')}>
-                    회원가입
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {stats.map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={index} className="hover:shadow-md transition-shadow">
+                <CardContent className="flex items-center p-6">
+                  <div className={`${stat.bgColor} p-3 rounded-lg mr-4`}>
+                    <Icon className={`w-6 h-6 ${stat.color}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900" data-testid={`stat-${index}`}>
+                      {stat.value}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Patients */}
           <Card>
