@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, Users, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, LogOut, Scan, FileImage } from 'lucide-react';
+import { Activity, Users, BarChart3, Stethoscope, TrendingUp, ClipboardList, BookOpen, CalendarDays, LogOut, Scan } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import doctorProfile from "@/assets/doctor-profile.png";
 
