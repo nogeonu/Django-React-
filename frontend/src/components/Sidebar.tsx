@@ -16,12 +16,7 @@ const departmentNavigation = {
     { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
   ],
   외과: [
-    { name: "환자 정보", href: "/patients", icon: Users },
-    { name: "진료 접수", href: "/medical-registration", icon: ClipboardList },
-    { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
     { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
-    { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
-    { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
   ],
 };
