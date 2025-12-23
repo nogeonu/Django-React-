@@ -13,13 +13,7 @@ import {
   ChevronRight,
   TrendingUp,
   FileText,
-  Plus,
-  Mail,
-  Phone,
-  Layout,
-  Monitor,
-  Database,
-  ShieldCheck
+  Plus
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,12 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import doctorProfile from "@/assets/doctor-profile.png";
-import {
-  PieChart, Pie, Cell, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
-} from 'recharts';
 
 interface Patient {
   id: string;
@@ -63,10 +51,7 @@ interface MedicalRecord {
   is_treatment_completed: boolean;
 }
 
-const PIE_COLORS = ['#3b82f6', '#f472b6', '#fbbf24', '#ef4444', '#10b981'];
-
 export default function Dashboard() {
-  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllWaiting, setShowAllWaiting] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
@@ -135,6 +120,41 @@ export default function Dashboard() {
     .sort((a, b) => new Date(a.reception_start_time).getTime() - new Date(b.reception_start_time).getTime());
   const recentPatients = sortedWaitingPatients.slice(0, 5);
 
+  const stats = [
+    {
+      title: "총 환자",
+      value: dashboardStats?.total_records || 0,
+      icon: Users,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      trend: "+2.5%"
+    },
+    {
+      title: "오늘 예약",
+      value: dashboardStats?.today_exams || 0,
+      icon: Calendar,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+      trend: "안정적"
+    },
+    {
+      title: "진료 완료",
+      value: dashboardStats?.completed_count || 0,
+      icon: CheckCircle,
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      trend: "순조로움"
+    },
+    {
+      title: "진료 대기",
+      value: dashboardStats?.waiting_count || 0,
+      icon: Clock,
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
+      trend: "주의"
+    }
+  ];
+
   const filteredPatients = (patients as Patient[]).filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -162,35 +182,6 @@ export default function Dashboard() {
     }
   };
 
-  // Mock Data for Charts
-  const browserData = [
-    { name: 'Chrome', value: 450 },
-    { name: 'Safari', value: 150 },
-    { name: 'Edge', value: 100 },
-    { name: 'Firefox', value: 80 },
-    { name: 'Etc', value: 50 },
-  ];
-
-  const deviceData = [
-    { name: 'PC', value: 700 },
-    { name: 'Mobile', value: 250 },
-    { name: 'Tablet', value: 100 },
-  ];
-
-  const visitorTrend = [
-    { date: '21.07.21', count: 18 },
-    { date: '21.07.22', count: 0 },
-    { date: '21.07.23', count: 9 },
-    { date: '21.07.24', count: 24 },
-    { date: '21.07.25', count: 32 },
-    { date: '21.07.26', count: 22 },
-    { date: '21.07.27', count: 20 },
-    { date: '21.07.28', count: 12 },
-    { date: '21.07.29', count: 11 },
-    { date: '21.07.30', count: 18 },
-    { date: '21.08.01', count: 18 },
-  ];
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -209,254 +200,34 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="space-y-6"
+      className="space-y-8"
     >
-      {/* Top Header Section */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-bold text-gray-900">오늘</h2>
-          <ChevronRight className="w-4 h-4 text-gray-300" />
-        </div>
-        <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px] font-bold bg-green-50 text-green-600 border-green-100 hover:bg-green-600 hover:text-white">
-          엑셀 다운로드
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Side (Charts & Stats) */}
-        <div className="lg:col-span-9 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Small Stats Stack */}
-            <div className="space-y-4">
-              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white hover:shadow-md transition-shadow">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">방문자 수</p>
-                    <p className="text-3xl font-black text-gray-900">{dashboardStats?.total_records || 243}</p>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => (
+          <motion.div key={index} variants={itemVariants}>
+            <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden bg-white">
+              <CardContent className="p-6 relative">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`${stat.bgColor} p-3 rounded-2xl transition-transform group-hover:scale-110 duration-300`}>
+                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
                   </div>
-                  <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center">
-                    <Users className="w-6 h-6 text-orange-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white hover:shadow-md transition-shadow">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">사이트 클릭 수</p>
-                    <p className="text-3xl font-black text-gray-900">1,513</p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center">
-                    <Activity className="w-6 h-6 text-purple-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Pie Chart 1 */}
-            <Card className="border-none shadow-sm rounded-3xl bg-white p-6 relative">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-black text-gray-900 tracking-tight">브라우저 메뉴 통계</h3>
-                <Select defaultValue="7days">
-                  <option value="7days">7일</option>
-                </Select>
-              </div>
-              <div className="h-[180px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={browserData}
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {browserData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} strokeWidth={0} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+                  <Badge variant="secondary" className="bg-gray-50 text-[10px] font-bold text-gray-500 border-none">
+                    {stat.trend}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{stat.title}</p>
+                  <p className="text-3xl font-black text-gray-900 tracking-tight">
+                    {stat.value}
+                  </p>
+                </div>
+                {/* Decorative Background Icon */}
+                <stat.icon className={`absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] ${stat.color} rotate-12`} />
+              </CardContent>
             </Card>
-
-            {/* Pie Chart 2 */}
-            <Card className="border-none shadow-sm rounded-3xl bg-white p-6 relative">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-black text-gray-900 tracking-tight">디바이스 통계</h3>
-                <Select defaultValue="7days">
-                  <option value="7days">7일</option>
-                </Select>
-              </div>
-              <div className="h-[180px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={deviceData}
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {deviceData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} strokeWidth={0} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Quick List (Optional items from image) */}
-            <Card className="border-none shadow-sm rounded-3xl bg-white p-6">
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">오늘 가장 많이 클릭한 메뉴</h3>
-              <div className="space-y-3">
-                {[
-                  { num: 1, label: "인시던스 컨트롤러", color: "bg-orange-100 text-orange-600" },
-                  { num: 2, label: "인시던스 유지보수", color: "bg-blue-100 text-blue-600" },
-                  { num: 3, label: "인시던스 UI/UX Framework", color: "bg-orange-100 text-orange-600" },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${item.color}`}>
-                      {item.num}
-                    </div>
-                    <span className="text-xs font-bold text-gray-600 truncate">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {/* Large Bar Chart Section */}
-          <Card className="border-none shadow-sm rounded-3xl bg-white p-8">
-            <div className="flex items-center gap-2 mb-8">
-              <h3 className="text-lg font-black text-gray-900">사용자 방문자 수 통계</h3>
-              <div className="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">?</div>
-            </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={visitorTrend}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {visitorTrend.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right Side Column (Profile Card) */}
-        <div className="lg:col-span-3 space-y-6">
-          <Card className="border-none shadow-2xl shadow-blue-900/10 rounded-[2.5rem] overflow-hidden bg-gradient-to-b from-blue-600 to-blue-700 text-white relative h-fit">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-400/20 rounded-full blur-2xl -ml-12 -mb-12"></div>
-
-            <CardContent className="p-8 pt-10 flex flex-col items-center text-center relative z-10">
-              <div className="relative mb-6">
-                <div className="w-32 h-32 rounded-full border-4 border-white/20 p-1 shadow-2xl relative overflow-hidden group">
-                  <img src={doctorProfile} alt="Profile" className="w-full h-full object-cover rounded-full" />
-                  <div className="absolute top-1 right-1 bg-yellow-400 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg transform rotate-12 border-2 border-blue-600">
-                    <span className="text-[10px]">👑</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6 space-y-1">
-                <h2 className="text-2xl font-black tracking-tight">
-                  {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "홍길동"}
-                </h2>
-                <Badge className="bg-white/20 hover:bg-white/30 text-white border-none py-1 px-4 rounded-full font-bold text-[10px] uppercase tracking-wider">
-                  {user?.role === 'medical_staff' ? '원격 판독 의료진' : '총괄 시스템 관리자'}
-                </Badge>
-              </div>
-
-              <div className="w-full space-y-4 pt-6 border-t border-white/10">
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
-                      <Database className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-blue-100">아이디</span>
-                  </div>
-                  <span className="text-xs font-black">{user?.username || "inseq123"}</span>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
-                      <Layout className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-blue-100">소속부서</span>
-                  </div>
-                  <span className="text-xs font-black">건양대학교 병원</span>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-blue-100">이메일</span>
-                  </div>
-                  <span className="text-xs font-black">{user?.email || "doctor@konyang.ac.kr"}</span>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-blue-100">전화번호</span>
-                  </div>
-                  <span className="text-xs font-black">02-1234-5678</span>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-white/10 w-full flex items-center justify-between text-[10px] font-bold text-white/50">
-                <span>최근 접속 시간</span>
-                <span className="text-white/80">{new Date().toLocaleString('ko-KR')}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm rounded-3xl bg-white p-6 h-fit">
-            <h3 className="text-sm font-black text-gray-900 mb-6 tracking-tight">나의 접속환경</h3>
-            <div className="space-y-4">
-              <div className="p-4 rounded-3xl bg-gray-50 flex items-center justify-between group hover:bg-blue-50 transition-colors cursor-default">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                    <Monitor className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Browser</p>
-                    <p className="text-sm font-black text-gray-900">Chrome</p>
-                  </div>
-                </div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100/50 group-hover:bg-blue-600 transition-colors">
-                  <Activity className="w-4 h-4 text-blue-600 group-hover:text-white" />
-                </div>
-              </div>
-              <div className="p-4 rounded-3xl bg-gray-50 flex items-center justify-between group hover:bg-purple-50 transition-colors cursor-default">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                    <ShieldCheck className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">OS</p>
-                    <p className="text-sm font-black text-gray-900">Windows 11</p>
-                  </div>
-                </div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-100/50 group-hover:bg-purple-600 transition-colors">
-                  <Activity className="w-4 h-4 text-purple-600 group-hover:text-white" />
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
+          </motion.div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -552,7 +323,7 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Action Quick Panel */}
+        {/* Quick Actions Column */}
         <div className="space-y-6">
           <motion.div variants={itemVariants}>
             <Card className="border-none shadow-sm bg-blue-600 text-white rounded-3xl p-1 overflow-hidden relative group">
@@ -576,32 +347,33 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
-          {/* Rapid Access Buttons */}
-          <Card className="border-none shadow-sm bg-white rounded-3xl p-6">
-            <h3 className="text-sm font-black text-gray-900 mb-6 flex items-center gap-2 tracking-tight">
-              <Plus className="w-4 h-4 text-blue-600" />
-              빠른 작업 (Quick Actions)
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: "환자 등록", icon: UserPlus, path: "/patients", color: "text-blue-600", bg: "bg-blue-50" },
-                { label: "MRI 조회", icon: Activity, path: "/mri-viewer", color: "text-purple-600", bg: "bg-purple-50" },
-                { label: "전체 예약", icon: Calendar, path: "/reservation-info", color: "text-emerald-600", bg: "bg-emerald-50" },
-                { label: "진료 접수", icon: FileText, path: "/medical-registration", color: "text-amber-600", bg: "bg-amber-50" },
-              ].map((action, i) => (
-                <button
-                  key={i}
-                  onClick={() => navigate(action.path)}
-                  className="flex flex-col items-center justify-center p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 hover:scale-105 transition-all group"
-                >
-                  <div className={`${action.bg} ${action.color} p-3 rounded-2xl mb-2 group-hover:shadow-sm`}>
-                    <action.icon className="w-5 h-5" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">{action.label}</span>
-                </button>
-              ))}
-            </div>
-          </Card>
+          <motion.div variants={itemVariants}>
+            <Card className="border-none shadow-sm bg-white rounded-3xl p-6">
+              <h3 className="text-sm font-black text-gray-900 mb-6 flex items-center gap-2 tracking-tight">
+                <Plus className="w-4 h-4 text-blue-600" />
+                빠른 작업 (Quick Actions)
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "환자 등록", icon: UserPlus, path: "/patients", color: "text-blue-600", bg: "bg-blue-50" },
+                  { label: "MRI 조회", icon: Activity, path: "/mri-viewer", color: "text-purple-600", bg: "bg-purple-50" },
+                  { label: "전체 예약", icon: Calendar, path: "/reservation-info", color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { label: "진료 접수", icon: FileText, path: "/medical-registration", color: "text-amber-600", bg: "bg-amber-50" },
+                ].map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => navigate(action.path)}
+                    className="flex flex-col items-center justify-center p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 hover:scale-105 transition-all group"
+                  >
+                    <div className={`${action.bg} ${action.color} p-3 rounded-2xl mb-2 group-hover:shadow-sm`}>
+                      <action.icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
         </div>
       </div>
 
@@ -748,13 +520,5 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
     </motion.div>
-  );
-}
-
-function Select({ children, defaultValue }: { children: React.ReactNode, defaultValue: string }) {
-  return (
-    <select defaultValue={defaultValue} className="text-[10px] font-bold text-gray-400 bg-gray-50 border-none rounded-lg px-2 py-1 outline-none">
-      {children}
-    </select>
   );
 }
