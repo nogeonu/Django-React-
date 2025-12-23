@@ -34,7 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 import doctorProfile from "@/assets/doctor-profile.png";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
 
 interface Patient {
@@ -270,7 +270,7 @@ export default function Dashboard() {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {browserData.map((entry, index) => (
+                      {browserData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} strokeWidth={0} />
                       ))}
                     </Pie>
@@ -298,7 +298,7 @@ export default function Dashboard() {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {deviceData.map((entry, index) => (
+                      {deviceData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} strokeWidth={0} />
                       ))}
                     </Pie>
@@ -342,7 +342,7 @@ export default function Dashboard() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {visitorTrend.map((entry, index) => (
+                    {visitorTrend.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Bar>
