@@ -75,7 +75,7 @@ export default function Sidebar() {
             <Activity className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-gray-900 leading-none tracking-tight">EventEye</h1>
+            <h1 className="text-xl font-black text-gray-900 leading-none tracking-tight">CDSSentials</h1>
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">Medical Platform</p>
           </div>
         </div>

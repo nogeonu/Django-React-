@@ -248,7 +248,7 @@ export default function Signup() {
               <Activity className="w-5 h-5 text-blue-300" />
               <div className="text-white text-sm">
                 <div className="font-medium">병원 관리 시스템</div>
-                <div className="text-xs text-gray-300">EventEye</div>
+                <div className="text-xs text-gray-300">CDSSentials</div>
               </div>
             </div>
           </div>
