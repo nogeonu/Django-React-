@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -14,7 +15,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, User, Activity, Scan, Eye, EyeOff, Upload, Database, Image as ImageIcon } from "lucide-react";
+import {
+  Loader2,
+  User,
+  Activity,
+  Scan,
+  Eye,
+  EyeOff,
+  Upload,
+  Database,
+  Image as ImageIcon,
+  ChevronRight,
+  ChevronLeft,
+  Maximize2,
+  Info,
+  Settings2,
+  Cpu
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getPatientsApi } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -26,8 +43,6 @@ interface PatientInfo {
   tumor_subtype?: string;
   scanner_manufacturer?: string;
 }
-
-
 
 interface SystemPatient {
   id: number;
@@ -96,61 +111,42 @@ export default function MRIViewer() {
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
-  // 환자 목록 로드
   useEffect(() => {
     fetchPatients();
   }, []);
 
-  // 환자 선택 시 상세 정보 로드
   useEffect(() => {
     if (selectedPatient) {
       fetchPatientDetail(selectedPatient);
-    }
-  }, [selectedPatient]);
-
-  // 환자 선택 시 Orthanc 이미지 자동 로드
-  useEffect(() => {
-    if (selectedPatient) {
       fetchOrthancImages(selectedPatient);
     }
   }, [selectedPatient]);
 
-  // 슬라이스 이미지 로드
   useEffect(() => {
     if (selectedPatient && patientDetail) {
       fetchSliceImage();
     }
-  }, [selectedPatient, currentSlice, currentSeries, axis, showSegmentation]);
+  }, [selectedPatient, currentSlice, currentSeries, axis, showSegmentation, patientDetail]);
 
   const fetchPatients = async () => {
     setLoading(true);
     try {
-      // 환자 정보 시스템에서 환자 목록 가져오기
       const systemData = await getPatientsApi({ page_size: 1000 });
       if (systemData.results && systemData.results.length > 0) {
         setSystemPatients(systemData.results);
-
-        // MRI API에서도 환자 목록 가져오기 (폴백용)
         try {
           const mriResponse = await fetch(`${API_BASE_URL}/patients/`);
           const mriData = await mriResponse.json();
           if (mriData.success && mriData.patients) {
             setPatients(mriData.patients);
           }
-        } catch (mriError) {
-          // MRI API 실패는 무시 (시스템 환자만 사용)
-          console.log("MRI API failed, using system patients only");
-        }
-
-        // 첫 번째 환자 선택
+        } catch (mriError) { }
         if (systemData.results.length > 0) {
           setSelectedPatient(systemData.results[0].patient_id);
         }
       } else {
-        // 시스템 환자가 없으면 MRI API 사용
         const response = await fetch(`${API_BASE_URL}/patients/`);
         const data = await response.json();
         if (data.success && data.patients) {
@@ -161,11 +157,7 @@ export default function MRIViewer() {
         }
       }
     } catch (error) {
-      toast({
-        title: "오류",
-        description: "환자 목록을 불러오는데 실패했습니다.",
-        variant: "destructive",
-      });
+      toast({ title: "오류", description: "환자 목록 로드 실패", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -178,15 +170,11 @@ export default function MRIViewer() {
       const data = await response.json();
       if (data.success) {
         setPatientDetail(data);
-        setCurrentSlice(Math.floor(data.num_slices / 2)); // 중간 슬라이스로 시작
+        setCurrentSlice(Math.floor(data.num_slices / 2));
         setCurrentSeries(0);
       }
     } catch (error) {
-      toast({
-        title: "오류",
-        description: "환자 정보를 불러오는데 실패했습니다.",
-        variant: "destructive",
-      });
+      toast({ title: "오류", description: "환자 상세 정보 로드 실패", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -194,7 +182,6 @@ export default function MRIViewer() {
 
   const fetchSliceImage = async () => {
     if (!selectedPatient) return;
-
     setImageLoading(true);
     try {
       const url = `${API_BASE_URL}/patients/${selectedPatient}/slice/?series=${currentSeries}&slice=${currentSlice}&axis=${axis}&segmentation=${showSegmentation}`;
@@ -211,25 +198,19 @@ export default function MRIViewer() {
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
     if (!patientDetail) return;
-
+    // Don't prevent default if we want to allow page scroll, but here we want to scroll slices
+    // e.preventDefault(); 
     const delta = e.deltaY > 0 ? 1 : -1;
     const newSlice = Math.max(0, Math.min(patientDetail.num_slices - 1, currentSlice + delta));
     setCurrentSlice(newSlice);
   };
 
   const handleOrthancWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
     if (orthancImages.length === 0) return;
-
     const delta = e.deltaY > 0 ? 1 : -1;
     const newImage = Math.max(0, Math.min(orthancImages.length - 1, selectedImage + delta));
     setSelectedImage(newImage);
-  };
-
-  const handleSliderChange = (value: number[]) => {
-    setCurrentSlice(value[0]);
   };
 
   const fetchOrthancImages = async (patientId: string) => {
@@ -237,37 +218,17 @@ export default function MRIViewer() {
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `서버 오류 (${response.status})`);
-      }
-
       if (data.success && data.images && data.images.length > 0) {
         setOrthancImages(data.images);
         setShowOrthancImages(true);
-        setSelectedImage(0); // 첫 번째 이미지 선택
-        toast({
-          title: "Orthanc 이미지 로드 완료",
-          description: `${data.images.length}개의 이미지를 불러왔습니다.`,
-        });
+        setSelectedImage(0);
       } else {
         setOrthancImages([]);
         setShowOrthancImages(false);
-        toast({
-          title: "알림",
-          description: data.success ? "이 환자의 Orthanc 이미지가 없습니다." : (data.error || "이미지를 불러올 수 없습니다."),
-          variant: "default",
-        });
       }
     } catch (error) {
-      console.error("Orthanc 이미지 로드 실패:", error);
       setOrthancImages([]);
       setShowOrthancImages(false);
-      toast({
-        title: "오류",
-        description: error instanceof Error ? error.message : "Orthanc 이미지를 불러오는데 실패했습니다.",
-        variant: "destructive",
-      });
     } finally {
       setImageLoading(false);
     }
@@ -276,131 +237,49 @@ export default function MRIViewer() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-
     setUploading(true);
-    const results = {
-      success: 0,
-      failed: 0,
-      errors: [] as string[],
-      totalFiles: files.length
-    };
-
+    let successCount = 0;
     try {
-      // Upload each file sequentially
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          if (selectedPatient) {
-            formData.append('patient_id', selectedPatient);
-          }
-
-          const response = await fetch('/api/mri/orthanc/upload/', {
-            method: 'POST',
-            body: formData,
-          });
-
-          // 응답이 성공적인지 확인
-          if (!response.ok) {
-            // HTML 에러 페이지인 경우 텍스트로 읽기
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/html')) {
-              await response.text();
-              throw new Error(`서버 오류 (${response.status})`);
-            }
-            // JSON 에러 응답인 경우
-            try {
-              const errorData = await response.json();
-              const errorMsg = errorData.error || errorData.message || errorData.detail || `서버 오류 (${response.status})`;
-              throw new Error(errorMsg);
-            } catch (jsonError) {
-              try {
-                const text = await response.text();
-                throw new Error(`서버 오류 (${response.status}): ${text.substring(0, 100)}`);
-              } catch {
-                throw new Error(`서버 오류 (${response.status}): ${response.statusText}`);
-              }
-            }
-          }
-
-          const data = await response.json();
-
-          if (data.success) {
-            results.success++;
-          } else {
-            results.failed++;
-            results.errors.push(`${file.name}: ${data.error || '업로드 실패'}`);
-          }
-        } catch (error) {
-          results.failed++;
-          const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
-          results.errors.push(`${file.name}: ${errorMsg}`);
-          console.error(`Upload error for ${file.name}:`, error);
-        }
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        if (selectedPatient) formData.append('patient_id', selectedPatient);
+        const response = await fetch('/api/mri/orthanc/upload/', { method: 'POST', body: formData });
+        if (response.ok) successCount++;
       }
-
-      // Show summary toast
-      if (results.success > 0) {
-        const message = results.totalFiles === 1
-          ? "파일이 Orthanc에 저장되었습니다."
-          : `${results.success}개 파일 업로드 완료${results.failed > 0 ? `, ${results.failed}개 실패` : ''}`;
-
-        toast({
-          title: "업로드 완료!",
-          description: message,
-          variant: results.failed > 0 ? "default" : "default",
-        });
-
-        // 업로드 후 이미지 목록 새로고침
-        if (selectedPatient) {
-          setTimeout(() => {
-            fetchOrthancImages(selectedPatient);
-          }, 1000);
-        }
-      } else {
-        // All failed
-        toast({
-          title: "업로드 실패",
-          description: `모든 파일 업로드 실패 (${results.failed}개)`,
-          variant: "destructive",
-        });
-      }
-
-      if (results.errors.length > 0) {
-        console.error('Upload errors:', results.errors);
+      if (successCount > 0) {
+        toast({ title: "업로드 완료", description: `${successCount}개 파일이 저장되었습니다.` });
+        if (selectedPatient) fetchOrthancImages(selectedPatient);
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "업로드 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+      toast({ title: "오류", description: "업로드 중 문제가 발생했습니다.", variant: "destructive" });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   if (loading && !patientDetail) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+        <p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest text-xs">Loading Workstation...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-12">
+      {/* Workstation Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">유방 MRI 뷰어</h1>
-          <p className="text-gray-500 mt-1">3D 의료 영상 분석 및 Orthanc PACS 연동</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
+              <Scan className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Image Workstation</h1>
+          </div>
+          <p className="text-sm font-medium text-gray-400">유방 MRI 3D 분석 및 Orthanc PACS 연동 시스템</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -408,427 +287,295 @@ export default function MRIViewer() {
             size="sm"
             onClick={() => selectedPatient && fetchOrthancImages(selectedPatient)}
             disabled={!selectedPatient}
+            className="rounded-xl border-gray-200 font-bold text-xs h-10 px-4 hover:bg-gray-50"
           >
-            <Database className="h-4 w-4 mr-2" />
-            Orthanc 이미지
+            <Database className="h-4 w-4 mr-2 text-blue-600" />
+            PACS 연동
           </Button>
-          <Badge variant="outline" className="text-lg px-4 py-2">
-            <Activity className="h-4 w-4 mr-2" />
-            실시간 분석
+          <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl flex items-center gap-2 h-10">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="font-bold text-xs uppercase tracking-widest">Active Analysis</span>
           </Badge>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 좌측: 환자 정보 및 컨트롤 */}
-        <div className="lg:col-span-1 space-y-4">
-          {/* 환자 선택 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                환자 선택
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Side: Controls & Info (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Patient Selector */}
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+              <CardTitle className="text-sm font-black text-gray-900 flex items-center gap-2 tracking-tight uppercase">
+                <User className="h-4 w-4 text-blue-600" />
+                환자 정보
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Select value={selectedPatient || ""} onValueChange={setSelectedPatient}>
-                <SelectTrigger>
-                  <SelectValue placeholder="환자를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {systemPatients.length > 0 ? (
-                    systemPatients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.patient_id}>
-                        {patient.name} ({patient.patient_id})
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">대상 환자 선택</Label>
+                <Select value={selectedPatient || ""} onValueChange={setSelectedPatient}>
+                  <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-sm focus:ring-2 focus:ring-blue-600/20">
+                    <SelectValue placeholder="환자를 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    {systemPatients.map((p) => (
+                      <SelectItem key={p.id} value={p.patient_id} className="rounded-lg">
+                        {p.name} <span className="text-gray-400 ml-1">({p.patient_id})</span>
                       </SelectItem>
-                    ))
-                  ) : patients.length > 0 ? (
-                    patients.map((patient) => (
-                      <SelectItem key={patient.patient_id} value={patient.patient_id}>
-                        {patient.patient_id}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>
-                      환자 없음
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {systemPatients.length > 0 && (
-                <p className="text-xs text-gray-500">
-                  총 {systemPatients.length}명의 환자
-                </p>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {patientDetail && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <p className="text-[10px] font-black text-gray-400 uppercase mb-1">나이</p>
+                    <p className="font-black text-gray-900">{patientDetail.patient_info.clinical_data.age}세</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <p className="text-[10px] font-black text-gray-400 uppercase mb-1">밀도</p>
+                    <p className="font-black text-gray-900">{patientDetail.patient_info.clinical_data.breast_density}</p>
+                  </div>
+                  <div className="col-span-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-50">
+                    <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Tumor Subtype</p>
+                    <p className="font-black text-blue-900">{patientDetail.patient_info.primary_lesion.tumor_subtype}</p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {/* DICOM 업로드 */}
-          <Card className="border-blue-200 bg-blue-50/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <Upload className="h-5 w-5" />
-                파일 업로드 (DICOM/NIfTI)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-600">
-                DICOM 또는 NIfTI 파일을 Orthanc PACS 서버에 업로드합니다.
-                여러 파일을 동시에 선택하거나 폴더 전체를 업로드할 수 있습니다.
-              </p>
-
-              {/* 여러 파일 선택 */}
-              <div>
-                <Label className="text-xs text-gray-500 mb-1">파일 선택 (여러 개 가능)</Label>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".dcm,.dicom,.nii,.nii.gz"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  multiple
-                  className="cursor-pointer"
-                />
-              </div>
-
-              {uploading && (
-                <div className="flex items-center gap-2 text-sm text-blue-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  업로드 중...
-                </div>
-              )}
-              <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                <p>• 여러 파일 동시 선택 가능 (Ctrl/Cmd + 클릭)</p>
-                <p>• DICOM 파일 (.dcm, .dicom) 업로드 가능</p>
-                <p>• NIfTI 파일 (.nii, .nii.gz) 업로드 가능 (자동 변환)</p>
-                <p>• 업로드 후 자동으로 Orthanc에 저장</p>
-                <p>• Web UI: 34.42.223.43/orthanc/ui/app/#/</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 환자 정보 */}
+          {/* Imaging Controls */}
           {patientDetail && (
-            <Card>
-              <CardHeader>
-                <CardTitle>환자 정보</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label className="text-xs text-gray-500">환자 ID</Label>
-                  <p className="font-medium">{patientDetail.patient_id}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">나이</Label>
-                  <p className="font-medium">{patientDetail.patient_info.clinical_data.age}세</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">종양 유형</Label>
-                  <p className="font-medium">
-                    {patientDetail.patient_info.primary_lesion.tumor_subtype}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">폐경 상태</Label>
-                  <p className="font-medium">
-                    {patientDetail.patient_info.clinical_data.menopausal_status}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">스캐너</Label>
-                  <p className="font-medium text-sm">
-                    {patientDetail.patient_info.imaging_data.scanner_manufacturer}{" "}
-                    {patientDetail.patient_info.imaging_data.scanner_model}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">자기장 세기</Label>
-                  <p className="font-medium">
-                    {patientDetail.patient_info.imaging_data.field_strength}T
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 뷰어 컨트롤 */}
-          {patientDetail && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Scan className="h-5 w-5" />
-                  뷰어 설정
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+                <CardTitle className="text-sm font-black text-gray-900 flex items-center gap-2 tracking-tight uppercase">
+                  <Settings2 className="h-4 w-4 text-purple-600" />
+                  워크스테이션 제어
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 시리즈 선택 */}
-                <div>
-                  <Label>시퀀스 선택</Label>
-                  <Select
-                    value={currentSeries.toString()}
-                    onValueChange={(val) => setCurrentSeries(parseInt(val))}
-                  >
-                    <SelectTrigger>
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MRI 시퀀스</Label>
+                  <Select value={currentSeries.toString()} onValueChange={(v) => setCurrentSeries(parseInt(v))}>
+                    <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-xs truncate">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      {patientDetail.series.map((series) => (
-                        <SelectItem key={series.index} value={series.index.toString()}>
-                          {series.filename}
+                    <SelectContent className="rounded-xl border-none shadow-xl">
+                      {patientDetail.series.map((s) => (
+                        <SelectItem key={s.index} value={s.index.toString()} className="rounded-lg">
+                          {s.filename}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* 축 선택 */}
-                <div>
-                  <Label>단면 방향</Label>
-                  <Tabs value={axis} onValueChange={(val) => setAxis(val as any)}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="axial">Axial</TabsTrigger>
-                      <TabsTrigger value="sagittal">Sagittal</TabsTrigger>
-                      <TabsTrigger value="coronal">Coronal</TabsTrigger>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">단면 방향 (Axis)</Label>
+                  <Tabs value={axis} onValueChange={(v) => setAxis(v as any)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 bg-gray-50 rounded-xl p-1 h-11">
+                      <TabsTrigger value="axial" className="rounded-lg font-bold text-[10px] uppercase">Axial</TabsTrigger>
+                      <TabsTrigger value="sagittal" className="rounded-lg font-bold text-[10px] uppercase">Sagittal</TabsTrigger>
+                      <TabsTrigger value="coronal" className="rounded-lg font-bold text-[10px] uppercase">Coronal</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
 
-                {/* 세그멘테이션 토글 */}
-                {patientDetail.has_segmentation && (
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="segmentation" className="flex items-center gap-2">
-                      {showSegmentation ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                      세그멘테이션 표시
-                    </Label>
-                    <Switch
-                      id="segmentation"
-                      checked={showSegmentation}
-                      onCheckedChange={setShowSegmentation}
-                    />
+                <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
+                  <div className="flex flex-col">
+                    <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI Segmentation</Label>
+                    <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
                   </div>
-                )}
-
-                {/* 볼륨 정보 */}
-                <div className="pt-4 border-t">
-                  <Label className="text-xs text-gray-500">볼륨 크기</Label>
-                  <p className="font-mono text-sm">
-                    {patientDetail.volume_shape.join(" × ")}
-                  </p>
+                  <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
                 </div>
               </CardContent>
             </Card>
           )}
+
+          {/* Upload Card */}
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-900 text-white relative group">
+            <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
+            <CardHeader>
+              <CardTitle className="text-sm font-black flex items-center gap-2 tracking-tight uppercase">
+                <Upload className="h-4 w-4 text-blue-400" />
+                데이터 업로드
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
+                DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
+              </p>
+              <div className="relative">
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  className="hidden"
+                  id="file-upload-input"
+                />
+                <Button
+                  className="w-full h-11 rounded-xl bg-white text-gray-900 hover:bg-gray-100 font-black text-xs gap-2"
+                  onClick={() => document.getElementById('file-upload-input')?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  파일 선택 및 업로드
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* 우측: 이미지 뷰어 */}
-        <div className="lg:col-span-3">
-          <Card className="h-full">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  {showOrthancImages ? (
-                    <>
-                      <Database className="h-5 w-5" />
-                      Orthanc 이미지
-                    </>
-                  ) : (
-                    <>
-                      <ImageIcon className="h-5 w-5" />
-                      MRI 이미지
-                    </>
-                  )}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  {showOrthancImages && orthancImages.length > 0 && (
-                    <Badge variant="secondary">
-                      이미지 {selectedImage + 1} / {orthancImages.length}
+        {/* Right Side: Main Viewer (8 cols) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          <Card className="flex-1 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white flex flex-col">
+            <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between py-4 px-8">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-gray-900 flex items-center justify-center">
+                  <ImageIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-black text-gray-900 tracking-tight">
+                    {showOrthancImages ? "PACS Viewer" : "Analysis Viewer"}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[9px] font-bold border-gray-100 text-gray-400 uppercase py-0 px-2 h-4">
+                      3D Reconstructed
                     </Badge>
-                  )}
-                  {patientDetail && !showOrthancImages && (
-                    <Badge variant="secondary">
-                      슬라이스 {currentSlice + 1} / {patientDetail.num_slices}
-                    </Badge>
-                  )}
-                  {showOrthancImages && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowOrthancImages(false)}
-                    >
-                      NIfTI 보기
-                    </Button>
-                  )}
+                    <span className="text-[9px] font-bold text-gray-300">|</span>
+                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
+                      {showOrthancImages ? "RAW DICOM" : "processed nii"}
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-xl h-10 w-10 hover:bg-gray-50"
+                  onClick={() => setShowOrthancImages(!showOrthancImages)}
+                >
+                  <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
+                </Button>
+                <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-gray-50">
+                  <Maximize2 className="w-4 h-4 text-gray-400" />
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              {showOrthancImages && orthancImages.length > 0 ? (
-                <div className="space-y-4">
-                  {/* Orthanc 이미지 뷰어 */}
-                  <div
-                    className="relative bg-black rounded-lg overflow-hidden"
-                    style={{ height: "600px" }}
-                    onWheel={handleOrthancWheel}
-                  >
-                    <img
-                      src={orthancImages[selectedImage].preview_url}
-                      alt={`Instance ${orthancImages[selectedImage].instance_id}`}
-                      className="w-full h-full object-contain"
+
+            <CardContent className="p-8 flex-1 flex flex-col gap-8">
+              {/* Main Image Viewport */}
+              <div
+                className="relative flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner group"
+                onWheel={showOrthancImages ? handleOrthancWheel : handleWheel}
+              >
+                <AnimatePresence mode="wait">
+                  {imageLoading ? (
+                    <motion.div
+                      key="loading"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 flex items-center justify-center z-20 bg-black/40 backdrop-blur-sm"
+                    >
+                      <div className="flex flex-col items-center gap-4">
+                        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                        <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">Synchronizing</span>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-8">
+                  {sliceImage || (showOrthancImages && orthancImages.length > 0) ? (
+                    <motion.img
+                      key={showOrthancImages ? `orthanc-${selectedImage}` : `slice-${currentSlice}`}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                      src={showOrthancImages ? orthancImages[selectedImage].preview_url : (sliceImage || "")}
+                      className="max-w-full max-h-full object-contain pointer-events-auto"
                     />
-                    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-2 rounded text-sm">
-                      <p>Series: {orthancImages[selectedImage].series_description || 'N/A'}</p>
-                      <p>Instance: {orthancImages[selectedImage].instance_number}</p>
+                  ) : (
+                    <div className="text-white/20 flex flex-col items-center gap-4">
+                      <Info className="w-12 h-12" />
+                      <p className="text-xs font-bold uppercase tracking-widest">No data stream</p>
                     </div>
-                    <div className="absolute top-4 right-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          // Store patient ID and Name for context
-                          if (selectedPatient) {
-                            sessionStorage.setItem('currentPatientId', selectedPatient);
-                            const patient = systemPatients.find(p => p.patient_id === selectedPatient) || patients.find(p => p.patient_id === selectedPatient);
-                            if (patient && patient.name) {
-                              sessionStorage.setItem('currentPatientName', patient.name);
-                            }
-                          }
+                  )}
+                </div>
+
+                {/* Overlays */}
+                <div className="absolute top-6 left-6 flex flex-col gap-2 pointer-events-none">
+                  <Badge className="bg-black/60 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
+                    {showOrthancImages ? `S: ${orthancImages[selectedImage]?.series_description || 'Raw'}` : `Axis: ${axis}`}
+                  </Badge>
+                  <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
+                    {showOrthancImages ? `Inst: ${orthancImages[selectedImage]?.instance_number}` : `Slice: ${currentSlice + 1}`}
+                  </Badge>
+                </div>
+
+                {showOrthancImages && (
+                  <div className="absolute top-6 right-6">
+                    <Button
+                      size="sm"
+                      className="rounded-xl bg-white/90 hover:bg-white text-gray-900 font-black text-[10px] uppercase shadow-xl pointer-events-auto"
+                      onClick={() => {
+                        if (selectedPatient && orthancImages[selectedImage]) {
+                          sessionStorage.setItem('currentPatientId', selectedPatient);
+                          const p = systemPatients.find(x => x.patient_id === selectedPatient);
+                          if (p) sessionStorage.setItem('currentPatientName', p.name);
                           navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
-                        }}
-                        className="bg-white/90 hover:bg-white border-gray-300"
-                      >
-                        자세히보기
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* 이미지 슬라이더 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>이미지 선택</Label>
-                      <span className="text-sm text-gray-500">
-                        {selectedImage + 1} / {orthancImages.length}
-                      </span>
-                    </div>
-                    <Slider
-                      value={[selectedImage]}
-                      onValueChange={(value) => setSelectedImage(value[0])}
-                      max={orthancImages.length - 1}
-                      step={1}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* 네비게이션 버튼 */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setSelectedImage(Math.max(0, selectedImage - 1))}
-                      disabled={selectedImage === 0}
+                        }
+                      }}
                     >
-                      이전
+                      Detail Analysis <ChevronRight className="w-3 h-3 ml-1" />
                     </Button>
+                  </div>
+                )}
+
+                {/* Mouse Wheel Hint */}
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 border border-white/5">
+                    <div className="w-1 h-3 rounded-full bg-white animate-bounce"></div>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Wheel to scroll</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Slider */}
+              <div className="px-4 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Navigation</p>
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
-                      onClick={() => setSelectedImage(Math.min(orthancImages.length - 1, selectedImage + 1))}
-                      disabled={selectedImage === orthancImages.length - 1}
+                      variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
+                      onClick={() => showOrthancImages ? setSelectedImage(Math.max(0, selectedImage - 1)) : setCurrentSlice(Math.max(0, currentSlice - 1))}
                     >
-                      다음
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <span className="text-xs font-black text-gray-900 mx-2">
+                      {showOrthancImages ? `${selectedImage + 1} / ${orthancImages.length}` : `${currentSlice + 1} / ${patientDetail?.num_slices || 0}`}
+                    </span>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
+                      onClick={() => showOrthancImages ? setSelectedImage(Math.min(orthancImages.length - 1, selectedImage + 1)) : setCurrentSlice(Math.min((patientDetail?.num_slices || 1) - 1, currentSlice + 1))}
+                    >
+                      <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-              ) : patientDetail ? (
-                <div className="space-y-4">
-                  {/* 이미지 뷰어 */}
-                  <div
-                    className="relative bg-black rounded-lg overflow-hidden"
-                    style={{ height: "600px" }}
-                    onWheel={handleWheel}
-                  >
-                    {imageLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                        <Loader2 className="h-8 w-8 animate-spin text-white" />
-                      </div>
-                    )}
-                    {sliceImage ? (
-                      <img
-                        src={sliceImage}
-                        alt={`Slice ${currentSlice}`}
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-white">
-                        이미지를 불러오는 중...
-                      </div>
-                    )}
-                    <canvas ref={canvasRef} className="hidden" />
-                  </div>
-
-                  {/* 슬라이스 슬라이더 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>슬라이스 위치</Label>
-                      <span className="text-sm text-gray-500">
-                        마우스 휠로 이동 가능
-                      </span>
-                    </div>
-                    <Slider
-                      value={[currentSlice]}
-                      onValueChange={handleSliderChange}
-                      max={patientDetail.num_slices - 1}
-                      step={1}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* 네비게이션 버튼 */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentSlice(Math.max(0, currentSlice - 10))}
-                      disabled={currentSlice === 0}
-                    >
-                      -10
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentSlice(Math.max(0, currentSlice - 1))}
-                      disabled={currentSlice === 0}
-                    >
-                      이전
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setCurrentSlice(
-                          Math.min(patientDetail.num_slices - 1, currentSlice + 1)
-                        )
-                      }
-                      disabled={currentSlice === patientDetail.num_slices - 1}
-                    >
-                      다음
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setCurrentSlice(
-                          Math.min(patientDetail.num_slices - 1, currentSlice + 10)
-                        )
-                      }
-                      disabled={currentSlice === patientDetail.num_slices - 1}
-                    >
-                      +10
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-96 text-gray-500">
-                  환자를 선택하세요
-                </div>
-              )}
+                <Slider
+                  value={[showOrthancImages ? selectedImage : currentSlice]}
+                  onValueChange={(v) => showOrthancImages ? setSelectedImage(v[0]) : setCurrentSlice(v[0])}
+                  max={showOrthancImages ? (orthancImages.length - 1 || 0) : ((patientDetail?.num_slices || 1) - 1)}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -836,4 +583,3 @@ export default function MRIViewer() {
     </div>
   );
 }
-
