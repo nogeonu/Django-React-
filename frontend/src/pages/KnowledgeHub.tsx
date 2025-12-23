@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+
 import {
   ExternalLink,
   FileText,
@@ -14,12 +14,10 @@ import {
   Calendar,
   User,
   Building,
-  Globe,
   BookOpen,
   ArrowRight,
   Bookmark,
   Share2,
-  Filter,
   Download
 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
@@ -116,7 +114,7 @@ export default function KnowledgeHub() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (user && user.department && departmentConfig[user.department]) {
@@ -135,12 +133,12 @@ export default function KnowledgeHub() {
   const searchLiterature = async () => {
     if (!searchQuery.trim()) return;
     setLoading(true);
-    setError(null);
+
     try {
       const response = await apiRequest("GET", `/api/literature/search?q=${encodeURIComponent(searchQuery)}&max=20`);
       setLiteratureData(response);
     } catch (error) {
-      setError("문헌 검색 중 오류가 발생했습니다.");
+
     } finally {
       setLoading(false);
     }

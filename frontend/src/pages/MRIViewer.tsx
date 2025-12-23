@@ -18,10 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2,
   User,
-  Activity,
   Scan,
-  Eye,
-  EyeOff,
   Upload,
   Database,
   Image as ImageIcon,
@@ -30,19 +27,13 @@ import {
   Maximize2,
   Info,
   Settings2,
-  Cpu
+  Cpu,
+  Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getPatientsApi } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 
-interface PatientInfo {
-  patient_id: string;
-  name?: string;
-  age?: number;
-  tumor_subtype?: string;
-  scanner_manufacturer?: string;
-}
 
 interface SystemPatient {
   id: number;
@@ -95,7 +86,7 @@ const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
   const navigate = useNavigate();
-  const [patients, setPatients] = useState<PatientInfo[]>([]);
+
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -140,7 +131,7 @@ export default function MRIViewer() {
           const mriResponse = await fetch(`${API_BASE_URL}/patients/`);
           const mriData = await mriResponse.json();
           if (mriData.success && mriData.patients) {
-            setPatients(mriData.patients);
+            // MRI patient data fetched but not used in this view currently
           }
         } catch (mriError) { }
         if (systemData.results.length > 0) {
@@ -150,7 +141,6 @@ export default function MRIViewer() {
         const response = await fetch(`${API_BASE_URL}/patients/`);
         const data = await response.json();
         if (data.success && data.patients) {
-          setPatients(data.patients);
           if (data.patients.length > 0) {
             setSelectedPatient(data.patients[0].patient_id);
           }
