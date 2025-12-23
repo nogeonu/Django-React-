@@ -45,7 +45,7 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
                     <div className="flex justify-between items-center h-16">
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">System Online</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">시스템 정상 (System Online)</span>
                         </div>
 
                         <div className="flex items-center gap-4">
@@ -55,7 +55,7 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="Quick patient search..."
+                                    placeholder="빠른 환자 검색..."
                                     className="bg-gray-100 border-none rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:ring-2 focus:ring-blue-500/20 transition-all"
                                 />
                             </div>
@@ -66,7 +66,7 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
                                     size="icon"
                                     className="rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                     onClick={() => navigate(dashboardHref)}
-                                    title="Home"
+                                    title="홈 (Home)"
                                 >
                                     <Home className="h-5 w-5" />
                                 </Button>
@@ -105,7 +105,7 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
                                 <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-tight leading-tight">
                                     안녕하세요,<br />
                                     <span className="text-blue-200">
-                                        {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "Guest"}
+                                        {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "게스트"}
                                     </span> 선생님
                                 </h1>
 

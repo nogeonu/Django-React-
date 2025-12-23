@@ -344,7 +344,7 @@ export default function Dashboard() {
             <Card className="border-none shadow-sm bg-white rounded-3xl p-6">
               <h3 className="text-sm font-black text-gray-900 mb-6 flex items-center gap-2 tracking-tight">
                 <Plus className="w-4 h-4 text-blue-600" />
-                Quick Actions
+                빠른 작업 (Quick Actions)
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {[

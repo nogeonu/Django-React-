@@ -130,13 +130,13 @@ export default function DicomDetailViewer() {
                         {patientInfo && (
                             <div className="flex items-center gap-4 text-sm">
                                 <div>
-                                    <span className="text-gray-400">Patient ID: </span>
-                                    <span className="text-white font-medium">{patientInfo.patient_id || 'N/A'}</span>
+                                    <span className="text-gray-400">환자 번호: </span>
+                                    <span className="text-white font-medium">{patientInfo.patient_id || '미상'}</span>
                                 </div>
                                 <div className="h-4 w-px bg-gray-600" />
                                 <div>
                                     <span className="text-gray-400">이름: </span>
-                                    <span className="text-white font-medium">{patientInfo.patient_name || 'N/A'}</span>
+                                    <span className="text-white font-medium">{patientInfo.patient_name || '미상'}</span>
                                 </div>
                             </div>
                         )}

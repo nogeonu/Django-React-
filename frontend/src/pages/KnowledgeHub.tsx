@@ -68,7 +68,7 @@ interface DeptContent {
 
 const departmentConfig: Record<string, DeptContent> = {
   '호흡기내과': {
-    title: 'Pulmonary Research Hub',
+    title: '호흡기질환 지식 허브',
     description: '최신 논문, 가이드라인, 뉴스를 통해 폐암 진단 및 치료 정보를 확인하세요.',
     defaultSearch: 'lung cancer OR 폐암',
     defaultNews: '호흡기 OR 폐암',
@@ -85,7 +85,7 @@ const departmentConfig: Record<string, DeptContent> = {
     ]
   },
   '외과': {
-    title: 'Surgical Oncology Hub',
+    title: '유암 치료 지식 허브 (Surgical Oncology)',
     description: '최신 논문, 가이드라인, 뉴스를 통해 유방암 진단 및 치료 정보를 확인하세요.',
     defaultSearch: 'Breast Cancer OR 유방암',
     defaultNews: '유방암 OR Breast Cancer',
@@ -221,9 +221,9 @@ export default function KnowledgeHub() {
 
       <Tabs defaultValue="papers" className="w-full">
         <TabsList className="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex h-14 w-fit mb-8">
-          <TabsTrigger value="papers" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">Publications</TabsTrigger>
-          <TabsTrigger value="guidelines" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">Guidelines</TabsTrigger>
-          <TabsTrigger value="news" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">Medical News</TabsTrigger>
+          <TabsTrigger value="papers" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">학술 논문</TabsTrigger>
+          <TabsTrigger value="guidelines" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">진료 가이드라인</TabsTrigger>
+          <TabsTrigger value="news" className="rounded-xl px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">최신 의료 뉴스</TabsTrigger>
         </TabsList>
 
         <TabsContent value="papers" className="space-y-8">
@@ -232,7 +232,7 @@ export default function KnowledgeHub() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                   <CardTitle className="text-xl font-bold text-gray-900 tracking-tight">지식 정보 검색</CardTitle>
-                  <CardDescription className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">PubMed & arXiv Multi-search</CardDescription>
+                  <CardDescription className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">PubMed & arXiv 멀티 검색</CardDescription>
                 </div>
                 <div className="flex gap-2 flex-1 md:max-w-xl">
                   <div className="relative flex-1 group">
@@ -259,7 +259,7 @@ export default function KnowledgeHub() {
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4">
                   <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-                  <p className="text-xs font-black text-gray-300 uppercase tracking-widest">Searching Databases</p>
+                  <p className="text-xs font-black text-gray-300 uppercase tracking-widest">데이터베이스 검색 중...</p>
                 </div>
               ) : literatureData ? (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
@@ -268,7 +268,7 @@ export default function KnowledgeHub() {
                     <div className="flex items-center justify-between">
                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-blue-600 flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
-                        PubMed Results
+                        PubMed 검색 결과
                       </h3>
                       <Badge variant="secondary" className="rounded-lg bg-gray-50 text-gray-400 font-bold border-none">{literatureData.pubmed?.length || 0}</Badge>
                     </div>
@@ -292,12 +292,12 @@ export default function KnowledgeHub() {
                           <div className="flex gap-2">
                             {paper.pmc && (
                               <Button variant="secondary" size="sm" onClick={() => openPDF(`https://www.ncbi.nlm.nih.gov/pmc/articles/${paper.pmc}/pdf`)} className="rounded-xl h-8 text-[10px] font-black bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border-none">
-                                <Download className="w-3 h-3 mr-1" /> PDF ACCESS
+                                <Download className="w-3 h-3 mr-1" /> PDF 보기
                               </Button>
                             )}
                             {paper.doi && (
                               <Button variant="outline" size="sm" onClick={() => openPDF(undefined, paper.doi)} className="rounded-xl h-8 text-[10px] font-black border-gray-100 text-gray-400 hover:bg-gray-900 hover:text-white">
-                                FIND OPEN ACCESS
+                                오픈 액세스 찾기
                               </Button>
                             )}
                           </div>
@@ -311,7 +311,7 @@ export default function KnowledgeHub() {
                     <div className="flex items-center justify-between">
                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-purple-600 flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-purple-600 animate-pulse"></div>
-                        arXiv preprints
+                        arXiv 프리프린트 (Preprints)
                       </h3>
                       <Badge variant="secondary" className="rounded-lg bg-gray-50 text-gray-400 font-bold border-none">{literatureData.arxiv?.length || 0}</Badge>
                     </div>
@@ -321,12 +321,12 @@ export default function KnowledgeHub() {
                           <h4 className="font-bold text-gray-900 leading-tight mb-3 group-hover:text-purple-600 transition-colors">{paper.title}</h4>
                           <div className="flex flex-wrap items-center gap-3 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-3">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-purple-500" /> {paper.year}</span>
-                            <Badge className="bg-purple-100 text-purple-600 border-none text-[8px] h-4">PREPRINT</Badge>
+                            <Badge className="bg-purple-100 text-purple-600 border-none text-[8px] h-4">사전 공개본 (PREPRINT)</Badge>
                           </div>
                           <p className="text-[11px] font-medium text-gray-400 line-clamp-2 leading-relaxed mb-4">{paper.summary}</p>
                           {paper.pdf && (
                             <Button variant="secondary" size="sm" onClick={() => openPDF(paper.pdf)} className="rounded-xl h-8 text-[10px] font-black bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white border-none">
-                              <Download className="w-3 h-3 mr-1" /> DOWNLOAD PDF
+                              <Download className="w-3 h-3 mr-1" /> PDF 다운로드
                             </Button>
                           )}
                         </motion.div>
@@ -351,7 +351,7 @@ export default function KnowledgeHub() {
                     <h3 className="text-lg font-black text-gray-900 mb-2 leading-tight tracking-tight">{guide.title}</h3>
                     <p className="text-xs font-medium text-gray-400 leading-relaxed mb-8 flex-1">{guide.description}</p>
                     <Button className="w-full h-11 rounded-xl bg-gray-50 text-gray-900 hover:bg-gray-900 hover:text-white font-black text-[10px] tracking-widest uppercase transition-all" asChild>
-                      <a href={guide.url} target="_blank" rel="noopener noreferrer">Check Guideline</a>
+                      <a href={guide.url} target="_blank" rel="noopener noreferrer">가이드라인 확인</a>
                     </Button>
                   </CardContent>
                 </Card>
@@ -365,12 +365,12 @@ export default function KnowledgeHub() {
             <CardHeader className="p-8 pb-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                  <CardTitle className="text-xl font-bold">Medical News Stream</CardTitle>
-                  <CardDescription className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Real-time Updates from Medical Journals</CardDescription>
+                  <CardTitle className="text-xl font-bold">의료 뉴스 스트림</CardTitle>
+                  <CardDescription className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">의료 저널 최신의 업데이트</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Search news..."
+                    placeholder="뉴스 검색..."
                     value={newsQuery}
                     onChange={(e) => setNewsQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && searchNews()}
@@ -381,9 +381,9 @@ export default function KnowledgeHub() {
                     onChange={(e) => setNewsType(e.target.value)}
                     className="h-11 px-4 bg-gray-50 rounded-xl border-none text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-blue-600/10 cursor-pointer"
                   >
-                    <option value="all">Global</option>
-                    <option value="domestic">Domestic</option>
-                    <option value="international">Int'l</option>
+                    <option value="all">전체보기</option>
+                    <option value="domestic">국내뉴스</option>
+                    <option value="international">해외뉴스</option>
                   </select>
                   <Button onClick={searchNews} className="h-11 w-11 rounded-xl bg-blue-600 hover:bg-blue-700">
                     <Search className="w-4 h-4" />
@@ -395,7 +395,7 @@ export default function KnowledgeHub() {
               {newsLoading ? (
                 <div className="py-20 flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Fetching latest news</p>
+                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">최신 뉴스 가져오는 중...</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-50">
@@ -415,7 +415,7 @@ export default function KnowledgeHub() {
                         </h4>
                         <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400">
                           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(item.published)}</span>
-                          <span className="flex items-center gap-1 group-hover:text-blue-600 transition-colors cursor-pointer"><Share2 className="w-3 h-3" /> Share</span>
+                          <span className="flex items-center gap-1 group-hover:text-blue-600 transition-colors cursor-pointer"><Share2 className="w-3 h-3" /> 공유</span>
                         </div>
                       </div>
                       <Button variant="ghost" size="icon" className="rounded-xl h-12 w-12 hover:bg-blue-600 hover:text-white transition-colors" asChild>
@@ -444,10 +444,10 @@ export default function KnowledgeHub() {
               <div className="flex items-center justify-between p-8 border-b border-gray-100">
                 <div className="flex items-center gap-4">
                   <div className="bg-red-50 p-2 rounded-xl"><FileText className="w-5 h-5 text-red-600" /></div>
-                  <h3 className="text-xl font-black text-gray-900 tracking-tight">Full Paper Document</h3>
+                  <h3 className="text-xl font-black text-gray-900 tracking-tight">문서 전체 보기</h3>
                 </div>
                 <Button variant="ghost" onClick={closePDF} className="rounded-xl h-11 px-6 font-black text-xs uppercase tracking-widest hover:bg-gray-50">
-                  Close Viewer
+                  닫기
                 </Button>
               </div>
               <div className="flex-1 bg-gray-100">

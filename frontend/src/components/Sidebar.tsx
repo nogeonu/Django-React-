@@ -76,14 +76,14 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="text-xl font-black text-gray-900 leading-none tracking-tight">CDSSentials</h1>
-            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">Medical Platform</p>
+            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">의료 통합 플랫폼</p>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 px-4 py-2 overflow-y-auto">
         <div className="mb-4 px-4">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Main Menu</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">메인 메뉴</p>
           <div className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -126,11 +126,11 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-900 truncate">
-                {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "Guest User"}
+                {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "게스트 사용자"}
               </p>
               <div className="flex flex-col">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  {user?.role === 'medical_staff' ? 'Medical Staff' : user?.role === 'admin_staff' ? 'Admin Staff' : 'Guest'}
+                  {user?.role === 'medical_staff' ? '원격 판독 의료진' : user?.role === 'admin_staff' ? '원무 관리자' : '게스트'}
                 </p>
                 <button
                   onClick={handleLogout}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
   CardContent,
@@ -38,6 +39,11 @@ import {
   Info,
   Search,
   ChevronDown,
+  Stethoscope,
+  Activity,
+  ArrowRight,
+  User,
+  Heart
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
@@ -47,14 +53,7 @@ interface Patient {
   name: string;
   birth_date: string;
   gender: string;
-  phone?: string;
-  address?: string;
-  emergency_contact?: string;
-  blood_type?: string;
   age: number;
-  created_at: string;
-  updated_at: string;
-  hasRespiratoryRecord?: boolean; // 호흡기내과 진료기록 여부
 }
 
 interface PredictionResult {
@@ -96,7 +95,6 @@ export default function LungCancerPrediction() {
   const [patientSearchTerm, setPatientSearchTerm] = useState("");
   const { toast } = useToast();
 
-  // 환자 목록 불러오기 (호흡기내과 환자만)
   useEffect(() => {
     const fetchPatients = async () => {
       setPatientsLoading(true);
@@ -130,12 +128,12 @@ export default function LungCancerPrediction() {
       name: patient.name,
       gender:
         patient.gender === "M" ||
-        patient.gender === "남성" ||
-        patient.gender === "남"
+          patient.gender === "남성" ||
+          patient.gender === "남"
           ? "1"
           : patient.gender === "F" ||
-              patient.gender === "여성" ||
-              patient.gender === "여"
+            patient.gender === "여성" ||
+            patient.gender === "여"
             ? "0"
             : "",
       age: patient.age.toString(),
@@ -144,7 +142,6 @@ export default function LungCancerPrediction() {
     setPatientSearchTerm("");
   };
 
-  // 환자 검색 필터링
   const filteredPatients = patients.filter(
     (patient) =>
       patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
@@ -159,16 +156,15 @@ export default function LungCancerPrediction() {
     setResult(null);
 
     try {
-      // 나이로부터 생년월일 계산 (대략적인 birth_date 생성)
       const age = parseInt(formData.age);
       const birthYear = new Date().getFullYear() - age;
-      const birth_date = `${birthYear}-01-01`; // 대략적인 생년월일
+      const birth_date = `${birthYear}-01-01`;
 
       const response = await apiRequest(
         "POST",
         "/api/lung_cancer/patients/predict/",
         {
-          patient_id: formData.patient_id, // 환자 ID 추가
+          patient_id: formData.patient_id,
           name: formData.name,
           birth_date: birth_date,
           gender: formData.gender === "1" ? "M" : "F",
@@ -190,18 +186,16 @@ export default function LungCancerPrediction() {
       );
 
       setResult(response);
-
       toast({
         title: "예측 완료",
         description: "폐암 예측이 성공적으로 완료되었습니다.",
       });
     } catch (error: any) {
-      console.error("Error:", error);
       const errorMessage =
         error?.response?.data?.error ||
         error?.response?.data?.detail ||
         error?.message ||
-        "예측 중 오류가 발생했습니다. 다시 시도해주세요.";
+        "예측 중 오류가 발생했습니다.";
       toast({
         title: "오류 발생",
         description: errorMessage,
@@ -214,276 +208,316 @@ export default function LungCancerPrediction() {
 
   const getRiskColor = (riskLevel: string) => {
     switch (riskLevel) {
-      case "높음":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "중간":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "낮음":
-        return "bg-green-100 text-green-800 border-green-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
+      case "높음": return "bg-red-50 text-red-600 border-red-100";
+      case "중간": return "bg-amber-50 text-amber-600 border-amber-100";
+      case "낮음": return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      default: return "bg-gray-50 text-gray-500 border-gray-100";
     }
   };
 
-  const getRiskIcon = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "높음":
-        return <AlertTriangle className="h-4 w-4" />;
-      case "중간":
-        return <Info className="h-4 w-4" />;
-      case "낮음":
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return <Info className="h-4 w-4" />;
-    }
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 }
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">폐암 예측 시스템</h1>
-        <p className="text-gray-600 mt-2">
-          환자의 증상과 생활 습관을 입력하여 폐암 위험도를 예측합니다.
-        </p>
+    <motion.div
+      initial="hidden" animate="visible" variants={containerVariants}
+      className="space-y-8"
+    >
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
+              <Stethoscope className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">폐암 예측 시스템</h1>
+          </div>
+          <p className="text-sm font-medium text-gray-400 max-w-2xl">
+            AI 기반 알고리즘을 활용하여 환자의 증상과 생활 습관 데이터를 분석하고 폐암 발병 위험도를 정밀 예측합니다.
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 입력 폼 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>환자 정보 입력</CardTitle>
-            <CardDescription>
-              환자의 기본 정보와 증상을 입력해주세요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">환자명 (선택사항)</Label>
-                  <Popover
-                    open={patientSearchOpen}
-                    onOpenChange={setPatientSearchOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={patientSearchOpen}
-                        className="w-full justify-between"
-                      >
-                        {formData.name || "환자명을 선택하세요"}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <div className="flex items-center border-b px-3">
-                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                          <CommandInput
-                            placeholder="환자명 또는 ID 검색..."
-                            value={patientSearchTerm}
-                            onValueChange={setPatientSearchTerm}
-                            className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                        </div>
-                        <CommandList>
-                          {patientsLoading ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span className="text-sm text-muted-foreground">
-                                환자 목록 불러오는 중...
-                              </span>
-                            </div>
-                          ) : filteredPatients.length > 0 ? (
-                            <CommandGroup>
-                              {filteredPatients.map((patient) => (
-                                <CommandItem
-                                  key={patient.id}
-                                  value={patient.name}
-                                  onSelect={() => handlePatientSelect(patient)}
-                                >
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <span className="text-blue-600 font-semibold text-xs">
-                                          {patient.name.charAt(0)}
-                                        </span>
-                                      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        {/* 입력 폼 - XL에서 7컬럼 차지 */}
+        <motion.div variants={itemVariants} className="xl:col-span-7 space-y-6">
+          <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-100 p-8">
+              <div className="flex items-center gap-2 mb-1">
+                <User className="w-4 h-4 text-blue-600" />
+                <CardTitle className="text-lg font-bold text-gray-900">환자 데이터 입력</CardTitle>
+              </div>
+              <CardDescription className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                정확한 예측을 위해 모든 항목을 검토 후 입력해 주세요.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {/* 기본 정보 섹션 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">대상 환자 선택</Label>
+                    <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full h-12 rounded-2xl bg-gray-50 border-none justify-between font-bold text-sm px-4 focus:ring-2 focus:ring-blue-600/20"
+                        >
+                          {formData.name || "환자를 조회하세요"}
+                          <Search className="ml-2 h-4 w-4 opacity-50 text-blue-600" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0 rounded-2xl border-none shadow-2xl" align="start">
+                        <Command className="rounded-2xl">
+                          <div className="flex items-center border-b border-gray-50 px-3 py-2">
+                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                            <CommandInput
+                              placeholder="이름 또는 ID 입력..."
+                              value={patientSearchTerm}
+                              onValueChange={setPatientSearchTerm}
+                              className="h-10 border-none shadow-none focus-visible:ring-0"
+                            />
+                          </div>
+                          <CommandList className="max-h-[300px] custom-scrollbar">
+                            {patientsLoading ? (
+                              <div className="p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" /></div>
+                            ) : filteredPatients.length > 0 ? (
+                              <CommandGroup>
+                                {filteredPatients.map((p) => (
+                                  <CommandItem
+                                    key={p.id}
+                                    onSelect={() => handlePatientSelect(p)}
+                                    className="p-3 cursor-pointer hover:bg-blue-50/50 rounded-xl m-1"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center font-black text-blue-600 text-xs">{p.name.charAt(0)}</div>
                                       <div>
-                                        <p className="font-medium">
-                                          {patient.name}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">
-                                          {patient.id}
-                                        </p>
+                                        <p className="font-bold text-sm">{p.name}</p>
+                                        <p className="text-[10px] text-gray-400">ID: {p.id}</p>
                                       </div>
                                     </div>
-                                    <div className="text-right">
-                                      <p className="text-sm text-muted-foreground">
-                                        {patient.age}세
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {patient.gender}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          ) : (
-                            <CommandEmpty>검색 결과가 없습니다</CommandEmpty>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label htmlFor="gender">성별 *</Label>
-                  <Select
-                    value={formData.gender}
-                    onValueChange={(value) =>
-                      handleInputChange("gender", value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="성별을 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">남성</SelectItem>
-                      <SelectItem value="0">여성</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="age">나이 *</Label>
-                <Input
-                  id="age"
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => handleInputChange("age", e.target.value)}
-                  placeholder="나이를 입력하세요"
-                  min="0"
-                  max="120"
-                  required
-                />
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold">증상 및 생활 습관</h3>
-
-                {[
-                  { key: "smoking", label: "흡연" },
-                  { key: "yellow_fingers", label: "손가락 변색" },
-                  { key: "anxiety", label: "불안" },
-                  { key: "peer_pressure", label: "또래 압박" },
-                  { key: "chronic_disease", label: "만성 질환" },
-                  { key: "fatigue", label: "피로" },
-                  { key: "allergy", label: "알레르기" },
-                  { key: "wheezing", label: "쌕쌕거림" },
-                  { key: "alcohol_consuming", label: "음주" },
-                  { key: "coughing", label: "기침" },
-                  { key: "shortness_of_breath", label: "호흡 곤란" },
-                  { key: "swallowing_difficulty", label: "삼킴 곤란" },
-                  { key: "chest_pain", label: "가슴 통증" },
-                ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <Label htmlFor={key} className="flex-1">
-                      {label}
-                    </Label>
-                    <Select
-                      value={formData[key as keyof typeof formData]}
-                      onValueChange={(value) => handleInputChange(key, value)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">아니오</SelectItem>
-                        <SelectItem value="2">예</SelectItem>
-                      </SelectContent>
-                    </Select>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            ) : (
+                              <CommandEmpty className="p-4 text-center text-xs font-bold text-gray-400">검색 결과가 없습니다.</CommandEmpty>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                ))}
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    예측 중...
-                  </>
-                ) : (
-                  "폐암 위험도 예측하기"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* 결과 표시 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>예측 결과</CardTitle>
-            <CardDescription>
-              입력된 정보를 바탕으로 한 폐암 위험도 예측 결과입니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {result ? (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="text-4xl font-bold mb-2">
-                    {result.probability}%
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">나이 (시스템 자동계산)</Label>
+                    <Input
+                      type="number"
+                      value={formData.age}
+                      onChange={(e) => handleInputChange("age", e.target.value)}
+                      className="h-12 rounded-2xl bg-gray-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                    />
                   </div>
-                  <Badge
-                    className={`${getRiskColor(result.risk_level)} flex items-center gap-2 w-fit mx-auto`}
-                  >
-                    {getRiskIcon(result.risk_level)}
-                    {result.risk_level} 위험도
-                  </Badge>
                 </div>
 
-                <Alert
-                  className={
-                    result.prediction === "YES"
-                      ? "border-red-200 bg-red-50"
-                      : "border-green-200 bg-green-50"
-                  }
+                {/* 성별 선택 */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">성별</Label>
+                  <div className="flex gap-2">
+                    {["1", "0"].map((v) => (
+                      <Button
+                        key={v}
+                        type="button"
+                        onClick={() => handleInputChange("gender", v)}
+                        className={`flex-1 h-12 rounded-2xl font-black text-xs transition-all ${formData.gender === v
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                            : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                          }`}
+                      >
+                        {v === "1" ? "남성 (Male)" : "여성 (Female)"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 상세 증상 섹션 */}
+                <div className="space-y-4 pt-4 border-t border-gray-50">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Heart className="w-4 h-4 text-red-500" />
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">주요 증상 및 생활 습관</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                    {[
+                      { key: "smoking", label: "흡연 여부" },
+                      { key: "alcohol_consuming", label: "음주 여부" },
+                      { key: "coughing", label: "기침 증상" },
+                      { key: "shortness_of_breath", label: "호흡 곤란" },
+                      { key: "chest_pain", label: "가슴 통증" },
+                      { key: "fatigue", label: "피로감" },
+                      { key: "wheezing", label: "천명 (쌕쌕거림)" },
+                      { key: "swallowing_difficulty", label: "삼킴 곤란" },
+                      { key: "chronic_disease", label: "만성 질환" },
+                      { key: "allergy", label: "알레르기" },
+                      { key: "yellow_fingers", label: "손가락 황색 변색" },
+                      { key: "anxiety", label: "불안감" },
+                      { key: "peer_pressure", label: "주변 압박" },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex items-center justify-between group py-1">
+                        <Label className="text-xs font-bold text-gray-500 group-hover:text-gray-900 transition-colors uppercase tracking-tight">
+                          {label}
+                        </Label>
+                        <Select
+                          value={formData[key as keyof typeof formData]}
+                          onValueChange={(value) => handleInputChange(key, value)}
+                        >
+                          <SelectTrigger className="w-28 h-9 rounded-xl bg-gray-50 border-none font-bold text-[10px] uppercase">
+                            <SelectValue placeholder="선택" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-none shadow-xl">
+                            <SelectItem value="2" className="text-xs font-bold py-2">있음 / YES</SelectItem>
+                            <SelectItem value="1" className="text-xs font-bold py-2">없음 / NO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-14 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-sm shadow-xl shadow-gray-200 transition-all hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  <AlertDescription>
-                    <strong>예측 결과:</strong>{" "}
-                    {result.prediction === "YES" ? "폐암 양성" : "폐암 음성"}
-                  </AlertDescription>
-                </Alert>
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      데이터 분석 중...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      AI 예측 실행하기
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>{result.risk_message}</AlertDescription>
-                </Alert>
+        {/* 결과 표시 - XL에서 5컬럼 차지 */}
+        <motion.div variants={itemVariants} className="xl:col-span-5 h-full">
+          <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden h-full flex flex-col">
+            <CardHeader className="p-8">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-4 h-4 text-purple-600" />
+                <CardTitle className="text-lg font-bold text-gray-900">예측 대시보드</CardTitle>
+              </div>
+              <CardDescription className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                AI 분석 엔진의 최종 판단 결과입니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 flex-1 flex flex-col">
+              <AnimatePresence mode="wait">
+                {result ? (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-8 flex-1 flex flex-col"
+                  >
+                    <div className="bg-gray-50/50 rounded-[2rem] p-10 text-center relative overflow-hidden border border-gray-100">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-600/5 rounded-full -ml-16 -mb-16 blur-3xl"></div>
 
-                <div className="text-sm text-gray-600">
-                  <p>
-                    <strong>환자 ID:</strong> {result.patient_id}
-                  </p>
-                  <p>
-                    <strong>외부 DB 저장:</strong>{" "}
-                    {result.external_db_saved ? "성공" : "실패"}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                <Info className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <p>환자 정보를 입력하고 예측 버튼을 클릭하세요.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">폐암 발병 확률</p>
+                      <div className="relative inline-block">
+                        <span className={`text-7xl font-black tracking-tighter ${result.probability > 70 ? 'text-red-600' : result.probability > 40 ? 'text-amber-500' : 'text-emerald-500'
+                          }`}>
+                          {result.probability}
+                        </span>
+                        <span className="text-xl font-black text-gray-300 ml-1">%</span>
+                      </div>
+
+                      <div className="mt-6">
+                        <Badge
+                          className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest border ${getRiskColor(result.risk_level)}`}
+                        >
+                          {result.risk_level} 위험도군
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className={`p-6 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 ${result.prediction === "YES" ? "bg-red-50 border-red-100" : "bg-emerald-50 border-emerald-100"
+                        }`}>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">최종 판정</p>
+                        <h4 className={`text-xl font-black ${result.prediction === "YES" ? "text-red-600" : "text-emerald-600"}`}>
+                          {result.prediction === "YES" ? "양성 (Positive)" : "음성 (Negative)"}
+                        </h4>
+                      </div>
+                      <div className="p-6 rounded-3xl bg-gray-50 border border-gray-100 flex flex-col items-center justify-center gap-2">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">데이터 정합성</p>
+                        <h4 className="text-xl font-black text-gray-900">
+                          {result.external_db_saved ? "검증됨" : "확인 중"}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50/50 rounded-3xl p-6 border border-blue-100/50 flex-1">
+                      <div className="flex gap-4">
+                        <div className="bg-blue-600 p-2 rounded-xl h-fit">
+                          <Info className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">의료진 가이드라인</p>
+                          <p className="text-sm font-bold text-blue-900/80 leading-relaxed italic">
+                            "{result.risk_message}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-50 space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                        <span>Patient ID</span>
+                        <span className="text-gray-900">{result.patient_id}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="w-full rounded-2xl h-12 text-xs font-black text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                        onClick={() => setResult(null)}
+                      >
+                        결과 초기화 및 재입력
+                      </Button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex-1 flex flex-col items-center justify-center text-center p-12"
+                  >
+                    <div className="w-24 h-24 bg-gray-50 rounded-[2rem] flex items-center justify-center mb-6">
+                      <Activity className="w-10 h-10 text-gray-200" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 mb-2">예측 결과 대기 중</h4>
+                    <p className="text-xs font-medium text-gray-400 leading-relaxed">
+                      좌측 폼에 환자 데이터를 입력하고<br />
+                      예측 버튼을 클릭하면 결과가 여기에 표시됩니다.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

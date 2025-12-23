@@ -253,7 +253,7 @@ export default function MRIViewer() {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
         <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-        <p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest text-xs">Loading Workstation...</p>
+        <p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest text-xs">원격 판독 워크스테이션 로드 중...</p>
       </div>
     );
   }
@@ -267,7 +267,7 @@ export default function MRIViewer() {
             <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
               <Scan className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Image Workstation</h1>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">영상 판독 워크스테이션</h1>
           </div>
           <p className="text-sm font-medium text-gray-400">유방 MRI 3D 분석 및 Orthanc PACS 연동 시스템</p>
         </div>
@@ -284,7 +284,7 @@ export default function MRIViewer() {
           </Button>
           <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl flex items-center gap-2 h-10">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="font-bold text-xs uppercase tracking-widest">Active Analysis</span>
+            <span className="font-bold text-xs uppercase tracking-widest">분석 활성화됨</span>
           </Badge>
         </div>
       </div>
@@ -375,7 +375,7 @@ export default function MRIViewer() {
 
                 <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
                   <div className="flex flex-col">
-                    <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI Segmentation</Label>
+                    <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI 병변 분할 (Segmentation)</Label>
                     <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
                   </div>
                   <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
@@ -430,15 +430,15 @@ export default function MRIViewer() {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-black text-gray-900 tracking-tight">
-                    {showOrthancImages ? "PACS Viewer" : "Analysis Viewer"}
+                    {showOrthancImages ? "PACS 뷰어" : "분석용 뷰어"}
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[9px] font-bold border-gray-100 text-gray-400 uppercase py-0 px-2 h-4">
-                      3D Reconstructed
+                      3D 재구성 완료
                     </Badge>
                     <span className="text-[9px] font-bold text-gray-300">|</span>
                     <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
-                      {showOrthancImages ? "RAW DICOM" : "processed nii"}
+                      {showOrthancImages ? "원본 DICOM" : "처리된 NIfTI"}
                     </span>
                   </div>
                 </div>
@@ -474,7 +474,7 @@ export default function MRIViewer() {
                     >
                       <div className="flex flex-col items-center gap-4">
                         <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                        <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">Synchronizing</span>
+                        <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">데이터 동기화 중</span>
                       </div>
                     </motion.div>
                   ) : null}
@@ -493,7 +493,7 @@ export default function MRIViewer() {
                   ) : (
                     <div className="text-white/20 flex flex-col items-center gap-4">
                       <Info className="w-12 h-12" />
-                      <p className="text-xs font-bold uppercase tracking-widest">No data stream</p>
+                      <p className="text-xs font-bold uppercase tracking-widest">데이터 스트림 없음</p>
                     </div>
                   )}
                 </div>
@@ -522,7 +522,7 @@ export default function MRIViewer() {
                         }
                       }}
                     >
-                      Detail Analysis <ChevronRight className="w-3 h-3 ml-1" />
+                      자세히 보기 <ChevronRight className="w-3 h-3 ml-1" />
                     </Button>
                   </div>
                 )}
@@ -531,7 +531,7 @@ export default function MRIViewer() {
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
                   <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 border border-white/5">
                     <div className="w-1 h-3 rounded-full bg-white animate-bounce"></div>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Wheel to scroll</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">휠을 사용하여 탐색</span>
                   </div>
                 </div>
               </div>
@@ -539,7 +539,7 @@ export default function MRIViewer() {
               {/* Navigation Slider */}
               <div className="px-4 space-y-4">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Navigation</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">워크스페이스 내비게이션</p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
