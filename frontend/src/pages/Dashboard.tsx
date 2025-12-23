@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -59,10 +59,17 @@ export default function Dashboard() {
   const [examinationResult, setExaminationResult] = useState("");
   const [treatmentNote, setTreatmentNote] = useState("");
   const [isCompleting, setIsCompleting] = useState(false);
+  const searchResultRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (searchTerm.trim() && searchResultRef.current) {
+      searchResultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [searchTerm]);
 
   const { data: waitingPatients = [], isLoading } = useQuery({
     queryKey: ["waiting-patients"],
@@ -401,6 +408,7 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 className="overflow-x-auto"
+                ref={searchResultRef}
               >
                 <table className="w-full text-left text-sm">
                   <thead>
