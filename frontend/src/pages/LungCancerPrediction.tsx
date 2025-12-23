@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Command,
@@ -34,11 +33,8 @@ import {
 } from "@/components/ui/popover";
 import {
   Loader2,
-  AlertTriangle,
-  CheckCircle,
   Info,
   Search,
-  ChevronDown,
   Stethoscope,
   Activity,
   ArrowRight,
@@ -334,8 +330,8 @@ export default function LungCancerPrediction() {
                         type="button"
                         onClick={() => handleInputChange("gender", v)}
                         className={`flex-1 h-12 rounded-2xl font-black text-xs transition-all ${formData.gender === v
-                            ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
-                            : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                          : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                           }`}
                       >
                         {v === "1" ? "남성 (Male)" : "여성 (Female)"}
