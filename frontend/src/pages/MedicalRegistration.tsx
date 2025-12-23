@@ -193,6 +193,7 @@ const MedicalRegistration: React.FC = () => {
 
   return (
     <div className="container mx-auto p-6 max-w-4xl min-h-screen bg-gray-50">
+      {/* Page Title */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">진료 접수</h1>
         <p className="text-gray-600">환자를 검색하고 진료과를 선택하여 접수하세요.</p>

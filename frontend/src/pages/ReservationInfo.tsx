@@ -43,7 +43,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { ChevronDown, Loader2, Search, Plus } from "lucide-react";
 
 type DetailEvent = {
   id: string;
@@ -493,13 +493,17 @@ export default function ReservationInfo() {
       <div className="max-w-[1800px] mx-auto space-y-6">
         {/* 상단 헤더 */}
         <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-bold text-gray-800">예약 관리</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">예약 관리</h1>
+            <p className="text-gray-600">예약 일정을 관리하고 확인할 수 있습니다</p>
+          </div>
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg font-semibold rounded-xl shadow-lg"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
             type="button" 
             onClick={() => setOpenCreate(true)}
           >
-            + 예약 등록
+            <Plus className="w-4 h-4 mr-2" />
+            예약 등록
           </Button>
         </div>
 

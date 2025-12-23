@@ -149,26 +149,22 @@ export default function Patients() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">환자 관리</h1>
-              <p className="text-sm text-gray-500">등록된 환자 정보를 관리합니다</p>
-            </div>
-            <Button 
-              data-testid="button-add-patient"
-              onClick={() => setIsRegistrationModalOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              환자 등록
-            </Button>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Title */}
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">환자 관리</h1>
+            <p className="text-gray-600">등록된 환자 정보를 관리합니다</p>
+          </div>
+          <Button 
+            data-testid="button-add-patient"
+            onClick={() => setIsRegistrationModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            환자 등록
+          </Button>
+        </div>
         {/* Search and Filter */}
         <Card className="mb-6">
           <CardContent className="pt-6">
