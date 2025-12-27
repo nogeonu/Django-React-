@@ -31,8 +31,8 @@ import {
   Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 import { getPatientsApi } from "@/lib/api";
-import { Input } from "@/components/ui/input";
 
 
 interface SystemPatient {
@@ -85,6 +85,7 @@ interface PatientDetailInfo {
 const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
@@ -384,40 +385,42 @@ export default function MRIViewer() {
             </Card>
           )}
 
-          {/* Upload Card */}
-          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-900 text-white relative group">
-            <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
-            <CardHeader>
-              <CardTitle className="text-sm font-black flex items-center gap-2 tracking-tight uppercase">
-                <Upload className="h-4 w-4 text-blue-400" />
-                데이터 업로드
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
-                DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
-              </p>
-              <div className="relative">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  className="hidden"
-                  id="file-upload-input"
-                />
-                <Button
-                  className="w-full h-11 rounded-xl bg-white text-gray-900 hover:bg-gray-100 font-black text-xs gap-2"
-                  onClick={() => document.getElementById('file-upload-input')?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  파일 선택 및 업로드
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Upload Card - Only for Radiology department */}
+          {user?.department === "방사선과" && (
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-900 text-white relative group">
+              <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
+              <CardHeader>
+                <CardTitle className="text-sm font-black flex items-center gap-2 tracking-tight uppercase">
+                  <Upload className="h-4 w-4 text-blue-400" />
+                  데이터 업로드
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
+                  DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
+                </p>
+                <div className="relative">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="hidden"
+                    id="file-upload-input"
+                  />
+                  <Button
+                    className="w-full h-11 rounded-xl bg-white text-gray-900 hover:bg-gray-100 font-black text-xs gap-2"
+                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    파일 선택 및 업로드
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Side: Main Viewer (8 cols) */}
