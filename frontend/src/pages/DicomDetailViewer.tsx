@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { Brain, Layers, Box, ScanLine, Activity } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface OrthancImage {
     instance_id: string;
@@ -14,6 +17,10 @@ interface OrthancImage {
 export default function DicomDetailViewer() {
     const { instanceId } = useParams<{ instanceId: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isRadiology = user?.department === '영상의학과';
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisComplete, setAnalysisComplete] = useState(false);
     const [imageUrl, setImageUrl] = useState<string>('');
     const [zoom, setZoom] = useState(100);
     const [loading, setLoading] = useState(true);
@@ -145,6 +152,38 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
+                        {isRadiology && (
+                            <Button
+                                variant={analysisComplete ? "secondary" : "default"}
+                                className={`ml-4 ${analysisComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold border-none`}
+                                onClick={() => {
+                                    setIsAnalyzing(true);
+                                    // Simulate AI analysis delay
+                                    setTimeout(() => {
+                                        setIsAnalyzing(false);
+                                        setAnalysisComplete(true);
+                                    }, 2000);
+                                }}
+                                disabled={isAnalyzing || analysisComplete}
+                            >
+                                {isAnalyzing ? (
+                                    <>
+                                        <Activity className="w-4 h-4 mr-2 animate-spin" />
+                                        AI 분석 중...
+                                    </>
+                                ) : analysisComplete ? (
+                                    <>
+                                        <Brain className="w-4 h-4 mr-2" />
+                                        분석 완료
+                                    </>
+                                ) : (
+                                    <>
+                                        <Brain className="w-4 h-4 mr-2" />
+                                        AI 정밀 분석 실행
+                                    </>
+                                )}
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -157,22 +196,111 @@ export default function DicomDetailViewer() {
 
                 {/* Center - Image Display (Full Width) */}
                 <div className="flex-1 flex flex-col w-full">
-                    <div
-                        id="dicom-image-container"
-                        className="flex-1 bg-black flex items-center justify-center overflow-hidden relative"
-                        onWheel={handleWheel}
-                    >
-                        {loading ? (
-                            <div className="text-gray-400">이미지 로딩 중...</div>
-                        ) : (
-                            <img
-                                src={imageUrl}
-                                alt="DICOM Image"
-                                className="max-w-full max-h-full object-contain transition-transform duration-200"
-                                style={{ transform: `scale(${zoom / 100})` }}
-                            />
-                        )}
-                    </div>
+                    {/* Conditional 4-Split View for Radiology vs Single View for Others */}
+                    {isRadiology ? (
+                        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1 bg-black">
+                            {/* Top-Left: Original DICOM */}
+                            <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
+                                <div className="absolute top-2 left-2 z-10 bg-black/50 px-2 py-1 rounded text-xs text-blue-400 font-bold border border-blue-500/30 flex items-center gap-1">
+                                    <ScanLine className="w-3 h-3" /> Original
+                                </div>
+                                {loading ? (
+                                    <div className="text-gray-500 text-xs">Loading...</div>
+                                ) : (
+                                    <img
+                                        src={imageUrl}
+                                        alt="Original"
+                                        className="max-w-full max-h-full object-contain"
+                                        style={{ transform: `scale(${zoom / 100})` }}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Top-Right: Tumor Segmentation Only */}
+                            <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
+                                <div className="absolute top-2 left-2 z-10 bg-black/50 px-2 py-1 rounded text-xs text-red-400 font-bold border border-red-500/30 flex items-center gap-1">
+                                    <Brain className="w-3 h-3" /> Tumor Seg.
+                                </div>
+                                {analysisComplete ? (
+                                    // Simulated Segmentation View (using filter for demo effect)
+                                    <img
+                                        src={imageUrl}
+                                        alt="Segmentation"
+                                        className="max-w-full max-h-full object-contain opacity-80"
+                                        style={{ filter: 'brightness(0.7) contrast(200%) hue-rotate(90deg)', transform: `scale(${zoom / 100})` }}
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-gray-700 gap-2">
+                                        <Brain className="w-8 h-8 opacity-20" />
+                                        <span className="text-xs">분석 대기 중</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bottom-Left: Overlay */}
+                            <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
+                                <div className="absolute top-2 left-2 z-10 bg-black/50 px-2 py-1 rounded text-xs text-purple-400 font-bold border border-purple-500/30 flex items-center gap-1">
+                                    <Layers className="w-3 h-3" /> Overlay
+                                </div>
+                                {analysisComplete ? (
+                                    <div className="relative w-full h-full flex items-center justify-center">
+                                        <img
+                                            src={imageUrl}
+                                            alt="Base"
+                                            className="absolute inset-0 max-w-full max-h-full object-contain mx-auto"
+                                            style={{ transform: `scale(${zoom / 100})` }}
+                                        />
+                                        {/* Simulated Overlay Layer */}
+                                        <div className="absolute inset-0 bg-red-500/20 mix-blend-overlay max-w-full max-h-full mx-auto" style={{ maskImage: `url(${imageUrl})`, transform: `scale(${zoom / 100})` }}></div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-gray-700 gap-2">
+                                        <Layers className="w-8 h-8 opacity-20" />
+                                        <span className="text-xs">분석 대기 중</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bottom-Right: 3D Visualization */}
+                            <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
+                                <div className="absolute top-2 left-2 z-10 bg-black/50 px-2 py-1 rounded text-xs text-green-400 font-bold border border-green-500/30 flex items-center gap-1">
+                                    <Box className="w-3 h-3" /> 3D Volume
+                                </div>
+                                {analysisComplete ? (
+                                    <motion.div
+                                        initial={{ rotateY: 0 }}
+                                        animate={{ rotateY: 360 }}
+                                        transition={{ repeat: Infinity, duration: 10, ease: "linear" }}
+                                        className="w-32 h-32 border-4 border-green-500/30 rounded-full flex items-center justify-center bg-green-500/10"
+                                    >
+                                        <Box className="w-16 h-16 text-green-500" />
+                                    </motion.div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-gray-700 gap-2">
+                                        <Box className="w-8 h-8 opacity-20" />
+                                        <span className="text-xs">분석 대기 중</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            id="dicom-image-container"
+                            className="flex-1 bg-black flex items-center justify-center overflow-hidden relative"
+                            onWheel={handleWheel}
+                        >
+                            {loading ? (
+                                <div className="text-gray-400">이미지 로딩 중...</div>
+                            ) : (
+                                <img
+                                    src={imageUrl}
+                                    alt="DICOM Image"
+                                    className="max-w-full max-h-full object-contain transition-transform duration-200"
+                                    style={{ transform: `scale(${zoom / 100})` }}
+                                />
+                            )}
+                        </div>
+                    )}
 
                     {/* Bottom Controls */}
                     <div className="bg-gray-800 border-t border-gray-700 px-6 py-4">
