@@ -198,7 +198,7 @@ export default function DicomDetailViewer() {
                 <div className="flex-1 flex flex-col w-full">
                     {/* Conditional 4-Split View for Radiology vs Single View for Others */}
                     {isRadiology ? (
-                        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1 bg-black">
+                        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1 bg-black h-[calc(100vh-140px)] w-full">
                             {/* Top-Left: Original DICOM */}
                             <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
                                 <div className="absolute top-2 left-2 z-10 bg-black/50 px-2 py-1 rounded text-xs text-blue-400 font-bold border border-blue-500/30 flex items-center gap-1">
