@@ -90,13 +90,14 @@ export const WINDOW_LEVEL_PRESETS = {
   CT_ABDOMEN: { windowWidth: 400, windowCenter: 50 },
   CT_LIVER: { windowWidth: 150, windowCenter: 30 },
   
-  // MRI 프리셋
+  // MRI 프리셋 (유방 MRI 최적화)
   MRI_BRAIN: { windowWidth: 600, windowCenter: 300 },
-  MRI_T1: { windowWidth: 400, windowCenter: 200 },
-  MRI_T2: { windowWidth: 800, windowCenter: 400 },
+  MRI_T1: { windowWidth: 1000, windowCenter: 500 },
+  MRI_T2: { windowWidth: 2000, windowCenter: 1000 },
+  MRI_BREAST: { windowWidth: 1500, windowCenter: 750 }, // 유방 MRI 전용
   
-  // 기본
-  DEFAULT: { windowWidth: 256, windowCenter: 128 },
+  // 기본 (16비트 DICOM용)
+  DEFAULT: { windowWidth: 4096, windowCenter: 2048 },
 };
 
 /**

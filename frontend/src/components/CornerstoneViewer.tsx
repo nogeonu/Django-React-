@@ -122,16 +122,38 @@ export default function CornerstoneViewer({
           // @ts-ignore - Stack viewport specific method
           await viewport.setStack(imageIds, currentIndex);
           
-          // 윈도우 레벨 설정 (Photometric Interpretation은 자동 처리됨)
-          // @ts-ignore - setProperties exists but types are incomplete
-          viewport.setProperties({
-            voiRange: {
-              lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
-              upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
-            },
-          });
-
+          // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
           viewport.render();
+          
+          // DICOM 메타데이터에서 Window/Level 가져오기
+          try {
+            // @ts-ignore
+            const image = viewport.getImageData();
+            if (image) {
+              // DICOM의 Window Width/Center 사용 (없으면 자동 계산)
+              const dicomWindowWidth = image.windowWidth?.[0];
+              const dicomWindowCenter = image.windowCenter?.[0];
+              
+              if (dicomWindowWidth && dicomWindowCenter) {
+                console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
+                setWindowLevel({
+                  windowWidth: dicomWindowWidth,
+                  windowCenter: dicomWindowCenter,
+                });
+                
+                // @ts-ignore
+                viewport.setProperties({
+                  voiRange: {
+                    lower: dicomWindowCenter - dicomWindowWidth / 2,
+                    upper: dicomWindowCenter + dicomWindowWidth / 2,
+                  },
+                });
+                viewport.render();
+              }
+            }
+          } catch (e) {
+            console.warn('Could not read DICOM Window/Level, using defaults', e);
+          }
         }
 
         // 도구 그룹 설정
@@ -327,26 +349,34 @@ export default function CornerstoneViewer({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BRAIN)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BREAST)}
             className="h-8 text-xs"
           >
-            뇌
+            유방
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.CT_LUNG)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T1)}
             className="h-8 text-xs"
           >
-            폐
+            T1
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.CT_BONE)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T2)}
             className="h-8 text-xs"
           >
-            뼈
+            T2
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.DEFAULT)}
+            className="h-8 text-xs"
+          >
+            기본
           </Button>
         </div>
       </div>
