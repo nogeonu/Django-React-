@@ -80,3 +80,4 @@ echo "   4. 로그 확인: sudo journalctl -u breast-ai-service -f"
 
 
 
+
