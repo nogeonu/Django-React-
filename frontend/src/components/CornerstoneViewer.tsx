@@ -49,7 +49,10 @@ export default function CornerstoneViewer({
   const [activeTool, setActiveTool] = useState<string>('WindowLevel');
   const [windowLevel, setWindowLevel] = useState(WINDOW_LEVEL_PRESETS.DEFAULT);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
-  const toolGroupIdRef = useRef<string>('DICOM_TOOL_GROUP');
+  // 고유한 ID 생성 (컴포넌트마다 다른 ID 사용)
+  const renderingEngineIdRef = useRef<string>(`renderingEngine_${Date.now()}_${Math.random()}`);
+  const viewportIdRef = useRef<string>(`viewport_${Date.now()}_${Math.random()}`);
+  const toolGroupIdRef = useRef<string>(`toolGroup_${Date.now()}_${Math.random()}`);
 
   // Cornerstone 초기화
   useEffect(() => {
@@ -86,12 +89,28 @@ export default function CornerstoneViewer({
     const setupViewport = async () => {
       try {
         const element = viewportRef.current!;
-        const renderingEngineId = 'myRenderingEngine';
-        const viewportId = 'CT_STACK';
+        const renderingEngineId = renderingEngineIdRef.current;
+        const viewportId = viewportIdRef.current;
 
         // 기존 렌더링 엔진 정리
         if (renderingEngineRef.current) {
-          renderingEngineRef.current.destroy();
+          try {
+            renderingEngineRef.current.destroy();
+          } catch (e) {
+            console.warn('Error destroying previous rendering engine:', e);
+          }
+          renderingEngineRef.current = null;
+        }
+
+        // 기존 도구 그룹 정리
+        const existingToolGroup = ToolGroupManager.getToolGroup(toolGroupIdRef.current);
+        if (existingToolGroup) {
+          try {
+            // @ts-ignore
+            existingToolGroup.destroy();
+          } catch (e) {
+            console.warn('Error destroying previous tool group:', e);
+          }
         }
 
         // 렌더링 엔진 생성
@@ -165,9 +184,26 @@ export default function CornerstoneViewer({
 
     setupViewport();
 
+    // 클린업 함수: 컴포넌트 언마운트 시 완전히 정리
     return () => {
+      // 도구 그룹 정리
+      const toolGroup = ToolGroupManager.getToolGroup(toolGroupIdRef.current);
+      if (toolGroup) {
+        try {
+          // @ts-ignore
+          toolGroup.destroy();
+        } catch (e) {
+          console.warn('Error destroying tool group on cleanup:', e);
+        }
+      }
+
+      // 렌더링 엔진 정리
       if (renderingEngineRef.current) {
-        renderingEngineRef.current.destroy();
+        try {
+          renderingEngineRef.current.destroy();
+        } catch (e) {
+          console.warn('Error destroying rendering engine on cleanup:', e);
+        }
         renderingEngineRef.current = null;
       }
     };
@@ -178,7 +214,7 @@ export default function CornerstoneViewer({
     if (!renderingEngineRef.current) return;
 
     try {
-      const viewport = renderingEngineRef.current.getViewport('CT_STACK');
+      const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
       if (viewport) {
         // @ts-ignore
         viewport.setImageIdIndex(currentIndex);
@@ -194,7 +230,7 @@ export default function CornerstoneViewer({
     if (!renderingEngineRef.current) return;
 
     try {
-      const viewport = renderingEngineRef.current.getViewport('CT_STACK');
+      const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
       if (viewport) {
         // @ts-ignore - setProperties exists but types are incomplete
         viewport.setProperties({
@@ -213,14 +249,7 @@ export default function CornerstoneViewer({
   // 도구 설정
   const setupTools = (viewportId: string) => {
     try {
-      // 기존 도구 그룹 제거
-      const existingToolGroup = ToolGroupManager.getToolGroup(toolGroupIdRef.current);
-      if (existingToolGroup) {
-        // @ts-ignore - destroy exists but types are incomplete
-        existingToolGroup.destroy();
-      }
-
-      // 새 도구 그룹 생성
+      // 새 도구 그룹 생성 (이미 위에서 정리했으므로 바로 생성)
       const toolGroup = ToolGroupManager.createToolGroup(toolGroupIdRef.current);
 
       if (toolGroup) {

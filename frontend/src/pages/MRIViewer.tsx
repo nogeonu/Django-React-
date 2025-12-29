@@ -495,11 +495,13 @@ export default function MRIViewer() {
                 <div className="flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner">
                   {showMPRView ? (
                     <CornerstoneMPRViewer
+                      key={`mpr-${selectedPatient}-${orthancImages.length}`}
                       instanceIds={orthancImages.map(img => img.instance_id)}
                       onClose={() => setShowMPRView(false)}
                     />
                   ) : (
                     <CornerstoneViewer
+                      key={`cornerstone-${selectedPatient}-${orthancImages.length}`}
                       instanceIds={orthancImages.map(img => img.instance_id)}
                       currentIndex={selectedImage}
                       onIndexChange={setSelectedImage}

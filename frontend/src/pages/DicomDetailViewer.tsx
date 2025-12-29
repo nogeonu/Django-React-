@@ -217,6 +217,7 @@ export default function DicomDetailViewer() {
                     {useCornerstoneViewer && instanceIds.length > 0 ? (
                         <div className="flex-1 bg-gray-900">
                             <CornerstoneViewer
+                                key={`cornerstone-${instanceId}-${instanceIds.length}`}
                                 instanceIds={instanceIds}
                                 currentIndex={currentIndex}
                                 onIndexChange={(index) => {
