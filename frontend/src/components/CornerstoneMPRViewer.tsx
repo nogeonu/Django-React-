@@ -260,26 +260,34 @@ export default function CornerstoneMPRViewer({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BRAIN)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BREAST)}
             className="h-8 text-xs"
           >
-            뇌
+            유방
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.CT_LUNG)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T1)}
             className="h-8 text-xs"
           >
-            폐
+            T1
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.CT_BONE)}
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T2)}
             className="h-8 text-xs"
           >
-            뼈
+            T2
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.DEFAULT)}
+            className="h-8 text-xs"
+          >
+            기본
           </Button>
         </div>
         <div className="ml-auto flex items-center gap-2">
