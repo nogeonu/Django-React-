@@ -253,43 +253,6 @@ export default function CornerstoneMPRViewer({
         <Badge variant="outline" className="text-white border-gray-600">
           4분할 MPR 뷰
         </Badge>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-white border-gray-600">
-            프리셋
-          </Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BREAST)}
-            className="h-8 text-xs"
-          >
-            유방
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T1)}
-            className="h-8 text-xs"
-          >
-            T1
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T2)}
-            className="h-8 text-xs"
-          >
-            T2
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.DEFAULT)}
-            className="h-8 text-xs"
-          >
-            기본
-          </Button>
-        </div>
         <div className="ml-auto flex items-center gap-2">
           <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none">
             W: {windowLevel.windowWidth} / L: {windowLevel.windowCenter}

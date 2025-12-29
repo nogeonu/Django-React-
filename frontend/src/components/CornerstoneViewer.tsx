@@ -329,7 +329,11 @@ export default function CornerstoneViewer({
           size="sm"
           variant={activeTool === WindowLevelTool.toolName ? 'default' : 'outline'}
           onClick={() => handleToolChange(WindowLevelTool.toolName)}
-          className={`h-9 transition-all ${activeTool === WindowLevelTool.toolName ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+          className={`h-9 transition-all ${
+            activeTool === WindowLevelTool.toolName 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+          }`}
         >
           <Sun className="w-4 h-4 mr-1" />
           윈도우/레벨
@@ -339,7 +343,11 @@ export default function CornerstoneViewer({
           size="sm"
           variant={activeTool === LengthTool.toolName ? 'default' : 'outline'}
           onClick={() => handleToolChange(LengthTool.toolName)}
-          className={`h-9 transition-all ${activeTool === LengthTool.toolName ? 'bg-green-600 hover:bg-green-700' : ''}`}
+          className={`h-9 transition-all ${
+            activeTool === LengthTool.toolName 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+          }`}
         >
           <Ruler className="w-4 h-4 mr-1" />
           거리 측정
@@ -348,7 +356,11 @@ export default function CornerstoneViewer({
           size="sm"
           variant={activeTool === RectangleROITool.toolName ? 'default' : 'outline'}
           onClick={() => handleToolChange(RectangleROITool.toolName)}
-          className={`h-9 transition-all ${activeTool === RectangleROITool.toolName ? 'bg-green-600 hover:bg-green-700' : ''}`}
+          className={`h-9 transition-all ${
+            activeTool === RectangleROITool.toolName 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+          }`}
         >
           <Square className="w-4 h-4 mr-1" />
           사각형 ROI
@@ -357,7 +369,11 @@ export default function CornerstoneViewer({
           size="sm"
           variant={activeTool === EllipticalROITool.toolName ? 'default' : 'outline'}
           onClick={() => handleToolChange(EllipticalROITool.toolName)}
-          className={`h-9 transition-all ${activeTool === EllipticalROITool.toolName ? 'bg-green-600 hover:bg-green-700' : ''}`}
+          className={`h-9 transition-all ${
+            activeTool === EllipticalROITool.toolName 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+          }`}
         >
           <Circle className="w-4 h-4 mr-1" />
           타원 ROI
@@ -366,49 +382,15 @@ export default function CornerstoneViewer({
           size="sm"
           variant={activeTool === ProbeTool.toolName ? 'default' : 'outline'}
           onClick={() => handleToolChange(ProbeTool.toolName)}
-          className={`h-9 transition-all ${activeTool === ProbeTool.toolName ? 'bg-green-600 hover:bg-green-700' : ''}`}
+          className={`h-9 transition-all ${
+            activeTool === ProbeTool.toolName 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+          }`}
         >
           <MousePointer2 className="w-4 h-4 mr-1" />
           픽셀 값
         </Button>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Badge variant="outline" className="text-white border-gray-600">
-            프리셋
-          </Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_BREAST)}
-            className="h-8 text-xs"
-          >
-            유방
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T1)}
-            className="h-8 text-xs"
-          >
-            T1
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.MRI_T2)}
-            className="h-8 text-xs"
-          >
-            T2
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => applyPreset(WINDOW_LEVEL_PRESETS.DEFAULT)}
-            className="h-8 text-xs"
-          >
-            기본
-          </Button>
-        </div>
       </div>
 
       {/* 뷰포트 */}
