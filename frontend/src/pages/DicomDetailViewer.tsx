@@ -20,7 +20,7 @@ export default function DicomDetailViewer() {
     const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [zoom, setZoom] = useState(100);
     const [allImages, setAllImages] = useState<OrthancImage[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
@@ -34,11 +34,6 @@ export default function DicomDetailViewer() {
 
     const loadImage = async () => {
         try {
-            setLoading(true);
-            // Get the image preview URL
-            const url = `/api/mri/orthanc/instances/${instanceId}/preview/`;
-            setImageUrl(url);
-
             // Try to get patient context from session storage
             const patientId = sessionStorage.getItem('currentPatientId');
             console.log('Loading patient data for:', patientId);
@@ -68,8 +63,6 @@ export default function DicomDetailViewer() {
             }
         } catch (error) {
             console.error('Failed to load image:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -110,18 +103,6 @@ export default function DicomDetailViewer() {
         }
     };
 
-    const handleWheel = (e: React.WheelEvent) => {
-        e.preventDefault();
-        if (allImages.length === 0) return;
-
-        const delta = e.deltaY > 0 ? 1 : -1;
-        const newIndex = Math.max(0, Math.min(allImages.length - 1, currentIndex + delta));
-
-        if (newIndex !== currentIndex) {
-            const newImage = allImages[newIndex];
-            navigate(`/dicom-viewer/${newImage.instance_id}`);
-        }
-    };
 
     return (
         <div className="min-h-screen bg-gray-900 text-white">
