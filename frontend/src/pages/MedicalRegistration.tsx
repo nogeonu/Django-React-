@@ -8,7 +8,8 @@ import { Search, User, Stethoscope } from "lucide-react";
 import { apiRequest, getDoctorsApi } from "@/lib/api";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;

@@ -45,7 +45,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;

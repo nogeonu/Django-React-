@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/api";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;

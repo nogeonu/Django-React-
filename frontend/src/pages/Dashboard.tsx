@@ -26,7 +26,8 @@ import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;
