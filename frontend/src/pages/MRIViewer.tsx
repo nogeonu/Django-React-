@@ -216,6 +216,22 @@ export default function MRIViewer() {
     }
   };
 
+  const handleDetailView = () => {
+    if (orthancImages.length > 0 && orthancImages[selectedImage]) {
+      const instanceId = orthancImages[selectedImage].instance_id;
+      // 환자 정보를 세션 스토리지에 저장
+      if (selectedPatient) {
+        sessionStorage.setItem('currentPatientId', selectedPatient);
+        const patient = systemPatients.find(p => p.patient_id === selectedPatient);
+        if (patient) {
+          sessionStorage.setItem('currentPatientName', patient.name);
+        }
+      }
+      // 상세 뷰어로 이동
+      navigate(`/dicom-viewer/${instanceId}`);
+    }
+  };
+
   const handleOrthancWheel = (e: React.WheelEvent) => {
     if (orthancImages.length === 0) return;
     const delta = e.deltaY > 0 ? 1 : -1;
@@ -477,16 +493,28 @@ export default function MRIViewer() {
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
                 {showOrthancImages && orthancImages.length > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="rounded-xl h-10 px-3 hover:bg-gray-50"
-                    onClick={() => setShowMPRView(!showMPRView)}
-                    title={showMPRView ? "단일 뷰로 전환" : "4분할 MPR 뷰로 전환"}
-                  >
-                    <Grid3x3 className={`w-4 h-4 mr-1 ${showMPRView ? 'text-green-600' : 'text-gray-400'}`} />
-                    {showMPRView ? 'MPR' : '단일'}
-                  </Button>
+                  <>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="rounded-xl h-10 px-3 hover:bg-gray-50"
+                      onClick={() => setShowMPRView(!showMPRView)}
+                      title={showMPRView ? "단일 뷰로 전환" : "4분할 MPR 뷰로 전환"}
+                    >
+                      <Grid3x3 className={`w-4 h-4 mr-1 ${showMPRView ? 'text-green-600' : 'text-gray-400'}`} />
+                      {showMPRView ? 'MPR' : '단일'}
+                    </Button>
+                    <Button 
+                      variant="default"
+                      size="sm"
+                      className="rounded-xl h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                      onClick={handleDetailView}
+                      title="자세히 보기"
+                    >
+                      <Maximize2 className="w-4 h-4 mr-2" />
+                      자세히 보기
+                    </Button>
+                  </>
                 )}
                 <Button 
                   variant="ghost" 
