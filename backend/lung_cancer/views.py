@@ -81,8 +81,9 @@ class PatientViewSet(viewsets.ModelViewSet):
                 lung_records.delete()
                 print(f"3. LungRecord 삭제: {lung_record_count}개")
                 
-                # 4. MedicalRecord 삭제
-                medical_records = MedicalRecord.objects.filter(patient_id=patient_identifier)
+                # 4. MedicalRecord 삭제 (lung_cancer 앱의 MedicalRecord)
+                from lung_cancer.models import MedicalRecord as LungMedicalRecord
+                medical_records = LungMedicalRecord.objects.filter(patient_id=patient_identifier)
                 medical_record_count = medical_records.count()
                 medical_records.delete()
                 print(f"4. MedicalRecord 삭제: {medical_record_count}개")
