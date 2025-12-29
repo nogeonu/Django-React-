@@ -277,6 +277,21 @@ def orthanc_instance_preview(request, instance_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+def orthanc_instance_file(request, instance_id):
+    """Instance DICOM 파일 다운로드 (Cornerstone3D용)"""
+    try:
+        client = OrthancClient()
+        dicom_data = client.get_instance_file(instance_id)
+        return HttpResponse(dicom_data, content_type='application/dicom')
+    except Exception as e:
+        logger.error(f"Failed to get DICOM file for instance {instance_id}: {e}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def orthanc_upload_dicom(request):
