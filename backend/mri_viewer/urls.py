@@ -18,5 +18,9 @@ urlpatterns = [
     path('orthanc/instances/<str:instance_id>/file', orthanc_views.orthanc_instance_file, name='orthanc-instance-file'),
     path('orthanc/upload/', csrf_exempt(orthanc_views.orthanc_upload_dicom), name='orthanc-upload'),
     path('orthanc/patients/<str:patient_id>/delete/', orthanc_views.orthanc_delete_patient, name='orthanc-delete-patient'),
+    
+    # AI Segmentation API (향후 모델 통합)
+    path('orthanc/patients/<str:patient_id>/segmentation/', orthanc_views.orthanc_segmentation, name='orthanc-segmentation'),
+    path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
 ]
 

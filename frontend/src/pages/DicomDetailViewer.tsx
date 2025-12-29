@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity, Grid3x3 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import CornerstoneViewer from '@/components/CornerstoneViewer';
+import SurgicalQuadView from '@/components/SurgicalQuadView';
 
 interface OrthancImage {
     instance_id: string;
@@ -18,8 +19,10 @@ export default function DicomDetailViewer() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
+    const isSurgeon = user?.department === '외과'; // 외과 의사
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
+    const [showQuadView, setShowQuadView] = useState(false); // 4분할 뷰 토글
     const [zoom, setZoom] = useState(100);
     const [allImages, setAllImages] = useState<OrthancImage[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -141,6 +144,17 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
+                        {/* 외과 의사 전용 4분할 뷰 버튼 */}
+                        {isSurgeon && (
+                            <Button
+                                variant={showQuadView ? "secondary" : "outline"}
+                                className={`ml-4 ${showQuadView ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
+                                onClick={() => setShowQuadView(!showQuadView)}
+                            >
+                                <Grid3x3 className="w-4 h-4 mr-2" />
+                                {showQuadView ? '단일 뷰' : '4분할 뷰'}
+                            </Button>
+                        )}
                         {!isRadiologyTech && (
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
@@ -185,21 +199,35 @@ export default function DicomDetailViewer() {
 
                 {/* Center - Image Display (Full Width) */}
                 <div className="flex-1 flex flex-col w-full" id="dicom-viewer-container">
-                    {/* Cornerstone3D 뷰어 */}
+                    {/* 외과 의사 4분할 뷰 또는 일반 뷰어 */}
                     {instanceIds.length > 0 && (
                         <div className="flex-1 bg-gray-900">
-                            <CornerstoneViewer
-                                key={`cornerstone-${instanceId}-${instanceIds.length}`}
-                                instanceIds={instanceIds}
-                                currentIndex={currentIndex}
-                                onIndexChange={(index) => {
-                                    setCurrentIndex(index);
-                                    if (allImages[index]) {
-                                        navigate(`/dicom-viewer/${allImages[index].instance_id}`);
-                                    }
-                                }}
-                                showMeasurementTools={!isRadiologyTech}
-                            />
+                            {showQuadView && isSurgeon ? (
+                                <SurgicalQuadView
+                                    instanceIds={instanceIds}
+                                    currentIndex={currentIndex}
+                                    patientId={patientInfo?.patient_id || ''}
+                                    onIndexChange={(index) => {
+                                        setCurrentIndex(index);
+                                        if (allImages[index]) {
+                                            navigate(`/dicom-viewer/${allImages[index].instance_id}`);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <CornerstoneViewer
+                                    key={`cornerstone-${instanceId}-${instanceIds.length}`}
+                                    instanceIds={instanceIds}
+                                    currentIndex={currentIndex}
+                                    onIndexChange={(index) => {
+                                        setCurrentIndex(index);
+                                        if (allImages[index]) {
+                                            navigate(`/dicom-viewer/${allImages[index].instance_id}`);
+                                        }
+                                    }}
+                                    showMeasurementTools={!isRadiologyTech}
+                                />
+                            )}
                         </div>
                     )}
 

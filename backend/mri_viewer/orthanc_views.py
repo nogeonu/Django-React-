@@ -489,3 +489,79 @@ def orthanc_delete_patient(request, patient_id):
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['GET'])
+def orthanc_segmentation(request, patient_id):
+    """
+    환자의 세그멘테이션 데이터 조회
+    향후 AI 모델 연동 시 실제 세그멘테이션 결과 반환
+    """
+    try:
+        # TODO: 실제 AI 모델 세그멘테이션 로직 추가
+        # 현재는 세그멘테이션 준비 상태만 반환
+        client = OrthancClient()
+        patient = client.find_patient_by_patient_id(patient_id)
+        
+        if not patient:
+            return Response({
+                'success': False,
+                'error': 'Patient not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # 세그멘테이션 데이터 준비 중 (추후 실제 데이터로 대체)
+        return Response({
+            'success': True,
+            'patient_id': patient_id,
+            'segmentation_available': False,  # 실제 모델 연동 후 True로 변경
+            'message': 'AI 세그멘테이션 모델 준비 중입니다.',
+            'segmentation_data': None  # 실제 세그멘테이션 결과가 들어갈 위치
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def orthanc_run_segmentation(request, patient_id):
+    """
+    환자의 DICOM 이미지에 대해 AI 세그멘테이션 실행
+    향후 실제 AI 모델 통합 예정
+    """
+    try:
+        client = OrthancClient()
+        patient = client.find_patient_by_patient_id(patient_id)
+        
+        if not patient:
+            return Response({
+                'success': False,
+                'error': 'Patient not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # TODO: 실제 AI 모델 세그멘테이션 실행 로직
+        # 1. Orthanc에서 DICOM 이미지 가져오기
+        # 2. AI 모델에 전달하여 세그멘테이션 실행
+        # 3. 결과를 Orthanc에 저장 또는 별도 저장소에 저장
+        # 4. 세그멘테이션 결과 메타데이터 반환
+        
+        import time
+        time.sleep(2)  # 시뮬레이션 지연
+        
+        return Response({
+            'success': True,
+            'patient_id': patient_id,
+            'segmentation_complete': True,
+            'message': 'AI 세그멘테이션이 완료되었습니다. (시뮬레이션)',
+            'result': {
+                'tumor_detected': True,
+                'tumor_volume_mm3': 1234.56,
+                'confidence': 0.92
+            }
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
