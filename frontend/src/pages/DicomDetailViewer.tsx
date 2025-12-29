@@ -221,6 +221,7 @@ export default function DicomDetailViewer() {
                                         navigate(`/dicom-viewer/${allImages[index].instance_id}`);
                                     }
                                 }}
+                                showMeasurementTools={!isRadiology}
                             />
                         </div>
                     ) : isRadiology ? (

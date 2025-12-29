@@ -90,6 +90,7 @@ const API_BASE_URL = "/api/mri";
 export default function MRIViewer() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isRadiology = user?.department === '영상의학과';
 
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
@@ -520,6 +521,7 @@ export default function MRIViewer() {
                       instanceIds={orthancImages.map(img => img.instance_id)}
                       currentIndex={selectedImage}
                       onIndexChange={setSelectedImage}
+                      showMeasurementTools={!isRadiology}
                     />
                   )}
                 </div>
