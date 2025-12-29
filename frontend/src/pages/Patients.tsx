@@ -26,7 +26,8 @@ import { apiRequest } from "@/lib/api";
 import PatientRegistrationModal from "@/components/PatientRegistrationModal";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;
@@ -91,14 +92,15 @@ export default function Patients() {
     if (!deletingPatient) return;
 
     try {
-      await apiRequest("DELETE", `/api/lung_cancer/patients/${deletingPatient.id}/`);
+      // patient_id를 사용하여 삭제 (lookup_field가 patient_id로 설정됨)
+      await apiRequest("DELETE", `/api/lung_cancer/patients/${deletingPatient.patient_id}/`);
       alert("환자가 성공적으로 삭제되었습니다.");
       refetch(); // 환자 목록 새로고침
       setIsDeleteModalOpen(false);
       setDeletingPatient(null);
     } catch (error: any) {
       console.error("환자 삭제 오류:", error);
-      alert(`환자 삭제 중 오류가 발생했습니다: ${error.response?.data?.error || error.message}`);
+      alert(`환자 삭제 중 오류가 발생했습니다: ${error.response?.data?.detail || error.response?.data?.error || error.message}`);
     }
   };
 
@@ -113,7 +115,7 @@ export default function Patients() {
     setIsLoadingRecords(true);
     
     try {
-      const response = await apiRequest('GET', `/api/lung_cancer/patients/${patient.id}/medical_records/`);
+      const response = await apiRequest('GET', `/api/lung_cancer/patients/${patient.patient_id}/medical_records/`);
       setMedicalRecords(response.medical_records || []);
     } catch (error: any) {
       console.error('진료 기록 조회 오류:', error);
@@ -132,7 +134,7 @@ export default function Patients() {
 
   const filteredPatients = (patients as Patient[]).filter((patient: Patient) =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.id.toLowerCase().includes(searchTerm.toLowerCase())
+    patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const formatDate = (dateString: string | Date | null) => {
@@ -246,7 +248,7 @@ export default function Patients() {
                   </TableHeader>
                   <TableBody>
                     {filteredPatients.map((patient: Patient) => (
-                      <TableRow key={patient.id} className="hover:bg-gray-50">
+                      <TableRow key={patient.patient_id} className="hover:bg-gray-50">
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -255,11 +257,11 @@ export default function Patients() {
                               </span>
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900" data-testid={`text-patient-name-${patient.id}`}>
+                              <p className="font-medium text-gray-900" data-testid={`text-patient-name-${patient.patient_id}`}>
                                 {patient.name}
                               </p>
-                              <p className="text-sm text-gray-500" data-testid={`text-patient-number-${patient.id}`}>
-                                {patient.id}
+                              <p className="text-sm text-gray-500" data-testid={`text-patient-number-${patient.patient_id}`}>
+                                {patient.patient_id}
                               </p>
                             </div>
                           </div>
@@ -292,7 +294,7 @@ export default function Patients() {
                               size="sm" 
                               variant="outline"
                               onClick={() => handleViewDetails(patient)}
-                              data-testid={`button-view-patient-${patient.id}`}
+                              data-testid={`button-view-patient-${patient.patient_id}`}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -303,21 +305,21 @@ export default function Patients() {
                                 setEditingPatient(patient);
                                 setIsEditModalOpen(true);
                               }}
-                              data-testid={`button-edit-patient-${patient.id}`}
+                              data-testid={`button-edit-patient-${patient.patient_id}`}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
                             <Button 
                               size="sm" 
                               variant="outline"
-                              data-testid={`button-exams-patient-${patient.id}`}
+                              data-testid={`button-exams-patient-${patient.patient_id}`}
                             >
                               <Calendar className="w-4 h-4" />
                             </Button>
                             <Button 
                               size="sm" 
                               variant="outline"
-                              data-testid={`button-images-patient-${patient.id}`}
+                              data-testid={`button-images-patient-${patient.patient_id}`}
                             >
                               <FileImage className="w-4 h-4" />
                             </Button>
@@ -325,7 +327,7 @@ export default function Patients() {
                               size="sm" 
                               variant="outline"
                               onClick={() => handleDeleteClick(patient)}
-                              data-testid={`button-delete-patient-${patient.id}`}
+                              data-testid={`button-delete-patient-${patient.patient_id}`}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />

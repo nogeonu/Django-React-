@@ -56,44 +56,50 @@ class PatientViewSet(viewsets.ModelViewSet):
         """환자 삭제 시 관련 데이터도 함께 삭제"""
         from django.db import transaction
         
+        patient_identifier = instance.patient_id
+        print(f"=== 환자 삭제 시작: {patient_identifier} (ID: {instance.id}) ===")
+        
         try:
-            patient_identifier = instance.patient_id
-            print(f"환자 {patient_identifier} 삭제 시작...")
-            
             with transaction.atomic():
-                # hospital_db 데이터베이스 연결 사용
-                with connections['default'].cursor() as cursor:
-                    # 1. LungResult 삭제 (서브쿼리 사용)
-                    cursor.execute("""
-                        DELETE FROM lung_result 
-                        WHERE lung_record_id IN (
-                            SELECT id FROM lung_record WHERE patient_id = %s
-                        )
-                    """, [patient_identifier])
-                    print(f"LungResult 삭제: {cursor.rowcount}개")
-                    
-                    # 2. LungRecord 삭제
-                    cursor.execute("""
-                        DELETE FROM lung_record WHERE patient_id = %s
-                    """, [patient_identifier])
-                    print(f"LungRecord 삭제: {cursor.rowcount}개")
-
-                    # 3. MedicalRecord 삭제
-                    cursor.execute(
-                        "DELETE FROM medical_record WHERE patient_id = %s",
-                        [patient_identifier],
-                    )
-                    print(f"MedicalRecord 삭제: {cursor.rowcount}개")
+                # Django ORM을 사용한 안전한 삭제
                 
-                # 4. 실제 환자 데이터 삭제
+                # 1. LungRecord 조회
+                lung_records = LungRecord.objects.filter(patient_id=patient_identifier)
+                lung_record_count = lung_records.count()
+                print(f"1. LungRecord 찾음: {lung_record_count}개")
+                
+                # 2. LungResult 삭제 (LungRecord와 연결된)
+                lung_result_count = 0
+                for lung_record in lung_records:
+                    results = LungResult.objects.filter(lung_record=lung_record)
+                    result_count = results.count()
+                    lung_result_count += result_count
+                    results.delete()
+                print(f"2. LungResult 삭제: {lung_result_count}개")
+                
+                # 3. LungRecord 삭제
+                lung_records.delete()
+                print(f"3. LungRecord 삭제: {lung_record_count}개")
+                
+                # 4. MedicalRecord 삭제
+                medical_records = MedicalRecord.objects.filter(patient_id=patient_identifier)
+                medical_record_count = medical_records.count()
+                medical_records.delete()
+                print(f"4. MedicalRecord 삭제: {medical_record_count}개")
+                
+                # 5. 실제 환자 데이터 삭제
                 instance.delete()
-                print(f"환자 {patient_identifier} 삭제 완료")
+                print(f"5. Patient 삭제 완료: {patient_identifier}")
+                print(f"=== 환자 삭제 완료 ===")
 
         except Exception as e:
-            print(f"환자 삭제 중 오류: {e}")
+            error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
+            print(error_msg)
             import traceback
             traceback.print_exc()
-            raise  # 에러를 다시 발생시켜 클라이언트에 전달
+            # 에러를 다시 발생시켜 클라이언트에 전달
+            from rest_framework.exceptions import APIException
+            raise APIException(detail=error_msg)
     
     @action(detail=False, methods=['post'])
     def register(self, request):
