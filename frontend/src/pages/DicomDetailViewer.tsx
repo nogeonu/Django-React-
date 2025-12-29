@@ -19,7 +19,7 @@ export default function DicomDetailViewer() {
     const { instanceId } = useParams<{ instanceId: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const isRadiology = user?.department === '영상의학과';
+    const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
     const [imageUrl, setImageUrl] = useState<string>('');
@@ -164,7 +164,7 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
-                        {isRadiology && (
+                        {!isRadiologyTech && (
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
                                 className={`ml-4 ${analysisComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold border-none`}
@@ -221,10 +221,10 @@ export default function DicomDetailViewer() {
                                         navigate(`/dicom-viewer/${allImages[index].instance_id}`);
                                     }
                                 }}
-                                showMeasurementTools={!isRadiology}
+                                showMeasurementTools={!isRadiologyTech}
                             />
                         </div>
-                    ) : isRadiology ? (
+                    ) : !isRadiologyTech ? (
                         <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1 bg-black h-[calc(100vh-140px)] w-full">
                             {/* Top-Left: Original DICOM */}
                             <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">
