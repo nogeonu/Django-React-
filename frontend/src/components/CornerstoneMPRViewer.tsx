@@ -35,7 +35,7 @@ export default function CornerstoneMPRViewer({
   const coronalRef = useRef<HTMLDivElement>(null);
   const volume3DRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [windowLevel, setWindowLevel] = useState(WINDOW_LEVEL_PRESETS.MRI_BRAIN);
+  const [windowLevel] = useState(WINDOW_LEVEL_PRESETS.MRI_BRAIN);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const toolGroupIdRef = useRef<string>('MPR_TOOL_GROUP');
 
