@@ -54,40 +54,46 @@ class PatientViewSet(viewsets.ModelViewSet):
     
     def perform_destroy(self, instance):
         """환자 삭제 시 관련 데이터도 함께 삭제"""
+        from django.db import transaction
+        
         try:
             patient_identifier = instance.patient_id
-            # hospital_db 데이터베이스 연결 사용
-            with connections['default'].cursor() as cursor:
-                print(f"환자 {patient_identifier} 삭제 시작...")
-                
-                # 1. LungResult 삭제
-                cursor.execute("""
-                    DELETE lr FROM lung_result lr
-                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
-                    WHERE lrec.patient_id = %s
-                """, [patient_identifier])
-                print(f"LungResult 삭제: {cursor.rowcount}개")
-                
-                # 2. LungRecord 삭제
-                cursor.execute("""
-                    DELETE FROM lung_record WHERE patient_id = %s
-                """, [patient_identifier])
-                print(f"LungRecord 삭제: {cursor.rowcount}개")
-
-                # 3. MedicalRecord 삭제
-                cursor.execute(
-                    "DELETE FROM medical_record WHERE patient_id = %s",
-                    [patient_identifier],
-                )
-                print(f"MedicalRecord 삭제: {cursor.rowcount}개")
+            print(f"환자 {patient_identifier} 삭제 시작...")
             
-            print(f"환자 {patient_identifier} 삭제 완료")
+            with transaction.atomic():
+                # hospital_db 데이터베이스 연결 사용
+                with connections['default'].cursor() as cursor:
+                    # 1. LungResult 삭제 (서브쿼리 사용)
+                    cursor.execute("""
+                        DELETE FROM lung_result 
+                        WHERE lung_record_id IN (
+                            SELECT id FROM lung_record WHERE patient_id = %s
+                        )
+                    """, [patient_identifier])
+                    print(f"LungResult 삭제: {cursor.rowcount}개")
+                    
+                    # 2. LungRecord 삭제
+                    cursor.execute("""
+                        DELETE FROM lung_record WHERE patient_id = %s
+                    """, [patient_identifier])
+                    print(f"LungRecord 삭제: {cursor.rowcount}개")
+
+                    # 3. MedicalRecord 삭제
+                    cursor.execute(
+                        "DELETE FROM medical_record WHERE patient_id = %s",
+                        [patient_identifier],
+                    )
+                    print(f"MedicalRecord 삭제: {cursor.rowcount}개")
+                
+                # 4. 실제 환자 데이터 삭제
+                instance.delete()
+                print(f"환자 {patient_identifier} 삭제 완료")
 
         except Exception as e:
             print(f"환자 삭제 중 오류: {e}")
-
-        # 실제 환자 데이터 삭제
-        instance.delete()
+            import traceback
+            traceback.print_exc()
+            raise  # 에러를 다시 발생시켜 클라이언트에 전달
     
     @action(detail=False, methods=['post'])
     def register(self, request):
