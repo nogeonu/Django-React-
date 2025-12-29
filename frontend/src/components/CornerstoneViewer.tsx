@@ -305,11 +305,6 @@ export default function CornerstoneViewer({
     setActiveTool(toolName);
   };
 
-  // 윈도우 레벨 프리셋 적용
-  const applyPreset = (preset: typeof WINDOW_LEVEL_PRESETS[keyof typeof WINDOW_LEVEL_PRESETS]) => {
-    setWindowLevel(preset);
-  };
-
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-900 text-white">

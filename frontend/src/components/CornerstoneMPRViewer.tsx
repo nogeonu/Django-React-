@@ -216,28 +216,6 @@ export default function CornerstoneMPRViewer({
     }
   };
 
-  // 윈도우 레벨 프리셋 적용
-  const applyPreset = (preset: typeof WINDOW_LEVEL_PRESETS[keyof typeof WINDOW_LEVEL_PRESETS]) => {
-    setWindowLevel(preset);
-    
-    if (!renderingEngineRef.current) return;
-
-    const viewportIds = ['AXIAL', 'SAGITTAL', 'CORONAL', 'VOLUME_3D'];
-    viewportIds.forEach((viewportId) => {
-      const viewport = renderingEngineRef.current!.getViewport(viewportId);
-      if (viewport) {
-        // @ts-ignore - setProperties exists but types are incomplete
-        viewport.setProperties({
-          voiRange: {
-            lower: preset.windowCenter - preset.windowWidth / 2,
-            upper: preset.windowCenter + preset.windowWidth / 2,
-          },
-        });
-        viewport.render();
-      }
-    });
-  };
-
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-900 text-white">
