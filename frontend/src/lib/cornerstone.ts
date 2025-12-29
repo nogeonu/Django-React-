@@ -39,6 +39,9 @@ export async function initCornerstone() {
         use16BitDataType: true,
       },
     });
+    
+    // DICOM 이미지 로더에 Photometric Interpretation 자동 처리 활성화
+    cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.purge();
 
     // Web Worker 초기화
     let maxWebWorkers = 1;
