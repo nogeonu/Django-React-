@@ -158,7 +158,7 @@ export default function Dashboard() {
 
   const filteredPatients = (patients as Patient[]).filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+    p.patient_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleCompleteTreatment = async () => {

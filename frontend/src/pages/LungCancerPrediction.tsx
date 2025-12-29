@@ -54,7 +54,7 @@ interface Patient {
 }
 
 interface PredictionResult {
-  patient_id: number;
+  patient_id: string;
   prediction: "YES" | "NO";
   probability: number;
   risk_level: "낮음" | "중간" | "높음";
@@ -121,7 +121,7 @@ export default function LungCancerPrediction() {
   const handlePatientSelect = (patient: Patient) => {
     setFormData((prev) => ({
       ...prev,
-      patient_id: patient.id,
+      patient_id: patient.patient_id,
       name: patient.name,
       gender:
         patient.gender === "M" ||
@@ -142,9 +142,7 @@ export default function LungCancerPrediction() {
   const filteredPatients = patients.filter(
     (patient) =>
       patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-      (patient.id || "")
-        .toLowerCase()
-        .includes(patientSearchTerm.toLowerCase()),
+      patient.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()),
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
