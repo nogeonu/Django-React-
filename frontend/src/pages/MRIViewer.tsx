@@ -201,21 +201,6 @@ export default function MRIViewer() {
     setCurrentSlice(newSlice);
   };
 
-  const handleFullscreen = () => {
-    const elem = document.getElementById('mri-viewer-container');
-    if (elem) {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if ((elem as any).webkitRequestFullscreen) {
-        // Safari 지원
-        (elem as any).webkitRequestFullscreen();
-      } else if ((elem as any).msRequestFullscreen) {
-        // IE11 지원
-        (elem as any).msRequestFullscreen();
-      }
-    }
-  };
-
   const handleDetailView = () => {
     if (orthancImages.length > 0 && orthancImages[selectedImage]) {
       const instanceId = orthancImages[selectedImage].instance_id;
@@ -516,19 +501,10 @@ export default function MRIViewer() {
                     </Button>
                   </>
                 )}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-xl h-10 w-10 hover:bg-gray-50"
-                  onClick={handleFullscreen}
-                  title="전체화면"
-                >
-                  <Maximize2 className="w-4 h-4 text-gray-400" />
-                </Button>
               </div>
             </CardHeader>
 
-            <CardContent className="p-8 flex-1 flex flex-col gap-8" id="mri-viewer-container">
+            <CardContent className="p-8 flex-1 flex flex-col gap-8">
               {/* Cornerstone3D 뷰어 */}
               {showOrthancImages && orthancImages.length > 0 ? (
                 <div className="flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner">
