@@ -122,14 +122,15 @@ export default function CornerstoneViewer({
           // @ts-ignore - Stack viewport specific method
           await viewport.setStack(imageIds, currentIndex);
 
-            // 윈도우 레벨 설정
-            // @ts-ignore - setProperties exists but types are incomplete
-            viewport.setProperties({
-              voiRange: {
-                lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
-                upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
-              },
-            });
+          // 윈도우 레벨 및 이미지 속성 설정
+          // @ts-ignore - setProperties exists but types are incomplete
+          viewport.setProperties({
+            voiRange: {
+              lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
+              upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
+            },
+            invert: false, // 이미지 반전 방지
+          });
 
           viewport.render();
         }
@@ -180,6 +181,7 @@ export default function CornerstoneViewer({
             lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
             upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
           },
+          invert: false, // 이미지 반전 방지
         });
         viewport.render();
       }
