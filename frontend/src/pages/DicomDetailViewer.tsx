@@ -100,10 +100,16 @@ export default function DicomDetailViewer() {
     };
 
     const handleFullscreen = () => {
-        const elem = document.getElementById('dicom-image-container');
+        const elem = document.getElementById('dicom-viewer-container');
         if (elem) {
             if (elem.requestFullscreen) {
                 elem.requestFullscreen();
+            } else if ((elem as any).webkitRequestFullscreen) {
+                // Safari 지원
+                (elem as any).webkitRequestFullscreen();
+            } else if ((elem as any).msRequestFullscreen) {
+                // IE11 지원
+                (elem as any).msRequestFullscreen();
             }
         }
     };
@@ -201,7 +207,7 @@ export default function DicomDetailViewer() {
                 {/* 환자 정보는 헤더에 표시되거나 필요시 주석 해제 가능 */}
 
                 {/* Center - Image Display (Full Width) */}
-                <div className="flex-1 flex flex-col w-full">
+                <div className="flex-1 flex flex-col w-full" id="dicom-viewer-container">
                     {/* Cornerstone3D 뷰어 */}
                     {instanceIds.length > 0 ? (
                         <div className="flex-1 bg-gray-900">
