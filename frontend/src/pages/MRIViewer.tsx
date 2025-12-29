@@ -28,14 +28,12 @@ import {
   Info,
   Settings2,
   Cpu,
-  Plus,
-  Grid3x3
+  Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { getPatientsApi } from "@/lib/api";
 import CornerstoneViewer from "@/components/CornerstoneViewer";
-import CornerstoneMPRViewer from "@/components/CornerstoneMPRViewer";
 
 
 interface SystemPatient {
@@ -106,7 +104,6 @@ export default function MRIViewer() {
   const [showOrthancImages, setShowOrthancImages] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
-  const [showMPRView, setShowMPRView] = useState(false); // 4분할 MPR 뷰 표시 여부
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -479,28 +476,16 @@ export default function MRIViewer() {
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
                 {showOrthancImages && orthancImages.length > 0 && (
-                  <>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="rounded-xl h-10 px-3 hover:bg-gray-50"
-                      onClick={() => setShowMPRView(!showMPRView)}
-                      title={showMPRView ? "단일 뷰로 전환" : "4분할 MPR 뷰로 전환"}
-                    >
-                      <Grid3x3 className={`w-4 h-4 mr-1 ${showMPRView ? 'text-green-600' : 'text-gray-400'}`} />
-                      {showMPRView ? 'MPR' : '단일'}
-                    </Button>
-                    <Button 
-                      variant="default"
-                      size="sm"
-                      className="rounded-xl h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                      onClick={handleDetailView}
-                      title="자세히 보기"
-                    >
-                      <Maximize2 className="w-4 h-4 mr-2" />
-                      자세히 보기
-                    </Button>
-                  </>
+                  <Button 
+                    variant="default"
+                    size="sm"
+                    className="rounded-xl h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                    onClick={handleDetailView}
+                    title="자세히 보기"
+                  >
+                    <Maximize2 className="w-4 h-4 mr-2" />
+                    자세히 보기
+                  </Button>
                 )}
               </div>
             </CardHeader>
@@ -509,21 +494,13 @@ export default function MRIViewer() {
               {/* Cornerstone3D 뷰어 */}
               {showOrthancImages && orthancImages.length > 0 ? (
                 <div className="flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner">
-                  {showMPRView ? (
-                    <CornerstoneMPRViewer
-                      key={`mpr-${selectedPatient}-${orthancImages.length}`}
-                      instanceIds={orthancImages.map(img => img.instance_id)}
-                      onClose={() => setShowMPRView(false)}
-                    />
-                  ) : (
-                    <CornerstoneViewer
-                      key={`cornerstone-${selectedPatient}-${orthancImages.length}`}
-                      instanceIds={orthancImages.map(img => img.instance_id)}
-                      currentIndex={selectedImage}
-                      onIndexChange={setSelectedImage}
-                      showMeasurementTools={!isRadiologyTech}
-                    />
-                  )}
+                  <CornerstoneViewer
+                    key={`cornerstone-${selectedPatient}-${orthancImages.length}`}
+                    instanceIds={orthancImages.map(img => img.instance_id)}
+                    currentIndex={selectedImage}
+                    onIndexChange={setSelectedImage}
+                    showMeasurementTools={!isRadiologyTech}
+                  />
                 </div>
               ) : (
                 <>
