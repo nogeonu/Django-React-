@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Grid3x3 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Brain, Layers, Box, ScanLine, Activity } from 'lucide-react';
 import { motion } from 'framer-motion';
+import CornerstoneViewer from '@/components/CornerstoneViewer';
 
 interface OrthancImage {
     instance_id: string;
@@ -27,6 +28,7 @@ export default function DicomDetailViewer() {
     const [allImages, setAllImages] = useState<OrthancImage[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
+    const [useCornerstoneViewer, setUseCornerstoneViewer] = useState(true); // Cornerstone3D 사용 여부
 
     useEffect(() => {
         if (instanceId) {
@@ -152,6 +154,16 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUseCornerstoneViewer(!useCornerstoneViewer)}
+                            className="text-gray-300 hover:text-white"
+                            title={useCornerstoneViewer ? "기본 뷰어로 전환" : "Cornerstone3D 뷰어로 전환"}
+                        >
+                            <Grid3x3 className={`h-4 w-4 mr-2 ${useCornerstoneViewer ? 'text-blue-500' : ''}`} />
+                            {useCornerstoneViewer ? 'Cornerstone3D' : '기본 뷰어'}
+                        </Button>
                         {isRadiology && (
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
@@ -196,8 +208,19 @@ export default function DicomDetailViewer() {
 
                 {/* Center - Image Display (Full Width) */}
                 <div className="flex-1 flex flex-col w-full">
-                    {/* Conditional 4-Split View for Radiology vs Single View for Others */}
-                    {isRadiology ? (
+                    {/* Cornerstone3D 뷰어 또는 기본 뷰어 */}
+                    {useCornerstoneViewer && allImages.length > 0 ? (
+                        <div className="flex-1 bg-gray-900">
+                            <CornerstoneViewer
+                                instanceIds={allImages.map(img => img.instance_id)}
+                                currentIndex={currentIndex}
+                                onIndexChange={(index) => {
+                                    const newImage = allImages[index];
+                                    navigate(`/dicom-viewer/${newImage.instance_id}`);
+                                }}
+                            />
+                        </div>
+                    ) : isRadiology ? (
                         <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1 bg-black h-[calc(100vh-140px)] w-full">
                             {/* Top-Left: Original DICOM */}
                             <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden flex items-center justify-center group">

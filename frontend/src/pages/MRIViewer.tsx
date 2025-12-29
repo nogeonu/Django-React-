@@ -28,11 +28,14 @@ import {
   Info,
   Settings2,
   Cpu,
-  Plus
+  Plus,
+  Grid3x3
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { getPatientsApi } from "@/lib/api";
+import CornerstoneViewer from "@/components/CornerstoneViewer";
+import CornerstoneMPRViewer from "@/components/CornerstoneMPRViewer";
 
 
 interface SystemPatient {
@@ -102,6 +105,8 @@ export default function MRIViewer() {
   const [showOrthancImages, setShowOrthancImages] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
+  const [useCornerstoneViewer, setUseCornerstoneViewer] = useState(true); // Cornerstone3D 사용 여부
+  const [showMPRView, setShowMPRView] = useState(false); // 4분할 MPR 뷰 표시 여부
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -453,9 +458,31 @@ export default function MRIViewer() {
                   size="icon"
                   className="rounded-xl h-10 w-10 hover:bg-gray-50"
                   onClick={() => setShowOrthancImages(!showOrthancImages)}
+                  title="DICOM/NIfTI 전환"
                 >
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-xl h-10 w-10 hover:bg-gray-50"
+                  onClick={() => setUseCornerstoneViewer(!useCornerstoneViewer)}
+                  title={useCornerstoneViewer ? "기본 뷰어로 전환" : "Cornerstone3D 뷰어로 전환"}
+                >
+                  <Grid3x3 className={`w-4 h-4 ${useCornerstoneViewer ? 'text-blue-600' : 'text-gray-400'}`} />
+                </Button>
+                {useCornerstoneViewer && showOrthancImages && orthancImages.length > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="rounded-xl h-10 px-3 hover:bg-gray-50"
+                    onClick={() => setShowMPRView(!showMPRView)}
+                    title={showMPRView ? "단일 뷰로 전환" : "4분할 MPR 뷰로 전환"}
+                  >
+                    <Grid3x3 className={`w-4 h-4 mr-1 ${showMPRView ? 'text-green-600' : 'text-gray-400'}`} />
+                    {showMPRView ? 'MPR' : '단일'}
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-gray-50">
                   <Maximize2 className="w-4 h-4 text-gray-400" />
                 </Button>
@@ -463,112 +490,132 @@ export default function MRIViewer() {
             </CardHeader>
 
             <CardContent className="p-8 flex-1 flex flex-col gap-8">
-              {/* Main Image Viewport */}
-              <div
-                className="relative flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner group"
-                onWheel={showOrthancImages ? handleOrthancWheel : handleWheel}
-              >
-                <AnimatePresence mode="wait">
-                  {imageLoading ? (
-                    <motion.div
-                      key="loading"
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      className="absolute inset-0 flex items-center justify-center z-20 bg-black/40 backdrop-blur-sm"
-                    >
-                      <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                        <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">데이터 동기화 중</span>
-                      </div>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-8">
-                  {sliceImage || (showOrthancImages && orthancImages.length > 0) ? (
-                    <motion.img
-                      key={showOrthancImages ? `orthanc-${selectedImage}` : `slice-${currentSlice}`}
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.2 }}
-                      src={showOrthancImages ? orthancImages[selectedImage].preview_url : (sliceImage || "")}
-                      className="max-w-full max-h-full object-contain pointer-events-auto"
+              {/* Cornerstone3D 뷰어 또는 기본 이미지 뷰어 */}
+              {useCornerstoneViewer && showOrthancImages && orthancImages.length > 0 ? (
+                <div className="flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner">
+                  {showMPRView ? (
+                    <CornerstoneMPRViewer
+                      instanceIds={orthancImages.map(img => img.instance_id)}
+                      onClose={() => setShowMPRView(false)}
                     />
                   ) : (
-                    <div className="text-white/20 flex flex-col items-center gap-4">
-                      <Info className="w-12 h-12" />
-                      <p className="text-xs font-bold uppercase tracking-widest">데이터 스트림 없음</p>
-                    </div>
+                    <CornerstoneViewer
+                      instanceIds={orthancImages.map(img => img.instance_id)}
+                      currentIndex={selectedImage}
+                      onIndexChange={setSelectedImage}
+                    />
                   )}
                 </div>
+              ) : (
+                <>
+                  {/* Main Image Viewport */}
+                  <div
+                    className="relative flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner group"
+                    onWheel={showOrthancImages ? handleOrthancWheel : handleWheel}
+                  >
+                    <AnimatePresence mode="wait">
+                      {imageLoading ? (
+                        <motion.div
+                          key="loading"
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                          className="absolute inset-0 flex items-center justify-center z-20 bg-black/40 backdrop-blur-sm"
+                        >
+                          <div className="flex flex-col items-center gap-4">
+                            <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                            <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">데이터 동기화 중</span>
+                          </div>
+                        </motion.div>
+                      ) : null}
+                    </AnimatePresence>
 
-                {/* Overlays */}
-                <div className="absolute top-6 left-6 flex flex-col gap-2 pointer-events-none">
-                  <Badge className="bg-black/60 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
-                    {showOrthancImages ? `S: ${orthancImages[selectedImage]?.series_description || 'Raw'}` : `Axis: ${axis}`}
-                  </Badge>
-                  <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
-                    {showOrthancImages ? `Inst: ${orthancImages[selectedImage]?.instance_number}` : `Slice: ${currentSlice + 1}`}
-                  </Badge>
-                </div>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-8">
+                      {sliceImage || (showOrthancImages && orthancImages.length > 0) ? (
+                        <motion.img
+                          key={showOrthancImages ? `orthanc-${selectedImage}` : `slice-${currentSlice}`}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2 }}
+                          src={showOrthancImages ? orthancImages[selectedImage].preview_url : (sliceImage || "")}
+                          className="max-w-full max-h-full object-contain pointer-events-auto"
+                        />
+                      ) : (
+                        <div className="text-white/20 flex flex-col items-center gap-4">
+                          <Info className="w-12 h-12" />
+                          <p className="text-xs font-bold uppercase tracking-widest">데이터 스트림 없음</p>
+                        </div>
+                      )}
+                    </div>
 
-                {showOrthancImages && (
-                  <div className="absolute top-6 right-6">
-                    <Button
-                      size="sm"
-                      className="rounded-xl bg-white/90 hover:bg-white text-gray-900 font-black text-[10px] uppercase shadow-xl pointer-events-auto"
-                      onClick={() => {
-                        if (selectedPatient && orthancImages[selectedImage]) {
-                          sessionStorage.setItem('currentPatientId', selectedPatient);
-                          const p = systemPatients.find(x => x.patient_id === selectedPatient);
-                          if (p) sessionStorage.setItem('currentPatientName', p.name);
-                          navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
-                        }
-                      }}
-                    >
-                      자세히 보기 <ChevronRight className="w-3 h-3 ml-1" />
-                    </Button>
+                    {/* Overlays */}
+                    <div className="absolute top-6 left-6 flex flex-col gap-2 pointer-events-none">
+                      <Badge className="bg-black/60 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
+                        {showOrthancImages ? `S: ${orthancImages[selectedImage]?.series_description || 'Raw'}` : `Axis: ${axis}`}
+                      </Badge>
+                      <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
+                        {showOrthancImages ? `Inst: ${orthancImages[selectedImage]?.instance_number}` : `Slice: ${currentSlice + 1}`}
+                      </Badge>
+                    </div>
+
+                    {showOrthancImages && (
+                      <div className="absolute top-6 right-6">
+                        <Button
+                          size="sm"
+                          className="rounded-xl bg-white/90 hover:bg-white text-gray-900 font-black text-[10px] uppercase shadow-xl pointer-events-auto"
+                          onClick={() => {
+                            if (selectedPatient && orthancImages[selectedImage]) {
+                              sessionStorage.setItem('currentPatientId', selectedPatient);
+                              const p = systemPatients.find(x => x.patient_id === selectedPatient);
+                              if (p) sessionStorage.setItem('currentPatientName', p.name);
+                              navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
+                            }
+                          }}
+                        >
+                          자세히 보기 <ChevronRight className="w-3 h-3 ml-1" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Mouse Wheel Hint */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                      <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 border border-white/5">
+                        <div className="w-1 h-3 rounded-full bg-white animate-bounce"></div>
+                        <span className="text-[10px] font-black text-white uppercase tracking-widest">휠을 사용하여 탐색</span>
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {/* Mouse Wheel Hint */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                  <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 border border-white/5">
-                    <div className="w-1 h-3 rounded-full bg-white animate-bounce"></div>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">휠을 사용하여 탐색</span>
+                  {/* Navigation Slider */}
+                  <div className="px-4 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">워크스페이스 내비게이션</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
+                          onClick={() => showOrthancImages ? setSelectedImage(Math.max(0, selectedImage - 1)) : setCurrentSlice(Math.max(0, currentSlice - 1))}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-xs font-black text-gray-900 mx-2">
+                          {showOrthancImages ? `${selectedImage + 1} / ${orthancImages.length}` : `${currentSlice + 1} / ${patientDetail?.num_slices || 0}`}
+                        </span>
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
+                          onClick={() => showOrthancImages ? setSelectedImage(Math.min(orthancImages.length - 1, selectedImage + 1)) : setCurrentSlice(Math.min((patientDetail?.num_slices || 1) - 1, currentSlice + 1))}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <Slider
+                      value={[showOrthancImages ? selectedImage : currentSlice]}
+                      onValueChange={(v) => showOrthancImages ? setSelectedImage(v[0]) : setCurrentSlice(v[0])}
+                      max={showOrthancImages ? (orthancImages.length - 1 || 0) : ((patientDetail?.num_slices || 1) - 1)}
+                      step={1}
+                      className="w-full"
+                    />
                   </div>
-                </div>
-              </div>
-
-              {/* Navigation Slider */}
-              <div className="px-4 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">워크스페이스 내비게이션</p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
-                      onClick={() => showOrthancImages ? setSelectedImage(Math.max(0, selectedImage - 1)) : setCurrentSlice(Math.max(0, currentSlice - 1))}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <span className="text-xs font-black text-gray-900 mx-2">
-                      {showOrthancImages ? `${selectedImage + 1} / ${orthancImages.length}` : `${currentSlice + 1} / ${patientDetail?.num_slices || 0}`}
-                    </span>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-gray-50"
-                      onClick={() => showOrthancImages ? setSelectedImage(Math.min(orthancImages.length - 1, selectedImage + 1)) : setCurrentSlice(Math.min((patientDetail?.num_slices || 1) - 1, currentSlice + 1))}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <Slider
-                  value={[showOrthancImages ? selectedImage : currentSlice]}
-                  onValueChange={(v) => showOrthancImages ? setSelectedImage(v[0]) : setCurrentSlice(v[0])}
-                  max={showOrthancImages ? (orthancImages.length - 1 || 0) : ((patientDetail?.num_slices || 1) - 1)}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
