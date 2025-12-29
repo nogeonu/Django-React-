@@ -105,7 +105,6 @@ export default function MRIViewer() {
   const [showOrthancImages, setShowOrthancImages] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
-  const [useCornerstoneViewer, setUseCornerstoneViewer] = useState(true); // Cornerstone3D 사용 여부
   const [showMPRView, setShowMPRView] = useState(false); // 4분할 MPR 뷰 표시 여부
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -462,16 +461,7 @@ export default function MRIViewer() {
                 >
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-xl h-10 w-10 hover:bg-gray-50"
-                  onClick={() => setUseCornerstoneViewer(!useCornerstoneViewer)}
-                  title={useCornerstoneViewer ? "기본 뷰어로 전환" : "Cornerstone3D 뷰어로 전환"}
-                >
-                  <Grid3x3 className={`w-4 h-4 ${useCornerstoneViewer ? 'text-blue-600' : 'text-gray-400'}`} />
-                </Button>
-                {useCornerstoneViewer && showOrthancImages && orthancImages.length > 0 && (
+                {showOrthancImages && orthancImages.length > 0 && (
                   <Button 
                     variant="ghost" 
                     size="sm"
@@ -490,8 +480,8 @@ export default function MRIViewer() {
             </CardHeader>
 
             <CardContent className="p-8 flex-1 flex flex-col gap-8">
-              {/* Cornerstone3D 뷰어 또는 기본 이미지 뷰어 */}
-              {useCornerstoneViewer && showOrthancImages && orthancImages.length > 0 ? (
+              {/* Cornerstone3D 뷰어 */}
+              {showOrthancImages && orthancImages.length > 0 ? (
                 <div className="flex-1 min-h-[500px] bg-gray-950 rounded-[2.5rem] overflow-hidden shadow-inner">
                   {showMPRView ? (
                     <CornerstoneMPRViewer
