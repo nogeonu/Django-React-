@@ -29,6 +29,7 @@ export default function DicomDetailViewer() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
     const [useCornerstoneViewer, setUseCornerstoneViewer] = useState(true); // Cornerstone3D 사용 여부
+    const [instanceIds, setInstanceIds] = useState<string[]>([]); // Cornerstone용 instance ID 배열
 
     useEffect(() => {
         if (instanceId) {
@@ -53,6 +54,10 @@ export default function DicomDetailViewer() {
 
                 if (response.success && response.images) {
                     setAllImages(response.images);
+                    // Cornerstone3D용 instance ID 배열 설정
+                    const ids = response.images.map((img: OrthancImage) => img.instance_id);
+                    setInstanceIds(ids);
+                    
                     const index = response.images.findIndex((img: OrthancImage) => img.instance_id === instanceId);
                     if (index !== -1) {
                         setCurrentIndex(index);
@@ -209,14 +214,16 @@ export default function DicomDetailViewer() {
                 {/* Center - Image Display (Full Width) */}
                 <div className="flex-1 flex flex-col w-full">
                     {/* Cornerstone3D 뷰어 또는 기본 뷰어 */}
-                    {useCornerstoneViewer && allImages.length > 0 ? (
+                    {useCornerstoneViewer && instanceIds.length > 0 ? (
                         <div className="flex-1 bg-gray-900">
                             <CornerstoneViewer
-                                instanceIds={allImages.map(img => img.instance_id)}
+                                instanceIds={instanceIds}
                                 currentIndex={currentIndex}
                                 onIndexChange={(index) => {
-                                    const newImage = allImages[index];
-                                    navigate(`/dicom-viewer/${newImage.instance_id}`);
+                                    setCurrentIndex(index);
+                                    if (allImages[index]) {
+                                        navigate(`/dicom-viewer/${allImages[index].instance_id}`);
+                                    }
                                 }}
                             />
                         </div>
