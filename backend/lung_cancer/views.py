@@ -57,7 +57,8 @@ class PatientViewSet(viewsets.ModelViewSet):
         from django.db import transaction, connections
         
         patient_identifier = instance.patient_id
-        print(f"=== 환자 삭제 시작: {patient_identifier} (ID: {instance.id}) ===")
+        patient_pk = instance.id
+        print(f"=== 환자 삭제 시작: {patient_identifier} (PK: {patient_pk}) ===")
         
         try:
             with transaction.atomic():
@@ -80,17 +81,28 @@ class PatientViewSet(viewsets.ModelViewSet):
                     lung_record_count = cursor.rowcount
                     print(f"2. LungRecord 삭제: {lung_record_count}개")
                     
-                    # 3. MedicalRecord 삭제 (lung_cancer 테이블)
+                    # 3. MedicalRecord 삭제 (medical_record 테이블)
                     cursor.execute("""
                         DELETE FROM medical_record WHERE patient_id = %s
                     """, [patient_identifier])
                     medical_record_count = cursor.rowcount
                     print(f"3. MedicalRecord 삭제: {medical_record_count}개")
+                    
+                    # 4. patients_appointment 삭제 (있을 경우)
+                    cursor.execute("""
+                        DELETE FROM patients_appointment WHERE patient_id = %s
+                    """, [patient_pk])
+                    appointment_count = cursor.rowcount
+                    print(f"4. Appointment 삭제: {appointment_count}개")
+                    
+                    # 5. patients_patient 삭제 (Raw SQL로 직접 삭제)
+                    cursor.execute("""
+                        DELETE FROM patients_patient WHERE patient_id = %s
+                    """, [patient_identifier])
+                    patient_count = cursor.rowcount
+                    print(f"5. Patient 삭제: {patient_count}개")
                 
-                # 4. 실제 환자 데이터 삭제 (using()로 데이터베이스 명시)
-                instance.delete(using='default')
-                print(f"4. Patient 삭제 완료: {patient_identifier}")
-                print(f"=== 환자 삭제 완료 ===")
+                print(f"=== 환자 삭제 완료: {patient_identifier} ===")
 
         except Exception as e:
             error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
