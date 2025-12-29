@@ -53,12 +53,19 @@ class PatientViewSet(viewsets.ModelViewSet):
         return PatientSerializer
     
     def perform_destroy(self, instance):
-        """환자 삭제 시 관련 데이터도 함께 삭제"""
+        """
+        환자 삭제 시 관련 데이터도 함께 삭제
+        
+        주의: patient_user(계정)은 삭제하지 않음
+        - 의료 기록은 법적으로 보존 의무가 있음
+        - 환자가 재방문 시 과거 기록 참조 가능
+        - 계정은 is_active=False로 비활성화만 함
+        """
         from django.db import transaction, connections
         
         patient_identifier = instance.patient_id
         patient_pk = instance.id
-        print(f"=== 환자 삭제 시작: {patient_identifier} (PK: {patient_pk}) ===")
+        print(f"=== 환자 정보 삭제 시작: {patient_identifier} (PK: {patient_pk}) ===")
         
         try:
             with transaction.atomic():
@@ -95,14 +102,25 @@ class PatientViewSet(viewsets.ModelViewSet):
                     appointment_count = cursor.rowcount
                     print(f"4. Appointment 삭제: {appointment_count}개")
                     
-                    # 5. patients_patient 삭제 (Raw SQL로 직접 삭제)
+                    # 5. patient_user 계정 비활성화 (삭제하지 않음)
+                    # 의료 기록 보존을 위해 계정은 유지하되 비활성화만 함
+                    cursor.execute("""
+                        UPDATE patient_user 
+                        SET is_active = 0 
+                        WHERE patient_id = %s
+                    """, [patient_identifier])
+                    user_deactivated = cursor.rowcount
+                    print(f"5. PatientUser 비활성화: {user_deactivated}개")
+                    
+                    # 6. patients_patient 삭제 (Raw SQL로 직접 삭제)
                     cursor.execute("""
                         DELETE FROM patients_patient WHERE patient_id = %s
                     """, [patient_identifier])
                     patient_count = cursor.rowcount
-                    print(f"5. Patient 삭제: {patient_count}개")
+                    print(f"6. Patient 정보 삭제: {patient_count}개")
                 
-                print(f"=== 환자 삭제 완료: {patient_identifier} ===")
+                print(f"=== 환자 정보 삭제 완료: {patient_identifier} ===")
+                print(f"※ 참고: 계정(patient_user)은 비활성화만 되었습니다 (의료 기록 보존)")
 
         except Exception as e:
             error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
