@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Box, Grid3x3, Layers, Volume2 } from 'lucide-react';
+import { Box, Layers, Volume2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import CornerstoneViewer from './CornerstoneViewer';
@@ -61,43 +61,15 @@ export default function SurgicalQuadView({
     const isMammography = imageType === '유방촬영술 영상';
 
     return (
-        <div className="h-full w-full bg-gray-900 flex flex-col">
-            {/* 컨트롤 바 */}
-            <div className="flex-shrink-0 bg-gray-800 px-4 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Badge variant="secondary" className="text-xs px-2 py-1">
-                        <Grid3x3 className="w-3 h-3 mr-1" />
-                        4분할 뷰 (외과)
-                    </Badge>
-                    <div className="h-4 w-px bg-gray-600" />
-                    <div className="text-xs text-gray-300">
-                        {isMammography ? '유방촬영술 영상' : `슬라이스: ${currentIndex + 1} / ${instanceIds.length}`}
-                    </div>
-                </div>
-                {!isMammography && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">오버레이 투명도:</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={overlayOpacity * 100}
-                            onChange={(e) => setOverlayOpacity(Number(e.target.value) / 100)}
-                            className="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                        />
-                        <span className="text-xs text-gray-300 w-8">{Math.round(overlayOpacity * 100)}%</span>
-                    </div>
-                )}
-            </div>
-
+        <div className="h-full w-full bg-gray-900">
             {/* 4분할 그리드 */}
-            <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-2 p-2 min-h-0">
+            <div className="h-full grid grid-cols-2 grid-rows-2 gap-2 p-2">
                 {isMammography ? (
                     <>
                         {/* 유방촬영술 영상: LCC, RCC, LMLO, RMLO */}
                         {/* 좌측 상단 - LCC (Left CranioCaudal) */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     LCC
                                 </Badge>
@@ -114,8 +86,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 상단 - RCC (Right CranioCaudal) */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     RCC
                                 </Badge>
@@ -132,8 +104,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 좌측 하단 - LMLO (Left MedioLateral Oblique) */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     LMLO
                                 </Badge>
@@ -150,8 +122,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 하단 - RMLO (Right MedioLateral Oblique) */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     RMLO
                                 </Badge>
@@ -171,8 +143,8 @@ export default function SurgicalQuadView({
                     <>
                         {/* MRI/병리 영상: 원본, 세그멘테이션, 오버레이, 3D */}
                         {/* 좌측 상단 - 원본 이미지 */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-gray-700 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-gray-700">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Box className="w-3 h-3 mr-1" />
                                     원본
@@ -190,8 +162,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 상단 - 세그멘테이션 */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20 flex items-center gap-2">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600">
+                            <div className="absolute top-2 left-2 z-30 flex items-center gap-2">
                                 <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Layers className="w-3 h-3 mr-1" />
                                     세그멘테이션
@@ -220,8 +192,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 좌측 하단 - 오버레이 */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Layers className="w-3 h-3 mr-1" />
                                     오버레이
@@ -247,8 +219,8 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 하단 - 3D 볼륨 */}
-                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600 min-h-0">
-                            <div className="absolute top-1 left-1 z-20">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600">
+                            <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Volume2 className="w-3 h-3 mr-1" />
                                     3D 세그멘테이션

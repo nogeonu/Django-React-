@@ -401,11 +401,11 @@ export default function CornerstoneViewer({
         />
 
         {/* 오버레이 정보 */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-          <Badge className="bg-black/60 backdrop-blur-md text-white border-none">
+        <div className="absolute top-12 left-4 flex flex-col gap-1.5 pointer-events-none z-20">
+          <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs px-2 py-0.5">
             슬라이스: {currentIndex + 1} / {instanceIds.length}
           </Badge>
-          <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none">
+          <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none text-xs px-2 py-0.5">
             W: {windowLevel.windowWidth} / L: {windowLevel.windowCenter}
           </Badge>
           {activeTool !== WindowLevelTool.toolName && (
