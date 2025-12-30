@@ -28,6 +28,7 @@ export default function DicomDetailViewer() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
     const [instanceIds, setInstanceIds] = useState<string[]>([]); // Cornerstone용 instance ID 배열
+    const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('MRI 영상');
 
     useEffect(() => {
         if (instanceId) {
@@ -39,6 +40,10 @@ export default function DicomDetailViewer() {
         try {
             // Try to get patient context from session storage
             const patientId = sessionStorage.getItem('currentPatientId');
+            const storedImageType = sessionStorage.getItem('currentImageType') as '유방촬영술 영상' | '병리 영상' | 'MRI 영상' | null;
+            if (storedImageType) {
+                setImageType(storedImageType);
+            }
             console.log('Loading patient data for:', patientId);
 
             if (patientId) {
@@ -207,6 +212,7 @@ export default function DicomDetailViewer() {
                                     instanceIds={instanceIds}
                                     currentIndex={currentIndex}
                                     patientId={patientInfo?.patient_id || ''}
+                                    imageType={imageType}
                                     onIndexChange={(index) => {
                                         setCurrentIndex(index);
                                         if (allImages[index]) {

@@ -206,9 +206,10 @@ export default function MRIViewer() {
   const handleDetailView = () => {
     if (orthancImages.length > 0 && orthancImages[selectedImage]) {
       const instanceId = orthancImages[selectedImage].instance_id;
-      // 환자 정보를 세션 스토리지에 저장
+      // 환자 정보 및 영상 유형을 세션 스토리지에 저장
       if (selectedPatient) {
         sessionStorage.setItem('currentPatientId', selectedPatient);
+        sessionStorage.setItem('currentImageType', imageType);
         const patient = systemPatients.find(p => p.patient_id === selectedPatient);
         if (patient) {
           sessionStorage.setItem('currentPatientName', patient.name);
@@ -577,6 +578,7 @@ export default function MRIViewer() {
                           onClick={() => {
                             if (selectedPatient && orthancImages[selectedImage]) {
                               sessionStorage.setItem('currentPatientId', selectedPatient);
+                              sessionStorage.setItem('currentImageType', imageType);
                               const p = systemPatients.find(x => x.patient_id === selectedPatient);
                               if (p) sessionStorage.setItem('currentPatientName', p.name);
                               navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
