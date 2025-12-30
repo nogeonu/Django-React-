@@ -20,7 +20,6 @@ export default function SurgicalQuadView({
     onIndexChange 
 }: SurgicalQuadViewProps) {
     const [segmentationLoaded, setSegmentationLoaded] = useState(false);
-    const [overlayOpacity, setOverlayOpacity] = useState(0.5);
     const originalViewRef = useRef<HTMLDivElement>(null);
     const segmentationViewRef = useRef<HTMLDivElement>(null);
     const overlayViewRef = useRef<HTMLDivElement>(null);
