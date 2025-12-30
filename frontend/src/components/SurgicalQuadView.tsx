@@ -1,16 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { Box, Layers, Volume2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import CornerstoneViewer from './CornerstoneViewer';
-
-interface OrthancImage {
-    instance_id: string;
-    preview_url: string;
-    series_description?: string;
-    view_position?: string;  // CC, MLO
-    image_laterality?: string;  // L, R
-    mammography_view?: string;  // LCC, RCC, LMLO, RMLO
-}
 
 interface SurgicalQuadViewProps {
     instanceIds: string[];
