@@ -38,6 +38,7 @@ interface CornerstoneViewerProps {
   currentIndex: number;
   onIndexChange: (index: number) => void;
   showMeasurementTools?: boolean; // 측정 도구 표시 여부
+  viewportId?: string; // 고유 viewport ID (4분할 뷰 등에서 사용)
 }
 
 export default function CornerstoneViewer({
@@ -45,6 +46,7 @@ export default function CornerstoneViewer({
   currentIndex,
   onIndexChange,
   showMeasurementTools = true, // 기본값 true
+  viewportId, // 외부에서 전달받은 고유 ID
 }: CornerstoneViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -52,9 +54,11 @@ export default function CornerstoneViewer({
   const [windowLevel, setWindowLevel] = useState(WINDOW_LEVEL_PRESETS.DEFAULT);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   // 고유한 ID 생성 (컴포넌트마다 다른 ID 사용)
-  const renderingEngineIdRef = useRef<string>(`renderingEngine_${Date.now()}_${Math.random()}`);
-  const viewportIdRef = useRef<string>(`viewport_${Date.now()}_${Math.random()}`);
-  const toolGroupIdRef = useRef<string>(`toolGroup_${Date.now()}_${Math.random()}`);
+  // viewportId가 제공되면 사용, 아니면 랜덤 생성
+  const uniqueId = viewportId || `${Date.now()}_${Math.random()}`;
+  const renderingEngineIdRef = useRef<string>(`renderingEngine_${uniqueId}`);
+  const viewportIdRef = useRef<string>(`viewport_${uniqueId}`);
+  const toolGroupIdRef = useRef<string>(`toolGroup_${uniqueId}`);
 
   // Cornerstone 초기화
   useEffect(() => {

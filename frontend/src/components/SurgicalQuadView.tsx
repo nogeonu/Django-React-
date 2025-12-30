@@ -113,6 +113,7 @@ export default function SurgicalQuadView({
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
+                                        viewportId="quad_view_1"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -137,6 +138,7 @@ export default function SurgicalQuadView({
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
+                                        viewportId="quad_view_2"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -161,6 +163,7 @@ export default function SurgicalQuadView({
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
+                                        viewportId="quad_view_3"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -185,6 +188,7 @@ export default function SurgicalQuadView({
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
+                                        viewportId="quad_view_4"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
