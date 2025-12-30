@@ -61,6 +61,12 @@ export default function SurgicalQuadView({
 
     // 4분할 뷰를 위한 이미지 분할 (필터링 없이 순서대로)
     const getQuadViewImages = () => {
+        console.log('=== SurgicalQuadView Debug ===');
+        console.log('imageType:', imageType);
+        console.log('isMammography:', isMammography);
+        console.log('instanceIds:', instanceIds);
+        console.log('instanceIds.length:', instanceIds.length);
+        
         if (!isMammography || instanceIds.length === 0) {
             // MRI/병리 영상은 모두 같은 이미지 사용
             return {
@@ -77,6 +83,11 @@ export default function SurgicalQuadView({
         const view2 = instanceIds.length > 1 ? [instanceIds[1]] : [];
         const view3 = instanceIds.length > 2 ? [instanceIds[2]] : [];
         const view4 = instanceIds.length > 3 ? [instanceIds[3]] : [];
+
+        console.log('view1:', view1);
+        console.log('view2:', view2);
+        console.log('view3:', view3);
+        console.log('view4:', view4);
 
         return { view1, view2, view3, view4 };
     };
