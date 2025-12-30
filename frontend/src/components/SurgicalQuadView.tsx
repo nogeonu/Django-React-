@@ -70,47 +70,29 @@ export default function SurgicalQuadView({
 
     const isMammography = imageType === '유방촬영술 영상';
 
-    // 유방촬영술 영상 필터링 함수
-    const filterMammographyImages = (viewType: 'LCC' | 'RCC' | 'LMLO' | 'RMLO'): string[] => {
-        if (!isMammography || allImages.length === 0) {
-            return instanceIds; // 필터링할 수 없으면 전체 반환
+    // 4분할 뷰를 위한 이미지 분할 (필터링 없이 순서대로)
+    const getQuadViewImages = () => {
+        if (!isMammography || instanceIds.length === 0) {
+            // MRI/병리 영상은 모두 같은 이미지 사용
+            return {
+                view1: instanceIds,
+                view2: instanceIds,
+                view3: instanceIds,
+                view4: instanceIds
+            };
         }
 
-        // 1. mammography_view 태그로 필터링 (가장 정확)
-        let filtered = allImages.filter(img => {
-            const mammographyView = (img.mammography_view || '').toUpperCase();
-            return mammographyView === viewType.toUpperCase();
-        });
+        // 유방촬영술: 4장의 이미지를 순서대로 4분할에 배치
+        // 이미지가 4장 미만이면 있는 만큼만 사용
+        const view1 = instanceIds.length > 0 ? [instanceIds[0]] : [];
+        const view2 = instanceIds.length > 1 ? [instanceIds[1]] : [];
+        const view3 = instanceIds.length > 2 ? [instanceIds[2]] : [];
+        const view4 = instanceIds.length > 3 ? [instanceIds[3]] : [];
 
-        // 2. mammography_view가 없으면 series_description으로 시도
-        if (filtered.length === 0) {
-            filtered = allImages.filter(img => {
-                const desc = (img.series_description || '').toUpperCase();
-                return desc.includes(viewType.toUpperCase());
-            });
-        }
-
-        // 3. 그래도 없으면 view_position + image_laterality 조합으로 시도
-        if (filtered.length === 0) {
-            filtered = allImages.filter(img => {
-                const laterality = (img.image_laterality || '').toUpperCase();
-                const position = (img.view_position || '').toUpperCase();
-                const combined = laterality + position;
-                return combined === viewType.toUpperCase();
-            });
-        }
-
-        console.log(`Filtered ${viewType}:`, filtered.length, 'images');
-        
-        // 필터링된 이미지의 instance_id 반환
-        return filtered.map(img => img.instance_id);
+        return { view1, view2, view3, view4 };
     };
 
-    // 각 뷰의 이미지 ID 배열
-    const lccIds = filterMammographyImages('LCC');
-    const rccIds = filterMammographyImages('RCC');
-    const lmloIds = filterMammographyImages('LMLO');
-    const rmloIds = filterMammographyImages('RMLO');
+    const { view1, view2, view3, view4 } = getQuadViewImages();
 
     return (
         <div className="h-full w-full bg-gray-900">
@@ -119,97 +101,97 @@ export default function SurgicalQuadView({
                 {isMammography ? (
                     <>
                         {/* 유방촬영술 영상: LCC, RCC, LMLO, RMLO */}
-                        {/* 좌측 상단 - LCC (Left CranioCaudal) */}
+                        {/* 좌측 상단 - 이미지 1 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    LCC
+                                    이미지 1
                                 </Badge>
                             </div>
                             <div ref={originalViewRef} className="w-full h-full">
-                                {lccIds.length > 0 ? (
+                                {view1.length > 0 ? (
                                     <CornerstoneViewer
-                                        key={`lcc-${lccIds.length}`}
-                                        instanceIds={lccIds}
+                                        key={`view1-${view1[0]}`}
+                                        instanceIds={view1}
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        LCC 이미지 없음
+                                        이미지 없음
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* 우측 상단 - RCC (Right CranioCaudal) */}
+                        {/* 우측 상단 - 이미지 2 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    RCC
+                                    이미지 2
                                 </Badge>
                             </div>
                             <div ref={segmentationViewRef} className="w-full h-full">
-                                {rccIds.length > 0 ? (
+                                {view2.length > 0 ? (
                                     <CornerstoneViewer
-                                        key={`rcc-${rccIds.length}`}
-                                        instanceIds={rccIds}
+                                        key={`view2-${view2[0]}`}
+                                        instanceIds={view2}
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        RCC 이미지 없음
+                                        이미지 없음
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* 좌측 하단 - LMLO (Left MedioLateral Oblique) */}
+                        {/* 좌측 하단 - 이미지 3 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    LMLO
+                                    이미지 3
                                 </Badge>
                             </div>
                             <div ref={overlayViewRef} className="w-full h-full">
-                                {lmloIds.length > 0 ? (
+                                {view3.length > 0 ? (
                                     <CornerstoneViewer
-                                        key={`lmlo-${lmloIds.length}`}
-                                        instanceIds={lmloIds}
+                                        key={`view3-${view3[0]}`}
+                                        instanceIds={view3}
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        LMLO 이미지 없음
+                                        이미지 없음
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* 우측 하단 - RMLO (Right MedioLateral Oblique) */}
+                        {/* 우측 하단 - 이미지 4 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    RMLO
+                                    이미지 4
                                 </Badge>
                             </div>
                             <div ref={volume3DViewRef} className="w-full h-full">
-                                {rmloIds.length > 0 ? (
+                                {view4.length > 0 ? (
                                     <CornerstoneViewer
-                                        key={`rmlo-${rmloIds.length}`}
-                                        instanceIds={rmloIds}
+                                        key={`view4-${view4[0]}`}
+                                        instanceIds={view4}
                                         currentIndex={0}
                                         onIndexChange={() => {}}
                                         showMeasurementTools={false}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        RMLO 이미지 없음
+                                        이미지 없음
                                     </div>
                                 )}
                             </div>
