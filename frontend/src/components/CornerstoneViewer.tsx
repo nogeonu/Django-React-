@@ -393,7 +393,18 @@ export default function CornerstoneViewer({
       )}
 
       {/* 뷰포트 */}
-      <div className="flex-1 relative">
+      <div 
+        className="flex-1 relative"
+        onWheel={(e) => {
+          if (instanceIds.length === 0) return;
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? 1 : -1;
+          const newIndex = Math.max(0, Math.min(instanceIds.length - 1, currentIndex + delta));
+          if (newIndex !== currentIndex) {
+            onIndexChange(newIndex);
+          }
+        }}
+      >
         <div
           ref={viewportRef}
           className="w-full h-full"
