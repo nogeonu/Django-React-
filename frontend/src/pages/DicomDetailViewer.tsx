@@ -278,7 +278,7 @@ export default function DicomDetailViewer() {
                                             }`}
                                         onClick={() => setActiveViewport(1)}
                                     >
-                                        <div className="absolute top-2 left-2 z-10 bg-blue-500 text-white text-sm px-2 py-1 rounded">
+                                        <div className="absolute top-2 left-2 z-50 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded shadow-lg border border-blue-400">
                                             뷰포트 1
                                         </div>
                                         <CornerstoneViewer
@@ -297,7 +297,7 @@ export default function DicomDetailViewer() {
                                             }`}
                                         onClick={() => setActiveViewport(2)}
                                     >
-                                        <div className="absolute top-2 left-2 z-10 bg-green-500 text-white text-sm px-2 py-1 rounded">
+                                        <div className="absolute top-2 left-2 z-50 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded shadow-lg border border-green-400">
                                             뷰포트 2
                                         </div>
                                         <CornerstoneViewer
