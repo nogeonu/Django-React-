@@ -14,7 +14,6 @@ interface OrthancImage {
 
 interface SurgicalQuadViewProps {
     instanceIds: string[];
-    allImages?: OrthancImage[];
     currentIndex: number;
     patientId: string;
     imageType?: '유방촬영술 영상' | '병리 영상' | 'MRI 영상';
@@ -23,7 +22,6 @@ interface SurgicalQuadViewProps {
 
 export default function SurgicalQuadView({ 
     instanceIds,
-    allImages = [],
     currentIndex, 
     patientId,
     imageType = 'MRI 영상',
