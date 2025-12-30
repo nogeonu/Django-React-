@@ -59,6 +59,11 @@ export default function SurgicalQuadView({
 
     const isMammography = imageType === '유방촬영술 영상';
 
+    // 디버깅: instanceIds 확인
+    console.log('[SurgicalQuadView] instanceIds:', instanceIds);
+    console.log('[SurgicalQuadView] instanceIds.length:', instanceIds.length);
+    console.log('[SurgicalQuadView] isMammography:', isMammography);
+
     return (
         <div className="h-full w-full bg-gray-900">
             {/* 4분할 그리드 */}
@@ -70,11 +75,11 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 1 / {instanceIds.length}
+                                    슬라이드 1 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={originalViewRef} className="w-full h-full">
-                                {instanceIds.length > 0 ? (
+                                {instanceIds.length >= 1 && (
                                     <CornerstoneViewer
                                         key={`view1-${instanceIds[0]}`}
                                         instanceIds={instanceIds}
@@ -83,10 +88,6 @@ export default function SurgicalQuadView({
                                         showMeasurementTools={false}
                                         viewportId="quad_view_1"
                                     />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        이미지 없음
-                                    </div>
                                 )}
                             </div>
                         </div>
@@ -95,11 +96,11 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 2 / {instanceIds.length}
+                                    슬라이드 2 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={segmentationViewRef} className="w-full h-full">
-                                {instanceIds.length > 1 ? (
+                                {instanceIds.length >= 2 && (
                                     <CornerstoneViewer
                                         key={`view2-${instanceIds[1]}`}
                                         instanceIds={instanceIds}
@@ -108,10 +109,6 @@ export default function SurgicalQuadView({
                                         showMeasurementTools={false}
                                         viewportId="quad_view_2"
                                     />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        이미지 없음
-                                    </div>
                                 )}
                             </div>
                         </div>
@@ -120,11 +117,11 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 3 / {instanceIds.length}
+                                    슬라이드 3 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={overlayViewRef} className="w-full h-full">
-                                {instanceIds.length > 2 ? (
+                                {instanceIds.length >= 3 && (
                                     <CornerstoneViewer
                                         key={`view3-${instanceIds[2]}`}
                                         instanceIds={instanceIds}
@@ -133,10 +130,6 @@ export default function SurgicalQuadView({
                                         showMeasurementTools={false}
                                         viewportId="quad_view_3"
                                     />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        이미지 없음
-                                    </div>
                                 )}
                             </div>
                         </div>
@@ -145,11 +138,11 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 4 / {instanceIds.length}
+                                    슬라이드 4 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={volume3DViewRef} className="w-full h-full">
-                                {instanceIds.length > 3 ? (
+                                {instanceIds.length >= 4 && (
                                     <CornerstoneViewer
                                         key={`view4-${instanceIds[3]}`}
                                         instanceIds={instanceIds}
@@ -158,10 +151,6 @@ export default function SurgicalQuadView({
                                         showMeasurementTools={false}
                                         viewportId="quad_view_4"
                                     />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        이미지 없음
-                                    </div>
                                 )}
                             </div>
                         </div>

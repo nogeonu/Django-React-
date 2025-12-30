@@ -58,7 +58,7 @@ export default function DicomDetailViewer() {
                     // Cornerstone3D용 instance ID 배열 설정
                     const ids = response.images.map((img: OrthancImage) => img.instance_id);
                     setInstanceIds(ids);
-                    
+
                     const index = response.images.findIndex((img: OrthancImage) => img.instance_id === instanceId);
                     if (index !== -1) {
                         setCurrentIndex(index);
