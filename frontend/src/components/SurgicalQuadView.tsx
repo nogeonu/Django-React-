@@ -61,16 +61,16 @@ export default function SurgicalQuadView({
     const isMammography = imageType === '유방촬영술 영상';
 
     return (
-        <div className="h-full w-full bg-gray-900 p-4">
+        <div className="h-full w-full bg-gray-900 flex flex-col">
             {/* 컨트롤 바 */}
-            <div className="mb-4 bg-gray-800 rounded-lg p-3 flex items-center justify-between">
+            <div className="flex-shrink-0 bg-gray-800 px-4 py-2 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Badge variant="secondary" className="text-sm">
+                    <Badge variant="secondary" className="text-xs px-2 py-1">
                         <Grid3x3 className="w-3 h-3 mr-1" />
                         4분할 뷰 (외과)
                     </Badge>
                     <div className="h-4 w-px bg-gray-600" />
-                    <div className="text-sm text-gray-300">
+                    <div className="text-xs text-gray-300">
                         {isMammography ? '유방촬영술 영상' : `슬라이스: ${currentIndex + 1} / ${instanceIds.length}`}
                     </div>
                 </div>
@@ -83,7 +83,7 @@ export default function SurgicalQuadView({
                             max="100"
                             value={overlayOpacity * 100}
                             onChange={(e) => setOverlayOpacity(Number(e.target.value) / 100)}
-                            className="w-32 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                            className="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                         />
                         <span className="text-xs text-gray-300 w-8">{Math.round(overlayOpacity * 100)}%</span>
                     </div>
@@ -91,14 +91,14 @@ export default function SurgicalQuadView({
             </div>
 
             {/* 4분할 그리드 */}
-            <div className="grid grid-cols-2 grid-rows-2 gap-3 h-[calc(100%-80px)]">
+            <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-2 p-2 min-h-0">
                 {isMammography ? (
                     <>
                         {/* 유방촬영술 영상: LCC, RCC, LMLO, RMLO */}
                         {/* 좌측 상단 - LCC (Left CranioCaudal) */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-blue-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-blue-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     LCC
                                 </Badge>
                             </div>
@@ -114,9 +114,9 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 상단 - RCC (Right CranioCaudal) */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-green-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-green-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     RCC
                                 </Badge>
                             </div>
@@ -132,9 +132,9 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 좌측 하단 - LMLO (Left MedioLateral Oblique) */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-purple-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-purple-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     LMLO
                                 </Badge>
                             </div>
@@ -150,9 +150,9 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 하단 - RMLO (Right MedioLateral Oblique) */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-orange-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-orange-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     RMLO
                                 </Badge>
                             </div>
@@ -171,11 +171,11 @@ export default function SurgicalQuadView({
                     <>
                         {/* MRI/병리 영상: 원본, 세그멘테이션, 오버레이, 3D */}
                         {/* 좌측 상단 - 원본 이미지 */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-blue-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-gray-700 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Box className="w-3 h-3 mr-1" />
-                                    원본 (Original)
+                                    원본
                                 </Badge>
                             </div>
                             <div ref={originalViewRef} className="w-full h-full">
@@ -190,17 +190,17 @@ export default function SurgicalQuadView({
                         </div>
 
                         {/* 우측 상단 - 세그멘테이션 */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-green-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-green-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20 flex items-center gap-2">
+                                <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Layers className="w-3 h-3 mr-1" />
-                                    세그멘테이션 (Tumor Seg)
+                                    세그멘테이션
                                 </Badge>
                                 {!segmentationLoaded && (
                                     <span className="text-xs text-yellow-400">로딩 중...</span>
                                 )}
                             </div>
-                            <div ref={segmentationViewRef} className="w-full h-full flex items-center justify-center">
+                            <div ref={segmentationViewRef} className="w-full h-full">
                                 {segmentationLoaded ? (
                                     <CornerstoneViewer
                                         key={`segmentation-${currentIndex}`}
@@ -210,52 +210,53 @@ export default function SurgicalQuadView({
                                         showMeasurementTools={false}
                                     />
                                 ) : (
-                                    <div className="text-gray-400 text-sm">
-                                        AI 세그멘테이션 분석 준비 중...
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <div className="text-gray-400 text-sm">
+                                            AI 세그멘테이션 분석 준비 중...
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* 좌측 하단 - 오버레이 */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-purple-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-purple-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Layers className="w-3 h-3 mr-1" />
-                                    오버레이 (Overlay)
+                                    오버레이
                                 </Badge>
                             </div>
-                            <div ref={overlayViewRef} className="w-full h-full flex items-center justify-center">
+                            <div ref={overlayViewRef} className="w-full h-full">
                                 {segmentationLoaded ? (
-                                    <div className="relative w-full h-full">
-                                        <CornerstoneViewer
-                                            key={`overlay-${currentIndex}`}
-                                            instanceIds={instanceIds}
-                                            currentIndex={currentIndex}
-                                            onIndexChange={onIndexChange}
-                                            showMeasurementTools={false}
-                                        />
-                                        {/* TODO: 실제 오버레이 레이어 추가 */}
-                                    </div>
+                                    <CornerstoneViewer
+                                        key={`overlay-${currentIndex}`}
+                                        instanceIds={instanceIds}
+                                        currentIndex={currentIndex}
+                                        onIndexChange={onIndexChange}
+                                        showMeasurementTools={false}
+                                    />
                                 ) : (
-                                    <div className="text-gray-400 text-sm">
-                                        오버레이 준비 중...
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <div className="text-gray-400 text-sm">
+                                            오버레이 준비 중...
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* 우측 하단 - 3D 볼륨 */}
-                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-orange-600">
-                            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-                                <Badge className="bg-orange-600 text-white border-none">
+                        <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600 min-h-0">
+                            <div className="absolute top-1 left-1 z-20">
+                                <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
                                     <Volume2 className="w-3 h-3 mr-1" />
                                     3D 세그멘테이션
                                 </Badge>
                             </div>
                             <div ref={volume3DViewRef} className="w-full h-full flex items-center justify-center">
                                 {segmentationLoaded ? (
-                                    <div className="text-gray-300 text-sm">
+                                    <div className="text-gray-300 text-sm text-center">
                                         3D 볼륨 렌더링 준비 중...
                                         <p className="text-xs text-gray-500 mt-2">
                                             (향후 VTK.js 또는 Three.js 통합 예정)
@@ -270,16 +271,6 @@ export default function SurgicalQuadView({
                         </div>
                     </>
                 )}
-            </div>
-
-            {/* 안내 메시지 */}
-            <div className="mt-3 text-center">
-                <p className="text-xs text-gray-500">
-                    {isMammography 
-                        ? '💡 유방촬영술 4분할 뷰: LCC (좌측 두두방향), RCC (우측 두두방향), LMLO (좌측 내외사방향), RMLO (우측 내외사방향)'
-                        : '💡 4분할 뷰는 외과 의사 전용 기능입니다. AI 분석 완료 후 세그멘테이션 결과가 자동으로 표시됩니다.'
-                    }
-                </p>
             </div>
         </div>
     );

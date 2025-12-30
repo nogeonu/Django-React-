@@ -197,16 +197,12 @@ export default function DicomDetailViewer() {
             </div>
 
             {/* Main Content */}
-            <div className="flex h-[calc(100vh-73px)]">
-                {/* Left Sidebar - Patient Info (Hidden for better image viewing) */}
-                {/* 사이드바는 숨기고 이미지만 전체 화면으로 표시 */}
-                {/* 환자 정보는 헤더에 표시되거나 필요시 주석 해제 가능 */}
-
+            <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
                 {/* Center - Image Display (Full Width) */}
-                <div className="flex-1 flex flex-col w-full" id="dicom-viewer-container">
+                <div className="flex-1 flex flex-col w-full min-h-0" id="dicom-viewer-container">
                     {/* 외과 의사 4분할 뷰 또는 일반 뷰어 */}
                     {instanceIds.length > 0 && (
-                        <div className="flex-1 bg-gray-900">
+                        <div className="flex-1 bg-gray-900 min-h-0">
                             {showQuadView && isSurgeon ? (
                                 <SurgicalQuadView
                                     instanceIds={instanceIds}
@@ -238,7 +234,7 @@ export default function DicomDetailViewer() {
                     )}
 
                     {/* Bottom Controls */}
-                    <div className="bg-gray-800 border-t border-gray-700 px-6 py-4">
+                    <div className="flex-shrink-0 bg-gray-800 border-t border-gray-700 px-6 py-3">
                         <div className="flex items-center justify-between">
                             {/* Navigation Controls */}
                             <div className="flex items-center gap-2">
