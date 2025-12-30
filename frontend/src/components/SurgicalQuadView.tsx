@@ -12,12 +12,12 @@ interface SurgicalQuadViewProps {
     onIndexChange: (index: number) => void;
 }
 
-export default function SurgicalQuadView({ 
+export default function SurgicalQuadView({
     instanceIds,
-    currentIndex, 
+    currentIndex,
     patientId,
     imageType = 'MRI 영상',
-    onIndexChange 
+    onIndexChange
 }: SurgicalQuadViewProps) {
     const [segmentationLoaded, setSegmentationLoaded] = useState(false);
     const originalViewRef = useRef<HTMLDivElement>(null);
@@ -29,12 +29,12 @@ export default function SurgicalQuadView({
     useEffect(() => {
         const loadSegmentation = async () => {
             if (!patientId) return;
-            
+
             try {
                 // 세그멘테이션 데이터 확인
                 const response = await apiRequest('GET', `/api/mri/orthanc/patients/${patientId}/segmentation/`);
                 console.log('Segmentation API response:', response);
-                
+
                 if (response.success && response.segmentation_available) {
                     setSegmentationLoaded(true);
                 } else {
@@ -59,59 +59,27 @@ export default function SurgicalQuadView({
 
     const isMammography = imageType === '유방촬영술 영상';
 
-    // 4분할 뷰를 위한 이미지 분할 (필터링 없이 순서대로)
-    const getQuadViewImages = () => {
-        console.log('=== 4분할 뷰 디버깅 ===');
-        console.log('전체 instanceIds:', instanceIds);
-        console.log('전체 개수:', instanceIds.length);
-        
-        if (!isMammography || instanceIds.length === 0) {
-            // MRI/병리 영상은 모두 같은 이미지 사용
-            return {
-                view1: instanceIds,
-                view2: instanceIds,
-                view3: instanceIds,
-                view4: instanceIds
-            };
-        }
-
-        // 유방촬영술: 4장의 이미지를 순서대로 4분할에 배치
-        const view1 = instanceIds.length > 0 ? [instanceIds[0]] : [];
-        const view2 = instanceIds.length > 1 ? [instanceIds[1]] : [];
-        const view3 = instanceIds.length > 2 ? [instanceIds[2]] : [];
-        const view4 = instanceIds.length > 3 ? [instanceIds[3]] : [];
-
-        console.log('뷰포트 1 (첫번째 이미지):', view1);
-        console.log('뷰포트 2 (두번째 이미지):', view2);
-        console.log('뷰포트 3 (세번째 이미지):', view3);
-        console.log('뷰포트 4 (네번째 이미지):', view4);
-
-        return { view1, view2, view3, view4 };
-    };
-
-    const { view1, view2, view3, view4 } = getQuadViewImages();
-
     return (
         <div className="h-full w-full bg-gray-900">
             {/* 4분할 그리드 */}
             <div className="h-full grid grid-cols-2 grid-rows-2 gap-2 p-2">
                 {isMammography ? (
                     <>
-                        {/* 유방촬영술 영상: 4개 뷰포트에 모든 이미지 표시 (슬라이드 가능) */}
+                        {/* 유방촬영술 영상: 4개 뷰포트에 각각 다른 이미지 표시 */}
                         {/* 좌측 상단 - 이미지 1 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-blue-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 1
+                                    이미지 1 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={originalViewRef} className="w-full h-full">
-                                {view1.length > 0 ? (
+                                {instanceIds.length > 0 ? (
                                     <CornerstoneViewer
-                                        key={`view1-${view1[0]}`}
-                                        instanceIds={view1}
+                                        key={`view1-${instanceIds[0]}`}
+                                        instanceIds={instanceIds}
                                         currentIndex={0}
-                                        onIndexChange={() => {}}
+                                        onIndexChange={() => { }}
                                         showMeasurementTools={false}
                                         viewportId="quad_view_1"
                                     />
@@ -127,16 +95,16 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-green-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-green-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 2
+                                    이미지 2 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={segmentationViewRef} className="w-full h-full">
-                                {view2.length > 0 ? (
+                                {instanceIds.length > 1 ? (
                                     <CornerstoneViewer
-                                        key={`view2-${view2[0]}`}
-                                        instanceIds={view2}
-                                        currentIndex={0}
-                                        onIndexChange={() => {}}
+                                        key={`view2-${instanceIds[1]}`}
+                                        instanceIds={instanceIds}
+                                        currentIndex={1}
+                                        onIndexChange={() => { }}
                                         showMeasurementTools={false}
                                         viewportId="quad_view_2"
                                     />
@@ -152,16 +120,16 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-purple-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-purple-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 3
+                                    이미지 3 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={overlayViewRef} className="w-full h-full">
-                                {view3.length > 0 ? (
+                                {instanceIds.length > 2 ? (
                                     <CornerstoneViewer
-                                        key={`view3-${view3[0]}`}
-                                        instanceIds={view3}
-                                        currentIndex={0}
-                                        onIndexChange={() => {}}
+                                        key={`view3-${instanceIds[2]}`}
+                                        instanceIds={instanceIds}
+                                        currentIndex={2}
+                                        onIndexChange={() => { }}
                                         showMeasurementTools={false}
                                         viewportId="quad_view_3"
                                     />
@@ -177,16 +145,16 @@ export default function SurgicalQuadView({
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-orange-600">
                             <div className="absolute top-2 left-2 z-30">
                                 <Badge className="bg-orange-600 text-white border-none text-xs px-2 py-0.5 font-bold">
-                                    이미지 4
+                                    이미지 4 / {instanceIds.length}
                                 </Badge>
                             </div>
                             <div ref={volume3DViewRef} className="w-full h-full">
-                                {view4.length > 0 ? (
+                                {instanceIds.length > 3 ? (
                                     <CornerstoneViewer
-                                        key={`view4-${view4[0]}`}
-                                        instanceIds={view4}
-                                        currentIndex={0}
-                                        onIndexChange={() => {}}
+                                        key={`view4-${instanceIds[3]}`}
+                                        instanceIds={instanceIds}
+                                        currentIndex={3}
+                                        onIndexChange={() => { }}
                                         showMeasurementTools={false}
                                         viewportId="quad_view_4"
                                     />
