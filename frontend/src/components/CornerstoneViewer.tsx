@@ -33,6 +33,18 @@ import {
 } from 'lucide-react';
 import { initCornerstone, createImageId, WINDOW_LEVEL_PRESETS } from '@/lib/cornerstone';
 
+// 전역 렌더링 엔진 캐시 (WebGL 컨텍스트 재사용)
+const renderingEngineCache = new Map<string, RenderingEngine>();
+
+function getOrCreateRenderingEngine(engineId: string): RenderingEngine {
+  let engine = renderingEngineCache.get(engineId);
+  if (!engine) {
+    engine = new RenderingEngine(engineId);
+    renderingEngineCache.set(engineId, engine);
+  }
+  return engine;
+}
+
 interface CornerstoneViewerProps {
   instanceIds: string[];
   currentIndex: number;
@@ -98,23 +110,18 @@ export default function CornerstoneViewer({
         const renderingEngineId = renderingEngineIdRef.current;
         const viewportId = viewportIdRef.current;
 
-        // 기존 렌더링 엔진 재사용 또는 생성
-        let renderingEngine = renderingEngineRef.current;
+        // 전역 캐시에서 렌더링 엔진 가져오기 또는 생성
+        const renderingEngine = getOrCreateRenderingEngine(renderingEngineId);
+        renderingEngineRef.current = renderingEngine;
 
-        if (!renderingEngine) {
-          // 새 렌더링 엔진 생성
-          renderingEngine = new RenderingEngine(renderingEngineId);
-          renderingEngineRef.current = renderingEngine;
-        } else {
-          // 기존 뷰포트가 있다면 비활성화
-          try {
-            const existingViewport = renderingEngine.getViewport(viewportId);
-            if (existingViewport) {
-              renderingEngine.disableElement(viewportId);
-            }
-          } catch (e) {
-            // 뷰포트가 없으면 무시
+        // 기존 뷰포트가 있다면 비활성화
+        try {
+          const existingViewport = renderingEngine.getViewport(viewportId);
+          if (existingViewport) {
+            renderingEngine.disableElement(viewportId);
           }
+        } catch (e) {
+          // 뷰포트가 없으면 무시
         }
 
         // 뷰포트 생성
