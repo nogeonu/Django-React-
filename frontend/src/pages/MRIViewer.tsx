@@ -89,7 +89,11 @@ export default function MRIViewer() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
-
+  
+  // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
+  const pageTitle = isRadiologyTech ? '영상 업로드' : '영상 판독';
+  
+  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('MRI 영상');
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -286,7 +290,7 @@ export default function MRIViewer() {
             <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
               <Scan className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">영상 판독 워크스테이션</h1>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pageTitle}</h1>
           </div>
           <p className="text-sm font-medium text-gray-400">유방 MRI 3D 분석 및 Orthanc PACS 연동 시스템</p>
         </div>
@@ -320,6 +324,19 @@ export default function MRIViewer() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">영상 유형 선택</Label>
+                <Select value={imageType} onValueChange={(value) => setImageType(value as '유방촬영술 영상' | '병리 영상' | 'MRI 영상')}>
+                  <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-sm focus:ring-2 focus:ring-blue-600/20">
+                    <SelectValue placeholder="영상 유형을 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    <SelectItem value="유방촬영술 영상" className="rounded-lg">유방촬영술 영상</SelectItem>
+                    <SelectItem value="병리 영상" className="rounded-lg">병리 영상</SelectItem>
+                    <SelectItem value="MRI 영상" className="rounded-lg">MRI 영상</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">대상 환자 선택</Label>
                 <Select value={selectedPatient || ""} onValueChange={setSelectedPatient}>

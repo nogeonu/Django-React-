@@ -10,13 +10,13 @@ const departmentNavigation = {
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
   ],
   방사선과: [
-    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
+    { name: "영상 업로드", href: "/mri-viewer", icon: Scan },
   ],
   영상의학과: [
-    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
+    { name: "영상 판독", href: "/mri-viewer", icon: Scan },
   ],
   외과: [
-    { name: "MRI 이미지", href: "/mri-viewer", icon: Scan },
+    { name: "영상 판독", href: "/mri-viewer", icon: Scan },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
   ],
 };
