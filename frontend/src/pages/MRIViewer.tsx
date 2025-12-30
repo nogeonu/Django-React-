@@ -52,6 +52,9 @@ interface OrthancImage {
   series_description: string;
   instance_number: string;
   preview_url: string;
+  view_position?: string;  // CC, MLO
+  image_laterality?: string;  // L, R
+  mammography_view?: string;  // LCC, RCC, LMLO, RMLO
 }
 
 interface SeriesInfo {

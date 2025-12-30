@@ -224,13 +224,28 @@ def orthanc_patient_detail(request, patient_id):
                     instance_id = instance if isinstance(instance, str) else instance.get('ID')
                     
                     instance_info = client.get_instance_info(instance_id)
+                    instance_tags = instance_info.get('MainDicomTags', {})
+                    
+                    # 유방촬영술을 위한 추가 태그 수집
+                    view_position = instance_tags.get('ViewPosition', '')  # CC, MLO 등
+                    image_laterality = instance_tags.get('ImageLaterality', '')  # L, R
+                    
+                    # ViewPosition과 ImageLaterality를 조합하여 mammography_view 생성
+                    # 예: L + CC = LCC, R + MLO = RMLO
+                    mammography_view = ''
+                    if view_position and image_laterality:
+                        mammography_view = f"{image_laterality}{view_position}"  # LCC, RCC, LMLO, RMLO
+                    
                     images.append({
                         'instance_id': instance_id,
                         'series_id': series_id,
                         'study_id': study_id,
                         'series_description': series_info.get('MainDicomTags', {}).get('SeriesDescription', ''),
-                        'instance_number': instance_info.get('MainDicomTags', {}).get('InstanceNumber', ''),
+                        'instance_number': instance_tags.get('InstanceNumber', ''),
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
+                        'view_position': view_position,  # CC, MLO
+                        'image_laterality': image_laterality,  # L, R
+                        'mammography_view': mammography_view,  # LCC, RCC, LMLO, RMLO
                     })
         
         logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id}")

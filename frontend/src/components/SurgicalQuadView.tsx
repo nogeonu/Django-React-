@@ -8,6 +8,9 @@ interface OrthancImage {
     instance_id: string;
     preview_url: string;
     series_description?: string;
+    view_position?: string;  // CC, MLO
+    image_laterality?: string;  // L, R
+    mammography_view?: string;  // LCC, RCC, LMLO, RMLO
 }
 
 interface SurgicalQuadViewProps {
@@ -73,12 +76,32 @@ export default function SurgicalQuadView({
             return instanceIds; // 필터링할 수 없으면 전체 반환
         }
 
-        // series_description에서 해당 뷰 타입 찾기 (대소문자 구분 없이)
-        const filtered = allImages.filter(img => {
-            const desc = (img.series_description || '').toUpperCase();
-            return desc.includes(viewType.toUpperCase());
+        // 1. mammography_view 태그로 필터링 (가장 정확)
+        let filtered = allImages.filter(img => {
+            const mammographyView = (img.mammography_view || '').toUpperCase();
+            return mammographyView === viewType.toUpperCase();
         });
 
+        // 2. mammography_view가 없으면 series_description으로 시도
+        if (filtered.length === 0) {
+            filtered = allImages.filter(img => {
+                const desc = (img.series_description || '').toUpperCase();
+                return desc.includes(viewType.toUpperCase());
+            });
+        }
+
+        // 3. 그래도 없으면 view_position + image_laterality 조합으로 시도
+        if (filtered.length === 0) {
+            filtered = allImages.filter(img => {
+                const laterality = (img.image_laterality || '').toUpperCase();
+                const position = (img.view_position || '').toUpperCase();
+                const combined = laterality + position;
+                return combined === viewType.toUpperCase();
+            });
+        }
+
+        console.log(`Filtered ${viewType}:`, filtered.length, 'images');
+        
         // 필터링된 이미지의 instance_id 반환
         return filtered.map(img => img.instance_id);
     };

@@ -12,6 +12,9 @@ interface OrthancImage {
     instance_id: string;
     preview_url: string;
     series_description?: string;
+    view_position?: string;  // CC, MLO
+    image_laterality?: string;  // L, R
+    mammography_view?: string;  // LCC, RCC, LMLO, RMLO
 }
 
 export default function DicomDetailViewer() {
