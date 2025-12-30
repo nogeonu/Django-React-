@@ -70,7 +70,7 @@ export default function SurgicalQuadView({
             <div className="h-full grid grid-cols-2 grid-rows-2 gap-2 p-2">
                 {isMammography ? (
                     <>
-                        {/* 유방촬영술 영상: 4개 뷰포트에 각각 다른 이미지 표시 (간단한 이미지 뷰어 사용) */}
+                        {/* 유방촬영술 영상: 4개 뷰포트에 원본 DICOM 품질로 표시 */}
                         {/* 좌측 상단 - 이미지 1 */}
                         <div className="relative bg-gray-800 rounded overflow-hidden border-2 border-blue-600">
                             <div className="absolute top-2 left-2 z-30">
@@ -78,16 +78,16 @@ export default function SurgicalQuadView({
                                     슬라이드 1 / {instanceIds.length}
                                 </Badge>
                             </div>
-                            <div className="w-full h-full flex items-center justify-center bg-black">
-                                {instanceIds.length >= 1 ? (
-                                    <img
-                                        src={`/api/mri/orthanc/instances/${instanceIds[0]}/preview`}
-                                        alt="슬라이드 1"
-                                        className="max-w-full max-h-full object-contain"
-                                        style={{ imageRendering: 'crisp-edges' }}
+                            <div className="w-full h-full">
+                                {instanceIds.length >= 1 && (
+                                    <CornerstoneViewer
+                                        key={`mammo_view1_${instanceIds[0]}`}
+                                        instanceIds={[instanceIds[0]]}
+                                        currentIndex={0}
+                                        onIndexChange={() => { }}
+                                        showMeasurementTools={false}
+                                        viewportId={`mammo_quad_1_${patientId}`}
                                     />
-                                ) : (
-                                    <div className="text-gray-400">이미지 없음</div>
                                 )}
                             </div>
                         </div>
@@ -99,16 +99,16 @@ export default function SurgicalQuadView({
                                     슬라이드 2 / {instanceIds.length}
                                 </Badge>
                             </div>
-                            <div className="w-full h-full flex items-center justify-center bg-black">
-                                {instanceIds.length >= 2 ? (
-                                    <img
-                                        src={`/api/mri/orthanc/instances/${instanceIds[1]}/preview`}
-                                        alt="슬라이드 2"
-                                        className="max-w-full max-h-full object-contain"
-                                        style={{ imageRendering: 'crisp-edges' }}
+                            <div className="w-full h-full">
+                                {instanceIds.length >= 2 && (
+                                    <CornerstoneViewer
+                                        key={`mammo_view2_${instanceIds[1]}`}
+                                        instanceIds={[instanceIds[1]]}
+                                        currentIndex={0}
+                                        onIndexChange={() => { }}
+                                        showMeasurementTools={false}
+                                        viewportId={`mammo_quad_2_${patientId}`}
                                     />
-                                ) : (
-                                    <div className="text-gray-400">이미지 없음</div>
                                 )}
                             </div>
                         </div>
@@ -120,16 +120,16 @@ export default function SurgicalQuadView({
                                     슬라이드 3 / {instanceIds.length}
                                 </Badge>
                             </div>
-                            <div className="w-full h-full flex items-center justify-center bg-black">
-                                {instanceIds.length >= 3 ? (
-                                    <img
-                                        src={`/api/mri/orthanc/instances/${instanceIds[2]}/preview`}
-                                        alt="슬라이드 3"
-                                        className="max-w-full max-h-full object-contain"
-                                        style={{ imageRendering: 'crisp-edges' }}
+                            <div className="w-full h-full">
+                                {instanceIds.length >= 3 && (
+                                    <CornerstoneViewer
+                                        key={`mammo_view3_${instanceIds[2]}`}
+                                        instanceIds={[instanceIds[2]]}
+                                        currentIndex={0}
+                                        onIndexChange={() => { }}
+                                        showMeasurementTools={false}
+                                        viewportId={`mammo_quad_3_${patientId}`}
                                     />
-                                ) : (
-                                    <div className="text-gray-400">이미지 없음</div>
                                 )}
                             </div>
                         </div>
@@ -141,16 +141,16 @@ export default function SurgicalQuadView({
                                     슬라이드 4 / {instanceIds.length}
                                 </Badge>
                             </div>
-                            <div className="w-full h-full flex items-center justify-center bg-black">
-                                {instanceIds.length >= 4 ? (
-                                    <img
-                                        src={`/api/mri/orthanc/instances/${instanceIds[3]}/preview`}
-                                        alt="슬라이드 4"
-                                        className="max-w-full max-h-full object-contain"
-                                        style={{ imageRendering: 'crisp-edges' }}
+                            <div className="w-full h-full">
+                                {instanceIds.length >= 4 && (
+                                    <CornerstoneViewer
+                                        key={`mammo_view4_${instanceIds[3]}`}
+                                        instanceIds={[instanceIds[3]]}
+                                        currentIndex={0}
+                                        onIndexChange={() => { }}
+                                        showMeasurementTools={false}
+                                        viewportId={`mammo_quad_4_${patientId}`}
                                     />
-                                ) : (
-                                    <div className="text-gray-400">이미지 없음</div>
                                 )}
                             </div>
                         </div>
