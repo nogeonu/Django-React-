@@ -6,6 +6,7 @@ import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import CornerstoneViewer from '@/components/CornerstoneViewer';
+import AIAnalysisModal from '@/components/AIAnalysisModal';
 
 
 interface OrthancImage {
@@ -25,6 +26,8 @@ export default function DicomDetailViewer() {
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
+    const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+    const [analysisProgress, setAnalysisProgress] = useState(0);
     const [isSplitView, setIsSplitView] = useState(false); // 분할 뷰 토글
     const [activeViewport, setActiveViewport] = useState<1 | 2>(1); // 활성 뷰포트
     const [viewport1Index, setViewport1Index] = useState(0);
@@ -174,12 +177,25 @@ export default function DicomDetailViewer() {
                                 variant={analysisComplete ? "secondary" : "default"}
                                 className={`ml-4 ${analysisComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold border-none`}
                                 onClick={() => {
+                                    setShowAnalysisModal(true);
+                                    setAnalysisProgress(0);
                                     setIsAnalyzing(true);
-                                    // Simulate AI analysis delay
-                                    setTimeout(() => {
-                                        setIsAnalyzing(false);
-                                        setAnalysisComplete(true);
-                                    }, 2000);
+
+                                    // Animate progress from 0% to 100%
+                                    const interval = setInterval(() => {
+                                        setAnalysisProgress(prev => {
+                                            if (prev >= 100) {
+                                                clearInterval(interval);
+                                                setTimeout(() => {
+                                                    setShowAnalysisModal(false);
+                                                    setIsAnalyzing(false);
+                                                    setAnalysisComplete(true);
+                                                }, 500);
+                                                return 100;
+                                            }
+                                            return prev + 2; // 2% every 50ms = 2.5 seconds total
+                                        });
+                                    }, 50);
                                 }}
                                 disabled={isAnalyzing || analysisComplete}
                             >
@@ -392,6 +408,16 @@ export default function DicomDetailViewer() {
                     </div>
                 </div>
             </div>
+
+            {/* AI Analysis Modal */}
+            <AIAnalysisModal
+                isOpen={showAnalysisModal}
+                progress={analysisProgress}
+                onComplete={() => {
+                    setShowAnalysisModal(false);
+                    setAnalysisComplete(true);
+                }}
+            />
         </div>
     );
 }
