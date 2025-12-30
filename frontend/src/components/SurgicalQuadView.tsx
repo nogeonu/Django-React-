@@ -4,8 +4,15 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import CornerstoneViewer from './CornerstoneViewer';
 
+interface OrthancImage {
+    instance_id: string;
+    preview_url: string;
+    series_description?: string;
+}
+
 interface SurgicalQuadViewProps {
     instanceIds: string[];
+    allImages?: OrthancImage[];
     currentIndex: number;
     patientId: string;
     imageType?: '유방촬영술 영상' | '병리 영상' | 'MRI 영상';
@@ -13,7 +20,8 @@ interface SurgicalQuadViewProps {
 }
 
 export default function SurgicalQuadView({ 
-    instanceIds, 
+    instanceIds,
+    allImages = [],
     currentIndex, 
     patientId,
     imageType = 'MRI 영상',
@@ -59,6 +67,28 @@ export default function SurgicalQuadView({
 
     const isMammography = imageType === '유방촬영술 영상';
 
+    // 유방촬영술 영상 필터링 함수
+    const filterMammographyImages = (viewType: 'LCC' | 'RCC' | 'LMLO' | 'RMLO'): string[] => {
+        if (!isMammography || allImages.length === 0) {
+            return instanceIds; // 필터링할 수 없으면 전체 반환
+        }
+
+        // series_description에서 해당 뷰 타입 찾기 (대소문자 구분 없이)
+        const filtered = allImages.filter(img => {
+            const desc = (img.series_description || '').toUpperCase();
+            return desc.includes(viewType.toUpperCase());
+        });
+
+        // 필터링된 이미지의 instance_id 반환
+        return filtered.map(img => img.instance_id);
+    };
+
+    // 각 뷰의 이미지 ID 배열
+    const lccIds = filterMammographyImages('LCC');
+    const rccIds = filterMammographyImages('RCC');
+    const lmloIds = filterMammographyImages('LMLO');
+    const rmloIds = filterMammographyImages('RMLO');
+
     return (
         <div className="h-full w-full bg-gray-900">
             {/* 4분할 그리드 */}
@@ -74,13 +104,19 @@ export default function SurgicalQuadView({
                                 </Badge>
                             </div>
                             <div ref={originalViewRef} className="w-full h-full">
-                                <CornerstoneViewer
-                                    key={`lcc-${currentIndex}`}
-                                    instanceIds={instanceIds}
-                                    currentIndex={currentIndex}
-                                    onIndexChange={onIndexChange}
-                                    showMeasurementTools={false}
-                                />
+                                {lccIds.length > 0 ? (
+                                    <CornerstoneViewer
+                                        key={`lcc-${lccIds.length}`}
+                                        instanceIds={lccIds}
+                                        currentIndex={0}
+                                        onIndexChange={() => {}}
+                                        showMeasurementTools={false}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        LCC 이미지 없음
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -92,13 +128,19 @@ export default function SurgicalQuadView({
                                 </Badge>
                             </div>
                             <div ref={segmentationViewRef} className="w-full h-full">
-                                <CornerstoneViewer
-                                    key={`rcc-${currentIndex}`}
-                                    instanceIds={instanceIds}
-                                    currentIndex={currentIndex}
-                                    onIndexChange={onIndexChange}
-                                    showMeasurementTools={false}
-                                />
+                                {rccIds.length > 0 ? (
+                                    <CornerstoneViewer
+                                        key={`rcc-${rccIds.length}`}
+                                        instanceIds={rccIds}
+                                        currentIndex={0}
+                                        onIndexChange={() => {}}
+                                        showMeasurementTools={false}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        RCC 이미지 없음
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -110,13 +152,19 @@ export default function SurgicalQuadView({
                                 </Badge>
                             </div>
                             <div ref={overlayViewRef} className="w-full h-full">
-                                <CornerstoneViewer
-                                    key={`lmlo-${currentIndex}`}
-                                    instanceIds={instanceIds}
-                                    currentIndex={currentIndex}
-                                    onIndexChange={onIndexChange}
-                                    showMeasurementTools={false}
-                                />
+                                {lmloIds.length > 0 ? (
+                                    <CornerstoneViewer
+                                        key={`lmlo-${lmloIds.length}`}
+                                        instanceIds={lmloIds}
+                                        currentIndex={0}
+                                        onIndexChange={() => {}}
+                                        showMeasurementTools={false}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        LMLO 이미지 없음
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -128,13 +176,19 @@ export default function SurgicalQuadView({
                                 </Badge>
                             </div>
                             <div ref={volume3DViewRef} className="w-full h-full">
-                                <CornerstoneViewer
-                                    key={`rmlo-${currentIndex}`}
-                                    instanceIds={instanceIds}
-                                    currentIndex={currentIndex}
-                                    onIndexChange={onIndexChange}
-                                    showMeasurementTools={false}
-                                />
+                                {rmloIds.length > 0 ? (
+                                    <CornerstoneViewer
+                                        key={`rmlo-${rmloIds.length}`}
+                                        instanceIds={rmloIds}
+                                        currentIndex={0}
+                                        onIndexChange={() => {}}
+                                        showMeasurementTools={false}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        RMLO 이미지 없음
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>

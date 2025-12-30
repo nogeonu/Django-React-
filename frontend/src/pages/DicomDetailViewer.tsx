@@ -206,6 +206,7 @@ export default function DicomDetailViewer() {
                             {showQuadView && isSurgeon ? (
                                 <SurgicalQuadView
                                     instanceIds={instanceIds}
+                                    allImages={allImages}
                                     currentIndex={currentIndex}
                                     patientId={patientInfo?.patient_id || ''}
                                     imageType={imageType}
