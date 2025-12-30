@@ -212,30 +212,7 @@ export default function CornerstoneViewer({
         }
       }
     };
-  }, [isInitialized]); // instanceIds 제거 - 뷰포트는 한 번만 생성
-
-  // instanceIds 변경 시 스택 업데이트 (뷰포트 재생성 없이)
-  useEffect(() => {
-    if (!renderingEngineRef.current || !isInitialized || instanceIds.length === 0) return;
-
-    const updateStack = async () => {
-      try {
-        const viewport = renderingEngineRef.current!.getViewport(viewportIdRef.current);
-        if (viewport) {
-          const imageIds = instanceIds.map((id) =>
-            createImageId(`/api/mri/orthanc/instances/${id}/file`)
-          );
-          // @ts-ignore
-          await viewport.setStack(imageIds, currentIndex);
-          viewport.render();
-        }
-      } catch (error) {
-        console.error('Failed to update stack:', error);
-      }
-    };
-
-    updateStack();
-  }, [instanceIds, isInitialized, currentIndex]);
+  }, [isInitialized, instanceIds]); // 원래대로 복구
 
   // 슬라이스 변경
   useEffect(() => {

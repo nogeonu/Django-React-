@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity, Grid3x3 } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity, Columns2 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import CornerstoneViewer from '@/components/CornerstoneViewer';
-import SurgicalQuadView from '@/components/SurgicalQuadView';
+
 
 interface OrthancImage {
     instance_id: string;
@@ -22,16 +22,19 @@ export default function DicomDetailViewer() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
-    const isSurgeon = user?.department === '외과'; // 외과 의사
+
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
-    const [showQuadView, setShowQuadView] = useState(false); // 4분할 뷰 토글
+    const [isSplitView, setIsSplitView] = useState(false); // 분할 뷰 토글
+    const [activeViewport, setActiveViewport] = useState<1 | 2>(1); // 활성 뷰포트
+    const [viewport1Index, setViewport1Index] = useState(0);
+    const [viewport2Index, setViewport2Index] = useState(0);
     const [zoom, setZoom] = useState(100);
     const [allImages, setAllImages] = useState<OrthancImage[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
     const [instanceIds, setInstanceIds] = useState<string[]>([]); // Cornerstone용 instance ID 배열
-    const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('MRI 영상');
+
 
     useEffect(() => {
         if (instanceId) {
@@ -43,10 +46,8 @@ export default function DicomDetailViewer() {
         try {
             // Try to get patient context from session storage
             const patientId = sessionStorage.getItem('currentPatientId');
-            const storedImageType = sessionStorage.getItem('currentImageType') as '유방촬영술 영상' | '병리 영상' | 'MRI 영상' | null;
-            if (storedImageType) {
-                setImageType(storedImageType);
-            }
+            // imageType is no longer used in split view
+
             console.log('Loading patient data for:', patientId);
 
             if (patientId) {
@@ -152,17 +153,22 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
-                        {/* 외과 의사 전용 4분할 뷰 버튼 */}
-                        {isSurgeon && (
-                            <Button
-                                variant={showQuadView ? "secondary" : "outline"}
-                                className={`ml-4 ${showQuadView ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
-                                onClick={() => setShowQuadView(!showQuadView)}
-                            >
-                                <Grid3x3 className="w-4 h-4 mr-2" />
-                                {showQuadView ? '단일 뷰' : '4분할 뷰'}
-                            </Button>
-                        )}
+                        {/* 분할 뷰 토글 버튼 */}
+                        <Button
+                            variant={isSplitView ? "secondary" : "outline"}
+                            className={`ml-4 ${isSplitView ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
+                            onClick={() => {
+                                setIsSplitView(!isSplitView);
+                                if (!isSplitView) {
+                                    // 분할 뷰 진입 시 두 뷰포트 모두 현재 이미지로 초기화
+                                    setViewport1Index(currentIndex);
+                                    setViewport2Index(currentIndex);
+                                }
+                            }}
+                        >
+                            <Columns2 className="w-4 h-4 mr-2" />
+                            {isSplitView ? '단일 뷰' : '분할 뷰'}
+                        </Button>
                         {!isRadiologyTech && (
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
@@ -200,26 +206,112 @@ export default function DicomDetailViewer() {
             </div>
 
             {/* Main Content */}
-            <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
-                {/* Center - Image Display (Full Width) */}
-                <div className="flex-1 flex flex-col w-full min-h-0" id="dicom-viewer-container">
-                    {/* 외과 의사 4분할 뷰 또는 일반 뷰어 */}
+            <div className="flex h-[calc(100vh-73px)] overflow-hidden">
+                {/* Left Sidebar - Thumbnails */}
+                {instanceIds.length > 0 && (
+                    <div className="w-32 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+                        <div className="p-2 space-y-2">
+                            {instanceIds.map((id, index) => {
+                                const isViewport1Active = isSplitView && viewport1Index === index;
+                                const isViewport2Active = isSplitView && viewport2Index === index;
+                                const isSingleViewActive = !isSplitView && currentIndex === index;
+
+                                return (
+                                    <div
+                                        key={id}
+                                        className={`relative cursor-pointer rounded overflow-hidden transition-all ${isViewport1Active ? 'ring-2 ring-blue-500' :
+                                            isViewport2Active ? 'ring-2 ring-green-500' :
+                                                isSingleViewActive ? 'ring-2 ring-purple-500' :
+                                                    'ring-1 ring-gray-600 hover:ring-gray-500'
+                                            }`}
+                                        onClick={() => {
+                                            if (isSplitView) {
+                                                // 분할 뷰: 활성 뷰포트에 이미지 설정
+                                                if (activeViewport === 1) {
+                                                    setViewport1Index(index);
+                                                } else {
+                                                    setViewport2Index(index);
+                                                }
+                                            } else {
+                                                // 단일 뷰: 현재 이미지 변경
+                                                setCurrentIndex(index);
+                                                navigate(`/dicom-viewer/${allImages[index].instance_id}`);
+                                            }
+                                        }}
+                                    >
+                                        <img
+                                            src={allImages[index]?.preview_url || ''}
+                                            alt={`Slice ${index + 1}`}
+                                            className="w-full h-24 object-cover"
+                                        />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white text-xs text-center py-1">
+                                            {index + 1}
+                                        </div>
+                                        {/* 뷰포트 인디케이터 */}
+                                        {isViewport1Active && (
+                                            <div className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                                1
+                                            </div>
+                                        )}
+                                        {isViewport2Active && (
+                                            <div className="absolute top-1 right-1 bg-green-500 text-white text-xs px-1 rounded">
+                                                2
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Center - Image Display */}
+                <div className="flex-1 flex flex-col min-h-0" id="dicom-viewer-container">
                     {instanceIds.length > 0 && (
                         <div className="flex-1 bg-gray-900 min-h-0">
-                            {showQuadView && isSurgeon ? (
-                                <SurgicalQuadView
-                                    instanceIds={instanceIds}
-                                    currentIndex={currentIndex}
-                                    patientId={patientInfo?.patient_id || ''}
-                                    imageType={imageType}
-                                    onIndexChange={(index) => {
-                                        setCurrentIndex(index);
-                                        if (allImages[index]) {
-                                            navigate(`/dicom-viewer/${allImages[index].instance_id}`);
-                                        }
-                                    }}
-                                />
+                            {isSplitView ? (
+                                // 분할 뷰: 2개 뷰포트
+                                <div className="flex h-full gap-1">
+                                    {/* Viewport 1 */}
+                                    <div
+                                        className={`flex-1 relative ${activeViewport === 1 ? 'ring-2 ring-blue-500 ring-inset' : ''
+                                            }`}
+                                        onClick={() => setActiveViewport(1)}
+                                    >
+                                        <div className="absolute top-2 left-2 z-10 bg-blue-500 text-white text-sm px-2 py-1 rounded">
+                                            뷰포트 1
+                                        </div>
+                                        <CornerstoneViewer
+                                            key={`viewport1-${viewport1Index}`}
+                                            instanceIds={instanceIds}
+                                            currentIndex={viewport1Index}
+                                            onIndexChange={(index) => setViewport1Index(index)}
+                                            showMeasurementTools={!isRadiologyTech}
+                                            viewportId="split-viewport-1"
+                                        />
+                                    </div>
+
+                                    {/* Viewport 2 */}
+                                    <div
+                                        className={`flex-1 relative ${activeViewport === 2 ? 'ring-2 ring-green-500 ring-inset' : ''
+                                            }`}
+                                        onClick={() => setActiveViewport(2)}
+                                    >
+                                        <div className="absolute top-2 left-2 z-10 bg-green-500 text-white text-sm px-2 py-1 rounded">
+                                            뷰포트 2
+                                        </div>
+                                        <CornerstoneViewer
+                                            key={`viewport2-${viewport2Index}`}
+                                            instanceIds={instanceIds}
+                                            currentIndex={viewport2Index}
+                                            onIndexChange={(index) => setViewport2Index(index)}
+                                            showMeasurementTools={!isRadiologyTech}
+                                            viewportId="split-viewport-2"
+                                        />
+                                    </div>
+                                </div>
                             ) : (
+                                // 단일 뷰
                                 <CornerstoneViewer
                                     key={`cornerstone-${instanceId}-${instanceIds.length}`}
                                     instanceIds={instanceIds}
