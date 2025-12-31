@@ -121,7 +121,10 @@ export default function CornerstoneViewer({
         try {
           const existingViewport = renderingEngine.getViewport(viewportId);
           if (existingViewport) {
+            // 뷰포트가 이미 활성화되어 있으면 비활성화
             renderingEngine.disableElement(viewportId);
+            // 비활성화 후 약간의 지연 (WebGL 컨텍스트 정리 대기)
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
         } catch (e) {
           // 뷰포트가 없으면 무시
