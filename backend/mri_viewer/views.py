@@ -22,35 +22,66 @@ def get_patient_list(request):
     """
     try:
         data_root = Path("/Users/nogeon-u/Desktop/건양대_바이오메디컬/Django/mmm")
+        
+        # Check if data root exists
+        if not data_root.exists():
+            return Response({
+                'success': True,
+                'patients': [],
+                'message': 'Data directory not found. Please check the path configuration.'
+            })
+        
         image_dir = data_root / "images"
         
+        # Check if images directory exists
+        if not image_dir.exists():
+            return Response({
+                'success': True,
+                'patients': [],
+                'message': 'Images directory not found.'
+            })
+        
         patients = []
-        for patient_dir in image_dir.iterdir():
-            if patient_dir.is_dir():
-                patient_id = patient_dir.name
-                
-                # 환자 정보 파일 읽기
-                info_file = data_root / "patient_info_files" / f"{patient_id.lower()}.json"
-                patient_info = {}
-                if info_file.exists():
-                    with open(info_file, 'r') as f:
-                        patient_info = json.load(f)
-                
-                patients.append({
-                    'patient_id': patient_id,
-                    'age': patient_info.get('clinical_data', {}).get('age'),
-                    'tumor_subtype': patient_info.get('primary_lesion', {}).get('tumor_subtype'),
-                    'scanner_manufacturer': patient_info.get('imaging_data', {}).get('scanner_manufacturer'),
-                })
+        try:
+            for patient_dir in image_dir.iterdir():
+                if patient_dir.is_dir():
+                    patient_id = patient_dir.name
+                    
+                    # 환자 정보 파일 읽기
+                    info_file = data_root / "patient_info_files" / f"{patient_id.lower()}.json"
+                    patient_info = {}
+                    if info_file.exists():
+                        try:
+                            with open(info_file, 'r', encoding='utf-8') as f:
+                                patient_info = json.load(f)
+                        except Exception as json_error:
+                            print(f"Error reading patient info for {patient_id}: {json_error}")
+                    
+                    patients.append({
+                        'patient_id': patient_id,
+                        'age': patient_info.get('clinical_data', {}).get('age'),
+                        'tumor_subtype': patient_info.get('primary_lesion', {}).get('tumor_subtype'),
+                        'scanner_manufacturer': patient_info.get('imaging_data', {}).get('scanner_manufacturer'),
+                    })
+        except PermissionError as pe:
+            return Response({
+                'success': True,
+                'patients': [],
+                'message': f'Permission denied accessing patient data: {str(pe)}'
+            })
         
         return Response({
             'success': True,
             'patients': patients
         })
     except Exception as e:
+        import traceback
+        print(f"Error in get_patient_list: {str(e)}")
+        print(traceback.format_exc())
         return Response({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'details': 'An error occurred while fetching patient list. Please check server logs.'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -60,33 +91,53 @@ def get_patient_info(request, patient_id):
     특정 환자의 MRI 정보 반환
     """
     try:
-        mri_data = get_patient_mri_data(patient_id)
+        try:
+            mri_data = get_patient_mri_data(patient_id)
+        except FileNotFoundError as fnf:
+            return Response({
+                'success': False,
+                'error': str(fnf)
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as data_error:
+            return Response({
+                'success': False,
+                'error': f'Error loading patient data: {str(data_error)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         # 환자 정보 파일 읽기
         patient_info = {}
         if mri_data['patient_info_file']:
-            with open(mri_data['patient_info_file'], 'r') as f:
-                patient_info = json.load(f)
+            try:
+                with open(mri_data['patient_info_file'], 'r', encoding='utf-8') as f:
+                    patient_info = json.load(f)
+            except Exception as info_error:
+                print(f"Error reading patient info file: {info_error}")
         
         # 첫 번째 이미지 파일의 메타데이터 읽기
         if mri_data['image_files']:
-            first_image = mri_data['image_files'][0]
-            data, affine, header = load_nifti_file(first_image)
-            
-            return Response({
-                'success': True,
-                'patient_id': patient_id,
-                'patient_info': patient_info,
-                'series': [
-                    {
-                        'filename': Path(f).name,
-                        'index': i
-                    } for i, f in enumerate(mri_data['image_files'])
-                ],
-                'has_segmentation': mri_data['segmentation_expert'] is not None,
-                'volume_shape': data.shape,
-                'num_slices': data.shape[2] if len(data.shape) > 2 else 1,
-            })
+            try:
+                first_image = mri_data['image_files'][0]
+                data, affine, header = load_nifti_file(first_image)
+                
+                return Response({
+                    'success': True,
+                    'patient_id': patient_id,
+                    'patient_info': patient_info,
+                    'series': [
+                        {
+                            'filename': Path(f).name,
+                            'index': i
+                        } for i, f in enumerate(mri_data['image_files'])
+                    ],
+                    'has_segmentation': mri_data['segmentation_expert'] is not None,
+                    'volume_shape': data.shape,
+                    'num_slices': data.shape[2] if len(data.shape) > 2 else 1,
+                })
+            except Exception as nifti_error:
+                return Response({
+                    'success': False,
+                    'error': f'Error loading NIfTI file: {str(nifti_error)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response({
                 'success': False,
@@ -94,6 +145,9 @@ def get_patient_info(request, patient_id):
             }, status=status.HTTP_404_NOT_FOUND)
             
     except Exception as e:
+        import traceback
+        print(f"Error in get_patient_info: {str(e)}")
+        print(traceback.format_exc())
         return Response({
             'success': False,
             'error': str(e)
