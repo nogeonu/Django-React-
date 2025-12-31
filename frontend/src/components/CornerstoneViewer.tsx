@@ -6,6 +6,7 @@ import {
   RenderingEngine,
   Enums,
   type Types,
+  imageLoader,
 } from '@cornerstonejs/core';
 import {
   addTool,
@@ -62,6 +63,7 @@ export default function CornerstoneViewer({
 }: CornerstoneViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<string>('WindowLevel');
   const [windowLevel, setWindowLevel] = useState(WINDOW_LEVEL_PRESETS.DEFAULT);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
@@ -105,6 +107,7 @@ export default function CornerstoneViewer({
     }
 
     const setupViewport = async () => {
+      setIsImageLoading(true);
       try {
         const element = viewportRef.current!;
         const renderingEngineId = renderingEngineIdRef.current;
@@ -184,8 +187,11 @@ export default function CornerstoneViewer({
 
         // 도구 그룹 설정
         setupTools(viewportId);
+
+        setIsImageLoading(false);
       } catch (error) {
         console.error('Failed to setup viewport:', error);
+        setIsImageLoading(false);
       }
     };
 
@@ -229,6 +235,29 @@ export default function CornerstoneViewer({
       console.error('Failed to change slice:', error);
     }
   }, [currentIndex]);
+
+  // 이미지 프리로딩 (인접 이미지 미리 로드)
+  useEffect(() => {
+    if (!isInitialized || instanceIds.length === 0) return;
+
+    const preloadRange = 2; // 현재 ±2개 이미지 프리로드
+    const indicesToPreload: number[] = [];
+
+    for (let i = -preloadRange; i <= preloadRange; i++) {
+      const index = currentIndex + i;
+      if (index >= 0 && index < instanceIds.length && index !== currentIndex) {
+        indicesToPreload.push(index);
+      }
+    }
+
+    // 백그라운드에서 프리로드 (에러 무시)
+    indicesToPreload.forEach(index => {
+      const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+      imageLoader.loadAndCacheImage(imageId).catch(() => {
+        // 프리로드 실패는 무시 (필수 아님)
+      });
+    });
+  }, [currentIndex, instanceIds, isInitialized]);
 
   // 윈도우 레벨 변경
   useEffect(() => {
@@ -424,6 +453,16 @@ export default function CornerstoneViewer({
           className="w-full h-full"
           style={{ minHeight: '400px' }}
         />
+
+        {/* 로딩 스켈레톤 */}
+        {isImageLoading && (
+          <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-30">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-white text-sm font-medium">이미지 로딩 중...</p>
+            </div>
+          </div>
+        )}
 
         {/* 오버레이 정보 */}
         <div className="absolute top-12 left-4 flex flex-col gap-1.5 pointer-events-none z-20">
