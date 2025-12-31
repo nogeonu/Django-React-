@@ -257,7 +257,7 @@ export default function CornerstoneViewer({
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    const preloadRange = 2; // 현재 ±2개 이미지 프리로드
+    const preloadRange = 3; // 현재 ±3개 이미지 프리로드 (더 빠른 네비게이션)
     const indicesToPreload: number[] = [];
 
     for (let i = -preloadRange; i <= preloadRange; i++) {
@@ -275,6 +275,28 @@ export default function CornerstoneViewer({
       });
     });
   }, [currentIndex, instanceIds, isInitialized]);
+
+  // 초기 배치 프리로드 (첫 5개 이미지 즉시 로드)
+  useEffect(() => {
+    if (!isInitialized || instanceIds.length === 0) return;
+
+    const initialBatchSize = Math.min(5, instanceIds.length);
+    const initialIndices: number[] = [];
+
+    for (let i = 0; i < initialBatchSize; i++) {
+      initialIndices.push(i);
+    }
+
+    // 병렬로 첫 배치 프리로드
+    Promise.all(
+      initialIndices.map(index => {
+        const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+        return imageLoader.loadAndCacheImage(imageId).catch(() => null);
+      })
+    ).catch(() => {
+      // 배치 프리로드 실패는 무시
+    });
+  }, [instanceIds, isInitialized]);
 
   // 윈도우 레벨 변경
   useEffect(() => {
