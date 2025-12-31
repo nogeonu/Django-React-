@@ -121,6 +121,22 @@ export default function CornerstoneViewer({
         let viewport;
         try {
           viewport = renderingEngine.getViewport(viewportId);
+          // 뷰포트가 있지만 element가 바뀔었으면 재바인딩 필요
+          if (viewport) {
+            // 기존 뷰포트 비활성화
+            renderingEngine.disableElement(viewportId);
+            // 새 element로 재활성화
+            const viewportInput = {
+              viewportId,
+              type: Enums.ViewportType.STACK,
+              element,
+              defaultOptions: {
+                background: [0, 0, 0] as Types.Point3,
+              },
+            };
+            renderingEngine.enableElement(viewportInput);
+            viewport = renderingEngine.getViewport(viewportId);
+          }
         } catch (e) {
           // 뷰포트가 없으면 새로 생성
           viewport = null;
