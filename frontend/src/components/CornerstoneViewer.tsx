@@ -257,7 +257,7 @@ export default function CornerstoneViewer({
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    const preloadRange = 3; // 현재 ±3개 이미지 프리로드 (더 빠른 네비게이션)
+    const preloadRange = 2; // 현재 ±2개 이미지 프리로드 (안정적)
     const indicesToPreload: number[] = [];
 
     for (let i = -preloadRange; i <= preloadRange; i++) {
@@ -280,7 +280,7 @@ export default function CornerstoneViewer({
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    const initialBatchSize = Math.min(5, instanceIds.length);
+    const initialBatchSize = Math.min(3, instanceIds.length);
     const initialIndices: number[] = [];
 
     for (let i = 0; i < initialBatchSize; i++) {
