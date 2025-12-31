@@ -117,38 +117,36 @@ export default function CornerstoneViewer({
         const renderingEngine = getOrCreateRenderingEngine(renderingEngineId);
         renderingEngineRef.current = renderingEngine;
 
-        // 기존 뷰포트가 있다면 비활성화
+        // 기존 뷰포트 확인 및 재사용
+        let viewport;
         try {
-          const existingViewport = renderingEngine.getViewport(viewportId);
-          if (existingViewport) {
-            // 뷰포트가 이미 활성화되어 있으면 비활성화
-            renderingEngine.disableElement(viewportId);
-            // 비활성화 후 약간의 지연 (WebGL 컨텍스트 정리 대기)
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
+          viewport = renderingEngine.getViewport(viewportId);
         } catch (e) {
-          // 뷰포트가 없으면 무시
+          // 뷰포트가 없으면 새로 생성
+          viewport = null;
         }
 
-        // 뷰포트 생성
-        const viewportInput = {
-          viewportId,
-          type: Enums.ViewportType.STACK,
-          element,
-          defaultOptions: {
-            background: [0, 0, 0] as Types.Point3,
-          },
-        };
+        // 뷰포트가 없을 때만 새로 생성
+        if (!viewport) {
+          const viewportInput = {
+            viewportId,
+            type: Enums.ViewportType.STACK,
+            element,
+            defaultOptions: {
+              background: [0, 0, 0] as Types.Point3,
+            },
+          };
 
-        renderingEngine.enableElement(viewportInput);
+          renderingEngine.enableElement(viewportInput);
+          viewport = renderingEngine.getViewport(viewportId);
+        }
 
         // 이미지 ID 생성
         const imageIds = instanceIds.map((id) =>
           createImageId(`/api/mri/orthanc/instances/${id}/file`)
         );
 
-        // 스택 뷰포트 가져오기
-        const viewport = renderingEngine.getViewport(viewportId);
+        // 스택 업데이트 (기존 뷰포트 재사용 또는 새 뷰포트)
 
         if (viewport) {
           // @ts-ignore - Stack viewport specific method
