@@ -31,27 +31,35 @@ export async function initCornerstone() {
     cornerstoneWADOImageLoader.external.cornerstone = await import('@cornerstonejs/core');
     cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 
-    // WADO Image Loader 설정
+    // WADO Image Loader 설정 - 이벤트 에러 방지
     cornerstoneWADOImageLoader.configure({
       useWebWorkers: true,
       decodeConfig: {
         convertFloatPixelDataToInt: false,
         use16BitDataType: true,
       },
+      // 진행 상황 이벤트 비활성화 (이벤트 에러 방지)
+      beforeSend: function () {
+        // progress 이벤트 리스너를 추가하지 않음
+      },
     });
-    
+
     // DICOM 이미지 로더에 Photometric Interpretation 자동 처리 활성화
-    cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.purge();
+    try {
+      cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.purge();
+    } catch (e) {
+      // 캐시 매니저가 없을 수 있음 - 무시
+    }
 
     // Web Worker 초기화
     let maxWebWorkers = 1;
     if (navigator.hardwareConcurrency) {
-      maxWebWorkers = Math.min(navigator.hardwareConcurrency, 7);
+      maxWebWorkers = Math.min(navigator.hardwareConcurrency, 4); // 4로 제한하여 메모리 사용량 감소
     }
 
     const config = {
       maxWebWorkers,
-      startWebWorkersOnDemand: false,
+      startWebWorkersOnDemand: true, // 필요할 때만 시작
       taskConfiguration: {
         decodeTask: {
           initializeCodecsOnStartup: false,
@@ -89,13 +97,13 @@ export const WINDOW_LEVEL_PRESETS = {
   CT_BRAIN: { windowWidth: 80, windowCenter: 40 },
   CT_ABDOMEN: { windowWidth: 400, windowCenter: 50 },
   CT_LIVER: { windowWidth: 150, windowCenter: 30 },
-  
+
   // MRI 프리셋 (유방 MRI 최적화)
   MRI_BRAIN: { windowWidth: 600, windowCenter: 300 },
   MRI_T1: { windowWidth: 1000, windowCenter: 500 },
   MRI_T2: { windowWidth: 2000, windowCenter: 1000 },
   MRI_BREAST: { windowWidth: 1500, windowCenter: 750 }, // 유방 MRI 전용
-  
+
   // 기본 (16비트 DICOM용)
   DEFAULT: { windowWidth: 4096, windowCenter: 2048 },
 };
