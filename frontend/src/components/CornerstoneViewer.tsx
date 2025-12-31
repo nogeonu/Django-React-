@@ -216,24 +216,49 @@ export default function CornerstoneViewer({
 
     // 클린업 함수: 컴포넌트 언마운트 시 리소스 정리
     return () => {
-      // 뷰포트 비활성화
+      const renderingEngineId = renderingEngineIdRef.current;
+      const viewportId = viewportIdRef.current;
+      const toolGroupId = toolGroupIdRef.current;
+
+      console.log(`Cleaning up viewport: ${viewportId}`);
+
+      // 1. 도구 그룹에서 뷰포트 제거
+      try {
+        const toolGroup = ToolGroupManager.getToolGroup(toolGroupId);
+        if (toolGroup && renderingEngineRef.current) {
+          toolGroup.removeViewports(renderingEngineRef.current.id, viewportId);
+        }
+      } catch (e) {
+        console.warn('Error removing viewport from tool group:', e);
+      }
+
+      // 2. 뷰포트 비활성화
       if (renderingEngineRef.current) {
         try {
-          renderingEngineRef.current.disableElement(viewportIdRef.current);
+          renderingEngineRef.current.disableElement(viewportId);
         } catch (e) {
-          console.warn('Error disabling viewport on cleanup:', e);
+          console.warn('Error disabling viewport:', e);
         }
       }
 
-      // 도구 그룹에서 뷰포트 제거
-      const toolGroup = ToolGroupManager.getToolGroup(toolGroupIdRef.current);
-      if (toolGroup && renderingEngineRef.current) {
+      // 3. 렌더링 엔진 destroy 및 캐시에서 제거
+      if (renderingEngineRef.current) {
         try {
-          toolGroup.removeViewports(renderingEngineRef.current.id, viewportIdRef.current);
+          // 렌더링 엔진에 연결된 모든 뷰포트 확인
+          const viewportIds = renderingEngineRef.current.getViewports().map(vp => vp.id);
+
+          // 이 렌더링 엔진에 다른 뷰포트가 없으면 완전히 destroy
+          if (viewportIds.length === 0 || (viewportIds.length === 1 && viewportIds[0] === viewportId)) {
+            console.log(`Destroying rendering engine: ${renderingEngineId}`);
+            renderingEngineRef.current.destroy();
+            renderingEngineCache.delete(renderingEngineId);
+          }
         } catch (e) {
-          console.warn('Error removing viewport from tool group:', e);
+          console.warn('Error destroying rendering engine:', e);
         }
       }
+
+      renderingEngineRef.current = null;
     };
   }, [isInitialized, instanceIds]); // 원래대로 복구
 
