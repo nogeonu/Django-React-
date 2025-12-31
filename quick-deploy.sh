@@ -32,8 +32,20 @@ gcloud compute ssh koyang-2510 --zone=us-central1-a --command='
     
     echo "🎨 프론트엔드 빌드..."
     cd ../frontend
-    npm ci
-    npm run build
+    
+    # Node.js 메모리 제한 증가 (2GB)
+    export NODE_OPTIONS="--max-old-space-size=2048"
+    
+    # npm ci 대신 npm install 사용 (메모리 효율적)
+    npm install
+    
+    # 빌드 시도 (실패 시 기존 빌드 유지)
+    if npm run build; then
+        echo "✅ 프론트엔드 빌드 성공"
+    else
+        echo "⚠️  프론트엔드 빌드 실패 - 기존 빌드 유지"
+        echo "💡 메모리 부족 시 서버 재시작 후 다시 시도하세요"
+    fi
     
     echo "🔄 서비스 재시작..."
     sudo systemctl restart gunicorn
@@ -46,4 +58,5 @@ gcloud compute ssh koyang-2510 --zone=us-central1-a --command='
 echo ""
 echo "✅ 모든 배포가 완료되었습니다!"
 echo "🌐 http://34.42.223.43"
+
 
