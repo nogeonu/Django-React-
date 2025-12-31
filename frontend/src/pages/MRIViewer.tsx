@@ -92,11 +92,11 @@ export default function MRIViewer() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
-  
+
   // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
   const pageTitle = isRadiologyTech ? '영상 업로드' : '영상 판독';
-  
-  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('MRI 영상');
+
+  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('유방촬영술 영상');
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -497,7 +497,7 @@ export default function MRIViewer() {
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
                 {showOrthancImages && orthancImages.length > 0 && (
-                  <Button 
+                  <Button
                     variant="default"
                     size="sm"
                     className="rounded-xl h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium"
