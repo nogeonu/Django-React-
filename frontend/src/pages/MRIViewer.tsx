@@ -361,15 +361,21 @@ export default function MRIViewer() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-2xl">
                     <p className="text-[10px] font-black text-gray-400 uppercase mb-1">나이</p>
-                    <p className="font-black text-gray-900">{patientDetail.patient_info.clinical_data.age}세</p>
+                    <p className="font-black text-gray-900">
+                      {patientDetail.patient_info?.clinical_data?.age ?? patientDetail.age ?? '-'}세
+                    </p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-2xl">
                     <p className="text-[10px] font-black text-gray-400 uppercase mb-1">밀도</p>
-                    <p className="font-black text-gray-900">{patientDetail.patient_info.clinical_data.breast_density}</p>
+                    <p className="font-black text-gray-900">
+                      {patientDetail.patient_info?.clinical_data?.breast_density ?? '-'}
+                    </p>
                   </div>
                   <div className="col-span-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-50">
                     <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Tumor Subtype</p>
-                    <p className="font-black text-blue-900">{patientDetail.patient_info.primary_lesion.tumor_subtype}</p>
+                    <p className="font-black text-blue-900">
+                      {patientDetail.patient_info?.primary_lesion?.tumor_subtype ?? patientDetail.tumor_subtype ?? '-'}
+                    </p>
                   </div>
                 </div>
               )}
