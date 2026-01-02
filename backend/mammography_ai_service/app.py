@@ -14,7 +14,7 @@ import base64
 
 # Mosec imports
 from mosec import Server, Worker
-from mosec.mixin import MsgpackMixin
+import msgpack
 
 # YOLO imports
 try:
@@ -39,23 +39,6 @@ MODEL_PATH = os.getenv(
 )
 
 
-class MammographyDetectionRequest(MsgpackMixin):
-    """요청 데이터 구조"""
-    instance_id: str = ""
-    image_data: str = ""  # base64 encoded image
-    confidence: float = 0.25  # 기본 confidence threshold
-    iou_threshold: float = 0.45  # NMS IoU threshold
-
-
-class MammographyDetectionResponse(MsgpackMixin):
-    """응답 데이터 구조"""
-    success: bool = False
-    instance_id: str = ""
-    detections: List[Dict[str, Any]] = []
-    annotated_image: str = ""  # base64 encoded annotated image
-    error: str = ""
-
-
 class MammographyDetectionWorker(Worker):
     """YOLO11 유방촬영술 디텍션 워커"""
     
@@ -73,20 +56,23 @@ class MammographyDetectionWorker(Worker):
         except:
             return False
     
-    def deserialize(self, data: bytes) -> MammographyDetectionRequest:
+    def deserialize(self, data: bytes) -> Dict[str, Any]:
         """요청 데이터 역직렬화"""
-        req = MammographyDetectionRequest()
-        req.unpack(data)
-        return req
+        return msgpack.unpackb(data, raw=False)
     
-    def serialize(self, data: MammographyDetectionResponse) -> bytes:
+    def serialize(self, data: Dict[str, Any]) -> bytes:
         """응답 데이터 직렬화"""
-        return data.pack()
+        return msgpack.packb(data, use_bin_type=True)
     
-    def forward(self, req: MammographyDetectionRequest) -> MammographyDetectionResponse:
+    def forward(self, req: Dict[str, Any]) -> Dict[str, Any]:
         """YOLO11 추론 실행"""
-        response = MammographyDetectionResponse()
-        response.instance_id = req.instance_id
+        response = {
+            "success": False,
+            "instance_id": req.get("instance_id", ""),
+            "detections": [],
+            "annotated_image": "",
+            "error": ""
+        }
         
         try:
             # 모델 로드 (첫 요청 시)
@@ -97,14 +83,19 @@ class MammographyDetectionWorker(Worker):
                 logger.info("✅ YOLO11 mammography detection model loaded successfully")
             
             # Base64 이미지 디코딩
-            image_bytes = base64.b64decode(req.image_data)
+            image_data = req.get("image_data", "")
+            if not image_data:
+                response["error"] = "No image_data provided"
+                return response
+            
+            image_bytes = base64.b64decode(image_data)
             image = Image.open(io.BytesIO(image_bytes))
             
             # YOLO 추론
             results = self.model.predict(
                 source=image,
-                conf=req.confidence,
-                iou=req.iou_threshold,
+                conf=req.get("confidence", 0.25),
+                iou=req.get("iou_threshold", 0.45),
                 device=self.device,
                 verbose=False
             )
@@ -132,16 +123,16 @@ class MammographyDetectionWorker(Worker):
                 buffered = io.BytesIO()
                 annotated_pil.save(buffered, format="PNG")
                 annotated_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                response.annotated_image = annotated_base64
+                response["annotated_image"] = annotated_base64
             
-            response.success = True
-            response.detections = detections
-            logger.info(f"Detected {len(detections)} objects in instance {req.instance_id}")
+            response["success"] = True
+            response["detections"] = detections
+            logger.info(f"Detected {len(detections)} objects in instance {req.get('instance_id', '')}")
             
         except Exception as e:
             logger.error(f"Detection failed: {str(e)}", exc_info=True)
-            response.success = False
-            response.error = str(e)
+            response["success"] = False
+            response["error"] = str(e)
         
         return response
 
