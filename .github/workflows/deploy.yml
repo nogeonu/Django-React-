@@ -93,25 +93,27 @@ jobs:
             # systemd 서비스 설정
             cd "$APP_DIR/backend"
             SERVICE_USER=$(whoami)
-            sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null <<EOF
+            sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null << 'EOFSERVICE'
 [Unit]
 Description=Mammography AI Detection Service (YOLO11)
 After=network.target
 
 [Service]
 Type=simple
-User=$SERVICE_USER
-WorkingDirectory=$APP_DIR/backend/mammography_ai_service
-Environment="PATH=$APP_DIR/backend/.venv/bin"
+User=EOFSERVICE_USER_PLACEHOLDER
+WorkingDirectory=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/mammography_ai_service
+Environment="PATH=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/.venv/bin"
 Environment="MOSEC_PORT=5004"
 Environment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"
-ExecStart=$APP_DIR/backend/.venv/bin/python app.py
+ExecStart=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/.venv/bin/python app.py
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOFSERVICE
+            sudo sed -i "s|EOFSERVICE_USER_PLACEHOLDER|$SERVICE_USER|g" /etc/systemd/system/mammography-ai-service.service
+            sudo sed -i "s|EOFSERVICE_APP_DIR_PLACEHOLDER|$APP_DIR|g" /etc/systemd/system/mammography-ai-service.service
             
             sudo systemctl daemon-reload
             sudo systemctl enable mammography-ai-service
