@@ -70,6 +70,8 @@ jobs:
               sudo apt-get install -y nodejs
             fi
             npm ci
+            # 저메모리 환경을 위한 Node 옵션 설정
+            export NODE_OPTIONS="--max-old-space-size=2048"
             npm run build
 
             # mosec 딥러닝 서비스 systemd 설정 (MRI)
