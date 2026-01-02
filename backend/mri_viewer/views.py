@@ -125,19 +125,79 @@ def get_patient_info(request, patient_id):
 def get_mri_slice(request, patient_id):
     """
     특정 환자의 MRI 슬라이스 이미지 반환
+    Orthanc DICOM (유방촬영술) 및 NIfTI 파일 (MRI) 모두 지원
     """
     try:
+        from .orthanc_client import OrthancClient
+        import base64
+        
         series = int(request.GET.get('series', 0))
         slice_idx = int(request.GET.get('slice', 0))
         axis = request.GET.get('axis', 'axial')
         show_segmentation = request.GET.get('segmentation', 'false').lower() == 'true'
         
+        # 먼저 Orthanc에서 환자 찾기 (유방촬영술 DICOM 데이터)
+        try:
+            orthanc = OrthancClient()
+            orthanc_patient_id = orthanc.find_patient_by_patient_id(patient_id)
+            
+            if orthanc_patient_id:
+                # Orthanc에서 환자 발견 - DICOM 이미지 반환
+                patient_info = orthanc.get_patient_info(orthanc_patient_id)
+                studies = patient_info.get('Studies', [])
+                
+                if not studies:
+                    return Response({
+                        'success': False,
+                        'error': 'No studies found for patient'
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                # 첫 번째 Study의 Series 가져오기
+                study_info = orthanc.get_study_info(studies[0])
+                series_list = study_info.get('Series', [])
+                
+                if series >= len(series_list):
+                    return Response({
+                        'success': False,
+                        'error': f'Series index {series} out of range (max: {len(series_list)-1})'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # 선택된 Series의 Instances 가져오기
+                series_info = orthanc.get_series_info(series_list[series])
+                instances = series_info.get('Instances', [])
+                
+                if slice_idx >= len(instances):
+                    return Response({
+                        'success': False,
+                        'error': f'Slice index {slice_idx} out of range (max: {len(instances)-1})'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Instance 미리보기 이미지 가져오기 (PNG)
+                instance_id = instances[slice_idx]
+                preview_image = orthanc.get_instance_preview(instance_id)
+                
+                # Base64 인코딩
+                image_base64 = base64.b64encode(preview_image).decode('utf-8')
+                
+                return Response({
+                    'success': True,
+                    'image': f'data:image/png;base64,{image_base64}',
+                    'slice': slice_idx,
+                    'series': series,
+                    'axis': axis,
+                    'source': 'orthanc'
+                })
+        except Exception as orthanc_error:
+            # Orthanc에서 찾지 못하면 NIfTI 파일 시스템으로 fallback
+            print(f"Orthanc lookup failed for {patient_id}: {orthanc_error}")
+        
+        # NIfTI 파일 시스템에서 찾기 (기존 MRI 데이터)
         mri_data = get_patient_mri_data(patient_id)
         
         if not mri_data:
             return Response({
                 'success': False,
-                'error': 'Patient not found'
+                'error': 'Patient not found in both Orthanc and file system'
             }, status=status.HTTP_404_NOT_FOUND)
         
         if series >= len(mri_data['series']):
@@ -168,10 +228,13 @@ def get_mri_slice(request, patient_id):
             'image': image_base64,
             'slice': slice_idx,
             'series': series,
-            'axis': axis
+            'axis': axis,
+            'source': 'nifti'
         })
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return Response({
             'success': False,
             'error': str(e)
