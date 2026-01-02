@@ -57,8 +57,14 @@ class MammographyDetectionWorker(Worker):
             return False
     
     def deserialize(self, data: bytes) -> Dict[str, Any]:
-        """요청 데이터 역직렬화"""
-        return msgpack.unpackb(data, raw=False)
+        """요청 데이터 역직렬화 (JSON과 msgpack 모두 지원)"""
+        try:
+            # JSON 시도
+            import json
+            return json.loads(data.decode('utf-8'))
+        except:
+            # msgpack 시도
+            return msgpack.unpackb(data, raw=False)
     
     def serialize(self, data: Dict[str, Any]) -> bytes:
         """응답 데이터 직렬화"""
@@ -151,8 +157,8 @@ def main():
     # Mosec은 환경변수로 포트를 설정합니다
     os.environ['MOSEC_PORT'] = str(MOSEC_PORT)
     
-    # Mosec 서버 생성
-    server = Server()
+    # Mosec 서버 생성 (timeout 30초로 설정 - CPU 기반 YOLO 추론을 위해)
+    server = Server(timeout=30)
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
