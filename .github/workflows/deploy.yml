@@ -35,7 +35,7 @@ jobs:
       - name: Sync project to VM
         uses: burnett01/rsync-deployments@5.2
         with:
-          switches: -avz --delete --exclude ".git" --exclude "node_modules" --exclude "frontend/dist" --exclude ".venv" --exclude "venv" --exclude "backend/staticfiles" --exclude "*.pyc"
+          switches: -avz --delete --exclude ".git" --exclude "node_modules" --exclude "frontend/dist" --exclude ".venv" --exclude "venv" --exclude "backend/staticfiles" --exclude "*.pyc" --exclude "__pycache__" --exclude "*.pt" --exclude "*.pth" --exclude ".DS_Store" --exclude "*.log"
           path: ./
           remote_path: ${{ secrets.APP_DIR }}/
           remote_host: ${{ secrets.SSH_HOST }}
@@ -50,42 +50,46 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          command_timeout: 40m
+          command_timeout: 20m
           script_stop: true
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
 
+            # 백엔드: 가상환경이 없을 때만 생성
             cd "$APP_DIR/backend"
-            python3 -m venv .venv || true
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
+            if [ ! -d ".venv" ]; then
+              python3 -m venv .venv
+              source .venv/bin/activate
+              pip install --upgrade pip
+              pip install -r requirements.txt
+            else
+              source .venv/bin/activate
+            fi
+            
+            # DB 마이그레이션 및 정적 파일 수집
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
+            # 프론트엔드: node_modules가 없을 때만 설치
             cd "$APP_DIR/frontend"
-            if ! command -v npm >/dev/null 2>&1; then
-              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-              sudo apt-get install -y nodejs
+            if [ ! -d "node_modules" ]; then
+              npm ci
             fi
-            npm ci
-            # 저메모리 환경을 위한 Node 옵션 설정
+            
+            # 프론트엔드 빌드 (항상 실행)
             export NODE_OPTIONS="--max-old-space-size=2048"
             npm run build
 
-            # mosec 유방촬영술 AI 디텍션 서비스 systemd 설정 (YOLO11)
-            printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
-            
-            # 유방촬영술 AI 서비스 의존성 설치
-            cd "$APP_DIR/backend/mammography_ai_service"
-            source "$APP_DIR/backend/.venv/bin/activate"
-            pip install -r requirements.txt
-            
-            sudo systemctl daemon-reload
-            sudo systemctl enable mammography-ai-service
-            sudo systemctl restart mammography-ai-service || sudo systemctl start mammography-ai-service
+            # systemd 서비스 설정 (변경 시에만)
+            if [ ! -f "/etc/systemd/system/mammography-ai-service.service" ]; then
+              printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
+              sudo systemctl daemon-reload
+              sudo systemctl enable mammography-ai-service
+            fi
 
+            # 서비스 재시작
+            sudo systemctl restart mammography-ai-service || sudo systemctl start mammography-ai-service
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx
 
