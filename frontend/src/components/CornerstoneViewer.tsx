@@ -166,7 +166,9 @@ export default function CornerstoneViewer({
 
         if (viewport) {
           // @ts-ignore - Stack viewport specific method
-          await viewport.setStack(imageIds, currentIndex);
+          await viewport.setStack(imageIds, currentIndex).catch((err: any) => {
+            console.warn('Failed to load some images, but continuing:', err);
+          });
 
           // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
           viewport.render();

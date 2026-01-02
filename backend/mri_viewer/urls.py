@@ -5,7 +5,8 @@ from . import views, orthanc_views, mammography_ai_views
 urlpatterns = [
     # 기존 MRI Viewer API
     path('patients/', views.get_patient_list, name='mri-patient-list'),
-    path('patients/<str:patient_id>/', views.get_patient_info, name='mri-patient-info'),
+    path('patients/<str:patient_id>/', views.get_patient_basic_info, name='mri-patient-basic-info'),
+    path('patients/<str:patient_id>/detail/', views.get_patient_info, name='mri-patient-info'),
     path('patients/<str:patient_id>/slice/', views.get_mri_slice, name='mri-slice'),
     path('patients/<str:patient_id>/volume/', views.get_volume_info, name='mri-volume-info'),
     
