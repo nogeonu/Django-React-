@@ -157,6 +157,9 @@ def main():
         logger.error(f"❌ Model file not found: {MODEL_PATH}")
         sys.exit(1)
     
+    # Mosec은 환경변수로 포트를 설정합니다
+    os.environ['MOSEC_PORT'] = str(MOSEC_PORT)
+    
     # Mosec 서버 생성
     server = Server()
     server.append_worker(
@@ -165,8 +168,8 @@ def main():
         max_batch_size=1  # 배치 크기 (YOLO는 보통 1개씩 처리)
     )
     
-    # 서버 시작
-    server.run(port=MOSEC_PORT)
+    # 서버 시작 (포트는 환경변수에서 자동으로 읽음)
+    server.run()
 
 
 if __name__ == "__main__":
