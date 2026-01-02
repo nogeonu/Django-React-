@@ -72,11 +72,22 @@ jobs:
             npm ci
             npm run build
 
-            # mosec 딥러닝 서비스 systemd 설정
+            # mosec 딥러닝 서비스 systemd 설정 (MRI)
             printf '[Unit]\nDescription=Breast MRI AI Service (mosec)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/breast_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5003"\nEnvironment="DL_MODEL_PATH=%s/backend/breast_ai_service/ml_model/best_breast_mri_model.pth"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/breast-ai-service.service > /dev/null
+            
+            # mosec 유방촬영술 AI 디텍션 서비스 systemd 설정 (YOLO11)
+            printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
+            
+            # 유방촬영술 AI 서비스 의존성 설치
+            cd "$APP_DIR/backend/mammography_ai_service"
+            source "$APP_DIR/backend/.venv/bin/activate"
+            pip install -r requirements.txt
+            
             sudo systemctl daemon-reload
             sudo systemctl enable breast-ai-service
+            sudo systemctl enable mammography-ai-service
             sudo systemctl restart breast-ai-service || sudo systemctl start breast-ai-service
+            sudo systemctl restart mammography-ai-service || sudo systemctl start mammography-ai-service
 
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx

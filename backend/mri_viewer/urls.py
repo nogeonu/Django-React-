@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from . import views, orthanc_views, ai_detection
+from . import views, orthanc_views, mammography_ai_views
 
 urlpatterns = [
     # 기존 MRI Viewer API
@@ -19,11 +19,12 @@ urlpatterns = [
     path('orthanc/upload/', csrf_exempt(orthanc_views.orthanc_upload_dicom), name='orthanc-upload'),
     path('orthanc/patients/<str:patient_id>/delete/', orthanc_views.orthanc_delete_patient, name='orthanc-delete-patient'),
     
-    # AI Segmentation API (향후 모델 통합)
+    # AI Segmentation API (MRI - 향후 모델 통합)
     path('orthanc/patients/<str:patient_id>/segmentation/', orthanc_views.orthanc_segmentation, name='orthanc-segmentation'),
     path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
     
-    # AI Detection API (YOLO11)
-    path('ai-detection/<str:instance_id>/', ai_detection.ai_detection, name='ai-detection'),
+    # Mammography AI Detection API (YOLO11)
+    path('mammography/instances/<str:instance_id>/detect/', mammography_ai_views.mammography_ai_detection, name='mammography-ai-detection'),
+    path('mammography/ai/health/', mammography_ai_views.mammography_ai_health, name='mammography-ai-health'),
 ]
 

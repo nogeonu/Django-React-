@@ -189,10 +189,14 @@ export default function DicomDetailViewer() {
                                             setAnalysisProgress(prev => Math.min(prev + 5, 90));
                                         }, 200);
 
-                                        // AI 디텍션 API 호출
+                                        // AI 디텍션 API 호출 (YOLO11)
                                         const response = await apiRequest(
                                             'POST',
-                                            `/api/mri/ai-detection/${instanceId}/`
+                                            `/api/mri/mammography/instances/${instanceId}/detect/`,
+                                            {
+                                                confidence: 0.25,
+                                                iou_threshold: 0.45
+                                            }
                                         );
 
                                         clearInterval(progressInterval);
