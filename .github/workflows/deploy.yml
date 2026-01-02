@@ -70,7 +70,7 @@ jobs:
             # 프론트엔드: 의존성 설치 및 빌드
             cd "$APP_DIR/frontend"
             npm ci
-            export NODE_OPTIONS="--max-old-space-size=2048"
+            export NODE_OPTIONS="--max-old-space-size=1536"
             npm run build
 
             # systemd 서비스 설정
