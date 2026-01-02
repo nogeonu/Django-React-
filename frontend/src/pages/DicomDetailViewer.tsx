@@ -28,6 +28,7 @@ export default function DicomDetailViewer() {
     const [analysisComplete, setAnalysisComplete] = useState(false);
     const [showAnalysisModal, setShowAnalysisModal] = useState(false);
     const [analysisProgress, setAnalysisProgress] = useState(0);
+    const [analysisResult, setAnalysisResult] = useState<any>(null); // AI 디텍션 결과
     const [isSplitView, setIsSplitView] = useState(false); // 분할 뷰 토글
     const [activeViewport, setActiveViewport] = useState<1 | 2>(1); // 활성 뷰포트
     const [viewport1Index, setViewport1Index] = useState(0);
@@ -176,26 +177,41 @@ export default function DicomDetailViewer() {
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
                                 className={`ml-4 ${analysisComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold border-none`}
-                                onClick={() => {
+                                onClick={async () => {
                                     setShowAnalysisModal(true);
                                     setAnalysisProgress(0);
                                     setIsAnalyzing(true);
+                                    setAnalysisResult(null);
 
-                                    // Animate progress from 0% to 100%
-                                    const interval = setInterval(() => {
-                                        setAnalysisProgress(prev => {
-                                            if (prev >= 100) {
-                                                clearInterval(interval);
-                                                setTimeout(() => {
-                                                    setShowAnalysisModal(false);
-                                                    setIsAnalyzing(false);
-                                                    setAnalysisComplete(true);
-                                                }, 500);
-                                                return 100;
-                                            }
-                                            return prev + 2; // 2% every 50ms = 2.5 seconds total
+                                    try {
+                                        // 진행률 애니메이션 시작
+                                        const progressInterval = setInterval(() => {
+                                            setAnalysisProgress(prev => Math.min(prev + 5, 90));
+                                        }, 200);
+
+                                        // AI 디텍션 API 호출
+                                        const response = await apiRequest(
+                                            'POST',
+                                            `/api/mri/ai-detection/${instanceId}/`
+                                        );
+
+                                        clearInterval(progressInterval);
+                                        setAnalysisProgress(100);
+
+                                        // 결과 저장
+                                        setAnalysisResult(response);
+                                        setIsAnalyzing(false);
+                                        setAnalysisComplete(true);
+
+                                        console.log('AI Detection Result:', response);
+                                    } catch (error) {
+                                        console.error('AI analysis failed:', error);
+                                        setAnalysisResult({
+                                            success: false,
+                                            error: error instanceof Error ? error.message : 'AI 분석 중 오류가 발생했습니다'
                                         });
-                                    }, 50);
+                                        setIsAnalyzing(false);
+                                    }
                                 }}
                                 disabled={isAnalyzing || analysisComplete}
                             >
@@ -412,10 +428,12 @@ export default function DicomDetailViewer() {
             {/* AI Analysis Modal */}
             <AIAnalysisModal
                 isOpen={showAnalysisModal}
+                isAnalyzing={isAnalyzing}
                 progress={analysisProgress}
-                onComplete={() => {
+                result={analysisResult}
+                onClose={() => {
                     setShowAnalysisModal(false);
-                    setAnalysisComplete(true);
+                    setAnalysisResult(null);
                 }}
             />
         </div>

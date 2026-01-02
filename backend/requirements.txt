@@ -30,3 +30,7 @@ cryptography==41.0.7
 nibabel==5.2.0
 SimpleITK==2.3.1
 pydicom==2.4.4
+# YOLO11 AI Detection
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+
