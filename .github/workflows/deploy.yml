@@ -50,70 +50,38 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          command_timeout: 15m
+          command_timeout: 20m
           script_stop: true
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
 
-            # 백엔드: 가상환경 설정 (이미 있으면 건너뛰기)
+            # 백엔드: 가상환경 설정
             cd "$APP_DIR/backend"
-            if [ ! -d ".venv" ]; then
-              echo "Creating new virtual environment..."
-              python3 -m venv .venv
-            fi
+            python3 -m venv .venv || true
             source .venv/bin/activate
-            pip install --upgrade pip --quiet
-            # 변경된 패키지만 설치 (캐시 활용)
-            pip install -r requirements.txt --quiet || pip install -r requirements.txt
+            pip install --upgrade pip
+            pip install -r requirements.txt
             
             # DB 마이그레이션 및 정적 파일 수집
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
-            # 프론트엔드: 의존성 설치 (node_modules가 있으면 npm install만, 없으면 npm ci)
+            # 프론트엔드: 의존성 설치 및 빌드
             cd "$APP_DIR/frontend"
-            if [ -d "node_modules" ]; then
-              echo "node_modules exists, using npm install (faster)..."
-              npm install --prefer-offline --no-audit --quiet
-            else
-              echo "No node_modules, running npm ci..."
-              npm ci --quiet
-            fi
+            npm ci
             export NODE_OPTIONS="--max-old-space-size=2048"
             npm run build
 
-            # mammography_ai_service 의존성 설치 (필요한 경우만)
+            # mammography_ai_service 의존성 설치
             cd "$APP_DIR/backend/mammography_ai_service"
             if [ -f "requirements.txt" ]; then
               source "$APP_DIR/backend/.venv/bin/activate"
-              pip install -r requirements.txt --quiet || pip install -r requirements.txt
+              pip install -r requirements.txt
             fi
-            
+
             # systemd 서비스 설정
-            cd "$APP_DIR/backend"
-            SERVICE_USER=$(whoami)
-            sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null << 'EOFSERVICE'
-[Unit]
-Description=Mammography AI Detection Service (YOLO11)
-After=network.target
-
-[Service]
-Type=simple
-User=EOFSERVICE_USER_PLACEHOLDER
-WorkingDirectory=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/mammography_ai_service
-Environment="PATH=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/.venv/bin"
-Environment="MOSEC_PORT=5004"
-Environment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"
-ExecStart=EOFSERVICE_APP_DIR_PLACEHOLDER/backend/.venv/bin/python app.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOFSERVICE
-            sudo sed -i "s|EOFSERVICE_USER_PLACEHOLDER|$SERVICE_USER|g" /etc/systemd/system/mammography-ai-service.service
-            sudo sed -i "s|EOFSERVICE_APP_DIR_PLACEHOLDER|$APP_DIR|g" /etc/systemd/system/mammography-ai-service.service
+            printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
             
             sudo systemctl daemon-reload
             sudo systemctl enable mammography-ai-service
