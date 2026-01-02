@@ -64,26 +64,31 @@ interface SeriesInfo {
 
 interface PatientDetailInfo {
   patient_id: string;
-  patient_info: {
-    clinical_data: {
-      age: number;
-      menopausal_status: string;
-      breast_density: string;
+  name?: string;
+  age?: number;
+  gender?: string;
+  phone?: string;
+  tumor_subtype?: string;
+  patient_info?: {
+    clinical_data?: {
+      age?: number;
+      menopausal_status?: string;
+      breast_density?: string;
     };
-    primary_lesion: {
-      pcr: number;
-      tumor_subtype: string;
+    primary_lesion?: {
+      pcr?: number;
+      tumor_subtype?: string;
     };
-    imaging_data: {
-      scanner_manufacturer: string;
-      scanner_model: string;
-      field_strength: number;
+    imaging_data?: {
+      scanner_manufacturer?: string;
+      scanner_model?: string;
+      field_strength?: number;
     };
   };
-  series: SeriesInfo[];
-  has_segmentation: boolean;
-  volume_shape: number[];
-  num_slices: number;
+  series?: SeriesInfo[];
+  has_segmentation?: boolean;
+  volume_shape?: number[];
+  num_slices?: number;
 }
 
 const API_BASE_URL = "/api/mri";
@@ -170,7 +175,7 @@ export default function MRIViewer() {
       const data = await response.json();
       if (data.success) {
         setPatientDetail(data);
-        setCurrentSlice(Math.floor(data.num_slices / 2));
+        setCurrentSlice(Math.floor((data.num_slices || 1) / 2));
         setCurrentSeries(0);
       }
     } catch (error) {
@@ -202,7 +207,7 @@ export default function MRIViewer() {
     // Don't prevent default if we want to allow page scroll, but here we want to scroll slices
     // e.preventDefault(); 
     const delta = e.deltaY > 0 ? 1 : -1;
-    const newSlice = Math.max(0, Math.min(patientDetail.num_slices - 1, currentSlice + delta));
+    const newSlice = Math.max(0, Math.min((patientDetail.num_slices || 1) - 1, currentSlice + delta));
     setCurrentSlice(newSlice);
   };
 
@@ -399,7 +404,7 @@ export default function MRIViewer() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-none shadow-xl">
-                      {patientDetail.series.map((s) => (
+                      {(patientDetail.series || []).map((s) => (
                         <SelectItem key={s.index} value={s.index.toString()} className="rounded-lg">
                           {s.filename}
                         </SelectItem>
