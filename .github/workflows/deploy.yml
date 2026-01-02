@@ -56,37 +56,28 @@ jobs:
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
 
-            # 백엔드: 가상환경이 없을 때만 생성
+            # 백엔드: 가상환경 설정
             cd "$APP_DIR/backend"
-            if [ ! -d ".venv" ]; then
-              python3 -m venv .venv
-              source .venv/bin/activate
-              pip install --upgrade pip
-              pip install -r requirements.txt
-            else
-              source .venv/bin/activate
-            fi
+            python3 -m venv .venv || true
+            source .venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
             
             # DB 마이그레이션 및 정적 파일 수집
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
 
-            # 프론트엔드: node_modules가 없을 때만 설치
+            # 프론트엔드: 의존성 설치 및 빌드
             cd "$APP_DIR/frontend"
-            if [ ! -d "node_modules" ]; then
-              npm ci
-            fi
-            
-            # 프론트엔드 빌드 (항상 실행)
+            npm ci
             export NODE_OPTIONS="--max-old-space-size=2048"
             npm run build
 
-            # systemd 서비스 설정 (변경 시에만)
-            if [ ! -f "/etc/systemd/system/mammography-ai-service.service" ]; then
-              printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
-              sudo systemctl daemon-reload
-              sudo systemctl enable mammography-ai-service
-            fi
+            # systemd 서비스 설정
+            printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
+            
+            sudo systemctl daemon-reload
+            sudo systemctl enable mammography-ai-service
 
             # 서비스 재시작
             sudo systemctl restart mammography-ai-service || sudo systemctl start mammography-ai-service
