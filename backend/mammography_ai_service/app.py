@@ -46,9 +46,12 @@ class MammographyDetectionWorker(Worker):
         super().__init__()
         self.model = None
         self.device = 'cuda' if self._check_cuda() else 'cpu'
+        logger.info(f"Using device: {self.device}")
+    
+    def get_timeout(self) -> int:
+        """워커 타임아웃 설정 (초 단위)"""
         # CPU에서 YOLO11 추론은 시간이 오래 걸리므로 타임아웃 60초로 설정
-        self.timeout = 60
-        logger.info(f"Using device: {self.device}, timeout: {self.timeout}s")
+        return 60
     
     def _check_cuda(self):
         """CUDA 사용 가능 여부 확인"""
