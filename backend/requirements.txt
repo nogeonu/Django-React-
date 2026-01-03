@@ -21,7 +21,7 @@ requests==2.31.0
 feedparser==6.0.10
 Flask==3.0.0
 Flask-CORS==4.0.0
-mosec==0.8.0
+mosec>=0.9.0
 msgspec>=0.18.0
 torch>=2.0.0
 torchvision>=0.15.0
