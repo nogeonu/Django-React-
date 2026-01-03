@@ -168,7 +168,8 @@ def main():
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
-        max_batch_size=1  # 배치 크기 (YOLO는 보통 1개씩 처리)
+        max_batch_size=1,  # 배치 크기 (YOLO는 보통 1개씩 처리)
+        timeout=60  # CPU YOLO11 추론은 시간이 오래 걸리므로 타임아웃 60초로 설정
     )
     
     # 서버 시작 (포트는 환경변수에서 자동으로 읽음)
