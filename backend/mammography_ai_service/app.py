@@ -157,8 +157,8 @@ def main():
     # Mosec은 환경변수로 포트를 설정합니다
     os.environ['MOSEC_PORT'] = str(MOSEC_PORT)
     
-    # Mosec 서버 생성 (timeout 30초로 설정 - CPU 기반 YOLO 추론을 위해)
-    server = Server(timeout=30)
+    # Mosec 서버 생성
+    server = Server()
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
