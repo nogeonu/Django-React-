@@ -171,6 +171,11 @@ def main():
     )
     
     # 서버 시작 (포트는 환경변수에서 자동으로 읽음)
+    # CLI 인자로도 timeout 설정 (Mosec이 sys.argv를 확인함)
+    import sys
+    if '--timeout' not in sys.argv:
+        sys.argv.extend(['--timeout', '60'])
+    
     server.run()
 
 
