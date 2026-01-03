@@ -74,27 +74,7 @@ jobs:
             npm run build
 
             # systemd 서비스 설정
-            cat > /tmp/mammography-service.service << 'EOFSERVICE'
-[Unit]
-Description=Mammography AI Detection Service (YOLO11)
-After=network.target
-
-[Service]
-Type=simple
-User=$USER
-WorkingDirectory=$APP_DIR/backend/mammography_ai_service
-Environment="PATH=$APP_DIR/backend/.venv/bin"
-Environment="MOSEC_PORT=5004"
-Environment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best.pt"
-ExecStart=$APP_DIR/backend/.venv/bin/python app.py --timeout 60
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOFSERVICE
-            cat /tmp/mammography-service.service | sed "s|\$USER|$USER|g" | sed "s|\$APP_DIR|$APP_DIR|g" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
-            rm -f /tmp/mammography-service.service
+            printf '[Unit]\nDescription=Mammography AI Detection Service (YOLO11)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/mammography_ai_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MOSEC_PORT=5004"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best.pt"\nExecStart=%s/backend/.venv/bin/python app.py --timeout 60\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/mammography-ai-service.service > /dev/null
             
             sudo systemctl daemon-reload
             sudo systemctl enable mammography-ai-service
