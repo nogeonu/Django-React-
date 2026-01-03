@@ -93,7 +93,7 @@ def mammography_ai_detection(request, instance_id):
             f"{MAMMOGRAPHY_AI_SERVICE_URL}/inference",
             data=request_data,
             headers={'Content-Type': 'application/x-msgpack'},
-            timeout=60
+            timeout=120  # CPU YOLO11 추론은 시간이 오래 걸리므로 120초로 증가
         )
         ai_response.raise_for_status()
         
