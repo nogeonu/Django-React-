@@ -12,6 +12,7 @@ from io import BytesIO
 from PIL import Image
 import numpy as np
 import pydicom
+import msgpack
 
 from .orthanc_client import OrthancClient
 
@@ -86,14 +87,18 @@ def mammography_ai_detection(request, instance_id):
         }
         
         logger.info(f"Calling mammography AI service for instance {instance_id}")
+        # Mosec은 msgpack을 사용하므로 msgpack으로 인코딩
+        request_data = msgpack.packb(ai_request, use_bin_type=True)
         ai_response = requests.post(
             f"{MAMMOGRAPHY_AI_SERVICE_URL}/inference",
-            json=ai_request,
+            data=request_data,
+            headers={'Content-Type': 'application/x-msgpack'},
             timeout=60
         )
         ai_response.raise_for_status()
         
-        result = ai_response.json()
+        # msgpack 응답 디코딩
+        result = msgpack.unpackb(ai_response.content, raw=False)
         
         # 응답 구성
         response_data = {
