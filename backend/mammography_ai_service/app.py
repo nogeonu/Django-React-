@@ -158,21 +158,19 @@ def main():
         logger.error(f"❌ Model file not found: {MODEL_PATH}")
         sys.exit(1)
     
-    # mosec은 명령줄 인자로 포트와 타임아웃을 받으므로 sys.argv 수정 (breast 프로젝트 방식)
+    # mosec은 명령줄 인자로 포트를 받으므로 sys.argv 수정 (breast 프로젝트 방식)
     import sys
     if '--port' not in sys.argv:
         sys.argv.extend(['--port', str(MOSEC_PORT)])
-    if '--timeout' not in sys.argv:
-        sys.argv.extend(['--timeout', '60'])
-    
-    logger.info(f"sys.argv: {sys.argv}")
+    # timeout은 append_worker의 timeout 파라미터로 설정 (Mosec 0.9.6에서는 CLI 인자가 작동하지 않음)
     
     # Mosec 서버 생성
     server = Server()
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
-        max_batch_size=1  # 배치 크기 (YOLO는 보통 1개씩 처리)
+        max_batch_size=1,  # 배치 크기 (YOLO는 보통 1개씩 처리)
+        timeout=120  # YOLO11 CPU 추론은 시간이 오래 걸리므로 120초로 설정
     )
     
     # 서버 시작
