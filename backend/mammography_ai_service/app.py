@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 MOSEC_PORT = int(os.getenv('MOSEC_PORT', 5004))  # 유방촬영술 AI는 5004 포트
 MODEL_PATH = os.getenv(
     'MAMMOGRAPHY_MODEL_PATH',
-    '/home/shrjsdn908/models/yolo11_mammography/best_mammography_yolo11.pt'
+    '/home/shrjsdn908/models/yolo11_mammography/best.pt'
 )
 
 
