@@ -48,11 +48,6 @@ class MammographyDetectionWorker(Worker):
         self.device = 'cuda' if self._check_cuda() else 'cpu'
         logger.info(f"Using device: {self.device}")
     
-    def get_timeout(self) -> int:
-        """워커 타임아웃 설정 (초 단위)"""
-        # CPU에서 YOLO11 추론은 시간이 오래 걸리므로 타임아웃 60초로 설정
-        return 60
-    
     def _check_cuda(self):
         """CUDA 사용 가능 여부 확인"""
         try:
@@ -159,8 +154,10 @@ def main():
         logger.error(f"❌ Model file not found: {MODEL_PATH}")
         sys.exit(1)
     
-    # Mosec은 환경변수로 포트를 설정합니다
+    # Mosec은 환경변수로 포트와 타임아웃을 설정합니다
     os.environ['MOSEC_PORT'] = str(MOSEC_PORT)
+    # CPU에서 YOLO11 추론은 시간이 오래 걸리므로 타임아웃 60초로 설정
+    os.environ['MOSEC_TIMEOUT'] = '60'
     
     # Mosec 서버 생성
     server = Server()
