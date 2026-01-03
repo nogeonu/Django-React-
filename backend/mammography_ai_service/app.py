@@ -158,10 +158,8 @@ def main():
         logger.error(f"❌ Model file not found: {MODEL_PATH}")
         sys.exit(1)
     
-    # Mosec은 환경변수로 포트와 타임아웃을 설정합니다
+    # Mosec은 환경변수로 포트를 설정합니다
     os.environ['MOSEC_PORT'] = str(MOSEC_PORT)
-    # CPU에서 YOLO11 추론은 시간이 오래 걸리므로 타임아웃 60초로 설정
-    os.environ['MOSEC_TIMEOUT'] = '60'
     
     # Mosec 서버 생성
     server = Server()
