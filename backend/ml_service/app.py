@@ -207,11 +207,11 @@ def mammography_detect():
             contour_area = cv2.contourArea(largest_contour)
             print(f"Largest contour: bbox=({x}, {y}, {w}, {h}), area={contour_area:.0f}")
             
-            # ROI가 너무 작거나 이미지의 일부분만 차지하면 크로핑하지 않음
-            # 전체 이미지의 30% 이상이면 크로핑, 아니면 전체 사용
-            if contour_area > pixel_array_8bit.size * 0.3 and w > pixel_array_8bit.shape[1] * 0.3:
+            # ROI 크로핑 조건: 너무 작은 영역이거나 이미지의 일부분만 차지하면 전체 이미지 사용
+            # 조건: contour area > 30% AND width > 40% (충분히 넓은 영역만 크로핑)
+            if contour_area > pixel_array_8bit.size * 0.3 and w > pixel_array_8bit.shape[1] * 0.4:
                 # 경계에 약간의 여유 추가 (padding)
-                padding = 50  # padding 증가
+                padding = 50
                 x = max(0, x - padding)
                 y = max(0, y - padding)
                 w = min(pixel_array_8bit.shape[1] - x, w + 2 * padding)
@@ -220,7 +220,7 @@ def mammography_detect():
                 pixel_array_8bit = pixel_array_8bit[y:y+h, x:x+w]
                 print(f"Applied ROI cropping: bbox=({x}, {y}, {w}, {h}), new shape={pixel_array_8bit.shape}")
             else:
-                print(f"Contour area ({contour_area:.0f}) or width ({w}) too small, skipping ROI cropping (using full image)")
+                print(f"Skipping ROI cropping: contour_area={contour_area:.0f} ({contour_area/pixel_array_8bit.size*100:.1f}%), width={w} ({w/pixel_array_8bit.shape[1]*100:.1f}%) - using full image")
         else:
             print("No contours found, skipping ROI cropping (using full image)")
         
@@ -275,15 +275,18 @@ def mammography_detect():
             verbose=True  # 디버깅을 위해 True로 변경
         )
         
-        print(f"YOLO inference completed. Number of results: {len(results)}")
+        print(f"YOLO inference completed. Number of results: {len(results)}", flush=True)
         if len(results) > 0:
             result = results[0]
             boxes = result.boxes
-            print(f"Number of boxes detected: {len(boxes)}")
-            if len(boxes) > 0:
-                print(f"First box: conf={boxes.conf[0].cpu().numpy():.3f}, cls={boxes.cls[0].cpu().numpy()}")
+            num_boxes = len(boxes)
+            print(f"Number of boxes detected: {num_boxes}", flush=True)
+            if num_boxes > 0:
+                first_conf = float(boxes.conf[0].cpu().numpy())
+                first_cls = int(boxes.cls[0].cpu().numpy())
+                print(f"First box: conf={first_conf:.3f}, cls={first_cls}", flush=True)
             else:
-                print("⚠️ No boxes detected - confidence threshold might be too high or image preprocessing issue")
+                print("⚠️ No boxes detected - confidence threshold might be too high or image preprocessing issue", flush=True)
         
         # 결과 파싱
         detections = []
