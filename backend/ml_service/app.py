@@ -200,16 +200,18 @@ def mammography_detect():
         print(f"Found {len(contours)} contours")
         
         if len(contours) > 0:
-            # 가장 큰 contour가 유방 조직일 가능성이 높음
+            # 모든 contour를 합쳐서 전체 유방 영역 찾기 (가장 큰 것만 사용하면 일부가 잘릴 수 있음)
+            # 또는 가장 큰 contour만 사용하되, 모든 contour의 bounding box를 고려
             largest_contour = max(contours, key=cv2.contourArea)
             x, y, w, h = cv2.boundingRect(largest_contour)
             contour_area = cv2.contourArea(largest_contour)
             print(f"Largest contour: bbox=({x}, {y}, {w}, {h}), area={contour_area:.0f}")
             
-            # ROI가 너무 작으면 크로핑하지 않음 (전체 이미지 사용)
-            if contour_area > pixel_array_8bit.size * 0.1:  # 전체 이미지의 10% 이상
+            # ROI가 너무 작거나 이미지의 일부분만 차지하면 크로핑하지 않음
+            # 전체 이미지의 30% 이상이면 크로핑, 아니면 전체 사용
+            if contour_area > pixel_array_8bit.size * 0.3 and w > pixel_array_8bit.shape[1] * 0.3:
                 # 경계에 약간의 여유 추가 (padding)
-                padding = 20
+                padding = 50  # padding 증가
                 x = max(0, x - padding)
                 y = max(0, y - padding)
                 w = min(pixel_array_8bit.shape[1] - x, w + 2 * padding)
@@ -218,9 +220,9 @@ def mammography_detect():
                 pixel_array_8bit = pixel_array_8bit[y:y+h, x:x+w]
                 print(f"Applied ROI cropping: bbox=({x}, {y}, {w}, {h}), new shape={pixel_array_8bit.shape}")
             else:
-                print(f"Contour too small ({contour_area:.0f} < {pixel_array_8bit.size * 0.1:.0f}), skipping ROI cropping")
+                print(f"Contour area ({contour_area:.0f}) or width ({w}) too small, skipping ROI cropping (using full image)")
         else:
-            print("No contours found, skipping ROI cropping")
+            print("No contours found, skipping ROI cropping (using full image)")
         
         # 6. 정사각형 패딩 (비율 유지) - 학습 시 사용
         # 유방 이미지를 정사각형으로 만들기 (긴 변 기준으로 패딩)
