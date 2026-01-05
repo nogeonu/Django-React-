@@ -176,7 +176,7 @@ def mammography_detect():
         # 2. PhotometricInterpretation에 따라 반전 (MONOCHROME1인 경우)
         if hasattr(dicom, 'PhotometricInterpretation'):
             if dicom.PhotometricInterpretation == 'MONOCHROME1':
-                pixel_array = pixel_array.max() - pixel_array + pixel_array.min()  # 반전
+                pixel_array = pixel_array.max() - pixel_array  # 반전
                 print(f"Applied inversion for MONOCHROME1")
         
         # 3. 16-bit 범위로 정규화 (학습 시 16-bit PNG 저장과 동일)
@@ -186,29 +186,20 @@ def mammography_detect():
         else:
             pixel_array_16bit = pixel_array.astype(np.uint16)
         
-        # 4. 배경 제거 (Otsu threshold) - 선택사항이지만 학습 시 사용했으므로 적용
-        # OpenCV는 uint16을 직접 지원하므로 16-bit로 처리
-        pixel_array_16bit_cv = pixel_array_16bit.astype(np.uint16)
+        # 4. 16-bit를 8-bit로 변환 (CLAHE와 Otsu는 8-bit에서 더 잘 동작)
+        pixel_array_8bit = (pixel_array_16bit / 256).astype(np.uint8)
         
-        # Otsu threshold 적용 (배경 제거)
-        # 16-bit 이미지에 대해 Otsu 적용을 위해 8-bit로 변환 후 적용
-        pixel_array_8bit_temp = (pixel_array_16bit_cv / 256).astype(np.uint8)
-        _, binary_mask = cv2.threshold(pixel_array_8bit_temp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # 5. 배경 제거 (Otsu threshold) - 학습 시 사용했으므로 적용
+        # Otsu threshold로 배경 마스크 생성
+        _, binary_mask = cv2.threshold(pixel_array_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # 배경을 0으로 설정 (선택사항 - 모델이 자동 처리 가능하므로 원본 유지)
+        # pixel_array_8bit = np.where(binary_mask > 0, pixel_array_8bit, 0)
         
-        # 마스크를 16-bit 범위로 확장
-        binary_mask_16bit = (binary_mask.astype(np.uint16) * 256)
-        
-        # 배경을 0으로 설정 (선택사항 - 모델이 자동 처리 가능하므로 주석 처리 가능)
-        # pixel_array_16bit_cv = np.where(binary_mask_16bit > 0, pixel_array_16bit_cv, 0)
-        
-        # 5. CLAHE & Windowing (대비 향상) - 선택사항이지만 학습 시 사용
-        # 16-bit 이미지에 CLAHE 적용
+        # 6. CLAHE & Windowing (대비 향상) - 학습 시 사용
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        # CLAHE는 8-bit 또는 16-bit 입력을 받지만, 16-bit는 제한적이므로 8-bit로 변환 후 적용
-        pixel_array_8bit_for_clahe = (pixel_array_16bit_cv / 256).astype(np.uint8)
-        pixel_array_enhanced = clahe.apply(pixel_array_8bit_for_clahe)
+        pixel_array_enhanced = clahe.apply(pixel_array_8bit)
         
-        # 6. 16-bit PNG 형식으로 저장했으므로, YOLO 입력을 위해 8-bit로 변환
+        # 7. 최종 8-bit 이미지 (YOLO 입력 형식)
         # 학습 시 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링하므로 동일하게 처리
         pixel_array_final = pixel_array_enhanced.astype(np.uint8)
         
