@@ -203,21 +203,29 @@ def mammography_detect():
         # 학습 시 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링하므로 동일하게 처리
         pixel_array_final = pixel_array_enhanced.astype(np.uint8)
         
-        print(f"Final processed image: range=[{pixel_array_final.min()}, {pixel_array_final.max()}]")
+        print(f"Final processed image: shape={pixel_array_final.shape}, range=[{pixel_array_final.min()}, {pixel_array_final.max()}]")
         
         # 7. PIL Image로 변환 (grayscale -> RGB)
         # YOLO는 RGB 이미지를 입력으로 받음
         image = Image.fromarray(pixel_array_final, mode='L').convert('RGB')
         
+        print(f"PIL Image: size={image.size}, mode={image.mode}")
+        
         # YOLO 추론
         yolo_model = get_yolo_model()
+        print(f"Running YOLO inference: conf={confidence}, iou={iou_threshold}, imgsz=1280")
         results = yolo_model.predict(
             source=image,
             conf=confidence,
             iou=iou_threshold,
+            imgsz=1280,  # 학습 시 사용한 이미지 크기 명시
             device='cpu',
-            verbose=False
+            verbose=True  # 디버깅을 위해 True로 변경
         )
+        
+        print(f"YOLO inference completed. Number of results: {len(results)}")
+        if len(results) > 0:
+            print(f"Number of boxes detected: {len(results[0].boxes)}")
         
         # 결과 파싱
         detections = []
