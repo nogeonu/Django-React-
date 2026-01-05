@@ -160,36 +160,35 @@ def mammography_detect():
         # Base64 DICOM 데이터 디코딩
         dicom_data = base64.b64decode(dicom_data_base64)
         
-        # DICOM을 PIL Image로 변환
+        # DICOM을 PIL Image로 변환 (학습 시 16-bit PNG로 변환했으므로 동일한 전처리 적용)
         dicom = pydicom.dcmread(BytesIO(dicom_data))
         pixel_array = dicom.pixel_array.astype(np.float32)
         
-        # Rescale Slope/Intercept 적용
+        # Rescale Slope/Intercept 적용 (DICOM 표준)
         if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
             pixel_array = pixel_array * float(dicom.RescaleSlope) + float(dicom.RescaleIntercept)
         
-        # Window/Level 적용 (있는 경우)
-        if hasattr(dicom, 'WindowCenter') and hasattr(dicom, 'WindowWidth'):
-            window_center = float(dicom.WindowCenter) if isinstance(dicom.WindowCenter, (list, tuple)) else float(dicom.WindowCenter)
-            window_width = float(dicom.WindowWidth) if isinstance(dicom.WindowWidth, (list, tuple)) else float(dicom.WindowWidth)
-            window_min = window_center - window_width / 2
-            window_max = window_center + window_width / 2
-            pixel_array = np.clip(pixel_array, window_min, window_max)
-            pixel_array = ((pixel_array - window_min) / (window_max - window_min) * 255).astype(np.uint8)
+        # Window/Level 적용 (유방촬영술에서는 일반적으로 사용하지 않음)
+        # 학습 시 16-bit PNG로 변환했다면, min-max 정규화를 16-bit 범위(0-65535)로 했을 가능성이 높음
+        # 하지만 YOLO는 내부적으로 8-bit를 사용하므로, 학습 시에도 16-bit PNG를 0-255로 스케일링했을 가능성이 높음
+        # 일단 min-max 정규화를 적용 (학습 시와 동일하게)
+        if pixel_array.max() > pixel_array.min():
+            # min-max 정규화: 0-65535 범위로 먼저 변환 (16-bit PNG 형식)
+            pixel_array_16bit = ((pixel_array - pixel_array.min()) / 
+                                (pixel_array.max() - pixel_array.min()) * 65535).astype(np.uint16)
+            # YOLO는 8-bit 이미지를 입력으로 받으므로, 16-bit를 8-bit로 변환
+            # 학습 시에도 16-bit PNG를 읽을 때 자동으로 0-255 범위로 스케일링되었을 가능성이 높음
+            pixel_array = (pixel_array_16bit / 256).astype(np.uint8)  # 16-bit를 8-bit로 변환
         else:
-            # min-max 정규화
-            if pixel_array.max() > pixel_array.min():
-                pixel_array = ((pixel_array - pixel_array.min()) / 
-                              (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
-            else:
-                pixel_array = pixel_array.astype(np.uint8)
+            pixel_array = pixel_array.astype(np.uint8)
         
         # PhotometricInterpretation에 따라 반전
         if hasattr(dicom, 'PhotometricInterpretation'):
             if dicom.PhotometricInterpretation == 'MONOCHROME1':
                 pixel_array = 255 - pixel_array
         
-        # PIL Image로 변환
+        # PIL Image로 변환 (8-bit grayscale -> RGB)
+        # YOLO는 RGB 이미지를 입력으로 받음
         if len(pixel_array.shape) == 2:
             pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array, mode='L').convert('RGB')
