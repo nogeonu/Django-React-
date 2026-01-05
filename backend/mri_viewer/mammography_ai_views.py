@@ -77,18 +77,46 @@ def mammography_ai_detection(request, instance_id):
         
         # DICOM을 PIL Image로 변환
         dicom = pydicom.dcmread(BytesIO(dicom_data))
-        pixel_array = dicom.pixel_array
+        pixel_array = dicom.pixel_array.astype(np.float32)
         
-        # 정규화 (0-255)
-        if pixel_array.max() > 255:
-            pixel_array = ((pixel_array - pixel_array.min()) / 
-                          (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
+        # Rescale Slope/Intercept 적용 (DICOM 표준)
+        if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
+            pixel_array = pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
         
-        # PIL Image로 변환
+        # Window/Level 적용 (있는 경우)
+        if hasattr(dicom, 'WindowCenter') and hasattr(dicom, 'WindowWidth'):
+            window_center = float(dicom.WindowCenter) if isinstance(dicom.WindowCenter, (list, tuple)) else float(dicom.WindowCenter)
+            window_width = float(dicom.WindowWidth) if isinstance(dicom.WindowWidth, (list, tuple)) else float(dicom.WindowWidth)
+            
+            window_min = window_center - window_width / 2
+            window_max = window_center + window_width / 2
+            
+            # Window/Level 적용
+            pixel_array = np.clip(pixel_array, window_min, window_max)
+            pixel_array = ((pixel_array - window_min) / (window_max - window_min) * 255).astype(np.uint8)
+        else:
+            # Window/Level이 없으면 min-max 정규화
+            if pixel_array.max() > pixel_array.min():
+                pixel_array = ((pixel_array - pixel_array.min()) / 
+                              (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
+            else:
+                pixel_array = pixel_array.astype(np.uint8)
+        
+        # PhotometricInterpretation에 따라 반전 (MONOCHROME1인 경우)
+        if hasattr(dicom, 'PhotometricInterpretation'):
+            if dicom.PhotometricInterpretation == 'MONOCHROME1':
+                pixel_array = 255 - pixel_array
+        
+        # PIL Image로 변환 (8-bit grayscale -> RGB)
         if len(pixel_array.shape) == 2:  # Grayscale
+            # uint8로 변환하고 PIL Image 생성
+            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array, mode='L').convert('RGB')
         else:
+            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array)
+        
+        logger.info(f"Image shape: {image.size}, mode: {image.mode}")
         
         # YOLO 모델 로드
         model = get_yolo_model()
