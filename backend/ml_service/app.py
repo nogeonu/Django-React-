@@ -4,11 +4,15 @@ import joblib
 import os
 import pandas as pd
 import numpy as np
+import base64
+from io import BytesIO
+from PIL import Image
+import pydicom
 
 app = Flask(__name__)
 CORS(app)
 
-# 모델 로드
+# 폐암 ML 모델 로드
 current_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(current_dir, '..', 'lung_cancer', 'ml_model', 'lung_cancer_model.pkl')
 feature_path = os.path.join(current_dir, '..', 'lung_cancer', 'ml_model', 'feature_names.pkl')
@@ -26,12 +30,45 @@ else:
     model_loaded = False
     print(f"❌ ML 모델 로드 실패: {model_path}, {feature_path}")
 
+# YOLO 모델 로드 (유방촬영술 디텍션)
+_yolo_model = None
+YOLO_MODEL_PATH = os.getenv(
+    'MAMMOGRAPHY_MODEL_PATH',
+    '/home/shrjsdn908/models/yolo11_mammography/best.pt'
+)
+
+def get_yolo_model():
+    """YOLO 모델 로드 (싱글톤 패턴)"""
+    global _yolo_model
+    if _yolo_model is None:
+        try:
+            from ultralytics import YOLO
+            print(f"Loading YOLO model from {YOLO_MODEL_PATH}")
+            _yolo_model = YOLO(YOLO_MODEL_PATH)
+            print("✅ YOLO model loaded successfully")
+        except Exception as e:
+            print(f"❌ Failed to load YOLO model: {e}")
+            raise
+    return _yolo_model
+
+# YOLO 모델 로드 시도
+yolo_loaded = False
+try:
+    if os.path.exists(YOLO_MODEL_PATH):
+        get_yolo_model()
+        yolo_loaded = True
+    else:
+        print(f"⚠️  YOLO model file not found: {YOLO_MODEL_PATH}")
+except Exception as e:
+    print(f"⚠️  YOLO model load failed (will skip): {e}")
+
 @app.route('/health', methods=['GET'])
 def health():
     """헬스 체크 엔드포인트"""
     return jsonify({
         'status': 'healthy',
-        'model_loaded': model_loaded
+        'model_loaded': model_loaded,
+        'yolo_loaded': yolo_loaded
     })
 
 @app.route('/predict', methods=['POST'])
@@ -97,6 +134,126 @@ def predict():
         print(f"❌ 예측 중 오류: {e}")
         return jsonify({
             'error': f'예측 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+@app.route('/mammography/detect', methods=['POST'])
+def mammography_detect():
+    """유방촬영술 YOLO 디텍션 API"""
+    if not yolo_loaded:
+        return jsonify({
+            'success': False,
+            'error': 'YOLO 모델이 로드되지 않았습니다.'
+        }), 500
+    
+    try:
+        data = request.get_json()
+        dicom_data_base64 = data.get('dicom_data')
+        confidence = float(data.get('confidence', 0.25))
+        iou_threshold = float(data.get('iou_threshold', 0.45))
+        
+        if not dicom_data_base64:
+            return jsonify({
+                'success': False,
+                'error': 'dicom_data가 제공되지 않았습니다.'
+            }), 400
+        
+        # Base64 DICOM 데이터 디코딩
+        dicom_data = base64.b64decode(dicom_data_base64)
+        
+        # DICOM을 PIL Image로 변환
+        dicom = pydicom.dcmread(BytesIO(dicom_data))
+        pixel_array = dicom.pixel_array.astype(np.float32)
+        
+        # Rescale Slope/Intercept 적용
+        if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
+            pixel_array = pixel_array * float(dicom.RescaleSlope) + float(dicom.RescaleIntercept)
+        
+        # Window/Level 적용 (있는 경우)
+        if hasattr(dicom, 'WindowCenter') and hasattr(dicom, 'WindowWidth'):
+            window_center = float(dicom.WindowCenter) if isinstance(dicom.WindowCenter, (list, tuple)) else float(dicom.WindowCenter)
+            window_width = float(dicom.WindowWidth) if isinstance(dicom.WindowWidth, (list, tuple)) else float(dicom.WindowWidth)
+            window_min = window_center - window_width / 2
+            window_max = window_center + window_width / 2
+            pixel_array = np.clip(pixel_array, window_min, window_max)
+            pixel_array = ((pixel_array - window_min) / (window_max - window_min) * 255).astype(np.uint8)
+        else:
+            # min-max 정규화
+            if pixel_array.max() > pixel_array.min():
+                pixel_array = ((pixel_array - pixel_array.min()) / 
+                              (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
+            else:
+                pixel_array = pixel_array.astype(np.uint8)
+        
+        # PhotometricInterpretation에 따라 반전
+        if hasattr(dicom, 'PhotometricInterpretation'):
+            if dicom.PhotometricInterpretation == 'MONOCHROME1':
+                pixel_array = 255 - pixel_array
+        
+        # PIL Image로 변환
+        if len(pixel_array.shape) == 2:
+            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
+            image = Image.fromarray(pixel_array, mode='L').convert('RGB')
+        else:
+            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
+            image = Image.fromarray(pixel_array)
+        
+        # YOLO 추론
+        yolo_model = get_yolo_model()
+        results = yolo_model.predict(
+            source=image,
+            conf=confidence,
+            iou=iou_threshold,
+            device='cpu',
+            verbose=False
+        )
+        
+        # 결과 파싱
+        detections = []
+        annotated_image_base64 = ""
+        
+        if len(results) > 0:
+            result = results[0]
+            boxes = result.boxes
+            
+            for box in boxes:
+                detection = {
+                    'bbox': box.xyxy[0].cpu().numpy().tolist(),
+                    'confidence': float(box.conf[0].cpu().numpy()),
+                    'class_id': int(box.cls[0].cpu().numpy()),
+                    'class_name': result.names[int(box.cls[0].cpu().numpy())]
+                }
+                detections.append(detection)
+            
+            # Annotated 이미지 생성
+            annotated_img = result.plot()
+            annotated_pil = Image.fromarray(annotated_img[..., ::-1])
+            
+            buffered = BytesIO()
+            annotated_pil.save(buffered, format="PNG")
+            annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'detections': detections,
+            'detection_count': len(detections),
+            'annotated_image_base64': annotated_image_base64,
+            'model_info': {
+                'name': 'YOLO11 Mammography Detection',
+                'confidence_threshold': confidence
+            },
+            'error': ''
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ YOLO 디텍션 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'detections': [],
+            'detection_count': 0,
+            'annotated_image_base64': '',
+            'error': str(e)
         }), 500
 
 if __name__ == '__main__':
