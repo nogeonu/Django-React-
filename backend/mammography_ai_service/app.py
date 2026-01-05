@@ -154,11 +154,13 @@ def main():
         logger.error(f"❌ Model file not found: {MODEL_PATH}")
         sys.exit(1)
     
-    # mosec은 명령줄 인자로 포트를 받으므로 sys.argv 수정 (breast 프로젝트 방식)
+    # mosec은 명령줄 인자로 포트와 타임아웃을 받으므로 sys.argv 수정 (breast 프로젝트 방식)
     import sys
     if '--port' not in sys.argv:
         sys.argv.extend(['--port', str(MOSEC_PORT)])
-    # timeout은 append_worker의 timeout 파라미터로 설정 (Mosec 0.9.6에서는 CLI 인자가 작동하지 않음)
+    # timeout은 CLI 인자와 append_worker 모두 설정 (이중 보장)
+    if '--timeout' not in sys.argv:
+        sys.argv.extend(['--timeout', '120'])
     
     # Mosec 서버 생성
     server = Server()
