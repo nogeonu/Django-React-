@@ -189,13 +189,47 @@ def mammography_detect():
         # 4. 16-bit를 8-bit로 변환 (CLAHE와 Otsu는 8-bit에서 더 잘 동작)
         pixel_array_8bit = (pixel_array_16bit / 256).astype(np.uint8)
         
-        # 5. 배경 제거 (Otsu threshold) - 학습 시 사용했으므로 적용
+        # 5. 배경 제거 (Otsu threshold) 및 유방 조직 크로핑 (ROI 추출)
         # Otsu threshold로 배경 마스크 생성
         _, binary_mask = cv2.threshold(pixel_array_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # 배경을 0으로 설정 (선택사항 - 모델이 자동 처리 가능하므로 원본 유지)
-        # pixel_array_8bit = np.where(binary_mask > 0, pixel_array_8bit, 0)
         
-        # 6. CLAHE & Windowing (대비 향상) - 학습 시 사용
+        # 유방 조직 크로핑 (ROI 추출) - 학습 시 사용
+        # 마스크에서 유방 영역의 경계 찾기
+        contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) > 0:
+            # 가장 큰 contour가 유방 조직일 가능성이 높음
+            largest_contour = max(contours, key=cv2.contourArea)
+            x, y, w, h = cv2.boundingRect(largest_contour)
+            # 경계에 약간의 여유 추가 (padding)
+            padding = 20
+            x = max(0, x - padding)
+            y = max(0, y - padding)
+            w = min(pixel_array_8bit.shape[1] - x, w + 2 * padding)
+            h = min(pixel_array_8bit.shape[0] - y, h + 2 * padding)
+            # ROI 추출
+            pixel_array_8bit = pixel_array_8bit[y:y+h, x:x+w]
+            print(f"Applied ROI cropping: bbox=({x}, {y}, {w}, {h}), new shape={pixel_array_8bit.shape}")
+        else:
+            print("No contours found, skipping ROI cropping")
+        
+        # 6. 정사각형 패딩 (비율 유지) - 학습 시 사용
+        # 유방 이미지를 정사각형으로 만들기 (긴 변 기준으로 패딩)
+        h, w = pixel_array_8bit.shape[:2]
+        max_dim = max(h, w)
+        if h != w:
+            # 정사각형 패딩
+            pad_h = (max_dim - h) // 2
+            pad_w = (max_dim - w) // 2
+            pixel_array_8bit = cv2.copyMakeBorder(
+                pixel_array_8bit,
+                pad_h, max_dim - h - pad_h,
+                pad_w, max_dim - w - pad_w,
+                cv2.BORDER_CONSTANT,
+                value=0  # 검은색 배경
+            )
+            print(f"Applied square padding: ({h}, {w}) -> ({max_dim}, {max_dim})")
+        
+        # 7. CLAHE & Windowing (대비 향상) - 학습 시 사용
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         pixel_array_enhanced = clahe.apply(pixel_array_8bit)
         
