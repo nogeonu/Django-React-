@@ -156,19 +156,21 @@ def main():
     
     # mosec은 명령줄 인자로 포트와 타임아웃을 받으므로 sys.argv 수정 (breast 프로젝트 방식)
     import sys
+    # Server() 생성 전에 sys.argv 설정 (Server 생성 시 인자가 파싱됨)
     if '--port' not in sys.argv:
         sys.argv.extend(['--port', str(MOSEC_PORT)])
-    # timeout은 CLI 인자와 append_worker 모두 설정 (이중 보장)
     if '--timeout' not in sys.argv:
         sys.argv.extend(['--timeout', '120'])
     
-    # Mosec 서버 생성
+    logger.info(f"sys.argv: {sys.argv}")
+    
+    # Mosec 서버 생성 (이때 CLI 인자가 파싱됨)
     server = Server()
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
         max_batch_size=1,  # 배치 크기 (YOLO는 보통 1개씩 처리)
-        timeout=120  # YOLO11 CPU 추론은 시간이 오래 걸리므로 120초로 설정
+        timeout=120.0  # float 타입으로 명시적으로 설정 (YOLO11 CPU 추론은 시간이 오래 걸리므로 120초)
     )
     
     # 서버 시작
