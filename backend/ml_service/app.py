@@ -192,23 +192,33 @@ def mammography_detect():
         # 5. 배경 제거 (Otsu threshold) 및 유방 조직 크로핑 (ROI 추출)
         # Otsu threshold로 배경 마스크 생성
         _, binary_mask = cv2.threshold(pixel_array_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        print(f"Otsu threshold mask: shape={binary_mask.shape}, non-zero pixels={np.count_nonzero(binary_mask)}")
         
         # 유방 조직 크로핑 (ROI 추출) - 학습 시 사용
         # 마스크에서 유방 영역의 경계 찾기
         contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        print(f"Found {len(contours)} contours")
+        
         if len(contours) > 0:
             # 가장 큰 contour가 유방 조직일 가능성이 높음
             largest_contour = max(contours, key=cv2.contourArea)
             x, y, w, h = cv2.boundingRect(largest_contour)
-            # 경계에 약간의 여유 추가 (padding)
-            padding = 20
-            x = max(0, x - padding)
-            y = max(0, y - padding)
-            w = min(pixel_array_8bit.shape[1] - x, w + 2 * padding)
-            h = min(pixel_array_8bit.shape[0] - y, h + 2 * padding)
-            # ROI 추출
-            pixel_array_8bit = pixel_array_8bit[y:y+h, x:x+w]
-            print(f"Applied ROI cropping: bbox=({x}, {y}, {w}, {h}), new shape={pixel_array_8bit.shape}")
+            contour_area = cv2.contourArea(largest_contour)
+            print(f"Largest contour: bbox=({x}, {y}, {w}, {h}), area={contour_area:.0f}")
+            
+            # ROI가 너무 작으면 크로핑하지 않음 (전체 이미지 사용)
+            if contour_area > pixel_array_8bit.size * 0.1:  # 전체 이미지의 10% 이상
+                # 경계에 약간의 여유 추가 (padding)
+                padding = 20
+                x = max(0, x - padding)
+                y = max(0, y - padding)
+                w = min(pixel_array_8bit.shape[1] - x, w + 2 * padding)
+                h = min(pixel_array_8bit.shape[0] - y, h + 2 * padding)
+                # ROI 추출
+                pixel_array_8bit = pixel_array_8bit[y:y+h, x:x+w]
+                print(f"Applied ROI cropping: bbox=({x}, {y}, {w}, {h}), new shape={pixel_array_8bit.shape}")
+            else:
+                print(f"Contour too small ({contour_area:.0f} < {pixel_array_8bit.size * 0.1:.0f}), skipping ROI cropping")
         else:
             print("No contours found, skipping ROI cropping")
         
@@ -248,6 +258,12 @@ def mammography_detect():
         # YOLO 추론
         yolo_model = get_yolo_model()
         print(f"Running YOLO inference: conf={confidence}, iou={iou_threshold}, imgsz=1280")
+        print(f"Input image stats: size={image.size}, mode={image.mode}, pixel range check...")
+        
+        # 이미지 통계 확인
+        img_array = np.array(image)
+        print(f"Image array stats: shape={img_array.shape}, dtype={img_array.dtype}, min={img_array.min()}, max={img_array.max()}, mean={img_array.mean():.2f}")
+        
         results = yolo_model.predict(
             source=image,
             conf=confidence,
@@ -259,7 +275,13 @@ def mammography_detect():
         
         print(f"YOLO inference completed. Number of results: {len(results)}")
         if len(results) > 0:
-            print(f"Number of boxes detected: {len(results[0].boxes)}")
+            result = results[0]
+            boxes = result.boxes
+            print(f"Number of boxes detected: {len(boxes)}")
+            if len(boxes) > 0:
+                print(f"First box: conf={boxes.conf[0].cpu().numpy():.3f}, cls={boxes.cls[0].cpu().numpy()}")
+            else:
+                print("⚠️ No boxes detected - confidence threshold might be too high or image preprocessing issue")
         
         # 결과 파싱
         detections = []
