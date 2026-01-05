@@ -76,14 +76,20 @@ def mammography_ai_detection(request, instance_id):
         dicom_data = client.get_instance_file(instance_id)
         
         # DICOM을 PIL Image로 변환
+        # YOLO 모델은 파일 형식이 아니라 픽셀 값에만 관심이 있으므로,
+        # DICOM을 PIL Image로 변환하는 것만으로 충분합니다 (PNG 파일로 저장할 필요 없음)
         dicom = pydicom.dcmread(BytesIO(dicom_data))
         pixel_array = dicom.pixel_array.astype(np.float32)
         
+        logger.info(f"DICOM pixel_array: shape={pixel_array.shape}, dtype={pixel_array.dtype}, range=[{pixel_array.min():.1f}, {pixel_array.max():.1f}]")
+        
         # Rescale Slope/Intercept 적용 (DICOM 표준)
         if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
-            pixel_array = pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
+            pixel_array = pixel_array * float(dicom.RescaleSlope) + float(dicom.RescaleIntercept)
+            logger.info(f"Applied Rescale: Slope={dicom.RescaleSlope}, Intercept={dicom.RescaleIntercept}")
         
-        # Window/Level 적용 (있는 경우)
+        # Window/Level 적용 (있는 경우) - 유방촬영술에서는 일반적으로 사용하지 않으므로 min-max 정규화 사용
+        # 학습 데이터가 PNG였다면, 보통 min-max 정규화 또는 원본 픽셀 값을 그대로 사용했을 가능성이 높습니다
         if hasattr(dicom, 'WindowCenter') and hasattr(dicom, 'WindowWidth'):
             window_center = float(dicom.WindowCenter) if isinstance(dicom.WindowCenter, (list, tuple)) else float(dicom.WindowCenter)
             window_width = float(dicom.WindowWidth) if isinstance(dicom.WindowWidth, (list, tuple)) else float(dicom.WindowWidth)
@@ -91,32 +97,38 @@ def mammography_ai_detection(request, instance_id):
             window_min = window_center - window_width / 2
             window_max = window_center + window_width / 2
             
+            logger.info(f"Applying Window/Level: Center={window_center}, Width={window_width}")
             # Window/Level 적용
             pixel_array = np.clip(pixel_array, window_min, window_max)
             pixel_array = ((pixel_array - window_min) / (window_max - window_min) * 255).astype(np.uint8)
         else:
-            # Window/Level이 없으면 min-max 정규화
+            # Window/Level이 없으면 min-max 정규화 (학습 시 PNG 파일이 이 방식으로 전처리되었을 가능성이 높음)
             if pixel_array.max() > pixel_array.min():
                 pixel_array = ((pixel_array - pixel_array.min()) / 
                               (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
+                logger.info(f"Applied min-max normalization: [{pixel_array.min()}, {pixel_array.max()}] -> [0, 255]")
             else:
                 pixel_array = pixel_array.astype(np.uint8)
+                logger.info(f"Constant pixel values, converted to uint8")
         
         # PhotometricInterpretation에 따라 반전 (MONOCHROME1인 경우)
         if hasattr(dicom, 'PhotometricInterpretation'):
+            logger.info(f"PhotometricInterpretation: {dicom.PhotometricInterpretation}")
             if dicom.PhotometricInterpretation == 'MONOCHROME1':
                 pixel_array = 255 - pixel_array
+                logger.info("Applied inversion for MONOCHROME1")
         
         # PIL Image로 변환 (8-bit grayscale -> RGB)
+        # YOLO는 RGB 이미지를 입력으로 받으므로 변환이 필요합니다
         if len(pixel_array.shape) == 2:  # Grayscale
-            # uint8로 변환하고 PIL Image 생성
             pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array, mode='L').convert('RGB')
         else:
             pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array)
         
-        logger.info(f"Image shape: {image.size}, mode: {image.mode}, pixel range: [{np.array(image).min()}, {np.array(image).max()}]")
+        img_array = np.array(image)
+        logger.info(f"Final PIL Image: shape={image.size}, mode={image.mode}, pixel range=[{img_array.min()}, {img_array.max()}]")
         
         # YOLO 모델 로드
         model = get_yolo_model()
