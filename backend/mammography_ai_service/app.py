@@ -157,12 +157,24 @@ def main():
     # mosec은 명령줄 인자로 포트와 타임아웃을 받으므로 sys.argv 수정 (breast 프로젝트 방식)
     import sys
     # Server() 생성 전에 sys.argv 설정 (Server 생성 시 인자가 파싱됨)
+    # 중요: systemd에서 --timeout 120을 이미 추가했으므로, 중복 추가하지 않도록 주의
     if '--port' not in sys.argv:
         sys.argv.extend(['--port', str(MOSEC_PORT)])
+    # --timeout이 이미 있으면 그대로 사용, 없으면 추가
     if '--timeout' not in sys.argv:
         sys.argv.extend(['--timeout', '120'])
+        logger.info("Added --timeout 120 to sys.argv")
+    else:
+        # --timeout이 이미 있는 경우, 값 확인
+        timeout_idx = sys.argv.index('--timeout')
+        if timeout_idx + 1 < len(sys.argv):
+            timeout_value = sys.argv[timeout_idx + 1]
+            logger.info(f"--timeout already in sys.argv with value: {timeout_value}")
+        else:
+            logger.warning("--timeout found but no value provided, adding 120")
+            sys.argv.extend(['120'])
     
-    logger.info(f"sys.argv: {sys.argv}")
+    logger.info(f"Final sys.argv: {sys.argv}")
     
     # Mosec 서버 생성 (이때 CLI 인자가 파싱됨)
     # 중요: Server() 생성 시점에 이미 --timeout 인자가 파싱되어야 함
