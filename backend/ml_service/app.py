@@ -245,13 +245,19 @@ def mammography_detect():
         
         # 7. CLAHE & Windowing (대비 향상) - 학습 시 사용
         # CLAHE 파라미터를 조정하여 대비 향상 (clipLimit 증가)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
         pixel_array_enhanced = clahe.apply(pixel_array_8bit)
         
         print(f"After CLAHE: range=[{pixel_array_enhanced.min()}, {pixel_array_enhanced.max()}], mean={pixel_array_enhanced.mean():.2f}")
         
-        # 추가 대비 향상: 히스토그램 스트레칭 (선택적, 필요시)
-        # 현재는 CLAHE만 적용
+        # 추가 대비 향상: 히스토그램 스트레칭 (학습 시 이미지가 더 밝았을 가능성)
+        # 현재 이미지가 너무 어두우면 (mean < 50) 히스토그램 스트레칭 적용
+        if pixel_array_enhanced.mean() < 50:
+            # 히스토그램 스트레칭: 현재 범위를 0-255로 확장
+            p2, p98 = np.percentile(pixel_array_enhanced, (2, 98))
+            if p98 > p2:
+                pixel_array_enhanced = np.clip((pixel_array_enhanced - p2) / (p98 - p2) * 255, 0, 255).astype(np.uint8)
+                print(f"Applied histogram stretching: percentiles=[{p2:.1f}, {p98:.1f}], new mean={pixel_array_enhanced.mean():.2f}")
         
         # 7. 최종 8-bit 이미지 (YOLO 입력 형식)
         pixel_array_final = pixel_array_enhanced.astype(np.uint8)
