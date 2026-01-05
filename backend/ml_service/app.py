@@ -164,23 +164,27 @@ def mammography_detect():
         dicom = pydicom.dcmread(BytesIO(dicom_data))
         pixel_array = dicom.pixel_array.astype(np.float32)
         
+        print(f"DICOM pixel_array: shape={pixel_array.shape}, dtype={pixel_array.dtype}, range=[{pixel_array.min():.1f}, {pixel_array.max():.1f}]")
+        
         # Rescale Slope/Intercept 적용 (DICOM 표준)
         if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
             pixel_array = pixel_array * float(dicom.RescaleSlope) + float(dicom.RescaleIntercept)
+            print(f"Applied Rescale: Slope={dicom.RescaleSlope}, Intercept={dicom.RescaleIntercept}, new range=[{pixel_array.min():.1f}, {pixel_array.max():.1f}]")
         
-        # Window/Level 적용 (유방촬영술에서는 일반적으로 사용하지 않음)
-        # 학습 시 16-bit PNG로 변환했다면, min-max 정규화를 16-bit 범위(0-65535)로 했을 가능성이 높음
-        # 하지만 YOLO는 내부적으로 8-bit를 사용하므로, 학습 시에도 16-bit PNG를 0-255로 스케일링했을 가능성이 높음
-        # 일단 min-max 정규화를 적용 (학습 시와 동일하게)
+        # 학습 시 16-bit PNG로 변환: min-max 정규화를 16-bit 범위(0-65535)로 변환
+        # YOLO는 8-bit 입력을 받지만, 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링
+        # 따라서 학습 시: DICOM → min-max(0-65535) → 16-bit PNG → 읽을 때 자동으로 0-255
+        # 추론 시: DICOM → min-max(0-65535) → 8-bit(0-255)로 변환하여 동일하게 처리
         if pixel_array.max() > pixel_array.min():
-            # min-max 정규화: 0-65535 범위로 먼저 변환 (16-bit PNG 형식)
+            # min-max 정규화: 0-65535 범위로 변환 (16-bit PNG와 동일)
             pixel_array_16bit = ((pixel_array - pixel_array.min()) / 
                                 (pixel_array.max() - pixel_array.min()) * 65535).astype(np.uint16)
-            # YOLO는 8-bit 이미지를 입력으로 받으므로, 16-bit를 8-bit로 변환
-            # 학습 시에도 16-bit PNG를 읽을 때 자동으로 0-255 범위로 스케일링되었을 가능성이 높음
-            pixel_array = (pixel_array_16bit / 256).astype(np.uint8)  # 16-bit를 8-bit로 변환
+            # 16-bit를 8-bit로 변환 (YOLO 입력 형식, 학습 시 PNG 읽을 때와 동일한 변환)
+            pixel_array = (pixel_array_16bit / 256).astype(np.uint8)
+            print(f"Applied 16-bit normalization: range=[{pixel_array.min()}, {pixel_array.max()}]")
         else:
             pixel_array = pixel_array.astype(np.uint8)
+            print(f"Constant pixel values, converted to uint8")
         
         # PhotometricInterpretation에 따라 반전
         if hasattr(dicom, 'PhotometricInterpretation'):
