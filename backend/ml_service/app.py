@@ -180,14 +180,16 @@ def mammography_detect():
                 print(f"Applied inversion for MONOCHROME1")
         
         # 3. 16-bit 범위로 정규화 (학습 시 16-bit PNG 저장과 동일)
+        # 하지만 학습 시 PNG를 읽을 때는 자동 스케일링이 다를 수 있으므로
+        # 0-255 범위로 직접 정규화하는 것이 더 안전
         if pixel_array.max() > pixel_array.min():
-            pixel_array_16bit = ((pixel_array - pixel_array.min()) / 
-                                (pixel_array.max() - pixel_array.min()) * 65535).astype(np.uint16)
+            # min-max 정규화를 0-255로 직접 변환 (학습 시 PNG 읽기와 동일)
+            pixel_array_8bit = ((pixel_array - pixel_array.min()) / 
+                               (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)
         else:
-            pixel_array_16bit = pixel_array.astype(np.uint16)
+            pixel_array_8bit = pixel_array.astype(np.uint8)
         
-        # 4. 16-bit를 8-bit로 변환 (CLAHE와 Otsu는 8-bit에서 더 잘 동작)
-        pixel_array_8bit = (pixel_array_16bit / 256).astype(np.uint8)
+        print(f"After normalization: range=[{pixel_array_8bit.min()}, {pixel_array_8bit.max()}], mean={pixel_array_8bit.mean():.2f}")
         
         # 5. 배경 제거 (Otsu threshold) 및 유방 조직 크로핑 (ROI 추출)
         # Otsu threshold로 배경 마스크 생성
@@ -242,11 +244,16 @@ def mammography_detect():
             print(f"Applied square padding: ({h}, {w}) -> ({max_dim}, {max_dim})")
         
         # 7. CLAHE & Windowing (대비 향상) - 학습 시 사용
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        # CLAHE 파라미터를 조정하여 대비 향상 (clipLimit 증가)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         pixel_array_enhanced = clahe.apply(pixel_array_8bit)
         
+        print(f"After CLAHE: range=[{pixel_array_enhanced.min()}, {pixel_array_enhanced.max()}], mean={pixel_array_enhanced.mean():.2f}")
+        
+        # 추가 대비 향상: 히스토그램 스트레칭 (선택적, 필요시)
+        # 현재는 CLAHE만 적용
+        
         # 7. 최종 8-bit 이미지 (YOLO 입력 형식)
-        # 학습 시 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링하므로 동일하게 처리
         pixel_array_final = pixel_array_enhanced.astype(np.uint8)
         
         print(f"Final processed image: shape={pixel_array_final.shape}, range=[{pixel_array_final.min()}, {pixel_array_final.max()}]")
