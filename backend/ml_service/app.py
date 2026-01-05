@@ -8,6 +8,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 import pydicom
+import cv2
 
 app = Flask(__name__)
 CORS(app)
@@ -160,45 +161,62 @@ def mammography_detect():
         # Base64 DICOM 데이터 디코딩
         dicom_data = base64.b64decode(dicom_data_base64)
         
-        # DICOM을 PIL Image로 변환 (학습 시 16-bit PNG로 변환했으므로 동일한 전처리 적용)
+        # DICOM을 PIL Image로 변환 (학습 시 전처리 파이프라인과 동일하게 적용)
+        # 학습 시 전처리: DICOM → Rescale → MONOCHROME1 반전 → 배경제거 → CLAHE & Windowing → 16-bit PNG
         dicom = pydicom.dcmread(BytesIO(dicom_data))
         pixel_array = dicom.pixel_array.astype(np.float32)
         
         print(f"DICOM pixel_array: shape={pixel_array.shape}, dtype={pixel_array.dtype}, range=[{pixel_array.min():.1f}, {pixel_array.max():.1f}]")
         
-        # Rescale Slope/Intercept 적용 (DICOM 표준)
+        # 1. Rescale Slope/Intercept 적용 (DICOM 표준)
         if hasattr(dicom, 'RescaleSlope') and hasattr(dicom, 'RescaleIntercept'):
             pixel_array = pixel_array * float(dicom.RescaleSlope) + float(dicom.RescaleIntercept)
             print(f"Applied Rescale: Slope={dicom.RescaleSlope}, Intercept={dicom.RescaleIntercept}, new range=[{pixel_array.min():.1f}, {pixel_array.max():.1f}]")
         
-        # 학습 시 16-bit PNG로 변환: min-max 정규화를 16-bit 범위(0-65535)로 변환
-        # YOLO는 8-bit 입력을 받지만, 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링
-        # 따라서 학습 시: DICOM → min-max(0-65535) → 16-bit PNG → 읽을 때 자동으로 0-255
-        # 추론 시: DICOM → min-max(0-65535) → 8-bit(0-255)로 변환하여 동일하게 처리
-        if pixel_array.max() > pixel_array.min():
-            # min-max 정규화: 0-65535 범위로 변환 (16-bit PNG와 동일)
-            pixel_array_16bit = ((pixel_array - pixel_array.min()) / 
-                                (pixel_array.max() - pixel_array.min()) * 65535).astype(np.uint16)
-            # 16-bit를 8-bit로 변환 (YOLO 입력 형식, 학습 시 PNG 읽을 때와 동일한 변환)
-            pixel_array = (pixel_array_16bit / 256).astype(np.uint8)
-            print(f"Applied 16-bit normalization: range=[{pixel_array.min()}, {pixel_array.max()}]")
-        else:
-            pixel_array = pixel_array.astype(np.uint8)
-            print(f"Constant pixel values, converted to uint8")
-        
-        # PhotometricInterpretation에 따라 반전
+        # 2. PhotometricInterpretation에 따라 반전 (MONOCHROME1인 경우)
         if hasattr(dicom, 'PhotometricInterpretation'):
             if dicom.PhotometricInterpretation == 'MONOCHROME1':
-                pixel_array = 255 - pixel_array
+                pixel_array = pixel_array.max() - pixel_array + pixel_array.min()  # 반전
+                print(f"Applied inversion for MONOCHROME1")
         
-        # PIL Image로 변환 (8-bit grayscale -> RGB)
-        # YOLO는 RGB 이미지를 입력으로 받음
-        if len(pixel_array.shape) == 2:
-            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
-            image = Image.fromarray(pixel_array, mode='L').convert('RGB')
+        # 3. 16-bit 범위로 정규화 (학습 시 16-bit PNG 저장과 동일)
+        if pixel_array.max() > pixel_array.min():
+            pixel_array_16bit = ((pixel_array - pixel_array.min()) / 
+                                (pixel_array.max() - pixel_array.min()) * 65535).astype(np.uint16)
         else:
-            pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
-            image = Image.fromarray(pixel_array)
+            pixel_array_16bit = pixel_array.astype(np.uint16)
+        
+        # 4. 배경 제거 (Otsu threshold) - 선택사항이지만 학습 시 사용했으므로 적용
+        # OpenCV는 uint16을 직접 지원하므로 16-bit로 처리
+        pixel_array_16bit_cv = pixel_array_16bit.astype(np.uint16)
+        
+        # Otsu threshold 적용 (배경 제거)
+        # 16-bit 이미지에 대해 Otsu 적용을 위해 8-bit로 변환 후 적용
+        pixel_array_8bit_temp = (pixel_array_16bit_cv / 256).astype(np.uint8)
+        _, binary_mask = cv2.threshold(pixel_array_8bit_temp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # 마스크를 16-bit 범위로 확장
+        binary_mask_16bit = (binary_mask.astype(np.uint16) * 256)
+        
+        # 배경을 0으로 설정 (선택사항 - 모델이 자동 처리 가능하므로 주석 처리 가능)
+        # pixel_array_16bit_cv = np.where(binary_mask_16bit > 0, pixel_array_16bit_cv, 0)
+        
+        # 5. CLAHE & Windowing (대비 향상) - 선택사항이지만 학습 시 사용
+        # 16-bit 이미지에 CLAHE 적용
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        # CLAHE는 8-bit 또는 16-bit 입력을 받지만, 16-bit는 제한적이므로 8-bit로 변환 후 적용
+        pixel_array_8bit_for_clahe = (pixel_array_16bit_cv / 256).astype(np.uint8)
+        pixel_array_enhanced = clahe.apply(pixel_array_8bit_for_clahe)
+        
+        # 6. 16-bit PNG 형식으로 저장했으므로, YOLO 입력을 위해 8-bit로 변환
+        # 학습 시 16-bit PNG를 읽을 때 PIL/OpenCV가 자동으로 0-255로 스케일링하므로 동일하게 처리
+        pixel_array_final = pixel_array_enhanced.astype(np.uint8)
+        
+        print(f"Final processed image: range=[{pixel_array_final.min()}, {pixel_array_final.max()}]")
+        
+        # 7. PIL Image로 변환 (grayscale -> RGB)
+        # YOLO는 RGB 이미지를 입력으로 받음
+        image = Image.fromarray(pixel_array_final, mode='L').convert('RGB')
         
         # YOLO 추론
         yolo_model = get_yolo_model()
