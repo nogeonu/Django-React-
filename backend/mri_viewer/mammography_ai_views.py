@@ -116,7 +116,7 @@ def mammography_ai_detection(request, instance_id):
             pixel_array = np.clip(pixel_array, 0, 255).astype(np.uint8)
             image = Image.fromarray(pixel_array)
         
-        logger.info(f"Image shape: {image.size}, mode: {image.mode}")
+        logger.info(f"Image shape: {image.size}, mode: {image.mode}, pixel range: [{np.array(image).min()}, {np.array(image).max()}]")
         
         # YOLO 모델 로드
         model = get_yolo_model()
@@ -125,13 +125,13 @@ def mammography_ai_detection(request, instance_id):
         confidence = float(request.data.get('confidence', 0.25))
         iou_threshold = float(request.data.get('iou_threshold', 0.45))
         
-        logger.info(f"Running YOLO inference with conf={confidence}, iou={iou_threshold}")
+        logger.info(f"Running YOLO inference with conf={confidence}, iou={iou_threshold}, image_size={image.size}")
         results = model.predict(
             source=image,
             conf=confidence,
             iou=iou_threshold,
             device='cpu',  # GCP VM은 CPU 사용
-            verbose=False
+            verbose=True  # 디버깅을 위해 True로 변경
         )
         
         # 결과 파싱
@@ -142,12 +142,19 @@ def mammography_ai_detection(request, instance_id):
             result = results[0]
             boxes = result.boxes
             
+            logger.info(f"YOLO detected {len(boxes)} boxes (before filtering)")
+            
             for box in boxes:
+                conf = float(box.conf[0].cpu().numpy())
+                class_id = int(box.cls[0].cpu().numpy())
+                class_name = result.names[class_id]
+                logger.info(f"  Box: class={class_name}({class_id}), conf={conf:.3f}")
+                
                 detection = {
                     'bbox': box.xyxy[0].cpu().numpy().tolist(),  # [x1, y1, x2, y2]
-                    'confidence': float(box.conf[0].cpu().numpy()),
-                    'class_id': int(box.cls[0].cpu().numpy()),
-                    'class_name': result.names[int(box.cls[0].cpu().numpy())]
+                    'confidence': conf,
+                    'class_id': class_id,
+                    'class_name': class_name
                 }
                 detections.append(detection)
             
