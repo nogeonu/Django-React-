@@ -73,12 +73,17 @@ jobs:
             export NODE_OPTIONS="--max-old-space-size=1536"
             npm run build
 
-            # mammography-ai-service 중지 및 비활성화 (Django에서 직접 실행하므로 불필요)
+            # mammography-ai-service 중지 및 비활성화 (Flask 서비스로 통합)
             sudo systemctl stop mammography-ai-service 2>/dev/null || true
             sudo systemctl disable mammography-ai-service 2>/dev/null || true
             
-            # 환경 변수 설정 (Django에서 사용)
-            echo "export MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best.pt" | sudo tee -a /etc/environment > /dev/null
+            # Flask ML Service systemd 설정 (폐암 ML + YOLO 모델 포함)
+            printf '[Unit]\nDescription=Flask ML Service (Lung Cancer + YOLO Mammography)\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s/backend/ml_service\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="MAMMOGRAPHY_MODEL_PATH=/home/shrjsdn908/models/yolo11_mammography/best.pt"\nExecStart=%s/backend/.venv/bin/python app.py\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/ml-service.service > /dev/null
+            
+            sudo systemctl daemon-reload
+            sudo systemctl enable ml-service
+            sudo systemctl restart ml-service || sudo systemctl start ml-service
+            
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx
 
