@@ -165,13 +165,20 @@ def main():
     logger.info(f"sys.argv: {sys.argv}")
     
     # Mosec 서버 생성 (이때 CLI 인자가 파싱됨)
+    # 중요: Server() 생성 시점에 이미 --timeout 인자가 파싱되어야 함
     server = Server()
+    
+    # append_worker의 timeout 파라미터는 0이면 CLI 인자를 사용함
+    # 하지만 명시적으로 설정해도 CLI 인자가 우선될 수 있으므로,
+    # CLI 인자 --timeout 120이 제대로 전달되었는지 확인 필요
     server.append_worker(
         MammographyDetectionWorker,
         num=1,  # 워커 프로세스 수
         max_batch_size=1,  # 배치 크기 (YOLO는 보통 1개씩 처리)
-        timeout=120.0  # float 타입으로 명시적으로 설정 (YOLO11 CPU 추론은 시간이 오래 걸리므로 120초)
+        timeout=120.0  # float 타입으로 명시적으로 설정 (CLI 인자와 함께 이중 보장)
     )
+    
+    logger.info(f"Mosec server configured with timeout=120.0")
     
     # 서버 시작
     print(f"🚀 Mammography AI Detection Service 시작: http://0.0.0.0:{MOSEC_PORT}")
