@@ -134,12 +134,18 @@ def mammography_ai_detection(request, instance_id):
         
         logger.info(f"✅ Detection completed: {len(detections)} objects found")
         
-        # 응답 구성
+        # 응답 구성 (프론트엔드 AIAnalysisModal 형식에 맞춤)
         response_data = {
             'success': True,
             'instance_id': instance_id,
             'detections': detections,
-            'annotated_image_base64': annotated_image_base64,
+            'detection_count': len(detections),
+            'image_with_detections': f"data:image/png;base64,{annotated_image_base64}" if annotated_image_base64 else "",
+            'annotated_image_base64': annotated_image_base64,  # 하위 호환성
+            'model_info': {
+                'name': 'YOLO11 Mammography Detection',
+                'confidence_threshold': confidence
+            },
             'error': ''
         }
         
@@ -151,7 +157,13 @@ def mammography_ai_detection(request, instance_id):
             'success': False,
             'instance_id': instance_id,
             'detections': [],
+            'detection_count': 0,
+            'image_with_detections': '',
             'annotated_image_base64': '',
+            'model_info': {
+                'name': 'YOLO11 Mammography Detection',
+                'confidence_threshold': 0.25
+            },
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
