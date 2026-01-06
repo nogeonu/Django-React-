@@ -155,20 +155,45 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             elif nifti_file.name.endswith('.nii'):
                 file_suffix = '.nii'
         
-        # 임시 파일 생성
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmp_file:
-            tmp_file.write(file_data)
-            tmp_file_path = tmp_file.name
-        
+        # 임시 파일 생성 및 쓰기 (명시적으로 flush하고 닫기)
+        tmp_file = None
+        tmp_file_path = None
         try:
+            # 임시 파일 생성
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix, mode='wb')
+            tmp_file.write(file_data)
+            tmp_file.flush()  # 버퍼 강제 플러시
+            tmp_file_path = tmp_file.name
+            tmp_file.close()  # 명시적으로 닫기
+            tmp_file = None  # 참조 제거
+            
+            # 파일이 실제로 존재하는지 확인
+            if not os.path.exists(tmp_file_path):
+                raise IOError(f"Temporary file was not created: {tmp_file_path}")
+            
             # 임시 파일에서 NIfTI 로드
             nii_img = nib.load(tmp_file_path)
+        except Exception as e:
+            # 오류 발생 시 임시 파일 정리
+            if tmp_file:
+                try:
+                    tmp_file.close()
+                except:
+                    pass
+            if tmp_file_path and os.path.exists(tmp_file_path):
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+            raise  # 원래 오류 다시 발생
         finally:
             # 임시 파일 삭제
-            try:
-                os.unlink(tmp_file_path)
-            except:
-                pass
+            if tmp_file_path and os.path.exists(tmp_file_path):
+                try:
+                    os.unlink(tmp_file_path)
+                except Exception as cleanup_error:
+                    # 삭제 실패는 무시 (로그만 출력)
+                    print(f"Warning: Could not delete temporary file {tmp_file_path}: {cleanup_error}")
     elif isinstance(nifti_file, (str, Path)):
         # 파일 경로인 경우
         nii_img = nib.load(str(nifti_file))
