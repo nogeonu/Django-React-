@@ -180,16 +180,21 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
                 # 방법 3: 프로젝트 루트의 temp_nifti 폴더 사용
                 try:
                     # Django 프로젝트 루트 찾기 (settings.py가 있는 디렉토리)
-                    import django
-                    from django.conf import settings
-                    if hasattr(settings, 'BASE_DIR'):
-                        temp_dir = os.path.join(settings.BASE_DIR, 'temp_nifti')
-                    else:
-                        # BASE_DIR이 없으면 현재 파일의 상위 디렉토리 사용
+                    try:
+                        from django.conf import settings
+                        if hasattr(settings, 'BASE_DIR'):
+                            temp_dir = os.path.join(settings.BASE_DIR, 'temp_nifti')
+                        else:
+                            raise AttributeError("BASE_DIR not found")
+                    except (ImportError, AttributeError):
+                        # Django가 초기화되지 않았거나 BASE_DIR이 없으면 현재 파일의 상위 디렉토리 사용
                         current_file_dir = os.path.dirname(os.path.abspath(__file__))
                         project_root = os.path.dirname(os.path.dirname(current_file_dir))
                         temp_dir = os.path.join(project_root, 'temp_nifti')
+                    
                     os.makedirs(temp_dir, exist_ok=True)
+                    if not os.access(temp_dir, os.W_OK):
+                        raise OSError(f"No write permission to temp directory: {temp_dir}")
                 except Exception as e3:
                     raise OSError(f"Could not create or access temp directory. Tried: {tempfile.gettempdir()}, {os.path.join(os.getcwd(), 'temp_nifti')}, {temp_dir}. Errors: {e}, {e2}, {e3}")
         
@@ -216,8 +221,20 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             if file_size != len(file_data):
                 raise IOError(f"Temporary file size mismatch: expected {len(file_data)}, got {file_size}")
             
-            # 임시 파일에서 NIfTI 로드
+            # 임시 파일에서 NIfTI 로드 (파일이 확실히 존재하는지 다시 확인)
+            if not os.path.exists(tmp_file_path):
+                raise IOError(f"Temporary file disappeared before loading: {tmp_file_path}")
+            
+            # nibabel.load() 호출
             nii_img = nib.load(tmp_file_path)
+            
+            # 로드 성공 후 파일 삭제 (finally 블록에서도 삭제 시도하지만 여기서도 삭제)
+            # 파일이 성공적으로 로드되었으므로 삭제 가능
+            try:
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
+            except:
+                pass  # 삭제 실패는 무시 (finally에서 다시 시도)
             
         except Exception as load_error:
             # 오류 발생 시 상세 정보 포함
@@ -227,10 +244,13 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
                 error_msg += f"\nTemp file exists: {os.path.exists(tmp_file_path) if tmp_file_path else False}"
                 if tmp_file_path and os.path.exists(tmp_file_path):
                     error_msg += f"\nTemp file size: {os.path.getsize(tmp_file_path)}"
+                error_msg += f"\nTemp directory: {temp_dir}"
+                error_msg += f"\nTemp directory exists: {os.path.exists(temp_dir) if temp_dir else False}"
+                error_msg += f"\nTemp directory writable: {os.access(temp_dir, os.W_OK) if temp_dir and os.path.exists(temp_dir) else False}"
             raise IOError(error_msg) from load_error
             
         finally:
-            # 임시 파일 삭제
+            # 임시 파일 삭제 (이미 삭제되었을 수 있음)
             if tmp_file_path and os.path.exists(tmp_file_path):
                 try:
                     os.unlink(tmp_file_path)
