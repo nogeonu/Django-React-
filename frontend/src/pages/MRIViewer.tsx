@@ -275,16 +275,33 @@ export default function MRIViewer() {
             img.src = url;
           });
         }
+        
+        // 환자 이미지 로드 성공 알림
+        toast({
+          title: "이미지 로드 완료",
+          description: `${data.images.length}개의 이미지를 불러왔습니다.`,
+        });
       } else {
         setAllOrthancImages([]);
         setOrthancImages([]);
         setShowOrthancImages(false);
+        // 이미지가 없는 경우 알림
+        toast({
+          title: "알림",
+          description: "이 환자의 Orthanc 이미지가 없습니다.",
+          variant: "default",
+        });
       }
     } catch (error) {
       console.error('Orthanc 이미지 로드 실패:', error);
       setAllOrthancImages([]);
       setOrthancImages([]);
       setShowOrthancImages(false);
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "Orthanc 이미지를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
     } finally {
       setImageLoading(false);
     }
@@ -324,8 +341,19 @@ export default function MRIViewer() {
     if (filtered.length > 0) {
       setShowOrthancImages(true);
       setSelectedImage(0);
+      // 필터링 결과 알림
+      toast({
+        title: "필터링 완료",
+        description: `${filtered.length}개의 ${imageType} 이미지가 표시됩니다.`,
+      });
     } else {
       setShowOrthancImages(false);
+      // 필터링 결과 이미지가 없는 경우 알림
+      toast({
+        title: "알림",
+        description: `선택한 환자에게 ${imageType} 이미지가 없습니다.`,
+        variant: "default",
+      });
     }
   };
 
