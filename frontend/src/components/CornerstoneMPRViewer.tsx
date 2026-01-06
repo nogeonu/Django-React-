@@ -142,6 +142,12 @@ export default function CornerstoneMPRViewer({
 
         setLoadingProgress(80);
         console.log('[MPR Volume] 🎯 Volume loaded successfully');
+        console.log('[MPR Volume] 📊 Volume info:', {
+          dimensions: volume.dimensions,
+          spacing: volume.spacing,
+          origin: volume.origin,
+          direction: volume.direction,
+        });
 
         // 3개의 Volume 뷰포트 생성 (Axial, Sagittal, Coronal)
         console.log('[MPR Volume] 🖼️ Setting up MPR viewports...');
@@ -150,6 +156,13 @@ export default function CornerstoneMPRViewer({
         if (!axialRef.current || !sagittalRef.current || !coronalRef.current) {
           throw new Error('Viewport elements are not ready');
         }
+        
+        // 뷰포트 크기 확인
+        console.log('[MPR Volume] 📐 Viewport dimensions:', {
+          axial: { width: axialRef.current.offsetWidth, height: axialRef.current.offsetHeight },
+          sagittal: { width: sagittalRef.current.offsetWidth, height: sagittalRef.current.offsetHeight },
+          coronal: { width: coronalRef.current.offsetWidth, height: coronalRef.current.offsetHeight },
+        });
         
         const viewportInputArray: Types.PublicViewportInput[] = [
           {
@@ -182,6 +195,7 @@ export default function CornerstoneMPRViewer({
         ];
 
         // 뷰포트 활성화
+        console.log('[MPR Volume] 🔧 Enabling viewports...');
         renderingEngine.setViewports(viewportInputArray);
         setLoadingProgress(85);
 
@@ -195,11 +209,13 @@ export default function CornerstoneMPRViewer({
 
         setLoadingProgress(90);
 
-        // Window/Level 설정
-        console.log('[MPR Volume] 🎚️ Applying window/level settings...');
+        // Window/Level 설정 및 렌더링
+        console.log('[MPR Volume] 🎚️ Applying window/level and rendering...');
         ['MPR_AXIAL', 'MPR_SAGITTAL', 'MPR_CORONAL'].forEach((viewportId) => {
           const viewport = renderingEngine.getViewport(viewportId);
           if (viewport) {
+            console.log(`[MPR Volume] Setting properties for ${viewportId}`);
+            
             // @ts-ignore - setProperties exists but types are incomplete
             viewport.setProperties({
               voiRange: {
@@ -207,10 +223,17 @@ export default function CornerstoneMPRViewer({
                 upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
               },
             });
+            
+            // 각 뷰포트 개별 렌더링
+            viewport.render();
+            console.log(`[MPR Volume] ✅ ${viewportId} rendered`);
+          } else {
+            console.error(`[MPR Volume] ❌ Failed to get viewport: ${viewportId}`);
           }
         });
 
-        // 렌더링
+        // 전체 렌더링
+        console.log('[MPR Volume] 🎨 Final render...');
         renderingEngine.render();
         setLoadingProgress(95);
 
