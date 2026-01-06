@@ -329,6 +329,7 @@ def orthanc_upload_dicom(request):
         uploaded_file = request.FILES['file']
         file_name = uploaded_file.name.lower()
         patient_id = request.data.get('patient_id', None)
+        image_type = request.data.get('image_type', None)  # 영상 유형 추가
         
         # 환자 이름 조회
         patient_name = "UNKNOWN"
@@ -371,7 +372,8 @@ def orthanc_upload_dicom(request):
                     dicom_slices = nifti_to_dicom_slices(
                         BytesIO(file_data),
                         patient_id=patient_id or "UNKNOWN",
-                        patient_name=patient_name  # DB에서 찾은 이름 전달
+                        patient_name=patient_name,  # DB에서 찾은 이름 전달
+                        image_type=image_type  # 영상 유형 전달
                     )
                 except Exception as e:
                     return Response({

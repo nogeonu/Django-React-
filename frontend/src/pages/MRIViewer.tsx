@@ -291,13 +291,11 @@ export default function MRIViewer() {
         filtered = allOrthancImages.filter(img => img.modality === 'MR');
         break;
       case '병리 영상':
-        // 병리 영상은 DICOM 표준 모달리티가 없을 수 있으므로,
-        // MG나 MR이 아닌 것들 또는 SeriesDescription으로 판단
-        // 일단 MG, MR이 아닌 모든 이미지 표시
+        // 병리 영상: SM (Slide Microscopy) 또는 OT (Other) 모달리티
         filtered = allOrthancImages.filter(img => 
-          img.modality && img.modality !== 'MG' && img.modality !== 'MR'
+          img.modality === 'SM' || img.modality === 'OT' || 
+          (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
         );
-        // 병리 영상이 없을 수도 있으므로, 빈 배열이어도 오류 표시하지 않음
         break;
       default:
         filtered = allOrthancImages;
@@ -322,6 +320,7 @@ export default function MRIViewer() {
         const formData = new FormData();
         formData.append('file', files[i]);
         if (selectedPatient) formData.append('patient_id', selectedPatient);
+        if (imageType) formData.append('image_type', imageType); // 영상 유형 전달
         const response = await fetch('/api/mri/orthanc/upload/', { method: 'POST', body: formData });
         if (response.ok) successCount++;
       }

@@ -119,7 +119,7 @@ def load_mri_series(image_files):
     return series_data
 
 
-def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None):
+def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_type=None):
     """
     NIfTI 파일을 DICOM 슬라이스들로 변환
     
@@ -127,6 +127,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None):
         nifti_file: 파일 경로 또는 파일 객체
         patient_id: 환자 ID (선택사항)
         patient_name: 환자 이름 (선택사항)
+        image_type: 영상 유형 ('유방촬영술 영상', '병리 영상', 'MRI 영상') - Study/Series 구분용
     
     Returns:
         List[bytes]: DICOM 인스턴스들의 바이트 데이터 리스트
@@ -151,7 +152,34 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None):
     if patient_name is None:
         patient_name = patient_id
     
+    # 영상 유형에 따른 Study/Series 설정
+    image_type_map = {
+        '유방촬영술 영상': {
+            'study_description': '유방촬영술',
+            'series_description': 'Mammography Series',
+            'modality': 'MG',
+            'sop_class_uid': '1.2.840.10008.5.1.4.1.1.1.2'  # Digital Mammography X-Ray Image Storage
+        },
+        '병리 영상': {
+            'study_description': '병리 영상',
+            'series_description': 'Pathology Series',
+            'modality': 'SM',  # Slide Microscopy (병리 슬라이드) 또는 'OT' (Other)
+            'sop_class_uid': '1.2.840.10008.5.1.4.1.1.4'  # MR Image Storage (기본값)
+        },
+        'MRI 영상': {
+            'study_description': 'MRI Study',
+            'series_description': 'MRI Series',
+            'modality': 'MR',
+            'sop_class_uid': '1.2.840.10008.5.1.4.1.1.4'  # MR Image Storage
+        }
+    }
+    
+    # 영상 유형별 설정 (기본값: MRI)
+    settings = image_type_map.get(image_type, image_type_map['MRI 영상'])
+    
     # DICOM 메타데이터 생성
+    # 같은 영상 유형은 같은 StudyInstanceUID를 사용하도록 (환자 ID + 영상 유형 기반)
+    # 실제로는 매번 새 Study를 생성하지만, StudyDescription으로 구분 가능
     study_instance_uid = generate_uid()
     series_instance_uid = generate_uid()
     
@@ -205,16 +233,16 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None):
         ds.StudyDate = datetime.now().strftime("%Y%m%d")
         ds.StudyTime = datetime.now().strftime("%H%M%S")
         ds.StudyID = str(uuid.uuid4())[:8]
-        ds.StudyDescription = "MRI Study"
+        ds.StudyDescription = settings['study_description']
         
         ds.SeriesInstanceUID = series_instance_uid
         ds.SeriesNumber = "1"
-        ds.SeriesDescription = "NIfTI Converted Series"
-        ds.Modality = "MR"
+        ds.SeriesDescription = settings['series_description']
+        ds.Modality = settings['modality']
         
         ds.InstanceNumber = str(slice_idx + 1)
         ds.SOPInstanceUID = generate_uid()
-        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.4"  # MR Image Storage
+        ds.SOPClassUID = settings['sop_class_uid']
         
         # 이미지 파라미터
         ds.Rows = slice_data.shape[0]
