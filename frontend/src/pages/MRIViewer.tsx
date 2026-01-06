@@ -252,17 +252,36 @@ export default function MRIViewer() {
   const fetchOrthancImages = async (patientId: string) => {
     setImageLoading(true);
     try {
-      const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
+      // 병렬 요청으로 성능 개선
+      const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
+        cache: 'force-cache', // 브라우저 캐시 사용
+        headers: {
+          'Cache-Control': 'max-age=300', // 5분 캐시
+        },
+      });
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setAllOrthancImages(data.images); // 모든 이미지 저장
         // 필터링은 useEffect에서 자동으로 처리됨
+        
+        // 이미지 프리로딩 (첫 3개 이미지만 먼저 로드)
+        if (data.images.length > 0) {
+          const previewUrlsToPreload = data.images.slice(0, Math.min(3, data.images.length))
+            .map((img: OrthancImage) => img.preview_url);
+          
+          // 백그라운드에서 프리로드 (사용자 경험 개선)
+          previewUrlsToPreload.forEach((url: string) => {
+            const img = new Image();
+            img.src = url;
+          });
+        }
       } else {
         setAllOrthancImages([]);
         setOrthancImages([]);
         setShowOrthancImages(false);
       }
     } catch (error) {
+      console.error('Orthanc 이미지 로드 실패:', error);
       setAllOrthancImages([]);
       setOrthancImages([]);
       setShowOrthancImages(false);
@@ -347,15 +366,31 @@ export default function MRIViewer() {
             body: formData 
           });
           
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch (jsonError) {
+            const text = await response.text();
+            errorMessages.push(`${files[i].name}: 서버 응답 파싱 실패 (${response.status})`);
+            console.error(`❌ 파일 ${i + 1} 응답 파싱 실패:`, text);
+            continue;
+          }
           
           if (response.ok && data.success) {
             successCount++;
             console.log(`✅ 파일 ${i + 1} 업로드 성공:`, files[i].name);
           } else {
-            const errorMsg = data.error || data.message || `파일 ${i + 1} 업로드 실패`;
-            errorMessages.push(`${files[i].name}: ${errorMsg}`);
-            console.error(`❌ 파일 ${i + 1} 업로드 실패:`, errorMsg, data);
+            const errorMsg = data.error || data.message || data.error_type || `파일 ${i + 1} 업로드 실패`;
+            const fullErrorMsg = data.traceback 
+              ? `${errorMsg}\n\n상세 오류:\n${data.traceback.split('\n').slice(0, 5).join('\n')}`
+              : errorMsg;
+            errorMessages.push(`${files[i].name}: ${fullErrorMsg}`);
+            console.error(`❌ 파일 ${i + 1} 업로드 실패:`, {
+              error: errorMsg,
+              error_type: data.error_type,
+              traceback: data.traceback,
+              full_data: data
+            });
           }
         } catch (fileError) {
           const errorMsg = fileError instanceof Error ? fileError.message : `파일 ${i + 1} 업로드 중 오류`;
@@ -775,6 +810,17 @@ export default function MRIViewer() {
                           transition={{ duration: 0.2 }}
                           src={showOrthancImages ? orthancImages[selectedImage].preview_url : (sliceImage || "")}
                           className="max-w-full max-h-full object-contain pointer-events-auto"
+                          loading="eager"
+                          decoding="async"
+                          onLoadStart={() => {
+                            if (showOrthancImages) setImageLoading(true);
+                          }}
+                          onLoad={() => {
+                            if (showOrthancImages) setImageLoading(false);
+                          }}
+                          onError={() => {
+                            if (showOrthancImages) setImageLoading(false);
+                          }}
                         />
                       ) : (
                         <div className="text-white/20 flex flex-col items-center gap-4">
