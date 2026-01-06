@@ -138,62 +138,59 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     
     if hasattr(nifti_file, 'read'):
         # 파일 객체인 경우 (BytesIO 등)
-        # nibabel은 BytesIO를 직접 처리할 수 없으므로 임시 파일로 저장
+        # 먼저 BytesIO를 직접 시도하고, 실패하면 임시 파일 사용
         if hasattr(nifti_file, 'seek'):
             nifti_file.seek(0)
         
-        # BytesIO 내용을 읽어서 임시 파일로 저장
-        file_data = nifti_file.read()
-        if hasattr(nifti_file, 'seek'):
-            nifti_file.seek(0)  # 다시 처음으로
-        
-        # 파일 확장자 확인 (nifti_file.name이 있으면 사용, 없으면 기본값)
-        file_suffix = '.nii.gz'
-        if hasattr(nifti_file, 'name'):
-            if nifti_file.name.endswith('.nii.gz'):
-                file_suffix = '.nii.gz'
-            elif nifti_file.name.endswith('.nii'):
-                file_suffix = '.nii'
-        
-        # 임시 파일 생성 및 쓰기 (명시적으로 flush하고 닫기)
-        tmp_file = None
-        tmp_file_path = None
+        # BytesIO를 직접 사용 시도
         try:
-            # 임시 파일 생성
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix, mode='wb')
-            tmp_file.write(file_data)
-            tmp_file.flush()  # 버퍼 강제 플러시
-            tmp_file_path = tmp_file.name
-            tmp_file.close()  # 명시적으로 닫기
-            tmp_file = None  # 참조 제거
+            nii_img = nib.load(nifti_file)
+        except (TypeError, IOError, OSError) as e:
+            # BytesIO 직접 로드 실패 시 임시 파일 사용
+            if hasattr(nifti_file, 'seek'):
+                nifti_file.seek(0)
             
-            # 파일이 실제로 존재하는지 확인
-            if not os.path.exists(tmp_file_path):
-                raise IOError(f"Temporary file was not created: {tmp_file_path}")
+            # BytesIO 내용을 읽어서 임시 파일로 저장
+            file_data = nifti_file.read()
+            if hasattr(nifti_file, 'seek'):
+                nifti_file.seek(0)  # 다시 처음으로
             
-            # 임시 파일에서 NIfTI 로드
-            nii_img = nib.load(tmp_file_path)
-        except Exception as e:
-            # 오류 발생 시 임시 파일 정리
-            if tmp_file:
-                try:
-                    tmp_file.close()
-                except:
-                    pass
-            if tmp_file_path and os.path.exists(tmp_file_path):
-                try:
-                    os.unlink(tmp_file_path)
-                except:
-                    pass
-            raise  # 원래 오류 다시 발생
-        finally:
-            # 임시 파일 삭제
-            if tmp_file_path and os.path.exists(tmp_file_path):
-                try:
-                    os.unlink(tmp_file_path)
-                except Exception as cleanup_error:
-                    # 삭제 실패는 무시 (로그만 출력)
-                    print(f"Warning: Could not delete temporary file {tmp_file_path}: {cleanup_error}")
+            # 파일 확장자 확인
+            file_suffix = '.nii.gz'
+            if hasattr(nifti_file, 'name'):
+                if nifti_file.name.endswith('.nii.gz'):
+                    file_suffix = '.nii.gz'
+                elif nifti_file.name.endswith('.nii'):
+                    file_suffix = '.nii'
+            
+            # 임시 디렉토리 확인 및 생성 (현재 작업 디렉토리 사용)
+            temp_dir = os.path.join(os.getcwd(), 'temp_nifti')
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # 임시 파일 생성 (현재 디렉토리의 temp_nifti 폴더 사용)
+            import uuid
+            tmp_file_path = os.path.join(temp_dir, f"nifti_{uuid.uuid4().hex}{file_suffix}")
+            
+            try:
+                # 파일 쓰기
+                with open(tmp_file_path, 'wb') as tmp_file:
+                    tmp_file.write(file_data)
+                    tmp_file.flush()
+                
+                # 파일이 실제로 존재하는지 확인
+                if not os.path.exists(tmp_file_path):
+                    raise IOError(f"Temporary file was not created: {tmp_file_path}")
+                
+                # 임시 파일에서 NIfTI 로드
+                nii_img = nib.load(tmp_file_path)
+            finally:
+                # 임시 파일 삭제
+                if os.path.exists(tmp_file_path):
+                    try:
+                        os.unlink(tmp_file_path)
+                    except Exception as cleanup_error:
+                        # 삭제 실패는 무시 (로그만 출력)
+                        print(f"Warning: Could not delete temporary file {tmp_file_path}: {cleanup_error}")
     elif isinstance(nifti_file, (str, Path)):
         # 파일 경로인 경우
         nii_img = nib.load(str(nifti_file))
