@@ -135,6 +135,9 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     # NIfTI 파일 로드
     import tempfile
     import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     if hasattr(nifti_file, 'read'):
         # 파일 객체인 경우 (BytesIO 등)
@@ -162,21 +165,29 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         tmp_file_path = None
         temp_dir = None
         
+        logger.info(f"Processing NIfTI file object, data size: {len(file_data)} bytes")
+        
         # 방법 1: 시스템 임시 디렉토리 사용
         try:
             temp_dir = tempfile.gettempdir()
+            logger.info(f"Trying system temp directory: {temp_dir}")
             if not os.path.exists(temp_dir):
                 raise OSError(f"System temp directory does not exist: {temp_dir}")
             if not os.access(temp_dir, os.W_OK):
                 raise OSError(f"No write permission to temp directory: {temp_dir}")
+            logger.info(f"Using system temp directory: {temp_dir}")
         except Exception as e:
+            logger.warning(f"System temp directory failed: {e}")
             # 방법 2: 현재 작업 디렉토리의 temp_nifti 폴더 사용
             try:
                 temp_dir = os.path.join(os.getcwd(), 'temp_nifti')
+                logger.info(f"Trying current directory temp: {temp_dir}")
                 os.makedirs(temp_dir, exist_ok=True)
                 if not os.access(temp_dir, os.W_OK):
                     raise OSError(f"No write permission to temp directory: {temp_dir}")
+                logger.info(f"Using current directory temp: {temp_dir}")
             except Exception as e2:
+                logger.warning(f"Current directory temp failed: {e2}")
                 # 방법 3: 프로젝트 루트의 temp_nifti 폴더 사용
                 try:
                     # Django 프로젝트 루트 찾기 (settings.py가 있는 디렉토리)
@@ -192,21 +203,27 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
                         project_root = os.path.dirname(os.path.dirname(current_file_dir))
                         temp_dir = os.path.join(project_root, 'temp_nifti')
                     
+                    logger.info(f"Trying project root temp: {temp_dir}")
                     os.makedirs(temp_dir, exist_ok=True)
                     if not os.access(temp_dir, os.W_OK):
                         raise OSError(f"No write permission to temp directory: {temp_dir}")
+                    logger.info(f"Using project root temp: {temp_dir}")
                 except Exception as e3:
+                    logger.error(f"All temp directory attempts failed. Errors: {e}, {e2}, {e3}")
                     raise OSError(f"Could not create or access temp directory. Tried: {tempfile.gettempdir()}, {os.path.join(os.getcwd(), 'temp_nifti')}, {temp_dir}. Errors: {e}, {e2}, {e3}")
         
         # 임시 파일 경로 생성
         tmp_file_path = os.path.join(temp_dir, f"nifti_{uuid.uuid4().hex}{file_suffix}")
+        logger.info(f"Creating temporary file: {tmp_file_path}")
         
         try:
             # 파일 쓰기 (명시적으로 바이너리 모드)
+            logger.info(f"Writing {len(file_data)} bytes to temporary file")
             with open(tmp_file_path, 'wb') as tmp_file:
                 tmp_file.write(file_data)
                 tmp_file.flush()
                 os.fsync(tmp_file.fileno())  # 디스크에 강제 쓰기
+            logger.info(f"Temporary file written successfully")
             
             # 파일이 실제로 존재하고 읽을 수 있는지 확인
             if not os.path.exists(tmp_file_path):
@@ -225,8 +242,10 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             if not os.path.exists(tmp_file_path):
                 raise IOError(f"Temporary file disappeared before loading: {tmp_file_path}")
             
+            logger.info(f"Loading NIfTI from: {tmp_file_path}")
             # nibabel.load() 호출
             nii_img = nib.load(tmp_file_path)
+            logger.info(f"NIfTI loaded successfully, shape: {nii_img.shape if hasattr(nii_img, 'shape') else 'N/A'}")
             
             # 로드 성공 후 파일 삭제 (finally 블록에서도 삭제 시도하지만 여기서도 삭제)
             # 파일이 성공적으로 로드되었으므로 삭제 가능

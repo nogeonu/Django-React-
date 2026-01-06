@@ -373,17 +373,28 @@ def orthanc_upload_dicom(request):
                 
                 # NIfTI를 DICOM 슬라이스들로 변환
                 try:
+                    print(f"Starting NIfTI conversion for file: {uploaded_file.name}, size: {len(file_data)} bytes")
                     dicom_slices = nifti_to_dicom_slices(
                         nifti_bytesio,
                         patient_id=patient_id or "UNKNOWN",
                         patient_name=patient_name,  # DB에서 찾은 이름 전달
                         image_type=image_type  # 영상 유형 전달
                     )
+                    print(f"NIfTI conversion successful: {len(dicom_slices)} DICOM slices created")
                 except Exception as e:
+                    import sys
+                    error_type = type(e).__name__
+                    error_msg = str(e)
+                    error_traceback = traceback.format_exc()
+                    print(f"❌ NIfTI conversion failed:")
+                    print(f"   Error type: {error_type}")
+                    print(f"   Error message: {error_msg}")
+                    print(f"   Traceback:\n{error_traceback}")
                     return Response({
                         'success': False,
-                        'error': f'NIfTI 파일 변환 실패: {str(e)}',
-                        'traceback': traceback.format_exc()
+                        'error': f'NIfTI 파일 변환 실패: {error_msg}',
+                        'error_type': error_type,
+                        'traceback': error_traceback
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 if not dicom_slices or len(dicom_slices) == 0:
