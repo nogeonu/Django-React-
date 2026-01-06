@@ -252,20 +252,30 @@ export default function MRIViewer() {
   const fetchOrthancImages = async (patientId: string) => {
     setImageLoading(true);
     try {
+      console.log(`[fetchOrthancImages] 환자 ID로 이미지 요청: ${patientId}`);
       // 병렬 요청으로 성능 개선
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
-        cache: 'force-cache', // 브라우저 캐시 사용
-        headers: {
-          'Cache-Control': 'max-age=300', // 5분 캐시
-        },
+        cache: 'no-cache', // 캐시 비활성화 (최신 데이터 확인)
       });
+      
+      console.log(`[fetchOrthancImages] 응답 상태: ${response.status} ${response.statusText}`);
       const data = await response.json();
-      if (data.success && data.images && data.images.length > 0) {
-        setAllOrthancImages(data.images); // 모든 이미지 저장
-        // 필터링은 useEffect에서 자동으로 처리됨
+      console.log(`[fetchOrthancImages] 응답 데이터:`, data);
+      
+      if (!response.ok) {
+        console.error(`[fetchOrthancImages] API 오류:`, data);
+        throw new Error(data.error || `서버 오류 (${response.status})`);
+      }
+      
+      if (data.success && data.images && Array.isArray(data.images)) {
+        console.log(`[fetchOrthancImages] 이미지 개수: ${data.images.length}`);
+        console.log(`[fetchOrthancImages] 첫 번째 이미지 샘플:`, data.images[0]);
         
-        // 이미지 프리로딩 (첫 3개 이미지만 먼저 로드)
         if (data.images.length > 0) {
+          setAllOrthancImages(data.images); // 모든 이미지 저장
+          // 필터링은 useEffect에서 자동으로 처리됨
+          
+          // 이미지 프리로딩 (첫 3개 이미지만 먼저 로드)
           const previewUrlsToPreload = data.images.slice(0, Math.min(3, data.images.length))
             .map((img: OrthancImage) => img.preview_url);
           
@@ -274,17 +284,28 @@ export default function MRIViewer() {
             const img = new Image();
             img.src = url;
           });
+        } else {
+          console.warn(`[fetchOrthancImages] 이미지 배열이 비어있음`);
+          setAllOrthancImages([]);
+          setOrthancImages([]);
+          setShowOrthancImages(true); // 이미지 없음 메시지 표시를 위해 true로 설정
         }
       } else {
+        console.warn(`[fetchOrthancImages] 응답 형식 오류:`, {
+          success: data.success,
+          hasImages: !!data.images,
+          imagesType: Array.isArray(data.images),
+          imagesLength: data.images?.length
+        });
         setAllOrthancImages([]);
         setOrthancImages([]);
-        setShowOrthancImages(false);
+        setShowOrthancImages(true); // 이미지 없음 메시지 표시를 위해 true로 설정
       }
     } catch (error) {
-      console.error('Orthanc 이미지 로드 실패:', error);
+      console.error('[fetchOrthancImages] Orthanc 이미지 로드 실패:', error);
       setAllOrthancImages([]);
       setOrthancImages([]);
-      setShowOrthancImages(false);
+      setShowOrthancImages(true); // 에러 발생 시에도 뷰어 표시
       toast({
         title: "오류",
         description: error instanceof Error ? error.message : "Orthanc 이미지를 불러오는데 실패했습니다.",
@@ -297,12 +318,19 @@ export default function MRIViewer() {
 
   // imageType에 따라 이미지 필터링
   const filterImagesByType = () => {
+    console.log(`[filterImagesByType] 전체 이미지 개수: ${allOrthancImages.length}, 선택된 영상 유형: ${imageType}`);
+    
     if (allOrthancImages.length === 0) {
+      console.log(`[filterImagesByType] 이미지가 없음 - 빈 배열 설정`);
       setOrthancImages([]);
       // 이미지가 없어도 뷰어는 표시하되 "이미지 없음" 메시지를 보여줌
       setShowOrthancImages(true);
       return;
     }
+
+    // 이미지 모달리티 확인
+    const modalities = allOrthancImages.map(img => img.modality).filter(Boolean);
+    console.log(`[filterImagesByType] 사용 가능한 모달리티:`, [...new Set(modalities)]);
 
     let filtered: OrthancImage[] = [];
 
@@ -310,10 +338,12 @@ export default function MRIViewer() {
       case '유방촬영술 영상':
         // MG (Mammography) 모달리티만
         filtered = allOrthancImages.filter(img => img.modality === 'MG');
+        console.log(`[filterImagesByType] 유방촬영술 필터링 결과: ${filtered.length}개`);
         break;
       case 'MRI 영상':
         // MR (Magnetic Resonance) 모달리티만
         filtered = allOrthancImages.filter(img => img.modality === 'MR');
+        console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개`);
         break;
       case '병리 영상':
         // 병리 영상: SM (Slide Microscopy) 또는 OT (Other) 모달리티
@@ -321,19 +351,23 @@ export default function MRIViewer() {
           img.modality === 'SM' || img.modality === 'OT' || 
           (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
         );
+        console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개`);
         break;
       default:
         filtered = allOrthancImages;
+        console.log(`[filterImagesByType] 필터링 없음 (전체): ${filtered.length}개`);
     }
 
     setOrthancImages(filtered);
     if (filtered.length > 0) {
       setShowOrthancImages(true);
       setSelectedImage(0);
+      console.log(`[filterImagesByType] 이미지 표시 설정 완료: ${filtered.length}개`);
     } else {
       // 이미지가 없어도 뷰어는 표시하되 "이미지 없음" 메시지를 보여줌
       setShowOrthancImages(true);
       setSelectedImage(0);
+      console.log(`[filterImagesByType] 필터링 후 이미지 없음 - 뷰어만 표시`);
     }
   };
 
