@@ -219,6 +219,9 @@ def orthanc_patient_detail(request, patient_id):
                 series_info = client.get_series_info(series_id)
                 instances = client.get_series_instances(series_id)
                 
+                # 각 시리즈 내 인스턴스들을 임시 리스트에 저장 (z축 정렬용)
+                series_images = []
+                
                 for instance in instances:
                     # Extract ID from dict if needed
                     instance_id = instance if isinstance(instance, str) else instance.get('ID')
@@ -235,25 +238,66 @@ def orthanc_patient_detail(request, patient_id):
                     image_laterality = instance_tags.get('ImageLaterality', '')  # L, R
                     
                     # ViewPosition과 ImageLaterality를 조합하여 mammography_view 생성
-                    # 예: L + CC = LCC, R + MLO = RMLO
                     mammography_view = ''
                     if view_position and image_laterality:
-                        mammography_view = f"{image_laterality}{view_position}"  # LCC, RCC, LMLO, RMLO
+                        mammography_view = f"{image_laterality}{view_position}"
                     
-                    images.append({
+                    # 🔑 ImagePositionPatient 태그 가져오기 (z축 좌표)
+                    # Orthanc는 SimplifiedTags에 ImagePositionPatient를 저장
+                    image_position = None
+                    z_position = 0.0
+                    
+                    try:
+                        # SimplifiedTags에서 ImagePositionPatient 가져오기
+                        simplified_tags = instance_info.get('Tags', {})
+                        if 'ImagePositionPatient' in simplified_tags:
+                            image_position_str = simplified_tags['ImagePositionPatient']
+                            # "x\\y\\z" 형식으로 저장되어 있음
+                            if image_position_str:
+                                parts = image_position_str.split('\\')
+                                if len(parts) >= 3:
+                                    z_position = float(parts[2])  # z축 좌표
+                                    logger.debug(f"Instance {instance_id}: z_position = {z_position}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse ImagePositionPatient for {instance_id}: {e}")
+                        # z_position은 0.0으로 유지 (정렬 시 앞쪽으로 감)
+                    
+                    # InstanceNumber도 가져오기 (fallback용)
+                    instance_number = instance_tags.get('InstanceNumber', 0)
+                    try:
+                        instance_number = int(instance_number) if instance_number else 0
+                    except:
+                        instance_number = 0
+                    
+                    series_images.append({
                         'instance_id': instance_id,
                         'series_id': series_id,
                         'study_id': study_id,
                         'series_description': series_tags.get('SeriesDescription', ''),
-                        'instance_number': instance_tags.get('InstanceNumber', ''),
+                        'instance_number': str(instance_number),
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
-                        'modality': modality,  # MG, MR, 등
-                        'view_position': view_position,  # CC, MLO
-                        'image_laterality': image_laterality,  # L, R
-                        'mammography_view': mammography_view,  # LCC, RCC, LMLO, RMLO
+                        'modality': modality,
+                        'view_position': view_position,
+                        'image_laterality': image_laterality,
+                        'mammography_view': mammography_view,
+                        'z_position': z_position,  # 정렬용
+                        '_sort_key': (z_position, instance_number),  # 정렬 키
                     })
+                
+                # 🔑 z축 기준으로 정렬 (ImagePositionPatient의 z 좌표)
+                # z 좌표가 같으면 InstanceNumber로 정렬
+                series_images.sort(key=lambda x: x['_sort_key'])
+                logger.info(f"Series {series_id}: Sorted {len(series_images)} instances by z-axis (ImagePositionPatient)")
+                
+                # _sort_key와 z_position 제거 (응답에 포함 안 함)
+                for img in series_images:
+                    del img['_sort_key']
+                    del img['z_position']
+                
+                # 정렬된 이미지들을 전체 리스트에 추가
+                images.extend(series_images)
         
-        logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id}")
+        logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id} (sorted by z-axis)")
         return Response({
             'success': True,
             'patient': patient_info,
