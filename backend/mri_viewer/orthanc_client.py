@@ -189,6 +189,60 @@ class OrthancClient:
             logger.warning(f"Failed to get existing StudyInstanceUID for patient {patient_id}: {e}")
             return None
     
+    def get_next_series_number(self, study_instance_uid: str) -> int:
+        """
+        Study의 기존 Series 개수를 확인하여 다음 SeriesNumber 반환
+        
+        Returns:
+            다음 SeriesNumber (int), 기존 Series가 없으면 1
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # StudyInstanceUID로 Study 찾기
+            # 먼저 모든 Study를 순회하면서 StudyInstanceUID가 일치하는 것 찾기
+            # (더 효율적인 방법이 있지만, 현재 API로는 이게 가장 확실함)
+            studies_response = requests.get(f"{self.base_url}/studies", auth=self.auth)
+            studies_response.raise_for_status()
+            all_studies = studies_response.json()
+            
+            study_id = None
+            for study in all_studies:
+                study_info = self.get_study_info(study if isinstance(study, str) else study.get('ID', study))
+                tags = study_info.get('MainDicomTags', {})
+                if tags.get('StudyInstanceUID') == study_instance_uid:
+                    study_id = study if isinstance(study, str) else study.get('ID', study)
+                    break
+            
+            if not study_id:
+                return 1  # Study가 없으면 첫 번째 Series
+            
+            # Study의 Series 목록 가져오기
+            series_list = self.get_study_series(study_id)
+            
+            if not series_list:
+                return 1  # Series가 없으면 첫 번째
+            
+            # 기존 Series의 SeriesNumber 찾기
+            max_series_number = 0
+            for series in series_list:
+                series_id = series if isinstance(series, str) else series.get('ID')
+                series_info = self.get_series_info(series_id)
+                tags = series_info.get('MainDicomTags', {})
+                series_number = tags.get('SeriesNumber', '0')
+                try:
+                    series_num = int(series_number) if series_number else 0
+                    max_series_number = max(max_series_number, series_num)
+                except (ValueError, TypeError):
+                    continue
+            
+            return max_series_number + 1
+            
+        except Exception as e:
+            logger.warning(f"Failed to get next series number, using 1: {e}")
+            return 1
+    
     def get_study_series(self, study_id: str) -> List[str]:
         """Study의 Series 목록"""
         response = requests.get(f"{self.base_url}/studies/{study_id}/series", auth=self.auth)

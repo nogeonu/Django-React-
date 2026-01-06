@@ -354,6 +354,16 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     # Series는 항상 새로 생성 (같은 Modality라도 업로드 시점이 다르면 다른 Series)
     series_instance_uid = generate_uid()
     
+    # SeriesNumber 계산 (기존 Series 개수 확인)
+    series_number = 1
+    if orthanc_client is not None and study_instance_uid:
+        try:
+            series_number = orthanc_client.get_next_series_number(study_instance_uid)
+            logger.info(f"Using SeriesNumber {series_number} for new series")
+        except Exception as e:
+            logger.warning(f"Failed to get next series number, using 1: {e}")
+            series_number = 1
+    
     # 볼륨의 shape 확인 및 처리
     if len(volume.shape) == 2:
         # 2D 이미지인 경우
@@ -407,8 +417,8 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.StudyDescription = settings['study_description']
         
         ds.SeriesInstanceUID = series_instance_uid
-        ds.SeriesNumber = "1"
-        ds.SeriesDescription = settings['series_description']
+        ds.SeriesNumber = str(series_number)  # 정수형을 문자열로 변환 (DICOM IS 타입)
+        ds.SeriesDescription = settings['series_description']  # 영상 유형별 Description
         ds.Modality = settings['modality']
         
         ds.InstanceNumber = str(slice_idx + 1)
