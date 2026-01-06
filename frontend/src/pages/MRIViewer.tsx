@@ -318,7 +318,7 @@ export default function MRIViewer() {
 
   // imageType에 따라 이미지 필터링
   const filterImagesByType = () => {
-    console.log(`[filterImagesByType] 전체 이미지 개수: ${allOrthancImages.length}, 선택된 영상 유형: ${imageType}`);
+    console.log(`[filterImagesByType] 전체 이미지 개수: ${allOrthancImages.length}, 선택된 영상 유형: ${imageType || '(없음)'}`);
     
     if (allOrthancImages.length === 0) {
       console.log(`[filterImagesByType] 이미지가 없음 - 빈 배열 설정`);
@@ -331,43 +331,49 @@ export default function MRIViewer() {
     // 이미지 모달리티 확인
     const modalities = allOrthancImages.map(img => img.modality).filter(Boolean);
     console.log(`[filterImagesByType] 사용 가능한 모달리티:`, [...new Set(modalities)]);
+    console.log(`[filterImagesByType] 첫 번째 이미지 샘플:`, allOrthancImages[0]);
 
     let filtered: OrthancImage[] = [];
 
-    switch (imageType) {
-      case '유방촬영술 영상':
-        // MG (Mammography) 모달리티만
-        filtered = allOrthancImages.filter(img => img.modality === 'MG');
-        console.log(`[filterImagesByType] 유방촬영술 필터링 결과: ${filtered.length}개`);
-        break;
-      case 'MRI 영상':
-        // MR (Magnetic Resonance) 모달리티만
-        filtered = allOrthancImages.filter(img => img.modality === 'MR');
-        console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개`);
-        break;
-      case '병리 영상':
-        // 병리 영상: SM (Slide Microscopy) 또는 OT (Other) 모달리티
-        filtered = allOrthancImages.filter(img => 
-          img.modality === 'SM' || img.modality === 'OT' || 
-          (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
-        );
-        console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개`);
-        break;
-      default:
-        filtered = allOrthancImages;
-        console.log(`[filterImagesByType] 필터링 없음 (전체): ${filtered.length}개`);
+    // imageType이 없거나 빈 문자열이면 모든 이미지 표시
+    if (!imageType || imageType.trim() === '') {
+      filtered = allOrthancImages;
+      console.log(`[filterImagesByType] 영상 유형 미선택 - 전체 이미지 표시: ${filtered.length}개`);
+    } else {
+      switch (imageType) {
+        case '유방촬영술 영상':
+          // MG (Mammography) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'MG');
+          console.log(`[filterImagesByType] 유방촬영술 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
+          break;
+        case 'MRI 영상':
+          // MR (Magnetic Resonance) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'MR');
+          console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
+          break;
+        case '병리 영상':
+          // 병리 영상: SM (Slide Microscopy) 또는 OT (Other) 모달리티
+          filtered = allOrthancImages.filter(img => 
+            img.modality === 'SM' || img.modality === 'OT' || 
+            (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
+          );
+          console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
+          break;
+        default:
+          filtered = allOrthancImages;
+          console.log(`[filterImagesByType] 알 수 없는 영상 유형 "${imageType}" - 전체 이미지 표시: ${filtered.length}개`);
+      }
     }
 
     setOrthancImages(filtered);
+    // 필터링 결과와 관계없이 뷰어는 항상 표시 (이미지가 없으면 "이미지 없음" 메시지 표시)
+    setShowOrthancImages(true);
     if (filtered.length > 0) {
-      setShowOrthancImages(true);
       setSelectedImage(0);
       console.log(`[filterImagesByType] 이미지 표시 설정 완료: ${filtered.length}개`);
     } else {
-      // 이미지가 없어도 뷰어는 표시하되 "이미지 없음" 메시지를 보여줌
-      setShowOrthancImages(true);
       setSelectedImage(0);
-      console.log(`[filterImagesByType] 필터링 후 이미지 없음 - 뷰어만 표시`);
+      console.log(`[filterImagesByType] 필터링 후 이미지 없음 - "이미지 없음" 메시지 표시`);
     }
   };
 
