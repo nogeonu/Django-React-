@@ -378,7 +378,8 @@ def orthanc_upload_dicom(request):
                         nifti_bytesio,
                         patient_id=patient_id or "UNKNOWN",
                         patient_name=patient_name,  # DB에서 찾은 이름 전달
-                        image_type=image_type  # 영상 유형 전달
+                        image_type=image_type,  # 영상 유형 전달
+                        orthanc_client=client  # 기존 Study 재사용을 위해 전달
                     )
                     print(f"NIfTI conversion successful: {len(dicom_slices)} DICOM slices created")
                 except Exception as e:

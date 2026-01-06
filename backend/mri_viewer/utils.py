@@ -10,6 +10,9 @@ from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import generate_uid
 from datetime import datetime
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def load_nifti_file(file_path):
@@ -119,7 +122,7 @@ def load_mri_series(image_files):
     return series_data
 
 
-def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_type=None):
+def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_type=None, orthanc_client=None):
     """
     NIfTI 파일을 DICOM 슬라이스들로 변환
     
@@ -331,9 +334,24 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     settings = image_type_map.get(image_type, image_type_map['MRI 영상'])
     
     # DICOM 메타데이터 생성
-    # 같은 영상 유형은 같은 StudyInstanceUID를 사용하도록 (환자 ID + 영상 유형 기반)
-    # 실제로는 매번 새 Study를 생성하지만, StudyDescription으로 구분 가능
-    study_instance_uid = generate_uid()
+    # 같은 환자는 하나의 Study로 통합 (기존 StudyInstanceUID 재사용)
+    # orthanc_client가 제공되면 기존 Study 찾기 시도
+    study_instance_uid = None
+    if orthanc_client is not None and patient_id:
+        try:
+            existing_uid = orthanc_client.get_existing_study_instance_uid(patient_id)
+            if existing_uid:
+                study_instance_uid = existing_uid
+                logger.info(f"Reusing existing StudyInstanceUID for patient {patient_id}: {existing_uid[:20]}...")
+        except Exception as e:
+            logger.warning(f"Failed to get existing StudyInstanceUID, creating new one: {e}")
+    
+    # 기존 Study가 없으면 새로 생성
+    if study_instance_uid is None:
+        study_instance_uid = generate_uid()
+        logger.info(f"Creating new StudyInstanceUID for patient {patient_id}: {study_instance_uid[:20]}...")
+    
+    # Series는 항상 새로 생성 (같은 Modality라도 업로드 시점이 다르면 다른 Series)
     series_instance_uid = generate_uid()
     
     # 볼륨의 shape 확인 및 처리

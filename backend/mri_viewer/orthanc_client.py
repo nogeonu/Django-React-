@@ -156,6 +156,39 @@ class OrthancClient:
         response.raise_for_status()
         return response.json()
     
+    def get_existing_study_instance_uid(self, patient_id: str) -> Optional[str]:
+        """
+        환자의 기존 Study에서 StudyInstanceUID 반환
+        같은 환자는 하나의 Study로 통합하기 위함
+        
+        Returns:
+            StudyInstanceUID (str) 또는 None (기존 Study가 없는 경우)
+        """
+        try:
+            # DICOM PatientID로 환자 찾기
+            orthanc_patient_id = self.find_patient_by_patient_id(patient_id)
+            if not orthanc_patient_id:
+                return None
+            
+            # 환자의 Study 목록 가져오기
+            studies = self.get_patient_studies(orthanc_patient_id)
+            if not studies or len(studies) == 0:
+                return None
+            
+            # 첫 번째 Study의 StudyInstanceUID 반환
+            # (같은 환자의 모든 영상은 하나의 Study로 통합)
+            study_id = studies[0] if isinstance(studies[0], str) else studies[0].get('ID')
+            study_info = self.get_study_info(study_id)
+            
+            # MainDicomTags에서 StudyInstanceUID 추출
+            tags = study_info.get('MainDicomTags', {})
+            study_instance_uid = tags.get('StudyInstanceUID')
+            
+            return study_instance_uid
+        except Exception as e:
+            logger.warning(f"Failed to get existing StudyInstanceUID for patient {patient_id}: {e}")
+            return None
+    
     def get_study_series(self, study_id: str) -> List[str]:
         """Study의 Series 목록"""
         response = requests.get(f"{self.base_url}/studies/{study_id}/series", auth=self.auth)
