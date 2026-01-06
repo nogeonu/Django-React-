@@ -38,11 +38,45 @@ export async function initCornerstone() {
         convertFloatPixelDataToInt: false,
         use16BitDataType: true,
       },
-      // 진행 상황 이벤트 비활성화 (이벤트 에러 방지)
-      beforeSend: function () {
-        // progress 이벤트 리스너를 추가하지 않음
+      // 진행 상황 이벤트 에러 방지: beforeSend에서 progress 이벤트 리스너 제거
+      beforeSend: function (xhr: any) {
+        // XMLHttpRequest의 progress 이벤트 리스너를 안전하게 처리
+        if (xhr && xhr.upload) {
+          try {
+            // progress 이벤트 핸들러를 안전하게 추가 (오류 무시)
+            xhr.upload.addEventListener('progress', () => {}, { passive: true });
+          } catch (e) {
+            // 이벤트 리스너 추가 실패는 무시
+          }
+        }
       },
     });
+    
+    // 전역 에러 핸들러로 Cornerstone 이벤트 오류 무시 (업로드 기능에 영향 없도록)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', (event) => {
+        // "Event type was not defined" 오류는 무시 (Cornerstone 내부 이벤트 처리 관련)
+        if (event.message && (
+          event.message.includes('Event type was not defined') ||
+          event.message.includes('triggerEvent')
+        )) {
+          event.preventDefault();
+          event.stopPropagation();
+          return false;
+        }
+      }, true); // capture phase에서 처리
+      
+      // Unhandled promise rejection도 처리
+      window.addEventListener('unhandledrejection', (event) => {
+        if (event.reason && typeof event.reason === 'string') {
+          if (event.reason.includes('Event type was not defined') ||
+              event.reason.includes('triggerEvent')) {
+            event.preventDefault();
+            return false;
+          }
+        }
+      });
+    }
 
     // DICOM 이미지 로더에 Photometric Interpretation 자동 처리 활성화
     try {

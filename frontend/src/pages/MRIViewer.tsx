@@ -313,23 +313,79 @@ export default function MRIViewer() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
+    if (!selectedPatient) {
+      toast({ 
+        title: "오류", 
+        description: "먼저 환자를 선택해주세요.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    if (!imageType) {
+      toast({ 
+        title: "오류", 
+        description: "먼저 영상 유형을 선택해주세요.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     setUploading(true);
     let successCount = 0;
+    let errorMessages: string[] = [];
+    
     try {
       for (let i = 0; i < files.length; i++) {
-        const formData = new FormData();
-        formData.append('file', files[i]);
-        if (selectedPatient) formData.append('patient_id', selectedPatient);
-        if (imageType) formData.append('image_type', imageType); // 영상 유형 전달
-        const response = await fetch('/api/mri/orthanc/upload/', { method: 'POST', body: formData });
-        if (response.ok) successCount++;
+        try {
+          const formData = new FormData();
+          formData.append('file', files[i]);
+          formData.append('patient_id', selectedPatient);
+          formData.append('image_type', imageType); // 영상 유형 전달
+          
+          const response = await fetch('/api/mri/orthanc/upload/', { 
+            method: 'POST', 
+            body: formData 
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok && data.success) {
+            successCount++;
+            console.log(`✅ 파일 ${i + 1} 업로드 성공:`, files[i].name);
+          } else {
+            const errorMsg = data.error || data.message || `파일 ${i + 1} 업로드 실패`;
+            errorMessages.push(`${files[i].name}: ${errorMsg}`);
+            console.error(`❌ 파일 ${i + 1} 업로드 실패:`, errorMsg, data);
+          }
+        } catch (fileError) {
+          const errorMsg = fileError instanceof Error ? fileError.message : `파일 ${i + 1} 업로드 중 오류`;
+          errorMessages.push(`${files[i].name}: ${errorMsg}`);
+          console.error(`❌ 파일 ${i + 1} 업로드 예외:`, fileError);
+        }
       }
+      
       if (successCount > 0) {
-        toast({ title: "업로드 완료", description: `${successCount}개 파일이 저장되었습니다.` });
+        toast({ 
+          title: "업로드 완료", 
+          description: `${successCount}개 파일이 저장되었습니다.${errorMessages.length > 0 ? ` (${errorMessages.length}개 실패)` : ''}` 
+        });
         if (selectedPatient) fetchOrthancImages(selectedPatient);
+      } else {
+        toast({ 
+          title: "업로드 실패", 
+          description: errorMessages.length > 0 
+            ? errorMessages.slice(0, 3).join(', ') + (errorMessages.length > 3 ? '...' : '')
+            : "모든 파일 업로드에 실패했습니다.",
+          variant: "destructive" 
+        });
       }
     } catch (error) {
-      toast({ title: "오류", description: "업로드 중 문제가 발생했습니다.", variant: "destructive" });
+      console.error('업로드 중 예외 발생:', error);
+      toast({ 
+        title: "오류", 
+        description: error instanceof Error ? error.message : "업로드 중 문제가 발생했습니다.", 
+        variant: "destructive" 
+      });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
