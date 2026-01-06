@@ -1,16 +1,14 @@
 /**
- * Cornerstone3D Volume-based MPR 뷰어
- * DICOM 메타데이터를 활용한 자동 3D 볼륨 재구성 및 MPR
- * VolView 스타일의 멀티플래너 렌더링
+ * Cornerstone3D Stack-based MPR 뷰어
+ * Orthanc가 제공하는 정렬된 DICOM 시리즈를 직접 사용
+ * 간단하고 안정적인 Stack 방식
  */
 import { useEffect, useRef, useState } from 'react';
 import {
   RenderingEngine,
   Enums,
   type Types,
-  volumeLoader,
-  cache,
-  setVolumesForViewports,
+  imageLoader,
 } from '@cornerstonejs/core';
 import {
   addTool,
@@ -39,10 +37,8 @@ export default function CornerstoneMPRViewer({
   const coronalRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const [windowLevel] = useState(WINDOW_LEVEL_PRESETS.MRI_BRAIN);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
-  const volumeIdRef = useRef<string>('');
   const toolGroupIdRef = useRef<string>('MPR_TOOL_GROUP');
 
   // Cornerstone 초기화
@@ -65,7 +61,7 @@ export default function CornerstoneMPRViewer({
     initialize();
   }, []);
 
-  // Volume-based MPR 뷰포트 설정
+  // Stack-based MPR 뷰포트 설정
   useEffect(() => {
     if (
       !isInitialized ||
@@ -77,200 +73,125 @@ export default function CornerstoneMPRViewer({
       return;
     }
 
-    const setupVolumeMPR = async () => {
+    const setupStackMPR = async () => {
       setIsLoading(true);
-      setLoadingProgress(0);
       
       try {
-        console.log('[MPR Volume] 🚀 Setting up Volume MPR with', instanceIds.length, 'instances');
-        const renderingEngineId = 'volumeMprRenderingEngine';
-        const volumeId = `mpr_volume_${Date.now()}`;
-        volumeIdRef.current = volumeId;
+        console.log('[MPR Stack] 🚀 Setting up Stack MPR with', instanceIds.length, 'instances');
+        const renderingEngineId = 'stackMprRenderingEngine';
 
         // 기존 렌더링 엔진 정리
         if (renderingEngineRef.current) {
-          console.log('[MPR Volume] 🧹 Cleaning up existing rendering engine');
+          console.log('[MPR Stack] 🧹 Cleaning up existing rendering engine');
           renderingEngineRef.current.destroy();
         }
 
-        // 기존 볼륨 캐시 정리
-        try {
-          const existingVolume = cache.getVolume(volumeId);
-          if (existingVolume) {
-            cache.removeVolumeLoadObject(volumeId);
-          }
-        } catch (e) {
-          // 볼륨이 없으면 무시
-        }
-
-        setLoadingProgress(10);
-
         // 렌더링 엔진 생성
-        console.log('[MPR Volume] 🎨 Creating rendering engine');
+        console.log('[MPR Stack] 🎨 Creating rendering engine');
         const renderingEngine = new RenderingEngine(renderingEngineId);
         renderingEngineRef.current = renderingEngine;
 
-        // 이미지 ID 생성
+        // 이미지 ID 생성 (Orthanc가 이미 정렬해서 제공함)
         const imageIds = instanceIds.map((id) =>
           createImageId(`/api/mri/orthanc/instances/${id}/file`)
         );
         
-        console.log('[MPR Volume] 📸 Created', imageIds.length, 'image IDs');
-        setLoadingProgress(20);
+        console.log('[MPR Stack] 📸 Created', imageIds.length, 'image IDs');
+        console.log('[MPR Stack] ✅ Orthanc already sorted images by DICOM metadata');
 
-        // Volume 로드 (DICOM 메타데이터 자동 분석 및 3D 볼륨 재구성)
-        console.log('[MPR Volume] 🧊 Creating volume from DICOM series...');
-        console.log('[MPR Volume] 📋 DICOM will be automatically sorted by ImagePositionPatient (z-axis)');
-        
-        const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-          imageIds,
-        });
-
-        setLoadingProgress(50);
-        console.log('[MPR Volume] ✅ Volume created, loading...');
-
-        // Volume 로드 (픽셀 데이터 로드)
-        volume.load((...args: unknown[]) => {
-          // @ts-ignore - volume.load callback type is not properly typed
-          const progress = args[0] as { loaded: number; total: number };
-          if (progress && typeof progress.loaded === 'number' && typeof progress.total === 'number') {
-            const percent = 50 + (progress.loaded / progress.total) * 30;
-            setLoadingProgress(Math.round(percent));
-            console.log(`[MPR Volume] 📊 Loading progress: ${Math.round(percent)}%`);
-          }
-        });
-
-        setLoadingProgress(80);
-        console.log('[MPR Volume] 🎯 Volume loaded successfully');
-        console.log('[MPR Volume] 📊 Volume info:', {
-          dimensions: volume.dimensions,
-          spacing: volume.spacing,
-          origin: volume.origin,
-          direction: volume.direction,
-        });
-
-        // 3개의 Volume 뷰포트 생성 (Axial, Sagittal, Coronal)
-        console.log('[MPR Volume] 🖼️ Setting up MPR viewports...');
-        
-        // Null 체크
-        if (!axialRef.current || !sagittalRef.current || !coronalRef.current) {
-          throw new Error('Viewport elements are not ready');
+        // 첫 이미지 프리로드
+        try {
+          console.log('[MPR Stack] 📦 Preloading first image...');
+          await imageLoader.loadAndCacheImage(imageIds[0]);
+          console.log('[MPR Stack] ✅ First image loaded');
+        } catch (error) {
+          console.error('[MPR Stack] ❌ Failed to preload first image:', error);
         }
-        
-        // 뷰포트 크기 확인
-        console.log('[MPR Volume] 📐 Viewport dimensions:', {
-          axial: { width: axialRef.current.offsetWidth, height: axialRef.current.offsetHeight },
-          sagittal: { width: sagittalRef.current.offsetWidth, height: sagittalRef.current.offsetHeight },
-          coronal: { width: coronalRef.current.offsetWidth, height: coronalRef.current.offsetHeight },
-        });
-        
+
+        // 3개의 Stack 뷰포트 생성
         const viewportInputArray: Types.PublicViewportInput[] = [
           {
             viewportId: 'MPR_AXIAL',
-            type: Enums.ViewportType.ORTHOGRAPHIC,
+            type: Enums.ViewportType.STACK,
             element: axialRef.current,
             defaultOptions: {
-              orientation: Enums.OrientationAxis.AXIAL,
               background: [0, 0, 0] as Types.Point3,
             },
           },
           {
             viewportId: 'MPR_SAGITTAL',
-            type: Enums.ViewportType.ORTHOGRAPHIC,
+            type: Enums.ViewportType.STACK,
             element: sagittalRef.current,
             defaultOptions: {
-              orientation: Enums.OrientationAxis.SAGITTAL,
               background: [0, 0, 0] as Types.Point3,
             },
           },
           {
             viewportId: 'MPR_CORONAL',
-            type: Enums.ViewportType.ORTHOGRAPHIC,
+            type: Enums.ViewportType.STACK,
             element: coronalRef.current,
             defaultOptions: {
-              orientation: Enums.OrientationAxis.CORONAL,
               background: [0, 0, 0] as Types.Point3,
             },
           },
         ];
 
-        // 뷰포트 활성화
-        console.log('[MPR Volume] 🔧 Enabling viewports...');
+        console.log('[MPR Stack] 🔧 Enabling viewports...');
         renderingEngine.setViewports(viewportInputArray);
-        setLoadingProgress(85);
 
-        // 모든 뷰포트에 동일한 볼륨 설정
-        console.log('[MPR Volume] 🔗 Linking volume to all viewports...');
-        await setVolumesForViewports(
-          renderingEngine,
-          [{ volumeId }],
-          ['MPR_AXIAL', 'MPR_SAGITTAL', 'MPR_CORONAL']
-        );
-
-        setLoadingProgress(90);
-
-        // Window/Level 설정 및 렌더링
-        console.log('[MPR Volume] 🎚️ Applying window/level and rendering...');
-        ['MPR_AXIAL', 'MPR_SAGITTAL', 'MPR_CORONAL'].forEach((viewportId) => {
-          const viewport = renderingEngine.getViewport(viewportId);
-          if (viewport) {
-            console.log(`[MPR Volume] Setting properties for ${viewportId}`);
-            
-            // @ts-ignore - setProperties exists but types are incomplete
-            viewport.setProperties({
-              voiRange: {
-                lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
-                upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
-              },
-            });
-            
-            // 각 뷰포트 개별 렌더링
-            viewport.render();
-            console.log(`[MPR Volume] ✅ ${viewportId} rendered`);
-          } else {
-            console.error(`[MPR Volume] ❌ Failed to get viewport: ${viewportId}`);
+        // 각 뷰포트에 이미지 스택 설정
+        const middleIndex = Math.floor(imageIds.length / 2);
+        const viewportIds = ['MPR_AXIAL', 'MPR_SAGITTAL', 'MPR_CORONAL'];
+        
+        console.log('[MPR Stack] 📚 Setting up image stacks...');
+        for (const viewportId of viewportIds) {
+          try {
+            const viewport = renderingEngine.getViewport(viewportId);
+            if (viewport) {
+              console.log(`[MPR Stack] Setting stack for ${viewportId}...`);
+              
+              // @ts-ignore - setStack exists in StackViewport
+              await viewport.setStack(imageIds, middleIndex);
+              
+              // 윈도우 레벨 설정
+              // @ts-ignore
+              viewport.setProperties({
+                voiRange: {
+                  lower: windowLevel.windowCenter - windowLevel.windowWidth / 2,
+                  upper: windowLevel.windowCenter + windowLevel.windowWidth / 2,
+                },
+              });
+              
+              viewport.render();
+              console.log(`[MPR Stack] ✅ ${viewportId} ready`);
+            }
+          } catch (error) {
+            console.error(`[MPR Stack] ❌ Failed to setup ${viewportId}:`, error);
           }
-        });
-
-        // 전체 렌더링
-        console.log('[MPR Volume] 🎨 Final render...');
-        renderingEngine.render();
-        setLoadingProgress(95);
+        }
 
         // 도구 그룹 설정
-        setupTools(['MPR_AXIAL', 'MPR_SAGITTAL', 'MPR_CORONAL']);
+        setupTools(viewportIds);
         
-        setLoadingProgress(100);
         setIsLoading(false);
-        
-        console.log('[MPR Volume] 🎉 Volume MPR setup complete!');
-        console.log('[MPR Volume] 📐 All views are automatically synchronized');
+        console.log('[MPR Stack] 🎉 Stack MPR setup complete!');
       } catch (error) {
-        console.error('[MPR Volume] ❌ Failed to setup Volume MPR:', error);
+        console.error('[MPR Stack] ❌ Failed to setup Stack MPR:', error);
         setIsLoading(false);
       }
     };
 
-    setupVolumeMPR();
+    setupStackMPR();
 
     return () => {
-      console.log('[MPR Volume] 🧹 Cleaning up...');
+      console.log('[MPR Stack] 🧹 Cleaning up...');
       if (renderingEngineRef.current) {
         try {
           renderingEngineRef.current.destroy();
         } catch (e) {
-          console.warn('[MPR Volume] Error destroying rendering engine:', e);
+          console.warn('[MPR Stack] Error destroying rendering engine:', e);
         }
         renderingEngineRef.current = null;
-      }
-      
-      // 볼륨 캐시 정리
-      if (volumeIdRef.current) {
-        try {
-          cache.removeVolumeLoadObject(volumeIdRef.current);
-        } catch (e) {
-          console.warn('[MPR Volume] Error removing volume cache:', e);
-        }
       }
     };
   }, [isInitialized, instanceIds]);
@@ -278,7 +199,7 @@ export default function CornerstoneMPRViewer({
   // 도구 설정
   const setupTools = (viewportIds: string[]) => {
     try {
-      console.log('[MPR Volume] 🛠️ Setting up tools...');
+      console.log('[MPR Stack] 🛠️ Setting up tools...');
       
       // 기존 도구 그룹 제거
       try {
@@ -315,10 +236,10 @@ export default function CornerstoneMPRViewer({
           toolGroup.addViewport(viewportId, renderingEngineRef.current!.id);
         });
         
-        console.log('[MPR Volume] ✅ Tools setup complete');
+        console.log('[MPR Stack] ✅ Tools setup complete');
       }
     } catch (error) {
-      console.error('[MPR Volume] Failed to setup tools:', error);
+      console.error('[MPR Stack] Failed to setup tools:', error);
     }
   };
 
@@ -338,10 +259,10 @@ export default function CornerstoneMPRViewer({
       {/* 도구 바 */}
       <div className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2 flex-wrap">
         <Badge variant="outline" className="text-white border-gray-600 font-bold">
-          🧊 Volume MPR
+          📚 Stack MPR
         </Badge>
         <Badge className="bg-green-600/80 backdrop-blur-md text-white border-none text-xs">
-          DICOM 자동 재구성
+          Orthanc 정렬 사용
         </Badge>
         <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none text-xs">
           {instanceIds.length}장
@@ -370,31 +291,16 @@ export default function CornerstoneMPRViewer({
           <div className="flex flex-col items-center gap-6 max-w-md">
             <div className="relative">
               <div className="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">{loadingProgress}%</span>
-              </div>
             </div>
             <div className="text-center space-y-2">
-              <p className="text-white text-lg font-bold">🧊 3D 볼륨 재구성 중...</p>
-              <p className="text-white/80 text-sm">DICOM 메타데이터 분석 및 공간 정렬</p>
-              <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden mt-4">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-300"
-                  style={{ width: `${loadingProgress}%` }}
-                />
-              </div>
-            </div>
-            <div className="space-y-1 text-xs text-gray-400 text-center">
-              <p>✓ Image Position (Patient) 분석</p>
-              <p>✓ Image Orientation 확인</p>
-              <p>✓ Pixel Spacing 적용</p>
-              <p>✓ 3D 좌표계 재구성</p>
+              <p className="text-white text-lg font-bold">📚 DICOM 이미지 로딩 중...</p>
+              <p className="text-white/80 text-sm">Orthanc 정렬 순서 사용</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4분할 뷰포트 그리드 - VolView 스타일 */}
+      {/* 4분할 뷰포트 그리드 */}
       <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1">
         {/* ① Sagittal (시상면) - 좌상단 */}
         <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden">
@@ -408,7 +314,7 @@ export default function CornerstoneMPRViewer({
               ① Sagittal (시상면)
             </Badge>
           </div>
-          <div className="absolute top-2 right-2 pointer-events-none z-10 flex flex-col gap-1">
+          <div className="absolute top-2 right-2 pointer-events-none z-10">
             <Badge className="bg-black/70 backdrop-blur-md text-white border-none text-xs">
               S
             </Badge>
@@ -420,28 +326,28 @@ export default function CornerstoneMPRViewer({
           </div>
         </div>
 
-        {/* ② 3D Volume Info - 우상단 */}
+        {/* ② 정보 패널 - 우상단 */}
         <div className="relative bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 border border-blue-700/30 rounded-lg overflow-hidden flex items-center justify-center">
           <div className="text-center space-y-3 p-6">
-            <div className="text-5xl mb-2">🧊</div>
+            <div className="text-5xl mb-2">📚</div>
             <div className="absolute top-2 left-2 pointer-events-none z-10">
               <Badge className="bg-blue-600/90 backdrop-blur-md text-white border-none font-bold shadow-lg">
-                ② Volume MPR
+                ② Stack MPR
               </Badge>
             </div>
-            <h3 className="text-base font-bold text-white">자동 3D 재구성</h3>
+            <h3 className="text-base font-bold text-white">Orthanc 정렬 사용</h3>
             <div className="space-y-1.5 text-xs text-gray-300">
               <p className="flex items-center justify-center gap-2">
                 <span className="text-green-400">✓</span>
-                <span>DICOM 메타데이터 자동 분석</span>
+                <span>DICOM 메타데이터 자동 정렬</span>
               </p>
               <p className="flex items-center justify-center gap-2">
                 <span className="text-blue-400">✓</span>
-                <span>공간 좌표 기반 정렬</span>
+                <span>Orthanc 순서 그대로 사용</span>
               </p>
               <p className="flex items-center justify-center gap-2">
                 <span className="text-purple-400">✓</span>
-                <span>실시간 MPR 재구성</span>
+                <span>안정적인 Stack 렌더링</span>
               </p>
             </div>
             <div className="mt-3 pt-3 border-t border-gray-700/50">
