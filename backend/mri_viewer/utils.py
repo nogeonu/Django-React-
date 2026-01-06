@@ -247,13 +247,22 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             nii_img = nib.load(tmp_file_path)
             logger.info(f"NIfTI loaded successfully, shape: {nii_img.shape if hasattr(nii_img, 'shape') else 'N/A'}")
             
-            # 로드 성공 후 파일 삭제 (finally 블록에서도 삭제 시도하지만 여기서도 삭제)
-            # 파일이 성공적으로 로드되었으므로 삭제 가능
-            try:
-                if os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
-            except:
-                pass  # 삭제 실패는 무시 (finally에서 다시 시도)
+            # 중요: get_fdata()는 지연 로딩이므로 파일이 필요함
+            # 데이터를 먼저 메모리에 로드한 후에 파일 삭제
+            logger.info("Loading NIfTI data into memory (get_fdata)...")
+            volume_data = nii_img.get_fdata()  # 데이터를 메모리로 로드
+            logger.info(f"Data loaded into memory, shape: {volume_data.shape}")
+            
+            # 헤더도 미리 읽기
+            header_data = nii_img.header
+            
+            # 데이터와 헤더를 메모리에 로드했으므로 이제 파일 삭제 가능
+            # 하지만 안전을 위해 함수 종료 전까지 유지
+            # (finally 블록에서 삭제)
+            
+            # 메모리에 로드된 데이터를 변수에 저장 (try 블록 밖에서 사용)
+            volume = volume_data
+            header = header_data
             
         except Exception as load_error:
             # 오류 발생 시 상세 정보 포함
@@ -269,23 +278,26 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             raise IOError(error_msg) from load_error
             
         finally:
-            # 임시 파일 삭제 (이미 삭제되었을 수 있음)
+            # 임시 파일 삭제 (데이터가 메모리에 로드된 후에만 삭제)
             if tmp_file_path and os.path.exists(tmp_file_path):
                 try:
                     os.unlink(tmp_file_path)
+                    logger.info(f"Temporary file deleted: {tmp_file_path}")
                 except Exception as cleanup_error:
                     # 삭제 실패는 경고만 출력 (치명적이지 않음)
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.warning(f"Could not delete temporary file {tmp_file_path}: {cleanup_error}")
+        
+        # volume과 header는 이미 try 블록 안에서 메모리에 로드되어 변수에 저장됨
+        
     elif isinstance(nifti_file, (str, Path)):
-        # 파일 경로인 경우
+        # 파일 경로인 경우 (파일이 계속 존재하므로 지연 로딩 가능)
         nii_img = nib.load(str(nifti_file))
+        volume = nii_img.get_fdata()
+        header = nii_img.header
     else:
         raise ValueError(f"Unsupported nifti_file type: {type(nifti_file)}. Expected file path (str/Path) or file-like object (BytesIO)")
     
-    volume = nii_img.get_fdata()
-    header = nii_img.header
+    # volume과 header는 이미 위에서 설정됨 (BytesIO인 경우 try 블록에서, 파일 경로인 경우 elif에서)
     
     # 환자 정보 설정
     if patient_id is None:
