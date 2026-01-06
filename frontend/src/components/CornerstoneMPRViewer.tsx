@@ -300,28 +300,9 @@ export default function CornerstoneMPRViewer({
         </div>
       )}
 
-      {/* 3분할 뷰포트 그리드 */}
+      {/* 4분할 뷰포트 그리드 - VolView 스타일 */}
       <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1 p-1">
-        {/* Axial (횡단면) - 좌상단 */}
-        <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden">
-          <div
-            ref={axialRef}
-            className="w-full h-full"
-            style={{ minHeight: '300px' }}
-          />
-          <div className="absolute top-2 left-2 pointer-events-none z-10">
-            <Badge className="bg-black/60 backdrop-blur-md text-white border-none">
-              Axial (횡단면)
-            </Badge>
-          </div>
-          <div className="absolute bottom-2 right-2 pointer-events-none z-10">
-            <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
-              마우스 휠로 슬라이스 이동
-            </Badge>
-          </div>
-        </div>
-
-        {/* Sagittal (시상면) - 우상단 */}
+        {/* ① Sagittal (시상면) - 좌상단 */}
         <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden">
           <div
             ref={sagittalRef}
@@ -329,18 +310,80 @@ export default function CornerstoneMPRViewer({
             style={{ minHeight: '300px' }}
           />
           <div className="absolute top-2 left-2 pointer-events-none z-10">
-            <Badge className="bg-black/60 backdrop-blur-md text-white border-none">
-              Sagittal (시상면)
+            <Badge className="bg-green-600/80 backdrop-blur-md text-white border-none font-bold">
+              ① Sagittal (시상면)
             </Badge>
           </div>
-          <div className="absolute bottom-2 right-2 pointer-events-none z-10">
+          <div className="absolute top-2 right-2 pointer-events-none z-10">
             <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
-              마우스 휠로 슬라이스 이동
+              S
+            </Badge>
+          </div>
+          <div className="absolute bottom-2 left-2 pointer-events-none z-10">
+            <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
+              마우스 휠: 슬라이스 이동
             </Badge>
           </div>
         </div>
 
-        {/* Coronal (관상면) - 좌하단 */}
+        {/* ② 3D Volume Rendering - 우상단 */}
+        <div className="relative bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-800 border border-blue-700/30 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="text-center space-y-4 p-6">
+            <div className="text-5xl mb-3">🧊</div>
+            <div className="absolute top-2 left-2 pointer-events-none z-10">
+              <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none font-bold">
+                ② 3D Volume
+              </Badge>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">3D Volume Rendering</h3>
+            <p className="text-xs text-gray-400 max-w-xs mx-auto">
+              3D 볼륨 렌더링은 고급 GPU 가속이 필요합니다.<br />
+              현재는 2D MPR 슬라이스를 제공합니다.
+            </p>
+            <div className="mt-4 pt-3 border-t border-gray-700">
+              <div className="space-y-1 text-xs text-gray-300">
+                <p className="flex items-center justify-center gap-2">
+                  <span className="text-green-400">●</span>
+                  <span>Sagittal: 좌→우</span>
+                </p>
+                <p className="flex items-center justify-center gap-2">
+                  <span className="text-blue-400">●</span>
+                  <span>Axial: 위→아래</span>
+                </p>
+                <p className="flex items-center justify-center gap-2">
+                  <span className="text-purple-400">●</span>
+                  <span>Coronal: 앞→뒤</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ③ Axial (횡단면) - 좌하단 */}
+        <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden">
+          <div
+            ref={axialRef}
+            className="w-full h-full"
+            style={{ minHeight: '300px' }}
+          />
+          <div className="absolute top-2 left-2 pointer-events-none z-10">
+            <Badge className="bg-blue-600/80 backdrop-blur-md text-white border-none font-bold">
+              ③ Axial (횡단면)
+            </Badge>
+          </div>
+          <div className="absolute top-2 right-2 pointer-events-none z-10">
+            <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
+              A
+            </Badge>
+          </div>
+          <div className="absolute bottom-2 left-2 pointer-events-none z-10">
+            <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
+              마우스 휠: 슬라이스 이동
+            </Badge>
+          </div>
+        </div>
+
+        {/* ④ Coronal (관상면) - 우하단 */}
         <div className="relative bg-black border border-gray-800 rounded-lg overflow-hidden">
           <div
             ref={coronalRef}
@@ -348,44 +391,19 @@ export default function CornerstoneMPRViewer({
             style={{ minHeight: '300px' }}
           />
           <div className="absolute top-2 left-2 pointer-events-none z-10">
-            <Badge className="bg-black/60 backdrop-blur-md text-white border-none">
-              Coronal (관상면)
+            <Badge className="bg-purple-600/80 backdrop-blur-md text-white border-none font-bold">
+              ④ Coronal (관상면)
             </Badge>
           </div>
-          <div className="absolute bottom-2 right-2 pointer-events-none z-10">
+          <div className="absolute top-2 right-2 pointer-events-none z-10">
             <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
-              마우스 휠로 슬라이스 이동
+              C
             </Badge>
           </div>
-        </div>
-
-        {/* 정보 패널 - 우하단 */}
-        <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
-          <div className="text-center space-y-4 p-8">
-            <div className="text-6xl mb-4">🏥</div>
-            <h3 className="text-xl font-bold text-white mb-2">MPR 멀티플래너 뷰어</h3>
-            <div className="space-y-2 text-sm text-gray-300">
-              <p className="flex items-center justify-center gap-2">
-                <span className="text-blue-400">●</span>
-                <span>Axial: 위→아래 단면</span>
-              </p>
-              <p className="flex items-center justify-center gap-2">
-                <span className="text-green-400">●</span>
-                <span>Sagittal: 좌→우 단면</span>
-              </p>
-              <p className="flex items-center justify-center gap-2">
-                <span className="text-purple-400">●</span>
-                <span>Coronal: 앞→뒤 단면</span>
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-gray-700">
-              <p className="text-xs text-gray-400">
-                마우스 휠: 슬라이스 이동<br />
-                좌클릭 드래그: 윈도우/레벨<br />
-                중간 버튼: 패닝<br />
-                우클릭 드래그: 줌
-              </p>
-            </div>
+          <div className="absolute bottom-2 left-2 pointer-events-none z-10">
+            <Badge className="bg-black/60 backdrop-blur-md text-white border-none text-xs">
+              마우스 휠: 슬라이스 이동
+            </Badge>
           </div>
         </div>
       </div>
