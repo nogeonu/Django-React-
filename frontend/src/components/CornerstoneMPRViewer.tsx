@@ -108,6 +108,11 @@ export default function CornerstoneMPRViewer({
           console.error('[MPR Stack] ❌ Failed to preload first image:', error);
         }
 
+        // Null 체크
+        if (!axialRef.current || !sagittalRef.current || !coronalRef.current) {
+          throw new Error('Viewport elements are not ready');
+        }
+
         // 3개의 Stack 뷰포트 생성
         const viewportInputArray: Types.PublicViewportInput[] = [
           {
