@@ -299,7 +299,8 @@ export default function MRIViewer() {
   const filterImagesByType = () => {
     if (allOrthancImages.length === 0) {
       setOrthancImages([]);
-      setShowOrthancImages(false);
+      // 이미지가 없어도 뷰어는 표시하되 "이미지 없음" 메시지를 보여줌
+      setShowOrthancImages(true);
       return;
     }
 
@@ -809,25 +810,64 @@ export default function MRIViewer() {
                     </AnimatePresence>
 
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-8">
-                      {sliceImage || (showOrthancImages && orthancImages.length > 0) ? (
+                      {showOrthancImages && orthancImages.length > 0 ? (
                         <motion.img
-                          key={showOrthancImages ? `orthanc-${selectedImage}` : `slice-${currentSlice}`}
+                          key={`orthanc-${selectedImage}`}
                           initial={{ opacity: 0, scale: 0.98 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.2 }}
-                          src={showOrthancImages ? orthancImages[selectedImage].preview_url : (sliceImage || "")}
+                          src={orthancImages[selectedImage]?.preview_url}
                           className="max-w-full max-h-full object-contain pointer-events-auto"
                           loading="eager"
                           decoding="async"
                           onLoadStart={() => {
-                            if (showOrthancImages) setImageLoading(true);
+                            setImageLoading(true);
                           }}
                           onLoad={() => {
-                            if (showOrthancImages) setImageLoading(false);
+                            setImageLoading(false);
                           }}
                           onError={() => {
-                            if (showOrthancImages) setImageLoading(false);
+                            setImageLoading(false);
                           }}
+                        />
+                      ) : showOrthancImages && orthancImages.length === 0 && allOrthancImages.length > 0 ? (
+                        // 필터링 결과 이미지가 없는 경우
+                        <div className="text-white/70 flex flex-col items-center gap-6 bg-black/30 backdrop-blur-sm rounded-3xl p-12 border border-white/10 max-w-md">
+                          <ImageIcon className="w-16 h-16 text-white/40" />
+                          <div className="text-center space-y-2">
+                            <p className="text-lg font-black text-white uppercase tracking-widest">이미지 없음</p>
+                            <p className="text-sm font-medium text-white/60">
+                              선택한 환자에게 <span className="font-bold text-white">{imageType}</span> 이미지가 없습니다.
+                            </p>
+                            <p className="text-xs font-medium text-white/40 mt-4">
+                              다른 영상 유형을 선택하거나 이미지를 업로드해주세요.
+                            </p>
+                          </div>
+                        </div>
+                      ) : showOrthancImages && allOrthancImages.length === 0 ? (
+                        // Orthanc에 이미지가 전혀 없는 경우
+                        <div className="text-white/70 flex flex-col items-center gap-6 bg-black/30 backdrop-blur-sm rounded-3xl p-12 border border-white/10 max-w-md">
+                          <Database className="w-16 h-16 text-white/40" />
+                          <div className="text-center space-y-2">
+                            <p className="text-lg font-black text-white uppercase tracking-widest">이미지 없음</p>
+                            <p className="text-sm font-medium text-white/60">
+                              선택한 환자(<span className="font-bold text-white">{selectedPatient}</span>)의 Orthanc 이미지가 없습니다.
+                            </p>
+                            <p className="text-xs font-medium text-white/40 mt-4">
+                              이미지를 업로드하면 여기에 표시됩니다.
+                            </p>
+                          </div>
+                        </div>
+                      ) : sliceImage ? (
+                        <motion.img
+                          key={`slice-${currentSlice}`}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2 }}
+                          src={sliceImage}
+                          className="max-w-full max-h-full object-contain pointer-events-auto"
+                          loading="eager"
+                          decoding="async"
                         />
                       ) : (
                         <div className="text-white/20 flex flex-col items-center gap-4">
