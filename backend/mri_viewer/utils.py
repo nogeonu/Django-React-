@@ -426,14 +426,19 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         
         # 파일로 저장 (메모리)
         buffer = BytesIO()
+        
+        # DICOM File Meta Information 설정 (필수)
         file_meta = Dataset()
         file_meta.MediaStorageSOPClassUID = ds.SOPClassUID
         file_meta.MediaStorageSOPInstanceUID = ds.SOPInstanceUID
         file_meta.ImplementationClassUID = "1.2.3.4.5.6.7.8.9"
+        # TransferSyntaxUID 필수 추가 (Explicit VR Little Endian)
+        file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'  # Explicit VR Little Endian
         
+        # 데이터셋에 파일 메타 정보 연결
         ds.file_meta = file_meta
-        ds.is_implicit_VR = False
-        ds.is_little_endian = True
+        ds.is_implicit_VR = False  # Explicit VR
+        ds.is_little_endian = True  # Little Endian
         
         pydicom.dcmwrite(buffer, ds, write_like_original=False)
         dicom_slices.append(buffer.getvalue())
