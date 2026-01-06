@@ -16,6 +16,7 @@ interface OrthancImage {
     view_position?: string;  // CC, MLO
     image_laterality?: string;  // L, R
     mammography_view?: string;  // LCC, RCC, LMLO, RMLO
+    modality?: string;  // MG, MR, etc.
 }
 
 export default function DicomDetailViewer() {
@@ -50,23 +51,57 @@ export default function DicomDetailViewer() {
         try {
             // Try to get patient context from session storage
             const patientId = sessionStorage.getItem('currentPatientId');
-            // imageType is no longer used in split view
+            const imageType = sessionStorage.getItem('currentImageType'); // 영상 유형 가져오기
 
-            console.log('Loading patient data for:', patientId);
+            console.log('Loading patient data for:', patientId, 'imageType:', imageType);
 
             if (patientId) {
                 const response = await apiRequest('GET', `/api/mri/orthanc/patients/${patientId}/`);
                 console.log('Patient API response:', response);
 
                 if (response.success && response.images) {
-                    setAllImages(response.images);
+                    // imageType에 따라 이미지 필터링
+                    let filteredImages = response.images;
+                    
+                    if (imageType) {
+                        switch (imageType) {
+                            case '유방촬영술 영상':
+                                // MG (Mammography) 모달리티만
+                                filteredImages = response.images.filter((img: OrthancImage) => img.modality === 'MG');
+                                console.log(`[DicomDetailViewer] 유방촬영술 필터링: ${filteredImages.length}개 (전체 ${response.images.length}개 중)`);
+                                break;
+                            case 'MRI 영상':
+                                // MR (Magnetic Resonance) 모달리티만
+                                filteredImages = response.images.filter((img: OrthancImage) => img.modality === 'MR');
+                                console.log(`[DicomDetailViewer] MRI 필터링: ${filteredImages.length}개 (전체 ${response.images.length}개 중)`);
+                                break;
+                            case '병리 영상':
+                                // 병리 영상: SM (Slide Microscopy) 또는 OT (Other) 모달리티
+                                filteredImages = response.images.filter((img: OrthancImage) => 
+                                    img.modality === 'SM' || img.modality === 'OT' || 
+                                    (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
+                                );
+                                console.log(`[DicomDetailViewer] 병리 영상 필터링: ${filteredImages.length}개 (전체 ${response.images.length}개 중)`);
+                                break;
+                            default:
+                                console.log(`[DicomDetailViewer] 알 수 없는 영상 유형 "${imageType}" - 전체 이미지 표시`);
+                        }
+                    } else {
+                        console.log(`[DicomDetailViewer] 영상 유형 미선택 - 전체 이미지 표시`);
+                    }
+                    
+                    setAllImages(filteredImages);
                     // Cornerstone3D용 instance ID 배열 설정
-                    const ids = response.images.map((img: OrthancImage) => img.instance_id);
+                    const ids = filteredImages.map((img: OrthancImage) => img.instance_id);
                     setInstanceIds(ids);
 
-                    const index = response.images.findIndex((img: OrthancImage) => img.instance_id === instanceId);
+                    const index = filteredImages.findIndex((img: OrthancImage) => img.instance_id === instanceId);
                     if (index !== -1) {
                         setCurrentIndex(index);
+                    } else if (filteredImages.length > 0) {
+                        // 현재 instanceId가 필터링된 목록에 없으면 첫 번째 이미지로 이동
+                        console.log(`[DicomDetailViewer] 현재 이미지가 필터링된 목록에 없음. 첫 번째 이미지로 이동`);
+                        navigate(`/dicom-viewer/${filteredImages[0].instance_id}`);
                     }
                 }
 
