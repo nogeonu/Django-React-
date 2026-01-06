@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity, Columns2 } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Brain, Activity, Columns2, Grid3x3 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import CornerstoneViewer from '@/components/CornerstoneViewer';
+import CornerstoneMPRViewer from '@/components/CornerstoneMPRViewer';
 import AIAnalysisModal from '@/components/AIAnalysisModal';
 
 
@@ -31,6 +32,7 @@ export default function DicomDetailViewer() {
     const [analysisProgress, setAnalysisProgress] = useState(0);
     const [analysisResult, setAnalysisResult] = useState<any>(null); // AI 디텍션 결과
     const [isSplitView, setIsSplitView] = useState(false); // 분할 뷰 토글
+    const [isMPRView, setIsMPRView] = useState(false); // MPR 4분할 뷰 토글
     const [activeViewport, setActiveViewport] = useState<1 | 2>(1); // 활성 뷰포트
     const [viewport1Index, setViewport1Index] = useState(0);
     const [viewport2Index, setViewport2Index] = useState(0);
@@ -192,22 +194,39 @@ export default function DicomDetailViewer() {
                                 이미지 {currentIndex + 1} / {allImages.length}
                             </Badge>
                         )}
-                        {/* 분할 뷰 토글 버튼 */}
+                        {/* MPR 4분할 뷰 토글 버튼 */}
                         <Button
-                            variant={isSplitView ? "secondary" : "outline"}
-                            className={`ml-4 ${isSplitView ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
+                            variant={isMPRView ? "secondary" : "outline"}
+                            className={`ml-4 ${isMPRView ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
                             onClick={() => {
-                                setIsSplitView(!isSplitView);
-                                if (!isSplitView) {
-                                    // 분할 뷰 진입 시 두 뷰포트 모두 현재 이미지로 초기화
-                                    setViewport1Index(currentIndex);
-                                    setViewport2Index(currentIndex);
+                                setIsMPRView(!isMPRView);
+                                if (!isMPRView) {
+                                    // MPR 뷰 진입 시 분할 뷰 해제
+                                    setIsSplitView(false);
                                 }
                             }}
                         >
-                            <Columns2 className="w-4 h-4 mr-2" />
-                            {isSplitView ? '단일 뷰' : '분할 뷰'}
+                            <Grid3x3 className="w-4 h-4 mr-2" />
+                            {isMPRView ? '단일 뷰' : 'MPR 4분할'}
                         </Button>
+                        {/* 2분할 뷰 토글 버튼 (MPR이 아닐 때만 표시) */}
+                        {!isMPRView && (
+                            <Button
+                                variant={isSplitView ? "secondary" : "outline"}
+                                className={`ml-2 ${isSplitView ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold border-none`}
+                                onClick={() => {
+                                    setIsSplitView(!isSplitView);
+                                    if (!isSplitView) {
+                                        // 분할 뷰 진입 시 두 뷰포트 모두 현재 이미지로 초기화
+                                        setViewport1Index(currentIndex);
+                                        setViewport2Index(currentIndex);
+                                    }
+                                }}
+                            >
+                                <Columns2 className="w-4 h-4 mr-2" />
+                                {isSplitView ? '단일 뷰' : '2분할'}
+                            </Button>
+                        )}
                         {!isRadiologyTech && (
                             <Button
                                 variant={analysisComplete ? "secondary" : "default"}
@@ -340,7 +359,13 @@ export default function DicomDetailViewer() {
                 <div className="flex-1 flex flex-col min-h-0" id="dicom-viewer-container">
                     {instanceIds.length > 0 && (
                         <div className="flex-1 bg-gray-900 min-h-0">
-                            {isSplitView ? (
+                            {isMPRView ? (
+                                // MPR 4분할 뷰
+                                <CornerstoneMPRViewer
+                                    instanceIds={instanceIds}
+                                    onClose={() => setIsMPRView(false)}
+                                />
+                            ) : isSplitView ? (
                                 // 분할 뷰: 2개 뷰포트
                                 <div className="flex h-full gap-1">
                                     {/* Viewport 1 */}
