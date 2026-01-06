@@ -17,7 +17,6 @@ import {
   WindowLevelTool,
   PanTool,
   ZoomTool,
-  StackScrollMouseWheelTool,
 } from '@cornerstonejs/tools';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +52,6 @@ export default function CornerstoneMPRViewer({
         addTool(WindowLevelTool);
         addTool(PanTool);
         addTool(ZoomTool);
-        addTool(StackScrollMouseWheelTool);
 
         setIsInitialized(true);
       } catch (error) {
@@ -224,7 +222,6 @@ export default function CornerstoneMPRViewer({
         toolGroup.addTool(WindowLevelTool.toolName);
         toolGroup.addTool(PanTool.toolName);
         toolGroup.addTool(ZoomTool.toolName);
-        toolGroup.addTool(StackScrollMouseWheelTool.toolName);
 
         // 기본 도구 활성화
         toolGroup.setToolActive(WindowLevelTool.toolName, {
@@ -236,7 +233,6 @@ export default function CornerstoneMPRViewer({
         toolGroup.setToolActive(ZoomTool.toolName, {
           bindings: [{ mouseButton: ToolEnums.MouseBindings.Secondary }],
         });
-        toolGroup.setToolActive(StackScrollMouseWheelTool.toolName);
 
         // 모든 뷰포트에 도구 그룹 연결
         viewportIds.forEach((viewportId) => {
