@@ -367,10 +367,14 @@ def orthanc_upload_dicom(request):
                         'error': 'Uploaded file is empty'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
+                # BytesIO 객체 생성 (파일 이름 정보 포함)
+                nifti_bytesio = BytesIO(file_data)
+                nifti_bytesio.name = uploaded_file.name  # 파일 이름 저장 (확장자 확인용)
+                
                 # NIfTI를 DICOM 슬라이스들로 변환
                 try:
                     dicom_slices = nifti_to_dicom_slices(
-                        BytesIO(file_data),
+                        nifti_bytesio,
                         patient_id=patient_id or "UNKNOWN",
                         patient_name=patient_name,  # DB에서 찾은 이름 전달
                         image_type=image_type  # 영상 유형 전달

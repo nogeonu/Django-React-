@@ -124,7 +124,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     NIfTI 파일을 DICOM 슬라이스들로 변환
     
     Args:
-        nifti_file: 파일 경로 또는 파일 객체
+        nifti_file: 파일 경로(str/Path) 또는 파일 객체(BytesIO 등)
         patient_id: 환자 ID (선택사항)
         patient_name: 환자 이름 (선택사항)
         image_type: 영상 유형 ('유방촬영술 영상', '병리 영상', 'MRI 영상') - Study/Series 구분용
@@ -133,15 +133,47 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         List[bytes]: DICOM 인스턴스들의 바이트 데이터 리스트
     """
     # NIfTI 파일 로드
+    import tempfile
+    import os
+    
     if hasattr(nifti_file, 'read'):
-        # 파일 객체인 경우
-        # 파일 포인터를 처음으로 되돌림
+        # 파일 객체인 경우 (BytesIO 등)
+        # nibabel은 BytesIO를 직접 처리할 수 없으므로 임시 파일로 저장
         if hasattr(nifti_file, 'seek'):
             nifti_file.seek(0)
-        nii_img = nib.load(nifti_file)
-    else:
+        
+        # BytesIO 내용을 읽어서 임시 파일로 저장
+        file_data = nifti_file.read()
+        if hasattr(nifti_file, 'seek'):
+            nifti_file.seek(0)  # 다시 처음으로
+        
+        # 파일 확장자 확인 (nifti_file.name이 있으면 사용, 없으면 기본값)
+        file_suffix = '.nii.gz'
+        if hasattr(nifti_file, 'name'):
+            if nifti_file.name.endswith('.nii.gz'):
+                file_suffix = '.nii.gz'
+            elif nifti_file.name.endswith('.nii'):
+                file_suffix = '.nii'
+        
+        # 임시 파일 생성
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmp_file:
+            tmp_file.write(file_data)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            # 임시 파일에서 NIfTI 로드
+            nii_img = nib.load(tmp_file_path)
+        finally:
+            # 임시 파일 삭제
+            try:
+                os.unlink(tmp_file_path)
+            except:
+                pass
+    elif isinstance(nifti_file, (str, Path)):
         # 파일 경로인 경우
-        nii_img = nib.load(nifti_file)
+        nii_img = nib.load(str(nifti_file))
+    else:
+        raise ValueError(f"Unsupported nifti_file type: {type(nifti_file)}. Expected file path (str/Path) or file-like object (BytesIO)")
     
     volume = nii_img.get_fdata()
     header = nii_img.header
