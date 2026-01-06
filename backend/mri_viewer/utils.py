@@ -138,59 +138,107 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     
     if hasattr(nifti_file, 'read'):
         # 파일 객체인 경우 (BytesIO 등)
-        # 먼저 BytesIO를 직접 시도하고, 실패하면 임시 파일 사용
+        # nibabel.load()는 파일 경로만 받으므로 임시 파일이 필요
         if hasattr(nifti_file, 'seek'):
             nifti_file.seek(0)
         
-        # BytesIO를 직접 사용 시도
+        # BytesIO 내용을 읽기
+        file_data = nifti_file.read()
+        if len(file_data) == 0:
+            raise ValueError("NIfTI file data is empty")
+        
+        if hasattr(nifti_file, 'seek'):
+            nifti_file.seek(0)  # 다시 처음으로
+        
+        # 파일 확장자 확인
+        file_suffix = '.nii.gz'
+        if hasattr(nifti_file, 'name'):
+            if nifti_file.name.endswith('.nii.gz'):
+                file_suffix = '.nii.gz'
+            elif nifti_file.name.endswith('.nii'):
+                file_suffix = '.nii'
+        
+        # 임시 파일 생성 (여러 방법 시도)
+        tmp_file_path = None
+        temp_dir = None
+        
+        # 방법 1: 시스템 임시 디렉토리 사용
         try:
-            nii_img = nib.load(nifti_file)
-        except (TypeError, IOError, OSError) as e:
-            # BytesIO 직접 로드 실패 시 임시 파일 사용
-            if hasattr(nifti_file, 'seek'):
-                nifti_file.seek(0)
-            
-            # BytesIO 내용을 읽어서 임시 파일로 저장
-            file_data = nifti_file.read()
-            if hasattr(nifti_file, 'seek'):
-                nifti_file.seek(0)  # 다시 처음으로
-            
-            # 파일 확장자 확인
-            file_suffix = '.nii.gz'
-            if hasattr(nifti_file, 'name'):
-                if nifti_file.name.endswith('.nii.gz'):
-                    file_suffix = '.nii.gz'
-                elif nifti_file.name.endswith('.nii'):
-                    file_suffix = '.nii'
-            
-            # 임시 디렉토리 확인 및 생성 (현재 작업 디렉토리 사용)
-            temp_dir = os.path.join(os.getcwd(), 'temp_nifti')
-            os.makedirs(temp_dir, exist_ok=True)
-            
-            # 임시 파일 생성 (현재 디렉토리의 temp_nifti 폴더 사용)
-            import uuid
-            tmp_file_path = os.path.join(temp_dir, f"nifti_{uuid.uuid4().hex}{file_suffix}")
-            
+            temp_dir = tempfile.gettempdir()
+            if not os.path.exists(temp_dir):
+                raise OSError(f"System temp directory does not exist: {temp_dir}")
+            if not os.access(temp_dir, os.W_OK):
+                raise OSError(f"No write permission to temp directory: {temp_dir}")
+        except Exception as e:
+            # 방법 2: 현재 작업 디렉토리의 temp_nifti 폴더 사용
             try:
-                # 파일 쓰기
-                with open(tmp_file_path, 'wb') as tmp_file:
-                    tmp_file.write(file_data)
-                    tmp_file.flush()
-                
-                # 파일이 실제로 존재하는지 확인
-                if not os.path.exists(tmp_file_path):
-                    raise IOError(f"Temporary file was not created: {tmp_file_path}")
-                
-                # 임시 파일에서 NIfTI 로드
-                nii_img = nib.load(tmp_file_path)
-            finally:
-                # 임시 파일 삭제
-                if os.path.exists(tmp_file_path):
-                    try:
-                        os.unlink(tmp_file_path)
-                    except Exception as cleanup_error:
-                        # 삭제 실패는 무시 (로그만 출력)
-                        print(f"Warning: Could not delete temporary file {tmp_file_path}: {cleanup_error}")
+                temp_dir = os.path.join(os.getcwd(), 'temp_nifti')
+                os.makedirs(temp_dir, exist_ok=True)
+                if not os.access(temp_dir, os.W_OK):
+                    raise OSError(f"No write permission to temp directory: {temp_dir}")
+            except Exception as e2:
+                # 방법 3: 프로젝트 루트의 temp_nifti 폴더 사용
+                try:
+                    # Django 프로젝트 루트 찾기 (settings.py가 있는 디렉토리)
+                    import django
+                    from django.conf import settings
+                    if hasattr(settings, 'BASE_DIR'):
+                        temp_dir = os.path.join(settings.BASE_DIR, 'temp_nifti')
+                    else:
+                        # BASE_DIR이 없으면 현재 파일의 상위 디렉토리 사용
+                        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                        project_root = os.path.dirname(os.path.dirname(current_file_dir))
+                        temp_dir = os.path.join(project_root, 'temp_nifti')
+                    os.makedirs(temp_dir, exist_ok=True)
+                except Exception as e3:
+                    raise OSError(f"Could not create or access temp directory. Tried: {tempfile.gettempdir()}, {os.path.join(os.getcwd(), 'temp_nifti')}, {temp_dir}. Errors: {e}, {e2}, {e3}")
+        
+        # 임시 파일 경로 생성
+        tmp_file_path = os.path.join(temp_dir, f"nifti_{uuid.uuid4().hex}{file_suffix}")
+        
+        try:
+            # 파일 쓰기 (명시적으로 바이너리 모드)
+            with open(tmp_file_path, 'wb') as tmp_file:
+                tmp_file.write(file_data)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())  # 디스크에 강제 쓰기
+            
+            # 파일이 실제로 존재하고 읽을 수 있는지 확인
+            if not os.path.exists(tmp_file_path):
+                raise IOError(f"Temporary file was not created: {tmp_file_path}")
+            if not os.access(tmp_file_path, os.R_OK):
+                raise IOError(f"Temporary file is not readable: {tmp_file_path}")
+            
+            # 파일 크기 확인
+            file_size = os.path.getsize(tmp_file_path)
+            if file_size == 0:
+                raise IOError(f"Temporary file is empty: {tmp_file_path}")
+            if file_size != len(file_data):
+                raise IOError(f"Temporary file size mismatch: expected {len(file_data)}, got {file_size}")
+            
+            # 임시 파일에서 NIfTI 로드
+            nii_img = nib.load(tmp_file_path)
+            
+        except Exception as load_error:
+            # 오류 발생 시 상세 정보 포함
+            error_msg = f"Failed to load NIfTI from temporary file: {load_error}"
+            if tmp_file_path:
+                error_msg += f"\nTemp file path: {tmp_file_path}"
+                error_msg += f"\nTemp file exists: {os.path.exists(tmp_file_path) if tmp_file_path else False}"
+                if tmp_file_path and os.path.exists(tmp_file_path):
+                    error_msg += f"\nTemp file size: {os.path.getsize(tmp_file_path)}"
+            raise IOError(error_msg) from load_error
+            
+        finally:
+            # 임시 파일 삭제
+            if tmp_file_path and os.path.exists(tmp_file_path):
+                try:
+                    os.unlink(tmp_file_path)
+                except Exception as cleanup_error:
+                    # 삭제 실패는 경고만 출력 (치명적이지 않음)
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not delete temporary file {tmp_file_path}: {cleanup_error}")
     elif isinstance(nifti_file, (str, Path)):
         # 파일 경로인 경우
         nii_img = nib.load(str(nifti_file))
