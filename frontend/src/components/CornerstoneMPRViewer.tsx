@@ -22,7 +22,7 @@ import {
 } from '@cornerstonejs/tools';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Grid3x3, Loader2 } from 'lucide-react';
+import { Grid3x3 } from 'lucide-react';
 import { initCornerstone, createImageId, WINDOW_LEVEL_PRESETS } from '@/lib/cornerstone';
 
 interface CornerstoneMPRViewerProps {
@@ -130,10 +130,14 @@ export default function CornerstoneMPRViewer({
         console.log('[MPR Volume] ✅ Volume created, loading...');
 
         // Volume 로드 (픽셀 데이터 로드)
-        volume.load((progress: { loaded: number; total: number }) => {
-          const percent = 50 + (progress.loaded / progress.total) * 30;
-          setLoadingProgress(Math.round(percent));
-          console.log(`[MPR Volume] 📊 Loading progress: ${Math.round(percent)}%`);
+        volume.load((...args: unknown[]) => {
+          // @ts-ignore - volume.load callback type is not properly typed
+          const progress = args[0] as { loaded: number; total: number };
+          if (progress && typeof progress.loaded === 'number' && typeof progress.total === 'number') {
+            const percent = 50 + (progress.loaded / progress.total) * 30;
+            setLoadingProgress(Math.round(percent));
+            console.log(`[MPR Volume] 📊 Loading progress: ${Math.round(percent)}%`);
+          }
         });
 
         setLoadingProgress(80);
@@ -141,6 +145,12 @@ export default function CornerstoneMPRViewer({
 
         // 3개의 Volume 뷰포트 생성 (Axial, Sagittal, Coronal)
         console.log('[MPR Volume] 🖼️ Setting up MPR viewports...');
+        
+        // Null 체크
+        if (!axialRef.current || !sagittalRef.current || !coronalRef.current) {
+          throw new Error('Viewport elements are not ready');
+        }
+        
         const viewportInputArray: Types.PublicViewportInput[] = [
           {
             viewportId: 'MPR_AXIAL',
