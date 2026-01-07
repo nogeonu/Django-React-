@@ -24,7 +24,6 @@ import {
 } from '@cornerstonejs/tools';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Slider } from '@/components/ui/slider';
 import {
   Ruler,
   Square,
@@ -732,22 +731,6 @@ export default function CornerstoneViewer({
               {activeTool === ProbeTool.toolName && '🔍 클릭하여 픽셀 값 확인'}
             </Badge>
           )}
-        </div>
-      </div>
-
-      {/* 슬라이더 */}
-      <div className="bg-gray-800 border-t border-gray-700 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <span className="text-white text-sm min-w-[120px]">
-            {currentIndex + 1} / {instanceIds.length}
-          </span>
-          <Slider
-            value={[currentIndex]}
-            onValueChange={(value) => onIndexChange(value[0])}
-            max={instanceIds.length - 1}
-            step={1}
-            className="flex-1"
-          />
         </div>
       </div>
     </div>
