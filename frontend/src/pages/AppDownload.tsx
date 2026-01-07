@@ -78,7 +78,7 @@ export default function AppDownload() {
               MOBILE APP DOWNLOAD
             </p>
             <h1 className="text-2xl font-bold text-slate-800">
-              건양대학교병원 환자 앱
+              CDSS 메디컬 센터 환자 앱
             </h1>
             <p className="text-sm text-slate-500">
               언제 어디서나 간편하게 진료 예약, 건강 기록 확인, 의료진과의 소통이 가능합니다.

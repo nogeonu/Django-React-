@@ -89,13 +89,13 @@ function PatientLogin() {
         <div className="mb-10 flex items-center justify-center md:justify-start">
           <Link to="/" className="flex flex-col items-center text-center md:flex-row md:items-center md:gap-4 md:text-left">
             <div className="rounded-full bg-primary/10 px-4 py-2 text-lg font-bold text-primary shadow-sm">
-              KYUH
+              CDSS
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
-                Konyang University Hospital
+                CDSS Medical Center
               </p>
-              <p className="text-base font-bold text-slate-700 md:text-lg">건양대학교병원 환자 포털</p>
+              <p className="text-base font-bold text-slate-700 md:text-lg">CDSS 메디컬 센터 환자 포털</p>
             </div>
           </Link>
         </div>
@@ -179,7 +179,7 @@ function PatientLogin() {
         </Card>
 
         <div className="mt-8 text-center text-xs text-slate-400 md:text-left">
-          © {new Date().getFullYear()} Konyang University Hospital Patient Portal. All rights reserved.
+          © {new Date().getFullYear()} CDSS Medical Center Patient Portal. All rights reserved.
         </div>
       </div>
     </div>
