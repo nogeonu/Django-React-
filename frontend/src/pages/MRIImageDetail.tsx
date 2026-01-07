@@ -187,10 +187,10 @@ export default function MRIImageDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-gray-950 text-white w-full h-screen overflow-hidden">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
-        <div className="container mx-auto px-6 py-4">
+        <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -227,8 +227,8 @@ export default function MRIImageDetail() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="w-full h-[calc(100vh-73px)] px-6 py-4 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
           {/* Left: Controls */}
           <div className="lg:col-span-3 space-y-4">
             <Card className="bg-gray-900 border-gray-800 rounded-2xl overflow-hidden">
@@ -379,9 +379,9 @@ export default function MRIImageDetail() {
           </div>
 
           {/* Right: Image Viewer */}
-          <div className="lg:col-span-9">
-            <Card className={`bg-gray-900 border-gray-800 rounded-2xl overflow-hidden ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>
-              <CardContent className={`p-0 ${isFullscreen ? 'h-screen' : 'h-[calc(100vh-12rem)]'}`}>
+          <div className="lg:col-span-9 h-full">
+            <Card className={`bg-gray-900 border-gray-800 rounded-2xl overflow-hidden h-full ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>
+              <CardContent className={`p-0 h-full ${isFullscreen ? 'h-screen' : ''}`}>
                 {orthancImages.length > 0 ? (
                   <div className="relative h-full">
                     {/* Cornerstone Viewer */}

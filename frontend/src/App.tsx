@@ -51,6 +51,9 @@ function AppContentInner() {
     "/app-download",
   ].includes(location.pathname);
 
+  // MRIImageDetail 페이지는 사이드바 숨김 (전체 화면)
+  const isMriImageDetail = location.pathname.startsWith("/mri-viewer/") && location.pathname !== "/mri-viewer";
+
   const medicalStaffRoutes = (
     <Routes>
       <Route
@@ -126,14 +129,6 @@ function AppContentInner() {
         }
       />
       <Route
-        path="/mri-viewer/:patientId"
-        element={
-          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-            <MRIImageDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/lung-cancer"
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
@@ -164,9 +159,9 @@ function AppContentInner() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {!isPublicPage && <Sidebar />}
-      <div className={isPublicPage ? "flex-1" : "flex-1 ml-64"}>
-        {isPublicPage ? (
+      {!isPublicPage && !isMriImageDetail && <Sidebar />}
+      <div className={isPublicPage || isMriImageDetail ? "flex-1" : "flex-1 ml-64"}>
+        {isPublicPage || isMriImageDetail ? (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -177,6 +172,14 @@ function AppContentInner() {
             <Route path="/patient/records" element={<PatientMedicalRecords />} />
             <Route path="/patient/doctors" element={<PatientDoctors />} />
             <Route path="/app-download" element={<AppDownload />} />
+            <Route
+              path="/mri-viewer/:patientId"
+              element={
+                <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+                  <MRIImageDetail />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         ) : (
