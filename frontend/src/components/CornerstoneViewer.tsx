@@ -271,7 +271,7 @@ export default function CornerstoneViewer({
   // 슬라이스 변경 (requestAnimationFrame으로 최적화)
   useEffect(() => {
     if (!renderingEngineRef.current) return;
-    
+
     // 이미 렌더링된 인덱스면 스킵 (휠 이벤트에서 이미 처리됨)
     if (lastRenderedIndexRef.current === currentIndex) {
       return;
@@ -303,7 +303,7 @@ export default function CornerstoneViewer({
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    const preloadRange = 2; // 현재 ±2개 이미지 프리로드 (안정적)
+    const preloadRange = 5; // 현재 ±5개 이미지 프리로드 (빠른 스크롤 대응)
     const indicesToPreload: number[] = [];
 
     for (let i = -preloadRange; i <= preloadRange; i++) {
@@ -326,7 +326,7 @@ export default function CornerstoneViewer({
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    const initialBatchSize = Math.min(3, instanceIds.length);
+    const initialBatchSize = Math.min(10, instanceIds.length);
     const initialIndices: number[] = [];
 
     for (let i = 0; i < initialBatchSize; i++) {
@@ -526,36 +526,27 @@ export default function CornerstoneViewer({
         onWheel={(e) => {
           if (instanceIds.length === 0 || !renderingEngineRef.current) return;
           e.preventDefault();
-          
+
           const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
           if (!viewport) return;
-          
-          // 스크롤 속도에 따라 delta 조정
-          const scrollStep = Math.abs(e.deltaY) > 50 ? Math.floor(Math.abs(e.deltaY) / 50) : 1;
-          const delta = e.deltaY > 0 ? scrollStep : -scrollStep;
+
+          // 더 민감한 스크롤 감도 (VolView 스타일)
+          const delta = e.deltaY > 0 ? 1 : -1;
           const newIndex = Math.max(0, Math.min(instanceIds.length - 1, currentIndex + delta));
-          
-          if (newIndex !== lastRenderedIndexRef.current) {
-            // 이전 RAF 취소
-            if (rafIdRef.current !== null) {
-              cancelAnimationFrame(rafIdRef.current);
+
+          if (newIndex !== currentIndex) {
+            try {
+              // 즉시 viewport 업데이트 (RAF 없이 직접 렌더링)
+              // @ts-ignore
+              viewport.setImageIdIndex(newIndex);
+              viewport.render();
+              lastRenderedIndexRef.current = newIndex;
+
+              // 부모 상태는 debounce로 나중에 동기화
+              onIndexChange(newIndex);
+            } catch (error) {
+              console.error('Failed to render slice:', error);
             }
-            
-            // RAF로 렌더링 스케줄링 (프레임 드롭 방지)
-            rafIdRef.current = requestAnimationFrame(() => {
-              try {
-                // @ts-ignore
-                viewport.setImageIdIndex(newIndex);
-                viewport.render();
-                lastRenderedIndexRef.current = newIndex;
-                
-                // 부모 컴포넌트 상태 동기화 (RAF 내에서 처리)
-                onIndexChange(newIndex);
-              } catch (error) {
-                console.error('Failed to render slice:', error);
-              }
-              rafIdRef.current = null;
-            });
           }
         }}
       >
