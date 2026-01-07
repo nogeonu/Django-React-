@@ -175,9 +175,9 @@ function AppContentInner() {
             <Route
               path="/mri-viewer/:patientId"
               element={
-                <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
                   <MRIImageDetail />
-                </ProtectedRoute>
+              </ProtectedRoute>
               }
             />
             <Route path="*" element={<NotFound />} />

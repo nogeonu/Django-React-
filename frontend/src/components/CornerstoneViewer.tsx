@@ -78,7 +78,7 @@ export default function CornerstoneViewer({
     const initialize = async () => {
       try {
         await initCornerstone();
-
+        
         // 측정 도구 등록
         addTool(LengthTool);
         addTool(ProbeTool);
@@ -141,23 +141,23 @@ export default function CornerstoneViewer({
             renderingEngine.enableElement(viewportInput);
             viewport = renderingEngine.getViewport(viewportId);
           }
-        } catch (e) {
+          } catch (e) {
           // 뷰포트가 없으면 새로 생성
           viewport = null;
         }
 
         // 뷰포트가 없을 때만 새로 생성
         if (!viewport) {
-          const viewportInput = {
-            viewportId,
-            type: Enums.ViewportType.STACK,
-            element,
-            defaultOptions: {
-              background: [0, 0, 0] as Types.Point3,
-            },
-          };
+        const viewportInput = {
+          viewportId,
+          type: Enums.ViewportType.STACK,
+          element,
+          defaultOptions: {
+            background: [0, 0, 0] as Types.Point3,
+          },
+        };
 
-          renderingEngine.enableElement(viewportInput);
+        renderingEngine.enableElement(viewportInput);
           viewport = renderingEngine.getViewport(viewportId);
         }
 
@@ -181,14 +181,14 @@ export default function CornerstoneViewer({
             setIsImageLoading(false);
           } else {
             // 큰 데이터셋은 기존 방식 유지
-            // @ts-ignore - Stack viewport specific method
+          // @ts-ignore - Stack viewport specific method
             await viewport.setStack(imageIds, currentIndex).catch((err: any) => {
               console.warn('Failed to load some images, but continuing:', err);
             });
-            // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
-            viewport.render();
+          // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
+          viewport.render();
           }
-
+          
           // DICOM 메타데이터에서 Window/Level 가져오기
           if (isSmallDataset) {
             // 작은 데이터셋: 비동기로 Window/Level 설정 (로딩 블로킹 없음)
@@ -222,32 +222,32 @@ export default function CornerstoneViewer({
             }, 100);
           } else {
             // 큰 데이터셋: 기존 방식 (동기 처리)
-            try {
-              // @ts-ignore
-              const image = viewport.getImageData();
-              if (image) {
-                const dicomWindowWidth = image.windowWidth?.[0];
-                const dicomWindowCenter = image.windowCenter?.[0];
-
-                if (dicomWindowWidth && dicomWindowCenter) {
-                  console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
-                  setWindowLevel({
-                    windowWidth: dicomWindowWidth,
-                    windowCenter: dicomWindowCenter,
-                  });
-
-                  // @ts-ignore
-                  viewport.setProperties({
-                    voiRange: {
-                      lower: dicomWindowCenter - dicomWindowWidth / 2,
-                      upper: dicomWindowCenter + dicomWindowWidth / 2,
-                    },
-                  });
-                  viewport.render();
-                }
+          try {
+            // @ts-ignore
+            const image = viewport.getImageData();
+            if (image) {
+              const dicomWindowWidth = image.windowWidth?.[0];
+              const dicomWindowCenter = image.windowCenter?.[0];
+              
+              if (dicomWindowWidth && dicomWindowCenter) {
+                console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
+                setWindowLevel({
+                  windowWidth: dicomWindowWidth,
+                  windowCenter: dicomWindowCenter,
+                });
+                
+                // @ts-ignore
+                viewport.setProperties({
+                  voiRange: {
+                    lower: dicomWindowCenter - dicomWindowWidth / 2,
+                    upper: dicomWindowCenter + dicomWindowWidth / 2,
+                  },
+                });
+                viewport.render();
               }
-            } catch (e) {
-              console.warn('Could not read DICOM Window/Level, using defaults', e);
+            }
+          } catch (e) {
+            console.warn('Could not read DICOM Window/Level, using defaults', e);
             }
           }
         }
@@ -302,7 +302,7 @@ export default function CornerstoneViewer({
           // 이 렌더링 엔진에 다른 뷰포트가 없으면 완전히 destroy
           if (viewportIds.length === 0 || (viewportIds.length === 1 && viewportIds[0] === viewportId)) {
             console.log(`Destroying rendering engine: ${renderingEngineId}`);
-            renderingEngineRef.current.destroy();
+          renderingEngineRef.current.destroy();
             renderingEngineCache.delete(renderingEngineId);
           }
         } catch (e) {
@@ -310,7 +310,7 @@ export default function CornerstoneViewer({
         }
       }
 
-      renderingEngineRef.current = null;
+        renderingEngineRef.current = null;
     };
   }, [isInitialized, instanceIds]); // 원래대로 복구
 
@@ -524,15 +524,15 @@ export default function CornerstoneViewer({
 
         // 도구 추가 (이미 추가된 경우 무시됨)
         try {
-          toolGroup.addTool(WindowLevelTool.toolName);
-          toolGroup.addTool(PanTool.toolName);
-          toolGroup.addTool(ZoomTool.toolName);
-          toolGroup.addTool(LengthTool.toolName);
-          toolGroup.addTool(ProbeTool.toolName);
-          toolGroup.addTool(RectangleROITool.toolName);
-          toolGroup.addTool(EllipticalROITool.toolName);
-          toolGroup.addTool(BidirectionalTool.toolName);
-          toolGroup.addTool(AngleTool.toolName);
+        toolGroup.addTool(WindowLevelTool.toolName);
+        toolGroup.addTool(PanTool.toolName);
+        toolGroup.addTool(ZoomTool.toolName);
+        toolGroup.addTool(LengthTool.toolName);
+        toolGroup.addTool(ProbeTool.toolName);
+        toolGroup.addTool(RectangleROITool.toolName);
+        toolGroup.addTool(EllipticalROITool.toolName);
+        toolGroup.addTool(BidirectionalTool.toolName);
+        toolGroup.addTool(AngleTool.toolName);
         } catch (e) {
           // 도구가 이미 추가되어 있으면 무시
         }
@@ -599,9 +599,9 @@ export default function CornerstoneViewer({
             variant={activeTool === WindowLevelTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(WindowLevelTool.toolName)}
             className={`h-9 transition-all ${activeTool === WindowLevelTool.toolName
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-              }`}
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+            }`}
           >
             <Sun className="w-4 h-4 mr-1" />
             윈도우/레벨
@@ -612,9 +612,9 @@ export default function CornerstoneViewer({
             variant={activeTool === LengthTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(LengthTool.toolName)}
             className={`h-9 transition-all ${activeTool === LengthTool.toolName
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-              }`}
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+            }`}
           >
             <Ruler className="w-4 h-4 mr-1" />
             거리 측정
@@ -624,9 +624,9 @@ export default function CornerstoneViewer({
             variant={activeTool === RectangleROITool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(RectangleROITool.toolName)}
             className={`h-9 transition-all ${activeTool === RectangleROITool.toolName
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-              }`}
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+            }`}
           >
             <Square className="w-4 h-4 mr-1" />
             사각형 ROI
@@ -636,9 +636,9 @@ export default function CornerstoneViewer({
             variant={activeTool === EllipticalROITool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(EllipticalROITool.toolName)}
             className={`h-9 transition-all ${activeTool === EllipticalROITool.toolName
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-              }`}
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+            }`}
           >
             <Circle className="w-4 h-4 mr-1" />
             타원 ROI
@@ -648,9 +648,9 @@ export default function CornerstoneViewer({
             variant={activeTool === ProbeTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(ProbeTool.toolName)}
             className={`h-9 transition-all ${activeTool === ProbeTool.toolName
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-              }`}
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+            }`}
           >
             <MousePointer2 className="w-4 h-4 mr-1" />
             픽셀 값
@@ -659,7 +659,7 @@ export default function CornerstoneViewer({
       )}
 
       {/* 뷰포트 */}
-      <div
+      <div 
         className="flex-1 relative"
         onWheel={(e) => {
           if (instanceIds.length === 0 || !renderingEngineRef.current) return;

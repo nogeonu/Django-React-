@@ -183,3 +183,4 @@ def orthanc_instance_file(request, instance_id):
 - [ ] 시스템 정보 확인 (설정 반영 확인)
 - [ ] 성능 테스트 (유방촬영술 로딩 속도 확인)
 
+

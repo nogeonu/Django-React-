@@ -1,20 +1,24 @@
 import { Link } from "react-router-dom";
-import heroImage from "@/assets/doctor-bg.jpg";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Calendar,
-  Clock,
-  Download,
-  Info,
-  MapPin,
-  ParkingCircle,
-  PhoneCall,
-  Pill,
+  ArrowRight,
+  Activity,
+  Brain,
+  ShieldCheck,
   Stethoscope,
+  CalendarCheck,
+  Search,
+  FileText,
   Bot,
+  MapPin,
+  Info,
+  Clock,
+  Pill,
+  ParkingCircle,
 } from "lucide-react";
 
 const navItems = [
@@ -24,45 +28,6 @@ const navItems = [
   { label: "병원소개", link: "#about" },
 ];
 
-const heroQuickLinks = [
-  { icon: MapPin, label: "찾아오시는길", link: "#map" },
-  { icon: PhoneCall, label: "전화번호 안내", link: "#contact" },
-  {
-    icon: Info,
-    label: "진료 내역 조회",
-    link: "/patient/records",
-    requiresPatient: true,
-  },
-  { icon: Calendar, label: "증명서발급", link: "#certificate" },
-  { icon: Download, label: "앱 다운로드", link: "/app-download" },
-  { icon: Stethoscope, label: "의료진 소개", link: "/patient/doctors" },
-  { icon: Clock, label: "진료시간 안내", link: "#schedule" },
-  { icon: Pill, label: "검진센터", link: "#checkup" },
-];
-
-const quickCallouts = [
-  {
-    title: "진료과 · 의료진 검색",
-    content: "전문의 정보를 확인하고 예약하세요",
-    link: "/patient/doctors",
-  },
-  {
-    title: "온라인 진료예약",
-    content: "모바일로 빠르게 진료 예약하기",
-    link: "/patient/login",
-  },
-  {
-    title: "진료예약 조회",
-    content: "예약 내역과 대기 순번을 실시간 확인",
-    link: "/patient/login",
-  },
-  {
-    title: "마이페이지",
-    content: "내 정보를 확인하고 업데이트하세요",
-    link: "/patient/mypage",
-    requiresPatient: true,
-  },
-];
 
 const quickServices = [
   {
@@ -78,7 +43,7 @@ const quickServices = [
     link: "/patient/doctors",
   },
   {
-    icon: Calendar,
+    icon: CalendarCheck,
     title: "온라인 진료예약",
     description: "모바일로 빠르게 진료 예약하기",
     link: "/patient/login",
@@ -132,6 +97,7 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Header */}
       <header>
         <div className="border-b bg-slate-100">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-2 text-xs text-slate-600">
@@ -202,144 +168,234 @@ function Home() {
       </header>
 
       <main>
-        <section
-          className="relative overflow-hidden"
-          style={{
-            backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${heroImage})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-14 text-white md:grid-cols-[2fr,1fr]">
-            <div className="space-y-5">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
-                생명존중 · 인간사랑을 실천하는
-              </h2>
-              <p className="text-3xl font-bold leading-snug md:text-4xl">
-                세계속의 건양대학교병원
+        {/* Hero Section - 새로운 디자인 */}
+        <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-slate-50">
+          {/* Background Image with Overlay */}
+          <div className="absolute inset-0 z-0">
+            <img 
+              src="/images/hero-bg.jpg" 
+              alt="Futuristic Hospital Lobby" 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/70 to-transparent"></div>
+          </div>
+
+          <div className="container mx-auto relative z-10 pt-20 px-6">
+            <div className="max-w-2xl animate-in slide-in-from-left-10 duration-1000 fade-in">
+              <Badge className="mb-6 bg-primary/10 text-primary hover:bg-primary/20 border-primary/20 px-4 py-1.5 text-sm backdrop-blur-sm">
+                <Activity className="w-3.5 h-3.5 mr-2 animate-pulse" />
+                Next Generation Medical AI
+              </Badge>
+              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
+                미래 의료의 기준,<br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">CDSS 메디컬 센터</span>
+              </h1>
+              <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-lg">
+                최첨단 AI 진단 시스템과 전문 의료진의 협진으로<br/>
+                당신의 건강한 삶을 위한 가장 정확한 답을 제시합니다.
               </p>
-              <p className="max-w-xl text-base text-white/90 md:text-lg">
-                환자 안전과 편의를 최우선으로 생각하는 스마트 병원 서비스.
-                온라인 예약부터 증명서 발급까지 One-Stop으로 경험해보세요.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  to="/patient/login"
-                  className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90"
-                >
-                  진료예약 바로가기
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/patient/login">
+                  <Button size="lg" className="h-14 px-8 text-lg bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full">
+                    진료 예약하기 <ArrowRight className="ml-2 w-5 h-5" />
+                  </Button>
                 </Link>
-                <Link
-                  to="#guide"
-                  className="rounded-full border border-white/60 px-6 py-2 text-sm font-semibold text-white hover:bg-white/10"
-                >
-                  이용안내 보기
+                <Link to="/patient/doctors">
+                  <Button size="lg" variant="outline" className="h-14 px-8 text-lg bg-white/50 backdrop-blur-sm border-slate-300 hover:bg-white rounded-full">
+                    의료진 찾기 <Search className="ml-2 w-5 h-5" />
+                  </Button>
                 </Link>
               </div>
             </div>
-            <Card className="bg-white/95 text-slate-900 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold">간편 안내</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                <div className="rounded-lg bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">
-                  전화예약(초진) 051-797-3500
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <Link
-                    to="/patient/login"
-                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
-                  >
-                    온라인 예약
-                  </Link>
-                  <Link
-                    to="/patient/login"
-                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
-                  >
-                    예약 조회
-                  </Link>
-                  <Link
-                    to={patientUser ? "/patient/records" : "/patient/login"}
-                    className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
-                  >
-                    진료 내역 조회
-                  </Link>
-                  {patientUser ? (
-                    <Link
-                      to="/patient/mypage"
-                      className="flex h-20 flex-col items-center justify-center rounded-md border border-primary/30 bg-primary/5 px-3 py-2 font-semibold text-primary hover:underline"
-                    >
-                      {patientUser.name}님
-                      <span className="text-xs">마이페이지</span>
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/patient/login"
-                      className="flex h-20 flex-col items-center justify-center rounded-md border border-slate-200 px-3 py-2 font-medium text-slate-700 hover:border-primary/50 hover:text-primary"
-                    >
-                      환자 로그인
-                    </Link>
-                  )}
-                </div>
-                <p className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                  모바일 앱에서 진료과·의료진을 선택하고 희망 날짜를 지정하세요.
-                  접수 현황과 대기 순번을 실시간으로 확인할 수 있습니다.
-                </p>
-              </CardContent>
-            </Card>
           </div>
-          <div className="bg-white/90 py-6">
-            <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-6 md:grid-cols-4 lg:grid-cols-8">
-              {heroQuickLinks.map((item) => (
-                <Link
-                  key={item.label}
-                  to={
-                    item.requiresPatient && !patientUser
-                      ? "/patient/login"
-                      : item.link
-                  }
-                  className="flex flex-col items-center justify-center gap-2 rounded-md border border-white/0 bg-slate-50 py-4 text-center text-xs font-semibold text-slate-700 transition hover:-translate-y-1 hover:border-primary/40 hover:bg-white hover:text-primary"
-                >
-                  <span className="rounded-full bg-primary/10 p-2 text-primary">
-                    <item.icon className="h-5 w-5" />
-                  </span>
-                  {item.label}
+
+          {/* Floating Stats Card */}
+          <div className="absolute bottom-10 right-10 hidden lg:block animate-in slide-in-from-bottom-10 duration-1000 delay-300 fade-in">
+            <div className="glass-panel p-6 rounded-2xl max-w-xs backdrop-blur-md bg-white/90 shadow-xl">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                  <Brain className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">AI 진단 정확도</p>
+                  <p className="text-2xl font-bold text-slate-900">99.8%</p>
+                </div>
+              </div>
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-accent w-[99.8%]"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Access Menu */}
+        <section className="relative z-20 -mt-20 pb-20">
+          <div className="container mx-auto px-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[
+                { icon: CalendarCheck, title: "간편 예약", desc: "모바일로 쉽고 빠르게", link: "/patient/login" },
+                { icon: Search, title: "진료과 찾기", desc: "증상별 맞춤 진료과", link: "/patient/doctors" },
+                { icon: FileText, title: "제증명 발급", desc: "온라인 즉시 발급", link: "#certificate" },
+                { icon: Stethoscope, title: "건강검진", desc: "나만을 위한 맞춤 검진", link: "#checkup" }
+              ].map((item, idx) => (
+                <Link key={idx} to={item.link}>
+                  <Card className="border-none shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white overflow-hidden group cursor-pointer">
+                    <CardContent className="p-8 flex flex-col items-center text-center relative">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full -mr-4 -mt-4 group-hover:bg-primary/10 transition-colors"></div>
+                      <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <item.icon className="w-8 h-8" />
+                      </div>
+                      <h3 className="text-xl font-bold mb-2 text-slate-900">{item.title}</h3>
+                      <p className="text-slate-600">{item.desc}</p>
+                    </CardContent>
+                  </Card>
                 </Link>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="bg-white" id="reservations">
-          <div className="mx-auto max-w-6xl px-6 py-10">
-            <div className="grid gap-4 md:grid-cols-4">
-              {quickCallouts.map((item) => {
-                const resolvedLink =
-                  item.requiresPatient && !patientUser
-                    ? "/patient/login"
-                    : (item.link ?? "#");
-                return (
-                  <Link
-                    key={item.title}
-                    to={resolvedLink}
-                    className="flex h-full min-h-[120px] flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-700 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow"
-                  >
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Quick
-                    </span>
-                    <div className="mt-2 space-y-2">
-                      <p className="text-base font-bold">{item.title}</p>
-                      <p className="text-sm text-slate-600">{item.content}</p>
+        {/* AI Diagnosis Section */}
+        <section className="py-24 bg-slate-50 overflow-hidden">
+          <div className="container mx-auto px-6">
+            <div className="flex flex-col lg:flex-row items-center gap-16">
+              <div className="lg:w-1/2 relative">
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-8 border-white">
+                  <img 
+                    src="/images/ai-diagnosis.jpg" 
+                    alt="AI Diagnosis System" 
+                    className="w-full h-auto hover:scale-105 transition-transform duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-8">
+                    <div className="text-white">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-accent text-white border-none">CDSS v2.0</Badge>
+                        <span className="text-sm font-medium text-white/80">실시간 분석 중</span>
+                      </div>
+                      <p className="font-medium">환자 데이터 실시간 동기화 및 분석</p>
                     </div>
-                  </Link>
-                );
-              })}
+                  </div>
+                </div>
+                {/* Decorative Elements */}
+                <div className="absolute -top-10 -left-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl"></div>
+              </div>
+              
+              <div className="lg:w-1/2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-bold mb-6">
+                  <Brain className="w-4 h-4" />
+                  <span>Intelligent Healthcare</span>
+                </div>
+                <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight text-slate-900">
+                  AI가 더하는<br/>
+                  <span className="text-primary">정확함의 깊이</span>
+                </h2>
+                <p className="text-lg text-slate-600 mb-8 leading-relaxed">
+                  CDSS(Clinical Decision Support System)는 수만 건의 임상 데이터를 학습한 AI가 의료진의 진단을 보조하여, 오진율을 획기적으로 낮추고 최적의 치료 계획을 수립하도록 돕습니다.
+                </p>
+                
+                <div className="space-y-6">
+                  {[
+                    { title: "실시간 데이터 분석", desc: "환자의 생체 신호를 실시간으로 모니터링하고 이상 징후를 즉시 감지합니다." },
+                    { title: "정밀 영상 판독", desc: "MRI, CT 등 의료 영상을 AI가 픽셀 단위로 분석하여 미세한 병변까지 찾아냅니다." },
+                    { title: "맞춤형 치료 제안", desc: "유전체 정보와 생활 습관을 분석하여 개인별 최적의 치료법을 제시합니다." }
+                  ].map((feature, idx) => (
+                    <div key={idx} className="flex gap-4 p-4 rounded-xl hover:bg-white hover:shadow-md transition-all duration-300 border border-transparent hover:border-slate-100">
+                      <div className="mt-1 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-bold mb-1 text-slate-900">{feature.title}</h4>
+                        <p className="text-slate-600">{feature.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section id="quick-services" className="bg-white">
-          <div className="mx-auto max-w-6xl px-6 pb-12">
+        {/* Medical Staff Section */}
+        <section className="py-24 bg-white">
+          <div className="container mx-auto px-6">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <h2 className="text-4xl font-bold mb-4 text-slate-900">최고의 의료진</h2>
+              <p className="text-lg text-slate-600">
+                각 분야 최고의 전문의들이 첨단 시스템과 함께 당신의 건강을 지킵니다.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {[
+                { name: "김태훈 교수", dept: "순환기내과", img: "/images/doctor-1.jpg", desc: "심장질환 AI 진단 권위자" },
+                { name: "이서연 교수", dept: "신경외과", img: "/images/doctor-2.jpg", desc: "뇌혈관 정밀 수술 전문" },
+                { name: "박준형 교수", dept: "정형외과", img: "/images/doctor-1.jpg", desc: "로봇 인공관절 수술 전문" },
+                { name: "최지민 교수", dept: "소아청소년과", img: "/images/doctor-2.jpg", desc: "소아 희귀질환 전문" }
+              ].map((doctor, idx) => (
+                <div key={idx} className="group relative overflow-hidden rounded-2xl bg-slate-50">
+                  <div className="aspect-[4/5] overflow-hidden">
+                    <img 
+                      src={doctor.img} 
+                      alt={doctor.name} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                    <p className="text-accent font-medium text-sm mb-1">{doctor.dept}</p>
+                    <h3 className="text-2xl font-bold mb-2">{doctor.name}</h3>
+                    <p className="text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                      {doctor.desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="text-center mt-12">
+              <Link to="/patient/doctors">
+                <Button variant="outline" size="lg" className="rounded-full px-8 border-primary text-primary hover:bg-primary hover:text-white">
+                  의료진 전체보기
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* CDSS Platform Access Banner */}
+        <section className="py-20 relative overflow-hidden">
+          <div className="absolute inset-0">
+            <img 
+              src="/images/medical-tech.jpg" 
+              alt="Medical Tech Background" 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-primary/90 mix-blend-multiply"></div>
+          </div>
+          
+          <div className="container mx-auto relative z-10 text-center text-white px-6">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">의료진 전용 플랫폼</h2>
+            <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
+              CDSS(Clinical Decision Support System)는 의료진을 위한 통합 진료 지원 시스템입니다.<br/>
+              권한이 있는 의료진만 접속 가능합니다.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link to="/login">
+                <Button size="lg" className="bg-white text-primary hover:bg-white/90 h-14 px-8 text-lg rounded-full font-bold">
+                  CDSS 시스템 접속
+                </Button>
+              </Link>
+              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 h-14 px-8 text-lg rounded-full">
+                사용자 매뉴얼 다운로드
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Services */}
+        <section id="quick-services" className="bg-white py-12">
+          <div className="container mx-auto px-6">
             <div className="mb-8 flex items-center gap-3">
               <Info className="h-6 w-6 text-primary" />
               <h3 className="text-2xl font-semibold text-slate-800">
@@ -348,47 +404,45 @@ function Home() {
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {quickServices.map((service) => (
-                <Card key={service.title} className="h-full border-slate-200">
-                  <CardContent className="space-y-4 pt-6">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                        <service.icon className="h-6 w-6" />
+                <Link key={service.title} to={service.link}>
+                  <Card className="h-full border-slate-200 hover:shadow-md transition-shadow">
+                    <CardContent className="space-y-4 pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                          <service.icon className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-semibold text-slate-800">
+                            {service.title}
+                          </h4>
+                          <p className="text-sm text-slate-600">
+                            {service.description}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-lg font-semibold text-slate-800">
-                          {service.title}
-                        </h4>
-                        <p className="text-sm text-slate-600">
-                          {service.description}
-                        </p>
-                      </div>
-                    </div>
-                    <Link
-                      to={service.link}
-                      className="inline-flex items-center text-sm font-semibold text-primary hover:underline"
-                    >
-                      자세히 보기 →
-                    </Link>
-                  </CardContent>
-                </Card>
+                      <span className="inline-flex items-center text-sm font-semibold text-primary hover:underline">
+                        자세히 보기 →
+                      </span>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="notices" className="bg-slate-50">
-          <div className="mx-auto max-w-6xl px-6 py-12">
+        {/* Notices */}
+        <section id="notices" className="bg-slate-50 py-12">
+          <div className="container mx-auto px-6">
             <Card className="border-slate-200">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-slate-800">
+              <CardContent className="p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-slate-800 mb-4">
                   공지사항
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                </h3>
                 {notices.map((notice) => (
                   <div
                     key={notice.title}
-                    className="rounded-lg border border-slate-200 p-4"
+                    className="rounded-lg border border-slate-200 p-4 hover:bg-slate-50 transition-colors"
                   >
                     <h5 className="text-sm font-semibold text-slate-800">
                       {notice.title}
@@ -402,18 +456,20 @@ function Home() {
             </Card>
           </div>
         </section>
-      <Button
-        onClick={() =>
-          toast({ title: "챗봇 상담", description: "LLM 챗봇 서비스가 곧 제공될 예정입니다." })
-        }
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-blue-600 px-5 py-4 text-white shadow-lg transition hover:bg-blue-700"
-      >
-        <Bot className="h-5 w-5" />
-        <span className="text-sm font-semibold">챗봇 상담</span>
-      </Button>
 
+        {/* Chatbot Button */}
+        <Button
+          onClick={() =>
+            toast({ title: "챗봇 상담", description: "LLM 챗봇 서비스가 곧 제공될 예정입니다." })
+          }
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-blue-600 px-5 py-4 text-white shadow-lg transition hover:bg-blue-700"
+        >
+          <Bot className="h-5 w-5" />
+          <span className="text-sm font-semibold">챗봇 상담</span>
+        </Button>
       </main>
 
+      {/* Footer */}
       <footer className="border-t bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
           <div>
@@ -429,9 +485,9 @@ function Home() {
             <Link to="/patient/login" className="hover:text-primary">
               환자 서비스 안내
             </Link>
-            <Link to="#" className="hover:text-primary">
+            <span className="hover:text-primary cursor-pointer">
               개인정보 처리방침
-            </Link>
+            </span>
           </div>
         </div>
       </footer>
