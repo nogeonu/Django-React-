@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   ArrowRight, 
   Activity, 
   Brain, 
@@ -34,13 +34,13 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navItems = [
+const navItems = [
     { name: "병원소개", path: "#about" },
     { name: "진료안내", path: "/patient/doctors" },
     { name: "의료진소개", path: "/patient/doctors" },
     { name: "건강정보", path: "#health-info" },
     { name: "고객센터", path: "#contact" },
-  ];
+];
 
   return (
     <div className="min-h-screen flex flex-col bg-background font-sans">
@@ -248,8 +248,8 @@ export default function Home() {
                       </div>
                       <p className="font-medium">환자 데이터 실시간 동기화 및 분석</p>
                     </div>
-                  </div>
-                </div>
+            </div>
+          </div>
                 {/* Decorative Elements */}
                 <div className="absolute -top-10 -left-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl"></div>
@@ -259,7 +259,7 @@ export default function Home() {
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-bold mb-6">
                   <Brain className="w-4 h-4" />
                   <span>Intelligent Healthcare</span>
-                </div>
+            </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight text-foreground">
                   AI가 더하는<br/>
                   <span className="text-primary">정확함의 깊이</span>
@@ -323,8 +323,8 @@ export default function Home() {
                       {doctor.desc}
                     </p>
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
             </div>
             
             <div className="text-center mt-12">
@@ -363,7 +363,7 @@ export default function Home() {
               <Link to="/app-download">
                 <Button size="lg" className="bg-white text-primary hover:bg-white/90 h-14 px-8 text-lg rounded-full font-bold">
                   사용자 앱 다운로드
-                </Button>
+      </Button>
               </Link>
             </div>
           </div>
@@ -414,7 +414,7 @@ export default function Home() {
               </ul>
             </div>
             
-            <div>
+          <div>
               <h4 className="font-bold mb-6 text-foreground">고객 센터</h4>
               <div className="flex items-center gap-3 mb-4">
                 <Phone className="w-5 h-5 text-primary" />

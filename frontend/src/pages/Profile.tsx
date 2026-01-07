@@ -63,7 +63,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">마이페이지</h1>

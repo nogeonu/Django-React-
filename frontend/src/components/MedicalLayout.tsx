@@ -60,7 +60,7 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
         )}>
             {/* Top Header */}
             <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
-                <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center justify-between px-8 py-4">
                     <button 
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -106,10 +106,10 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
             </header>
 
             {/* Page Content */}
-            <div className="p-6">
+            <div className="p-8">
                 {/* Persistent Hero Banner Section - Only on Dashboard */}
                 {isDashboard && (
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] p-6 md:p-8 mb-6 shadow-xl shadow-blue-900/10 transition-all duration-500">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] p-8 mb-8 shadow-xl shadow-blue-900/10 transition-all duration-500">
                         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
                         <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
 
