@@ -33,8 +33,9 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // 모든 네트워크 인터페이스에서 접속 가능
+    host: 'localhost', // localhost로 명시적 지정
     port: 5173,
+    strictPort: false,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

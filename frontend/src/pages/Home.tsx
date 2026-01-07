@@ -360,9 +360,11 @@ export default function Home() {
                   CDSS 시스템 접속
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 h-14 px-8 text-lg rounded-full">
-                사용자 매뉴얼 다운로드
-              </Button>
+              <Link to="/app-download">
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary h-14 px-8 text-lg rounded-full bg-white/10 backdrop-blur-sm">
+                  사용자 앱 다운로드
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
