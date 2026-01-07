@@ -349,17 +349,16 @@ export default function CornerstoneViewer({
     }
   }, [currentIndex]);
 
-  // 이미지 프리로딩 (인접 이미지 미리 로드 - 유방촬영술 대응)
+  // 이미지 프리로딩 (인접 이미지 미리 로드 - 유방촬영술 최적화)
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    // 이미지가 적을 때는 모두 로드 (유방촬영술 3장 등)
     const isSmallDataset = instanceIds.length <= 10;
     const preloadRange = isSmallDataset ? instanceIds.length : 5;
     const indicesToPreload: number[] = [];
 
     if (isSmallDataset) {
-      // 작은 데이터셋: 모든 이미지 프리로드
+      // 작은 데이터셋: 현재 이미지 제외한 나머지
       for (let i = 0; i < instanceIds.length; i++) {
         if (i !== currentIndex) {
           indicesToPreload.push(i);
@@ -382,31 +381,51 @@ export default function CornerstoneViewer({
       return distA - distB;
     });
 
-    // 병렬로 프리로드 (우선순위 순서)
-    Promise.all(
-      priorityOrder.map(index => {
-        const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
-        return imageLoader.loadAndCacheImage(imageId).catch(() => null);
-      })
-    ).catch(() => {
-      // 프리로드 실패는 무시
-    });
+    // 유방촬영술 최적화: 현재 이미지 우선 로드 후 나머지 순차 로드
+    if (isSmallDataset && priorityOrder.length > 0) {
+      // 현재 이미지 먼저 로드 (이미 로드되었을 수 있지만 확실히 보장)
+      const currentImageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[currentIndex]}/file`);
+      imageLoader.loadAndCacheImage(currentImageId).then(() => {
+        // 나머지는 순차적으로 로드 (네트워크 부하 분산)
+        priorityOrder.forEach((index, i) => {
+          setTimeout(() => {
+            const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+            imageLoader.loadAndCacheImage(imageId).catch(() => null);
+          }, i * 200); // 200ms 간격으로 순차 로드
+        });
+      }).catch(() => {
+        // 현재 이미지 로드 실패 시에도 나머지 시도
+        priorityOrder.forEach((index, i) => {
+          setTimeout(() => {
+            const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+            imageLoader.loadAndCacheImage(imageId).catch(() => null);
+          }, i * 200);
+        });
+      });
+    } else {
+      // MRI 등 큰 데이터셋: 병렬 로드 (기존 방식)
+      Promise.all(
+        priorityOrder.map(index => {
+          const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+          return imageLoader.loadAndCacheImage(imageId).catch(() => null);
+        })
+      ).catch(() => {
+        // 프리로드 실패는 무시
+      });
+    }
   }, [currentIndex, instanceIds, isInitialized]);
 
-  // 초기 배치 프리로드 (유방촬영술 대응: 작은 데이터셋은 모두 로드)
+  // 초기 배치 프리로드 (유방촬영술 최적화: 현재 이미지 우선)
   useEffect(() => {
     if (!isInitialized || instanceIds.length === 0) return;
 
-    // 이미지가 적을 때는 모두 로드 (유방촬영술 3장 등)
     const isSmallDataset = instanceIds.length <= 10;
     const initialBatchSize = isSmallDataset ? instanceIds.length : Math.min(10, instanceIds.length);
     const initialIndices: number[] = [];
 
     if (isSmallDataset) {
-      // 작은 데이터셋: 모든 이미지 즉시 로드
-      for (let i = 0; i < instanceIds.length; i++) {
-        initialIndices.push(i);
-      }
+      // 작은 데이터셋: 현재 이미지 우선, 나머지는 순차 로드
+      initialIndices.push(currentIndex); // 현재 이미지만 초기에 로드
     } else {
       // 큰 데이터셋: 첫 배치 + 현재 인덱스 주변
       for (let i = 0; i < initialBatchSize; i++) {
@@ -422,20 +441,46 @@ export default function CornerstoneViewer({
       }
     }
 
-    // 병렬로 배치 프리로드 (우선순위: 현재 인덱스 > 첫 배치 > 나머지)
+    // 우선순위: 현재 인덱스 > 첫 배치 > 나머지
     const priorityOrder = [
       currentIndex, // 현재 이미지 최우선
       ...initialIndices.filter(i => i !== currentIndex)
     ];
 
-    Promise.all(
-      priorityOrder.map(index => {
-        const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
-        return imageLoader.loadAndCacheImage(imageId).catch(() => null);
-      })
-    ).catch(() => {
-      // 배치 프리로드 실패는 무시
-    });
+    // 유방촬영술 최적화: 현재 이미지 먼저, 나머지는 순차 로드
+    if (isSmallDataset && priorityOrder.length > 1) {
+      // 현재 이미지 즉시 로드
+      const currentImageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[currentIndex]}/file`);
+      imageLoader.loadAndCacheImage(currentImageId).then(() => {
+        // 나머지는 순차적으로 로드 (200ms 간격)
+        const remainingIndices = priorityOrder.filter(i => i !== currentIndex);
+        remainingIndices.forEach((index, i) => {
+          setTimeout(() => {
+            const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+            imageLoader.loadAndCacheImage(imageId).catch(() => null);
+          }, (i + 1) * 200);
+        });
+      }).catch(() => {
+        // 현재 이미지 로드 실패 시에도 나머지 시도
+        const remainingIndices = priorityOrder.filter(i => i !== currentIndex);
+        remainingIndices.forEach((index, i) => {
+          setTimeout(() => {
+            const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+            imageLoader.loadAndCacheImage(imageId).catch(() => null);
+          }, (i + 1) * 200);
+        });
+      });
+    } else {
+      // MRI 등 큰 데이터셋: 병렬 로드 (기존 방식)
+      Promise.all(
+        priorityOrder.map(index => {
+          const imageId = createImageId(`/api/mri/orthanc/instances/${instanceIds[index]}/file`);
+          return imageLoader.loadAndCacheImage(imageId).catch(() => null);
+        })
+      ).catch(() => {
+        // 배치 프리로드 실패는 무시
+      });
+    }
   }, [instanceIds, isInitialized, currentIndex]);
 
   // 윈도우 레벨 변경
