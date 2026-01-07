@@ -264,9 +264,17 @@ export default function CornerstoneViewer({
     };
   }, [isInitialized, instanceIds]); // 원래대로 복구
 
+  // 마지막으로 렌더링된 인덱스 추적 (중복 렌더링 방지)
+  const lastRenderedIndexRef = useRef<number>(-1);
+
   // 슬라이스 변경
   useEffect(() => {
     if (!renderingEngineRef.current) return;
+    
+    // 이미 렌더링된 인덱스면 스킵 (휠 이벤트에서 이미 처리됨)
+    if (lastRenderedIndexRef.current === currentIndex) {
+      return;
+    }
 
     try {
       const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
@@ -274,6 +282,7 @@ export default function CornerstoneViewer({
         // @ts-ignore
         viewport.setImageIdIndex(currentIndex);
         viewport.render();
+        lastRenderedIndexRef.current = currentIndex;
       }
     } catch (error) {
       console.error('Failed to change slice:', error);
@@ -505,11 +514,23 @@ export default function CornerstoneViewer({
       <div
         className="flex-1 relative"
         onWheel={(e) => {
-          if (instanceIds.length === 0) return;
+          if (instanceIds.length === 0 || !renderingEngineRef.current) return;
           e.preventDefault();
+          
+          const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
+          if (!viewport) return;
+          
           const delta = e.deltaY > 0 ? 1 : -1;
           const newIndex = Math.max(0, Math.min(instanceIds.length - 1, currentIndex + delta));
-          if (newIndex !== currentIndex) {
+          
+          if (newIndex !== lastRenderedIndexRef.current) {
+            // 뷰포트를 즉시 업데이트하여 깜빡임 방지
+            // @ts-ignore
+            viewport.setImageIdIndex(newIndex);
+            viewport.render();
+            lastRenderedIndexRef.current = newIndex;
+            
+            // 부모 컴포넌트의 상태를 업데이트하여 슬라이더 등 다른 UI 동기화
             onIndexChange(newIndex);
           }
         }}
