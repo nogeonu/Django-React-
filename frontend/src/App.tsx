@@ -17,7 +17,6 @@ import KnowledgeHub from "@/pages/KnowledgeHub";
 import ReservationInfo from "@/pages/ReservationInfo";
 import NotFound from "@/pages/NotFound";
 import MRIViewer from "@/pages/MRIViewer";
-import DicomDetailViewer from "@/pages/DicomDetailViewer";
 import Sidebar from "@/components/Sidebar";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -50,9 +49,6 @@ function AppContentInner() {
     "/patient/doctors",
     "/app-download",
   ].includes(location.pathname);
-
-  // DICOM 상세 뷰어는 사이드바 숨김
-  const isDicomViewer = location.pathname.startsWith("/dicom-viewer/");
 
   const medicalStaffRoutes = (
     <Routes>
@@ -159,9 +155,9 @@ function AppContentInner() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {!isPublicPage && !isDicomViewer && <Sidebar />}
-      <div className={isPublicPage || isDicomViewer ? "flex-1" : "flex-1 ml-64"}>
-        {isPublicPage || isDicomViewer ? (
+      {!isPublicPage && <Sidebar />}
+      <div className={isPublicPage ? "flex-1" : "flex-1 ml-64"}>
+        {isPublicPage ? (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -172,11 +168,6 @@ function AppContentInner() {
             <Route path="/patient/records" element={<PatientMedicalRecords />} />
             <Route path="/patient/doctors" element={<PatientDoctors />} />
             <Route path="/app-download" element={<AppDownload />} />
-            <Route path="/dicom-viewer/:instanceId" element={
-              <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
-                <DicomDetailViewer />
-              </ProtectedRoute>
-            } />
             <Route path="*" element={<NotFound />} />
           </Routes>
         ) : (

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,6 @@ import {
   Image as ImageIcon,
   ChevronRight,
   ChevronLeft,
-  Maximize2,
   Info,
   Settings2,
   Cpu,
@@ -98,7 +96,6 @@ const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
 
   // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
@@ -225,22 +222,6 @@ export default function MRIViewer() {
     setCurrentSlice(newSlice);
   };
 
-  const handleDetailView = () => {
-    if (orthancImages.length > 0 && orthancImages[selectedImage]) {
-      const instanceId = orthancImages[selectedImage].instance_id;
-      // 환자 정보 및 영상 유형을 세션 스토리지에 저장
-      if (selectedPatient) {
-        sessionStorage.setItem('currentPatientId', selectedPatient);
-        sessionStorage.setItem('currentImageType', imageType);
-        const patient = systemPatients.find(p => p.patient_id === selectedPatient);
-        if (patient) {
-          sessionStorage.setItem('currentPatientName', patient.name);
-        }
-      }
-      // 상세 뷰어로 이동
-      navigate(`/dicom-viewer/${instanceId}`);
-    }
-  };
 
   const handleOrthancWheel = (e: React.WheelEvent) => {
     if (orthancImages.length === 0) return;
@@ -800,18 +781,6 @@ export default function MRIViewer() {
                 >
                   <Cpu className={`w-4 h-4 ${showOrthancImages ? 'text-blue-600' : 'text-gray-400'}`} />
                 </Button>
-                {showOrthancImages && orthancImages.length > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="rounded-xl h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                    onClick={handleDetailView}
-                    title="자세히 보기"
-                  >
-                    <Maximize2 className="w-4 h-4 mr-2" />
-                    자세히 보기
-                  </Button>
-                )}
               </div>
             </CardHeader>
 
@@ -929,21 +898,6 @@ export default function MRIViewer() {
 
                     {showOrthancImages && (
                       <div className="absolute top-6 right-6">
-                        <Button
-                          size="sm"
-                          className="rounded-xl bg-white/90 hover:bg-white text-gray-900 font-black text-[10px] uppercase shadow-xl pointer-events-auto"
-                          onClick={() => {
-                            if (selectedPatient && orthancImages[selectedImage]) {
-                              sessionStorage.setItem('currentPatientId', selectedPatient);
-                              sessionStorage.setItem('currentImageType', imageType);
-                              const p = systemPatients.find(x => x.patient_id === selectedPatient);
-                              if (p) sessionStorage.setItem('currentPatientName', p.name);
-                              navigate(`/dicom-viewer/${orthancImages[selectedImage].instance_id}`);
-                            }
-                          }}
-                        >
-                          자세히 보기 <ChevronRight className="w-3 h-3 ml-1" />
-                        </Button>
                       </div>
                     )}
 
