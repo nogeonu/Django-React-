@@ -54,10 +54,7 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
     };
 
     return (
-        <div className={cn(
-            "flex-1 transition-all duration-300 min-h-screen bg-slate-50 dark:bg-slate-950",
-            isSidebarOpen ? "ml-64" : "ml-20"
-        )}>
+        <div className="min-h-screen">
             {/* Top Header */}
             <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
                 <div className="flex items-center justify-between px-8 py-4">

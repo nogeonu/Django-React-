@@ -8,6 +8,7 @@ import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import Dashboard from "@/pages/Dashboard";
 import Patients from "@/pages/Patients";
 import Visualization3D from "@/pages/3DVisualization";
@@ -161,11 +162,14 @@ function AppContentInner() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
       {!isPublicPage && !isMriImageDetail && (
         <Sidebar isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
       )}
-      <div className={isPublicPage || isMriImageDetail ? "flex-1" : isSidebarOpen ? "flex-1 ml-64" : "flex-1 ml-20"}>
+      <div className={cn(
+        "flex-1 transition-all duration-300",
+        isPublicPage || isMriImageDetail ? "" : isSidebarOpen ? "ml-64" : "ml-20"
+      )}>
         {isPublicPage || isMriImageDetail ? (
           <Routes>
             <Route path="/" element={<Home />} />
