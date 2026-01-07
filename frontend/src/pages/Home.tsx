@@ -361,7 +361,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link to="/app-download">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary h-14 px-8 text-lg rounded-full bg-white/10 backdrop-blur-sm">
+                <Button size="lg" className="bg-white text-primary hover:bg-white/90 h-14 px-8 text-lg rounded-full font-bold">
                   사용자 앱 다운로드
                 </Button>
               </Link>
