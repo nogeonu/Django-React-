@@ -201,10 +201,10 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="space-y-8"
+      className="space-y-6"
     >
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
           <motion.div key={index} variants={itemVariants}>
             <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden bg-white">
@@ -231,7 +231,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Waiting Patients List */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <Card className="border-none shadow-sm h-full bg-white rounded-3xl overflow-hidden">

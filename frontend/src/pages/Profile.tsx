@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,138 +63,124 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <User className="text-blue-600 text-2xl mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">마이페이지</h1>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Card>
-          <CardHeader>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground mb-2">마이페이지</h1>
+        <p className="text-muted-foreground">개인 정보를 확인하고 수정할 수 있습니다</p>
+      </div>
+        <Card className="border-none shadow-md">
+          <CardHeader className="border-b border-slate-200 dark:border-slate-800">
             <CardTitle>프로필 정보</CardTitle>
-            <CardDescription>
-              개인 정보를 확인하고 수정할 수 있습니다
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="p-6">
             {/* 사용자 정보 */}
-            <div className="flex items-center space-x-4 pb-6 border-b">
-              <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="w-10 h-10 text-blue-600" />
+            <div className="flex items-center space-x-4 pb-6 border-b border-slate-200 dark:border-slate-800 mb-6">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center">
+                <User className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-2xl font-bold text-foreground">
                   {user.first_name || user.last_name 
                     ? `${user.last_name || ''}${user.first_name || ''}`.trim()
                     : user.username}
                 </h2>
-                <p className="text-gray-500">{getRoleLabel(user.role)}</p>
+                <p className="text-muted-foreground">{getRoleLabel(user.role)}</p>
                 {user.department && (
-                  <p className="text-sm text-gray-500">{user.department}</p>
+                  <p className="text-sm text-muted-foreground">{user.department}</p>
                 )}
               </div>
             </div>
 
             {/* 편집 가능한 정보 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="username">사용자명</Label>
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-sm font-medium text-foreground">사용자명</Label>
                 <Input
                   id="username"
                   value={user.username}
                   disabled
-                  className="mt-1 bg-gray-50"
+                  className="bg-slate-50 dark:bg-slate-800"
                 />
-                <p className="text-xs text-gray-500 mt-1">사용자명은 변경할 수 없습니다</p>
+                <p className="text-xs text-muted-foreground">사용자명은 변경할 수 없습니다</p>
               </div>
 
-              <div>
-                <Label htmlFor="email">이메일</Label>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium text-foreground">이메일</Label>
                 {isEditing ? (
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="mt-1"
                   />
                 ) : (
-                  <div className="mt-1 flex items-center space-x-2 p-2 bg-gray-50 rounded-md">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-900">{user.email}</span>
+                  <div className="flex items-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-foreground">{user.email}</span>
                   </div>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="last_name">성</Label>
+              <div className="space-y-2">
+                <Label htmlFor="last_name" className="text-sm font-medium text-foreground">성</Label>
                 {isEditing ? (
                   <Input
                     id="last_name"
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    className="mt-1"
                   />
                 ) : (
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md">
-                    <span className="text-gray-900">{user.last_name || '-'}</span>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <span className="text-foreground">{user.last_name || '-'}</span>
                   </div>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="first_name">이름</Label>
+              <div className="space-y-2">
+                <Label htmlFor="first_name" className="text-sm font-medium text-foreground">이름</Label>
                 {isEditing ? (
                   <Input
                     id="first_name"
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    className="mt-1"
                   />
                 ) : (
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md">
-                    <span className="text-gray-900">{user.first_name || '-'}</span>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <span className="text-foreground">{user.first_name || '-'}</span>
                   </div>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="department">진료과/부서</Label>
+              <div className="space-y-2">
+                <Label htmlFor="department" className="text-sm font-medium text-foreground">진료과/부서</Label>
                 {isEditing ? (
                   <Input
                     id="department"
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="mt-1"
                     placeholder="예: 호흡기내과"
                   />
                 ) : (
-                  <div className="mt-1 flex items-center space-x-2 p-2 bg-gray-50 rounded-md">
-                    <Building2 className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-900">{user.department || '-'}</span>
+                  <div className="flex items-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-foreground">{user.department || '-'}</span>
                   </div>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="role">역할</Label>
-                <div className="mt-1 flex items-center space-x-2 p-2 bg-gray-50 rounded-md">
-                  <Shield className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-900">{getRoleLabel(user.role)}</span>
+              <div className="space-y-2">
+                <Label htmlFor="role" className="text-sm font-medium text-foreground">역할</Label>
+                <div className="flex items-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-foreground">{getRoleLabel(user.role)}</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">역할은 변경할 수 없습니다</p>
+                <p className="text-xs text-muted-foreground">역할은 변경할 수 없습니다</p>
               </div>
             </div>
 
             {/* 액션 버튼 */}
-            <div className="flex justify-end space-x-3 pt-6 border-t">
+            <div className="flex justify-end space-x-3 pt-6 border-t border-slate-200 dark:border-slate-800">
               {isEditing ? (
                 <>
                   <Button variant="outline" onClick={() => {
@@ -208,20 +194,19 @@ export default function Profile() {
                   }}>
                     취소
                   </Button>
-                  <Button onClick={handleSave}>
+                  <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
                     <Save className="w-4 h-4 mr-2" />
                     저장
                   </Button>
                 </>
               ) : (
-                <Button onClick={() => setIsEditing(true)}>
+                <Button onClick={() => setIsEditing(true)} className="bg-primary hover:bg-primary/90">
                   정보 수정
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
-      </main>
     </div>
   );
 }
