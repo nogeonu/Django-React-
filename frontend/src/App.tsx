@@ -4,6 +4,7 @@ import {
   Route,
   useLocation,
 } from "react-router-dom";
+import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -39,6 +40,8 @@ const queryClient = new QueryClient();
 
 function AppContentInner() {
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
   const isPublicPage = [
     "/",
     "/login",
@@ -158,9 +161,11 @@ function AppContentInner() {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {!isPublicPage && !isMriImageDetail && <Sidebar />}
-      <div className={isPublicPage || isMriImageDetail ? "flex-1" : "flex-1 ml-64"}>
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+      {!isPublicPage && !isMriImageDetail && (
+        <Sidebar isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+      )}
+      <div className={isPublicPage || isMriImageDetail ? "flex-1" : isSidebarOpen ? "flex-1 ml-64" : "flex-1 ml-20"}>
         {isPublicPage || isMriImageDetail ? (
           <Routes>
             <Route path="/" element={<Home />} />
@@ -183,7 +188,7 @@ function AppContentInner() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         ) : (
-          <MedicalLayout>
+          <MedicalLayout isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen}>
             {medicalStaffRoutes}
           </MedicalLayout>
         )}

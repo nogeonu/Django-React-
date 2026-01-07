@@ -1,19 +1,20 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, Home, Plus, Calendar } from "lucide-react";
+import { Activity, Plus, Calendar, Bell, User, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import NotificationDropdown from "@/components/NotificationDropdown";
-import UserProfileDropdown from "@/components/UserProfileDropdown";
 import doctorProfile from "@/assets/doctor-profile.png";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface MedicalLayoutProps {
     children: React.ReactNode;
+    isSidebarOpen: boolean;
+    setIsSidebarOpen: (open: boolean) => void;
 }
 
-export default function MedicalLayout({ children }: MedicalLayoutProps) {
+export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpen }: MedicalLayoutProps) {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -35,53 +36,77 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
     });
 
     const isDashboard = location.pathname === '/medical_staff' || location.pathname === '/admin_staff';
-    const dashboardHref = user?.role === 'medical_staff' ? '/medical_staff' : '/admin_staff';
+
+    const getRoleBadgeColor = (role: string) => {
+        const colors = {
+            medical_staff: "bg-blue-100 text-blue-700",
+            admin_staff: "bg-purple-100 text-purple-700",
+        };
+        return colors[role as keyof typeof colors] || "bg-gray-100 text-gray-700";
+    };
+
+    const getRoleLabel = (role: string) => {
+        const labels = {
+            medical_staff: "의료진",
+            admin_staff: "관리자",
+        };
+        return labels[role as keyof typeof labels] || "사용자";
+    };
 
     return (
-        <div className="flex-1 flex flex-col min-h-screen bg-gray-50">
-            {/* Global Header */}
-            <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-100">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">시스템 정상 (System Online)</span>
+        <div className={cn(
+            "flex-1 transition-all duration-300 min-h-screen bg-slate-50 dark:bg-slate-950",
+            isSidebarOpen ? "ml-64" : "ml-20"
+        )}>
+            {/* Top Header */}
+            <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
+                <div className="flex items-center justify-between px-6 py-4">
+                    <button 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    >
+                        {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                    </button>
+
+                    <div className="flex items-center gap-4">
+                        {/* Quick Search */}
+                        <div className="hidden md:flex relative group">
+                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                <Activity className="h-4 w-4 text-gray-400" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="빠른 환자 검색..."
+                                className="bg-slate-100 dark:bg-slate-800 border-none rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <div className="hidden md:flex relative group">
-                                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                    <Activity className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="빠른 환자 검색..."
-                                    className="bg-gray-100 border-none rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                                />
+                        {/* Notifications */}
+                        <button className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        </button>
+
+                        {/* User Profile */}
+                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">
+                            <div className="text-right hidden md:block">
+                                <p className="text-sm font-medium text-foreground">
+                                    {user ? `${user.last_name || ''} ${user.first_name || user.username}`.trim() : "게스트"}
+                                </p>
+                                <p className={cn("text-xs font-semibold px-2 py-0.5 rounded-full w-fit", getRoleBadgeColor(user?.role || ''))}>
+                                    {getRoleLabel(user?.role || '')}
+                                </p>
                             </div>
-
-                            <div className="flex items-center gap-2 border-l pl-4 border-gray-100">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                    onClick={() => navigate(dashboardHref)}
-                                    title="홈 (Home)"
-                                >
-                                    <Home className="h-5 w-5" />
-                                </Button>
-                                <NotificationDropdown />
-
-                                <div className="ml-2">
-                                    <UserProfileDropdown />
-                                </div>
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center flex-shrink-0">
+                                <User className="w-5 h-5" />
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            {/* Page Content */}
+            <div className="p-6">
                 {/* Persistent Hero Banner Section - Only on Dashboard */}
                 {isDashboard && (
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] p-6 md:p-8 mb-6 shadow-xl shadow-blue-900/10 transition-all duration-500">
@@ -137,7 +162,7 @@ export default function MedicalLayout({ children }: MedicalLayoutProps) {
                 <div className="animate-in fade-in duration-500">
                     {children}
                 </div>
-            </main>
+            </div>
         </div>
     );
 }
