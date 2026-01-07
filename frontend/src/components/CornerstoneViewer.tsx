@@ -107,7 +107,12 @@ export default function CornerstoneViewer({
     }
 
     const setupViewport = async () => {
-      setIsImageLoading(true);
+      // 작은 데이터셋(유방촬영술 등)은 로딩 표시 최소화
+      const isSmallDataset = instanceIds.length <= 10;
+      if (!isSmallDataset) {
+        setIsImageLoading(true);
+      }
+      
       try {
         const element = viewportRef.current!;
         const renderingEngineId = renderingEngineIdRef.current;
@@ -163,51 +168,97 @@ export default function CornerstoneViewer({
         );
 
         // 스택 업데이트 (기존 뷰포트 재사용 또는 새 뷰포트)
-
         if (viewport) {
-          // @ts-ignore - Stack viewport specific method
-          await viewport.setStack(imageIds, currentIndex).catch((err: any) => {
-            console.warn('Failed to load some images, but continuing:', err);
-          });
-
-          // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
-          viewport.render();
+          // 작은 데이터셋은 await하지 않고 즉시 렌더링 (MRI처럼 빠르게)
+          if (isSmallDataset) {
+            // 즉시 setStack 호출 (await 없이)
+            // @ts-ignore - Stack viewport specific method
+            viewport.setStack(imageIds, currentIndex).catch((err: any) => {
+              console.warn('Failed to load some images, but continuing:', err);
+            });
+            // 즉시 렌더링
+            viewport.render();
+            // 로딩 상태 즉시 해제
+            setIsImageLoading(false);
+          } else {
+            // 큰 데이터셋은 기존 방식 유지
+            // @ts-ignore - Stack viewport specific method
+            await viewport.setStack(imageIds, currentIndex).catch((err: any) => {
+              console.warn('Failed to load some images, but continuing:', err);
+            });
+            // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
+            viewport.render();
+          }
 
           // DICOM 메타데이터에서 Window/Level 가져오기
-          try {
-            // @ts-ignore
-            const image = viewport.getImageData();
-            if (image) {
-              // DICOM의 Window Width/Center 사용 (없으면 자동 계산)
-              const dicomWindowWidth = image.windowWidth?.[0];
-              const dicomWindowCenter = image.windowCenter?.[0];
-
-              if (dicomWindowWidth && dicomWindowCenter) {
-                console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
-                setWindowLevel({
-                  windowWidth: dicomWindowWidth,
-                  windowCenter: dicomWindowCenter,
-                });
-
+          if (isSmallDataset) {
+            // 작은 데이터셋: 비동기로 Window/Level 설정 (로딩 블로킹 없음)
+            setTimeout(() => {
+              try {
                 // @ts-ignore
-                viewport.setProperties({
-                  voiRange: {
-                    lower: dicomWindowCenter - dicomWindowWidth / 2,
-                    upper: dicomWindowCenter + dicomWindowWidth / 2,
-                  },
-                });
-                viewport.render();
+                const image = viewport.getImageData();
+                if (image) {
+                  const dicomWindowWidth = image.windowWidth?.[0];
+                  const dicomWindowCenter = image.windowCenter?.[0];
+
+                  if (dicomWindowWidth && dicomWindowCenter) {
+                    setWindowLevel({
+                      windowWidth: dicomWindowWidth,
+                      windowCenter: dicomWindowCenter,
+                    });
+
+                    // @ts-ignore
+                    viewport.setProperties({
+                      voiRange: {
+                        lower: dicomWindowCenter - dicomWindowWidth / 2,
+                        upper: dicomWindowCenter + dicomWindowWidth / 2,
+                      },
+                    });
+                    viewport.render();
+                  }
+                }
+              } catch (e) {
+                console.warn('Could not read DICOM Window/Level', e);
               }
+            }, 100);
+          } else {
+            // 큰 데이터셋: 기존 방식 (동기 처리)
+            try {
+              // @ts-ignore
+              const image = viewport.getImageData();
+              if (image) {
+                const dicomWindowWidth = image.windowWidth?.[0];
+                const dicomWindowCenter = image.windowCenter?.[0];
+
+                if (dicomWindowWidth && dicomWindowCenter) {
+                  console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
+                  setWindowLevel({
+                    windowWidth: dicomWindowWidth,
+                    windowCenter: dicomWindowCenter,
+                  });
+
+                  // @ts-ignore
+                  viewport.setProperties({
+                    voiRange: {
+                      lower: dicomWindowCenter - dicomWindowWidth / 2,
+                      upper: dicomWindowCenter + dicomWindowWidth / 2,
+                    },
+                  });
+                  viewport.render();
+                }
+              }
+            } catch (e) {
+              console.warn('Could not read DICOM Window/Level, using defaults', e);
             }
-          } catch (e) {
-            console.warn('Could not read DICOM Window/Level, using defaults', e);
           }
         }
 
         // 도구 그룹 설정
         setupTools(viewportId);
 
-        setIsImageLoading(false);
+        if (!isSmallDataset) {
+          setIsImageLoading(false);
+        }
       } catch (error) {
         console.error('Failed to setup viewport:', error);
         setIsImageLoading(false);
