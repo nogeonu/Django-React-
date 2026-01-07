@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -47,7 +46,6 @@ export default function MRIImageDetail() {
   const [allOrthancImages, setAllOrthancImages] = useState<OrthancImage[]>([]);
   const [selectedImage, setSelectedImage] = useState(initialIndex);
   const [loading, setLoading] = useState(false);
-  const [imageLoading, setImageLoading] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -126,21 +124,6 @@ export default function MRIImageDetail() {
     }
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (orthancImages.length === 0) return;
-    e.preventDefault();
-    
-    if (e.ctrlKey || e.metaKey) {
-      // Ctrl/Cmd + Wheel로 줌
-      const delta = e.deltaY > 0 ? -10 : 10;
-      setZoom(prev => Math.max(50, Math.min(300, prev + delta)));
-    } else {
-      // 일반 휠로 이미지 전환
-      const delta = e.deltaY > 0 ? 1 : -1;
-      const newImage = Math.max(0, Math.min(orthancImages.length - 1, selectedImage + delta));
-      setSelectedImage(newImage);
-    }
-  };
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(300, prev + 25));
