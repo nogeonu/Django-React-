@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,8 @@ import {
   Cpu,
   Plus,
   Brain,
-  Activity
+  Activity,
+  Maximize2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -96,6 +98,7 @@ const API_BASE_URL = "/api/mri";
 
 export default function MRIViewer() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
 
   // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
@@ -772,6 +775,21 @@ export default function MRIViewer() {
               </div>
 
               <div className="flex items-center gap-2">
+                {showOrthancImages && orthancImages.length > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-4"
+                    onClick={() => {
+                      if (selectedPatient) {
+                        navigate(`/mri-viewer/${selectedPatient}?imageType=${encodeURIComponent(imageType)}&index=${selectedImage}`);
+                      }
+                    }}
+                  >
+                    <Maximize2 className="w-4 h-4 mr-2" />
+                    자세히 보기
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"

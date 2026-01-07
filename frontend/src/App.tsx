@@ -17,6 +17,7 @@ import KnowledgeHub from "@/pages/KnowledgeHub";
 import ReservationInfo from "@/pages/ReservationInfo";
 import NotFound from "@/pages/NotFound";
 import MRIViewer from "@/pages/MRIViewer";
+import MRIImageDetail from "@/pages/MRIImageDetail";
 import Sidebar from "@/components/Sidebar";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -121,6 +122,14 @@ function AppContentInner() {
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
             <MRIViewer />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mri-viewer/:patientId"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
+            <MRIImageDetail />
           </ProtectedRoute>
         }
       />
