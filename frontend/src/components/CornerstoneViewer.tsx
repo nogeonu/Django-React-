@@ -266,8 +266,9 @@ export default function CornerstoneViewer({
 
   // 마지막으로 렌더링된 인덱스 추적 (중복 렌더링 방지)
   const lastRenderedIndexRef = useRef<number>(-1);
+  const rafIdRef = useRef<number | null>(null);
 
-  // 슬라이스 변경
+  // 슬라이스 변경 (requestAnimationFrame으로 최적화)
   useEffect(() => {
     if (!renderingEngineRef.current) return;
     
@@ -276,17 +277,26 @@ export default function CornerstoneViewer({
       return;
     }
 
-    try {
-      const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
-      if (viewport) {
-        // @ts-ignore
-        viewport.setImageIdIndex(currentIndex);
-        viewport.render();
-        lastRenderedIndexRef.current = currentIndex;
-      }
-    } catch (error) {
-      console.error('Failed to change slice:', error);
+    // 이전 RAF 취소
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
     }
+
+    // RAF로 렌더링 스케줄링
+    rafIdRef.current = requestAnimationFrame(() => {
+      try {
+        const viewport = renderingEngineRef.current?.getViewport(viewportIdRef.current);
+        if (viewport) {
+          // @ts-ignore
+          viewport.setImageIdIndex(currentIndex);
+          viewport.render();
+          lastRenderedIndexRef.current = currentIndex;
+        }
+      } catch (error) {
+        console.error('Failed to change slice:', error);
+      }
+      rafIdRef.current = null;
+    });
   }, [currentIndex]);
 
   // 이미지 프리로딩 (인접 이미지 미리 로드)
@@ -520,18 +530,32 @@ export default function CornerstoneViewer({
           const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
           if (!viewport) return;
           
-          const delta = e.deltaY > 0 ? 1 : -1;
+          // 스크롤 속도에 따라 delta 조정
+          const scrollStep = Math.abs(e.deltaY) > 50 ? Math.floor(Math.abs(e.deltaY) / 50) : 1;
+          const delta = e.deltaY > 0 ? scrollStep : -scrollStep;
           const newIndex = Math.max(0, Math.min(instanceIds.length - 1, currentIndex + delta));
           
           if (newIndex !== lastRenderedIndexRef.current) {
-            // 뷰포트를 즉시 업데이트하여 깜빡임 방지
-            // @ts-ignore
-            viewport.setImageIdIndex(newIndex);
-            viewport.render();
-            lastRenderedIndexRef.current = newIndex;
+            // 이전 RAF 취소
+            if (rafIdRef.current !== null) {
+              cancelAnimationFrame(rafIdRef.current);
+            }
             
-            // 부모 컴포넌트의 상태를 업데이트하여 슬라이더 등 다른 UI 동기화
-            onIndexChange(newIndex);
+            // RAF로 렌더링 스케줄링 (프레임 드롭 방지)
+            rafIdRef.current = requestAnimationFrame(() => {
+              try {
+                // @ts-ignore
+                viewport.setImageIdIndex(newIndex);
+                viewport.render();
+                lastRenderedIndexRef.current = newIndex;
+                
+                // 부모 컴포넌트 상태 동기화 (RAF 내에서 처리)
+                onIndexChange(newIndex);
+              } catch (error) {
+                console.error('Failed to render slice:', error);
+              }
+              rafIdRef.current = null;
+            });
           }
         }}
       >
