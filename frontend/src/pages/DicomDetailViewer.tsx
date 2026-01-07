@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,12 +41,36 @@ export default function DicomDetailViewer() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
     const [instanceIds, setInstanceIds] = useState<string[]>([]); // Cornerstone용 instance ID 배열
+    const navigateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // PACS 뷰어처럼 부드러운 스크롤: navigate를 debounce
+    const debouncedNavigate = useCallback((index: number) => {
+        if (navigateTimeoutRef.current) {
+            clearTimeout(navigateTimeoutRef.current);
+        }
+        
+        // 즉시 상태 업데이트 (PACS 뷰어처럼)
+        setCurrentIndex(index);
+        
+        // navigate는 300ms 후에 한 번만 호출 (부드러운 스크롤)
+        navigateTimeoutRef.current = setTimeout(() => {
+            if (allImages[index]) {
+                navigate(`/dicom-viewer/${allImages[index].instance_id}`, { replace: true });
+            }
+        }, 300);
+    }, [allImages, navigate]);
 
     useEffect(() => {
         if (instanceId) {
             loadImage();
         }
+        
+        // cleanup: 컴포넌트 언마운트 시 timeout 정리
+        return () => {
+            if (navigateTimeoutRef.current) {
+                clearTimeout(navigateTimeoutRef.current);
+            }
+        };
     }, [instanceId]);
 
     const loadImage = async () => {
@@ -407,17 +431,12 @@ export default function DicomDetailViewer() {
                                     </div>
                                 </div>
                             ) : (
-                                // 단일 뷰
+                                // 단일 뷰 - PACS 뷰어처럼 부드러운 스크롤
                                 <CornerstoneViewer
                                     key={`cornerstone-${instanceId}-${instanceIds.length}`}
                                     instanceIds={instanceIds}
                                     currentIndex={currentIndex}
-                                    onIndexChange={(index) => {
-                                        setCurrentIndex(index);
-                                        if (allImages[index]) {
-                                            navigate(`/dicom-viewer/${allImages[index].instance_id}`);
-                                        }
-                                    }}
+                                    onIndexChange={debouncedNavigate}
                                     showMeasurementTools={!isRadiologyTech}
                                 />
                             )}
