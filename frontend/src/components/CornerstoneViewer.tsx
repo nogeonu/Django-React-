@@ -529,7 +529,7 @@ export default function CornerstoneViewer({
           const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
           if (!viewport) return;
 
-          // VolView의 range manipulator 패턴
+          // Cornerstone.js 스타일: 즉시 이미지 업데이트
           const delta = e.deltaY > 0 ? 1 : -1;
           const { range, step } = sliceConfig;
           const newSlice = Math.max(
@@ -538,19 +538,22 @@ export default function CornerstoneViewer({
           );
           const roundedSlice = Math.round(newSlice);
 
-          // 중복 렌더링 방지 (VolView처럼)
-          if (roundedSlice !== lastRenderedIndexRef.current) {
+          // Cornerstone.js처럼 즉시 뷰포트 업데이트 (중복 체크)
+          if (roundedSlice !== lastRenderedIndexRef.current && roundedSlice !== currentIndex) {
             try {
-              // 즉시 뷰포트 업데이트 (VolView의 syncRef처럼)
+              // Cornerstone.js의 updateImage()처럼 즉시 업데이트
               // @ts-ignore
               viewport.setImageIdIndex(roundedSlice);
               viewport.render();
               lastRenderedIndexRef.current = roundedSlice;
 
-              // 상태 동기화 (즉시, VolView처럼)
-              if (roundedSlice !== currentIndex) {
-                onIndexChange(roundedSlice);
-              }
+              // 상태는 나중에 동기화 (Cornerstone.js처럼 부드러운 전환)
+              // requestAnimationFrame으로 다음 프레임에 상태 업데이트
+              requestAnimationFrame(() => {
+                if (roundedSlice !== currentIndex) {
+                  onIndexChange(roundedSlice);
+                }
+              });
             } catch (error) {
               console.error('Failed to render slice:', error);
             }
