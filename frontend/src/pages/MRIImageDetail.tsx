@@ -16,6 +16,8 @@ import {
   ArrowLeft,
   Scan,
   Image as ImageIcon,
+  Brain,
+  CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CornerstoneViewer from "@/components/CornerstoneViewer";
@@ -49,6 +51,11 @@ export default function MRIImageDetail() {
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // AI 분석 상태
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [showAiResult, setShowAiResult] = useState(false);
 
   useEffect(() => {
     if (patientId) {
@@ -142,6 +149,54 @@ export default function MRIImageDetail() {
     setRotation(0);
   };
 
+  const handleAiAnalysis = async () => {
+    if (!orthancImages[selectedImage]) {
+      toast({
+        title: "오류",
+        description: "이미지를 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAiAnalyzing(true);
+    setAiResult(null);
+
+    try {
+      const instanceId = orthancImages[selectedImage].instance_id;
+      
+      const response = await fetch(`/api/mri/yolo/instances/${instanceId}/detect/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `서버 오류 (${response.status})`);
+      }
+
+      setAiResult(data);
+      setShowAiResult(true);
+
+      toast({
+        title: "AI 분석 완료",
+        description: `${data.detection_count}개의 병변이 감지되었습니다.`,
+      });
+    } catch (error) {
+      console.error('AI 분석 오류:', error);
+      toast({
+        title: "AI 분석 실패",
+        description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if (orthancImages.length === 0) return;
 
@@ -221,6 +276,25 @@ export default function MRIImageDetail() {
               <Badge className="bg-gray-800 text-gray-300 border border-gray-700 px-4 py-2 rounded-xl">
                 {selectedImage + 1} / {orthancImages.length}
               </Badge>
+              
+              {/* AI 분석 버튼 */}
+              <Button
+                onClick={handleAiAnalysis}
+                disabled={aiAnalyzing || orthancImages.length === 0}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-6 py-2 rounded-xl flex items-center gap-2 shadow-lg"
+              >
+                {aiAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    AI 분석 중...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    AI 분석
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -287,6 +361,61 @@ export default function MRIImageDetail() {
                     90° 회전
                   </Button>
                 </div>
+
+                {/* AI 분석 결과 */}
+                {aiResult && showAiResult && (
+                  <div className="space-y-2 pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-gray-400 flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-purple-400" />
+                        AI 분석 결과
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAiResult(false)}
+                        className="h-6 w-6 p-0 hover:bg-gray-800 rounded-lg"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-700/30 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-white">검출된 병변</span>
+                        <Badge className="bg-purple-600 text-white font-bold">
+                          {aiResult.detection_count}개
+                        </Badge>
+                      </div>
+                      
+                      {aiResult.detections && aiResult.detections.length > 0 ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {aiResult.detections.map((det: any, idx: number) => (
+                            <div key={idx} className="bg-gray-900/50 rounded-lg p-3 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-purple-300">
+                                  {det.class_name || `객체 ${idx + 1}`}
+                                </span>
+                                <Badge className="bg-green-600/20 text-green-400 text-xs">
+                                  {(det.confidence * 100).toFixed(1)}%
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-gray-400 font-mono">
+                                위치: [{det.bbox[0].toFixed(0)}, {det.bbox[1].toFixed(0)}] - 
+                                [{det.bbox[2].toFixed(0)}, {det.bbox[3].toFixed(0)}]
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <span>병변이 검출되지 않았습니다</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Reset */}
                 <Button

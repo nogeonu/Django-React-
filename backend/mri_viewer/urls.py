@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from . import views, orthanc_views, mammography_ai_views, mri_ai_views
+from . import views, orthanc_views, mammography_ai_views, mri_ai_views, yolo_detection_views
 
 urlpatterns = [
     # 기존 MRI Viewer API
@@ -31,5 +31,9 @@ urlpatterns = [
     # MRI AI Analysis API (pCR Prediction)
     path('patients/<str:patient_id>/analyze/', mri_ai_views.mri_ai_analysis, name='mri-ai-analysis'),
     path('ai/health/', mri_ai_views.mri_ai_health, name='mri-ai-health'),
+    
+    # YOLO 디텍션 API (FastAPI 서버 사용)
+    path('yolo/instances/<str:instance_id>/detect/', yolo_detection_views.yolo_detection, name='yolo-detection'),
+    path('yolo/health/', yolo_detection_views.yolo_health, name='yolo-health'),
 ]
 
