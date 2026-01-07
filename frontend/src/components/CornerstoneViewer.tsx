@@ -1,7 +1,7 @@
 /**
  * Cornerstone3D 기반 DICOM 뷰어 컴포넌트
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   RenderingEngine,
   Enums,
@@ -266,9 +266,17 @@ export default function CornerstoneViewer({
 
   // 마지막으로 렌더링된 인덱스 추적 (중복 렌더링 방지)
   const lastRenderedIndexRef = useRef<number>(-1);
-  const rafIdRef = useRef<number | null>(null);
 
-  // 슬라이스 변경 (requestAnimationFrame으로 최적화)
+  // Slice Config (VolView 스타일)
+  const sliceConfig = useMemo(() => {
+    return {
+      slice: currentIndex,
+      range: [0, instanceIds.length - 1] as [number, number],
+      step: 1,
+    };
+  }, [currentIndex, instanceIds.length]);
+
+  // 슬라이스 변경 (VolView 스타일: 즉시 반응)
   useEffect(() => {
     if (!renderingEngineRef.current) return;
 
@@ -277,26 +285,17 @@ export default function CornerstoneViewer({
       return;
     }
 
-    // 이전 RAF 취소
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-    }
-
-    // RAF로 렌더링 스케줄링
-    rafIdRef.current = requestAnimationFrame(() => {
-      try {
-        const viewport = renderingEngineRef.current?.getViewport(viewportIdRef.current);
-        if (viewport) {
-          // @ts-ignore
-          viewport.setImageIdIndex(currentIndex);
-          viewport.render();
-          lastRenderedIndexRef.current = currentIndex;
-        }
-      } catch (error) {
-        console.error('Failed to change slice:', error);
+    try {
+      const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
+      if (viewport) {
+        // @ts-ignore
+        viewport.setImageIdIndex(currentIndex);
+        viewport.render();
+        lastRenderedIndexRef.current = currentIndex;
       }
-      rafIdRef.current = null;
-    });
+    } catch (error) {
+      console.error('Failed to change slice:', error);
+    }
   }, [currentIndex]);
 
   // 이미지 프리로딩 (인접 이미지 미리 로드)
@@ -530,20 +529,28 @@ export default function CornerstoneViewer({
           const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current);
           if (!viewport) return;
 
-          // 더 민감한 스크롤 감도 (VolView 스타일)
+          // VolView의 range manipulator 패턴
           const delta = e.deltaY > 0 ? 1 : -1;
-          const newIndex = Math.max(0, Math.min(instanceIds.length - 1, currentIndex + delta));
+          const { range, step } = sliceConfig;
+          const newSlice = Math.max(
+            range[0],
+            Math.min(range[1], currentIndex + delta * step)
+          );
+          const roundedSlice = Math.round(newSlice);
 
-          if (newIndex !== currentIndex) {
+          // 중복 렌더링 방지 (VolView처럼)
+          if (roundedSlice !== lastRenderedIndexRef.current) {
             try {
-              // 즉시 viewport 업데이트 (RAF 없이 직접 렌더링)
+              // 즉시 뷰포트 업데이트 (VolView의 syncRef처럼)
               // @ts-ignore
-              viewport.setImageIdIndex(newIndex);
+              viewport.setImageIdIndex(roundedSlice);
               viewport.render();
-              lastRenderedIndexRef.current = newIndex;
+              lastRenderedIndexRef.current = roundedSlice;
 
-              // 부모 상태는 debounce로 나중에 동기화
-              onIndexChange(newIndex);
+              // 상태 동기화 (즉시, VolView처럼)
+              if (roundedSlice !== currentIndex) {
+                onIndexChange(roundedSlice);
+              }
             } catch (error) {
               console.error('Failed to render slice:', error);
             }
