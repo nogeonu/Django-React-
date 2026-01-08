@@ -49,12 +49,16 @@ def upload_to_gcs(data_dict, filename=None):
         json_data = json.dumps(data_dict)
         blob.upload_from_string(json_data, content_type='application/json')
         
-        # Public URL 생성
-        blob.make_public()
-        public_url = blob.public_url
+        # 서명된 URL 생성 (1시간 유효)
+        from datetime import timedelta
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(hours=1),
+            method="GET"
+        )
         
         logger.info(f"✅ GCS 업로드 완료: {blob_name} ({len(json_data) / (1024**2):.2f} MB)")
-        return public_url
+        return signed_url
         
     except Exception as e:
         logger.error(f"❌ GCS 업로드 실패: {e}", exc_info=True)
