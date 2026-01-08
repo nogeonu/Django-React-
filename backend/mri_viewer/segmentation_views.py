@@ -142,11 +142,16 @@ def segment_series(request, series_id):
         
         logger.info(f"📊 총 {len(instance_ids)}개 슬라이스 세그멘테이션 시작")
         
-        # 2. 4-channel 모드 확인
+        # 2. 세그멘테이션 시리즈를 위한 고유 Series Instance UID 생성
+        from pydicom.uid import generate_uid
+        seg_series_uid = generate_uid()
+        logger.info(f"🆔 세그멘테이션 Series UID: {seg_series_uid}")
+        
+        # 3. 4-channel 모드 확인
         sequence_series_ids = request.data.get('sequence_series_ids', [])
         is_4channel = len(sequence_series_ids) == 4
         
-        # 3. 각 슬라이스별로 세그멘테이션 수행
+        # 4. 각 슬라이스별로 세그멘테이션 수행
         results = []
         seg_instance_ids = []
         
@@ -174,23 +179,31 @@ def segment_series(request, series_id):
                         dicom_data_list.append(dicom_data)
                     
                     payload = {
-                        'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list]
+                        'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list],
+                        'seg_series_uid': seg_series_uid,
+                        'instance_number': idx + 1
                     }
                     
                     seg_response = requests.post(
                         f"{SEGMENTATION_API_URL}/inference",
                         json=payload,
-                        timeout=600
+                        timeout=30  # 개별 슬라이스는 30초로 충분
                     )
                 else:
                     # 단일 이미지 세그멘테이션
                     dicom_data = client.get_instance_file(instance_id)
                     
+                    # JSON으로 전송 (Series UID와 Instance Number 포함)
+                    payload = {
+                        'dicom_data': base64.b64encode(dicom_data).decode('utf-8'),
+                        'seg_series_uid': seg_series_uid,
+                        'instance_number': idx + 1
+                    }
+                    
                     seg_response = requests.post(
                         f"{SEGMENTATION_API_URL}/inference",
-                        data=dicom_data,
-                        headers={'Content-Type': 'application/octet-stream'},
-                        timeout=600
+                        json=payload,
+                        timeout=30  # 개별 슬라이스는 30초로 충분
                     )
                 
                 seg_response.raise_for_status()
