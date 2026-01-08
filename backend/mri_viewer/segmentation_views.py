@@ -30,14 +30,14 @@ def mri_segmentation(request, instance_id):
         client = OrthancClient()
         dicom_data = client.get_instance_file(instance_id)
         
-        # 2. 세그멘테이션 API 호출
-        logger.info(f"📡 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/segment")
-        files = {'file': ('image.dcm', io.BytesIO(dicom_data), 'application/dicom')}
+        # 2. 세그멘테이션 API 호출 (Mosec)
+        logger.info(f"📡 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
         
         seg_response = requests.post(
-            f"{SEGMENTATION_API_URL}/segment",
-            files=files,
-            timeout=120  # 세그멘테이션은 시간이 걸릴 수 있음
+            f"{SEGMENTATION_API_URL}/inference",
+            data=dicom_data,  # Mosec은 raw bytes를 받음
+            headers={'Content-Type': 'application/octet-stream'},
+            timeout=300  # 타임아웃 300초 (5분)
         )
         
         seg_response.raise_for_status()
@@ -69,7 +69,7 @@ def mri_segmentation(request, instance_id):
         return Response({
             'success': False,
             'instance_id': instance_id,
-            'error': '세그멘테이션 API 타임아웃 (120초 초과)'
+            'error': '세그멘테이션 API 타임아웃 (300초 초과)'
         }, status=status.HTTP_504_GATEWAY_TIMEOUT)
         
     except requests.exceptions.ConnectionError:
