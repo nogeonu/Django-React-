@@ -12,8 +12,8 @@ from .orthanc_client import OrthancClient
 
 logger = logging.getLogger(__name__)
 
-# 세그멘테이션 API 서버 URL
-SEGMENTATION_API_URL = "http://localhost:5006"
+# 세그멘테이션 API 서버 URL (FastAPI 프록시)
+SEGMENTATION_API_URL = "http://localhost:5007"
 
 
 @api_view(['POST'])
@@ -122,145 +122,114 @@ def mri_segmentation(request, instance_id):
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
-    시리즈 전체를 세그멘테이션하고 Orthanc에 저장
+    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 96 슬라이스)
     
     POST /api/mri/segmentation/series/<series_id>/segment/
-    Body (optional): {
-        "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]  // 4-channel 모드
+    Body (required): {
+        "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]  // 4-channel 필수
     }
     """
     try:
-        logger.info(f"🔍 시리즈 전체 세그멘테이션 시작: series_id={series_id}")
+        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
         
-        # 1. Orthanc에서 시리즈의 모든 인스턴스 가져오기
         client = OrthancClient()
-        series_info = client.get(f'/series/{series_id}')
-        instance_ids = series_info.get('Instances', [])
         
-        if not instance_ids:
-            raise Exception('시리즈에 이미지가 없습니다')
+        # 요청 body에서 4개 시퀀스 ID 가져오기 (필수)
+        sequence_series_ids = request.data.get("sequence_series_ids", [])
         
-        logger.info(f"📊 총 {len(instance_ids)}개 슬라이스 세그멘테이션 시작")
+        # 4개 시리즈 필수 체크
+        if len(sequence_series_ids) != 4:
+            return Response({
+                "success": False,
+                "error": "4개 시리즈가 모두 필요합니다. DCE-MRI 세그멘테이션을 위해서는 "
+                         "Seq0, Seq1, Seq2, SeqLast 시리즈가 모두 선택되어야 합니다."
+            }, status=400)
         
-        # 2. 세그멘테이션 시리즈를 위한 고유 Series Instance UID 생성
+        # 현재 시리즈 정보 가져오기 (UI에서 선택된 메인 시리즈)
+        main_series_info = client.get(f"/series/{series_id}")
+        main_instances = main_series_info.get("Instances", [])
+        total_slices = len(main_instances)
+        
+        if total_slices < 96:
+            return Response({
+                "success": False,
+                "error": f"슬라이스 수가 부족합니다 (최소 96개 필요, 현재 {total_slices}개)"
+            }, status=400)
+        
+        # 세그멘테이션을 위한 고유 Series UID 생성
         from pydicom.uid import generate_uid
         seg_series_uid = generate_uid()
-        logger.info(f"🆔 세그멘테이션 Series UID: {seg_series_uid}")
         
-        # 3. 4-channel 모드 확인
-        sequence_series_ids = request.data.get('sequence_series_ids', [])
-        is_4channel = len(sequence_series_ids) == 4
+        logger.info(f"🚀 세그멘테이션 Series UID: {seg_series_uid}")
         
-        # 4. 병렬 처리로 모든 슬라이스 세그멘테이션 (10개씩 동시 처리)
-        logger.info(f"🚀 병렬 세그멘테이션 시작: {len(instance_ids)}개 슬라이스")
+        # 중앙 부분에서 96개 슬라이스 선택
+        start_idx = (total_slices - 96) // 2
+        end_idx = start_idx + 96
         
-        import concurrent.futures
-        import threading
+        logger.info(f"📍 슬라이스 선택: {start_idx}~{end_idx-1}번 (중앙 96개)")
         
-        results = []
-        seg_instance_ids = []
-        results_lock = threading.Lock()
+        # 4개 시퀀스에서 각각 96개 슬라이스 수집
+        sequences_3d = []  # [4][96] 형태 (각 요소는 base64 인코딩된 DICOM)
         
-        def process_slice(idx, instance_id):
-            """개별 슬라이스 처리"""
-            try:
-                if is_4channel:
-                    # 4개 시리즈에서 같은 인덱스의 인스턴스 수집
-                    sequence_instance_ids = []
-                    for seq_series_id in sequence_series_ids:
-                        seq_info = client.get(f'/series/{seq_series_id}')
-                        seq_instances = seq_info.get('Instances', [])
-                        if idx < len(seq_instances):
-                            sequence_instance_ids.append(seq_instances[idx])
-                    
-                    if len(sequence_instance_ids) != 4:
-                        logger.warning(f"  ⚠️ 슬라이스 {idx}: 4개 시퀀스를 찾을 수 없음, 스킵")
-                        return None
-                    
-                    # 4-channel 세그멘테이션
-                    dicom_data_list = []
-                    for seq_id in sequence_instance_ids:
-                        dicom_data = client.get_instance_file(seq_id)
-                        dicom_data_list.append(dicom_data)
-                    
-                    payload = {
-                        'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list],
-                        'seg_series_uid': seg_series_uid,
-                        'instance_number': idx + 1
-                    }
-                else:
-                    # 단일 이미지 세그멘테이션
-                    dicom_data = client.get_instance_file(instance_id)
-                    
-                    payload = {
-                        'dicom_data': base64.b64encode(dicom_data).decode('utf-8'),
-                        'seg_series_uid': seg_series_uid,
-                        'instance_number': idx + 1
-                    }
-                
-                # Mosec으로 전송
-                seg_response = requests.post(
-                    f"{SEGMENTATION_API_URL}/inference",
-                    json=payload,
-                    timeout=60
-                )
-                
-                seg_response.raise_for_status()
-                seg_result = seg_response.json()
-                
-                if seg_result.get('success'):
-                    result = {
-                        'instance_id': instance_id,
-                        'slice_index': idx,
-                        'tumor_ratio_percent': seg_result.get('tumor_ratio_percent', 0),
-                        'seg_instance_id': seg_result.get('seg_instance_id')
-                    }
-                    
-                    with results_lock:
-                        results.append(result)
-                        if seg_result.get('seg_instance_id'):
-                            seg_instance_ids.append(seg_result.get('seg_instance_id'))
-                    
-                    if (idx + 1) % 10 == 0:
-                        logger.info(f"  진행: {idx + 1}/{len(instance_ids)}")
-                    
-                    return result
-                else:
-                    logger.error(f"  ❌ 슬라이스 {idx} 실패: {seg_result.get('error')}")
-                    return None
-                    
-            except Exception as e:
-                logger.error(f"  ❌ 슬라이스 {idx} 처리 실패: {e}")
-                with results_lock:
-                    results.append({
-                        'instance_id': instance_id,
-                        'slice_index': idx,
-                        'error': str(e)
-                    })
-                return None
-        
-        # 5. ThreadPoolExecutor로 병렬 처리 (10개씩 동시)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
-                executor.submit(process_slice, idx, instance_id)
-                for idx, instance_id in enumerate(instance_ids)
-            ]
+        for seq_idx, current_seq_series_id in enumerate(sequence_series_ids):
+            seq_info = client.get(f"/series/{current_seq_series_id}")
+            seq_instances = seq_info.get("Instances", [])
             
-            # 완료 대기
-            concurrent.futures.wait(futures)
+            if len(seq_instances) < 96:
+                return Response({
+                    "success": False,
+                    "error": f"시퀀스 {current_seq_series_id}의 슬라이스가 부족합니다 (최소 96개 필요)"
+                }, status=400)
+            
+            # 같은 범위에서 96개 선택
+            selected_instances = seq_instances[start_idx:end_idx]
+            
+            # 각 슬라이스의 DICOM 데이터 수집 (base64 인코딩)
+            slices_data = []
+            for instance_id in selected_instances:
+                dicom_data = client.get_instance_file(instance_id)
+                slices_data.append(base64.b64encode(dicom_data).decode("utf-8"))
+            
+            sequences_3d.append(slices_data)  # [96] 크기의 리스트 추가
+            logger.info(f"✅ 시퀀스 {seq_idx+1}/4 수집 완료: {len(slices_data)}개 슬라이스")
         
-        # 6. 결과 반환
-        logger.info(f"✅ 병렬 세그멘테이션 완료: {len(seg_instance_ids)}/{len(instance_ids)} 성공")
+        # Mosec에 전송할 payload (4-channel 3D)
+        import json
+        import gzip
+        
+        payload = {
+            "sequences_3d": sequences_3d,  # [4][96] 형태, 각 요소는 base64 인코딩된 DICOM
+            "seg_series_uid": seg_series_uid,
+            "original_series_id": series_id,
+            "start_instance_number": start_idx + 1
+        }
+        
+        # Gzip 압축
+        compressed_payload = gzip.compress(json.dumps(payload).encode('utf-8'))
+        
+        logger.info(f"📡 Mosec으로 전송 중... "
+                    f"원본 크기: {len(json.dumps(payload).encode('utf-8')) / (1024*1024):.2f} MB, "
+                    f"압축 크기: {len(compressed_payload) / (1024*1024):.2f} MB")
+        
+        seg_response = requests.post(
+            f"{SEGMENTATION_API_URL}/inference",
+            data=compressed_payload,
+            headers={'Content-Type': 'application/json', 'Content-Encoding': 'gzip'},
+            timeout=600  # 10분
+        )
+        
+        seg_response.raise_for_status()
+        result = seg_response.json()
+        
+        logger.info(f"✅ 세그멘테이션 완료!")
         
         return Response({
             'success': True,
             'series_id': series_id,
-            'total_slices': len(instance_ids),
-            'processed_slices': len(results),
-            'successful_slices': len(seg_instance_ids),
-            'results': results,
-            'seg_instance_ids': seg_instance_ids,
-            'is_4channel': is_4channel
+            'total_slices': 96,
+            'seg_instance_id': result.get('seg_instance_id'),
+            'tumor_ratio_percent': result.get('tumor_ratio_percent', 0),
+            'saved_to_orthanc': result.get('saved_to_orthanc', False)
         })
         
     except Exception as e:
