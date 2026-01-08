@@ -69,6 +69,11 @@ export default function MRIImageDetail() {
   
   // 4-channel DCE-MRI를 위한 Series 선택
   const [selectedSeriesFor4Channel, setSelectedSeriesFor4Channel] = useState<number[]>([]);
+  
+  // 시리즈 전체 세그멘테이션 상태
+  const [seriesSegmentationResults, setSeriesSegmentationResults] = useState<{[seriesId: string]: any}>({});
+  const [showSegmentationOverlay, setShowSegmentationOverlay] = useState(false);
+  const [segmentationAnalyzing, setSegmentationAnalyzing] = useState(false);
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -172,6 +177,85 @@ export default function MRIImageDetail() {
     setSelectedImageIndex(0);
     setAiResult(null);
     setShowAiResult(false);
+  };
+
+  const handleSeriesSegmentation = async () => {
+    if (seriesGroups.length === 0 || selectedSeriesIndex === -1) {
+      toast({
+        title: "오류",
+        description: "시리즈를 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentSeries = seriesGroups[selectedSeriesIndex];
+    const seriesId = currentSeries.series_id;
+
+    // 이미 세그멘테이션 결과가 있으면 토글만
+    if (seriesSegmentationResults[seriesId]) {
+      setShowSegmentationOverlay(!showSegmentationOverlay);
+      return;
+    }
+
+    setSegmentationAnalyzing(true);
+
+    try {
+      const isMRI = imageType === 'MRI 영상';
+      
+      // 4-channel 모드 확인
+      let payload: any = {};
+      if (isMRI && selectedSeriesFor4Channel.length === 4) {
+        const sequenceSeriesIds = selectedSeriesFor4Channel.map(idx => seriesGroups[idx].series_id);
+        payload.sequence_series_ids = sequenceSeriesIds;
+        
+        toast({
+          title: "시리즈 전체 세그멘테이션 시작",
+          description: `4-channel 모드로 ${currentSeries.images.length}개 슬라이스 분석 중...`,
+        });
+      } else {
+        toast({
+          title: "시리즈 전체 세그멘테이션 시작",
+          description: `${currentSeries.images.length}개 슬라이스 분석 중...`,
+        });
+      }
+
+      const response = await fetch(`/api/mri/segmentation/series/${seriesId}/segment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `서버 오류 (${response.status})`);
+      }
+
+      // 결과 저장
+      setSeriesSegmentationResults({
+        ...seriesSegmentationResults,
+        [seriesId]: data
+      });
+      
+      setShowSegmentationOverlay(true);
+
+      toast({
+        title: "시리즈 세그멘테이션 완료",
+        description: `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료`,
+      });
+    } catch (error) {
+      console.error('시리즈 세그멘테이션 오류:', error);
+      toast({
+        title: "세그멘테이션 실패",
+        description: error instanceof Error ? error.message : "세그멘테이션 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setSegmentationAnalyzing(false);
+    }
   };
 
   const handleAiAnalysis = async () => {
@@ -378,6 +462,36 @@ export default function MRIImageDetail() {
                   </>
                 )}
               </Button>
+
+              {/* 병변 탐지 토글 버튼 (MRI만) */}
+              {imageType === 'MRI 영상' && (
+                <Button
+                  onClick={handleSeriesSegmentation}
+                  disabled={segmentationAnalyzing || seriesGroups.length === 0}
+                  className={`font-bold px-6 py-2 rounded-xl flex items-center gap-2 shadow-lg ${
+                    showSegmentationOverlay
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+                      : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
+                  } text-white`}
+                >
+                  {segmentationAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      분석 중...
+                    </>
+                  ) : showSegmentationOverlay ? (
+                    <>
+                      <Scan className="w-4 h-4" />
+                      병변 탐지 OFF
+                    </>
+                  ) : (
+                    <>
+                      <Scan className="w-4 h-4" />
+                      병변 탐지 ON
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>

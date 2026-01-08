@@ -38,6 +38,7 @@ urlpatterns = [
     
     # MRI 세그멘테이션 API
     path('segmentation/instances/<str:instance_id>/segment/', segmentation_views.mri_segmentation, name='mri-segmentation'),
+    path('segmentation/series/<str:series_id>/segment/', segmentation_views.segment_series, name='segment-series'),
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
 ]
 

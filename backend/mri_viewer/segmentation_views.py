@@ -119,6 +119,125 @@ def mri_segmentation(request, instance_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['POST'])
+def segment_series(request, series_id):
+    """
+    시리즈 전체를 세그멘테이션하고 Orthanc에 저장
+    
+    POST /api/mri/segmentation/series/<series_id>/segment/
+    Body (optional): {
+        "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]  // 4-channel 모드
+    }
+    """
+    try:
+        logger.info(f"🔍 시리즈 전체 세그멘테이션 시작: series_id={series_id}")
+        
+        # 1. Orthanc에서 시리즈의 모든 인스턴스 가져오기
+        client = OrthancClient()
+        series_info = client.get(f'/series/{series_id}')
+        instance_ids = series_info.get('Instances', [])
+        
+        if not instance_ids:
+            raise Exception('시리즈에 이미지가 없습니다')
+        
+        logger.info(f"📊 총 {len(instance_ids)}개 슬라이스 세그멘테이션 시작")
+        
+        # 2. 4-channel 모드 확인
+        sequence_series_ids = request.data.get('sequence_series_ids', [])
+        is_4channel = len(sequence_series_ids) == 4
+        
+        # 3. 각 슬라이스별로 세그멘테이션 수행
+        results = []
+        seg_instance_ids = []
+        
+        for idx, instance_id in enumerate(instance_ids):
+            try:
+                logger.info(f"  처리 중: {idx + 1}/{len(instance_ids)} - {instance_id}")
+                
+                if is_4channel:
+                    # 4개 시리즈에서 같은 인덱스의 인스턴스 수집
+                    sequence_instance_ids = []
+                    for seq_series_id in sequence_series_ids:
+                        seq_info = client.get(f'/series/{seq_series_id}')
+                        seq_instances = seq_info.get('Instances', [])
+                        if idx < len(seq_instances):
+                            sequence_instance_ids.append(seq_instances[idx])
+                    
+                    if len(sequence_instance_ids) != 4:
+                        logger.warning(f"  ⚠️ 슬라이스 {idx}: 4개 시퀀스를 찾을 수 없음, 스킵")
+                        continue
+                    
+                    # 4-channel 세그멘테이션
+                    dicom_data_list = []
+                    for seq_id in sequence_instance_ids:
+                        dicom_data = client.get_instance_file(seq_id)
+                        dicom_data_list.append(dicom_data)
+                    
+                    payload = {
+                        'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list]
+                    }
+                    
+                    seg_response = requests.post(
+                        f"{SEGMENTATION_API_URL}/inference",
+                        json=payload,
+                        timeout=600
+                    )
+                else:
+                    # 단일 이미지 세그멘테이션
+                    dicom_data = client.get_instance_file(instance_id)
+                    
+                    seg_response = requests.post(
+                        f"{SEGMENTATION_API_URL}/inference",
+                        data=dicom_data,
+                        headers={'Content-Type': 'application/octet-stream'},
+                        timeout=600
+                    )
+                
+                seg_response.raise_for_status()
+                seg_result = seg_response.json()
+                
+                if seg_result.get('success'):
+                    results.append({
+                        'instance_id': instance_id,
+                        'slice_index': idx,
+                        'tumor_ratio_percent': seg_result.get('tumor_ratio_percent', 0),
+                        'seg_instance_id': seg_result.get('seg_instance_id')
+                    })
+                    
+                    if seg_result.get('seg_instance_id'):
+                        seg_instance_ids.append(seg_result.get('seg_instance_id'))
+                
+            except Exception as e:
+                logger.error(f"  ❌ 슬라이스 {idx} 세그멘테이션 실패: {e}")
+                results.append({
+                    'instance_id': instance_id,
+                    'slice_index': idx,
+                    'error': str(e)
+                })
+        
+        # 4. 결과 반환
+        logger.info(f"✅ 시리즈 세그멘테이션 완료: {len(seg_instance_ids)}/{len(instance_ids)} 성공")
+        
+        return Response({
+            'success': True,
+            'series_id': series_id,
+            'total_slices': len(instance_ids),
+            'processed_slices': len(results),
+            'successful_slices': len(seg_instance_ids),
+            'results': results,
+            'seg_instance_ids': seg_instance_ids,
+            'is_4channel': is_4channel
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 시리즈 세그멘테이션 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'series_id': series_id,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET'])
 def segmentation_health(request):
     """
