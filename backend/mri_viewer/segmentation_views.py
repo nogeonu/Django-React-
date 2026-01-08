@@ -37,7 +37,7 @@ def mri_segmentation(request, instance_id):
             f"{SEGMENTATION_API_URL}/inference",
             data=dicom_data,  # Mosec은 raw bytes를 받음
             headers={'Content-Type': 'application/octet-stream'},
-            timeout=300  # 타임아웃 300초 (5분)
+            timeout=600  # 타임아웃 600초 (10분)
         )
         
         seg_response.raise_for_status()
@@ -69,7 +69,7 @@ def mri_segmentation(request, instance_id):
         return Response({
             'success': False,
             'instance_id': instance_id,
-            'error': '세그멘테이션 API 타임아웃 (300초 초과)'
+            'error': '세그멘테이션 API 타임아웃 (600초 초과)'
         }, status=status.HTTP_504_GATEWAY_TIMEOUT)
         
     except requests.exceptions.ConnectionError:
