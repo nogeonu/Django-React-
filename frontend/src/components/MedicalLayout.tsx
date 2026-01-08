@@ -65,18 +65,18 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
                         {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                     </button>
 
-                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
                         {/* Quick Search */}
-                        <div className="hidden md:flex relative group">
-                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                <Activity className="h-4 w-4 text-gray-400" />
-                            </div>
-                            <input
-                                type="text"
-                                placeholder="빠른 환자 검색..."
+                            <div className="hidden md:flex relative group">
+                                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                    <Activity className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="빠른 환자 검색..."
                                 className="bg-slate-100 dark:bg-slate-800 border-none rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:ring-2 focus:ring-primary/20 transition-all"
-                            />
-                        </div>
+                                />
+                            </div>
 
                         {/* Notifications */}
                         <button className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
@@ -93,7 +93,7 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
                                 <p className={cn("text-xs font-semibold px-2 py-0.5 rounded-full w-fit", getRoleBadgeColor(user?.role || ''))}>
                                     {getRoleLabel(user?.role || '')}
                                 </p>
-                            </div>
+                                </div>
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center flex-shrink-0">
                                 <User className="w-5 h-5" />
                             </div>

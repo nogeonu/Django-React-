@@ -151,14 +151,19 @@ def segment_series(request, series_id):
         sequence_series_ids = request.data.get('sequence_series_ids', [])
         is_4channel = len(sequence_series_ids) == 4
         
-        # 4. 각 슬라이스별로 세그멘테이션 수행
+        # 4. 병렬 처리로 모든 슬라이스 세그멘테이션 (10개씩 동시 처리)
+        logger.info(f"🚀 병렬 세그멘테이션 시작: {len(instance_ids)}개 슬라이스")
+        
+        import concurrent.futures
+        import threading
+        
         results = []
         seg_instance_ids = []
+        results_lock = threading.Lock()
         
-        for idx, instance_id in enumerate(instance_ids):
+        def process_slice(idx, instance_id):
+            """개별 슬라이스 처리"""
             try:
-                logger.info(f"  처리 중: {idx + 1}/{len(instance_ids)} - {instance_id}")
-                
                 if is_4channel:
                     # 4개 시리즈에서 같은 인덱스의 인스턴스 수집
                     sequence_instance_ids = []
@@ -170,7 +175,7 @@ def segment_series(request, series_id):
                     
                     if len(sequence_instance_ids) != 4:
                         logger.warning(f"  ⚠️ 슬라이스 {idx}: 4개 시퀀스를 찾을 수 없음, 스킵")
-                        continue
+                        return None
                     
                     # 4-channel 세그멘테이션
                     dicom_data_list = []
@@ -183,53 +188,69 @@ def segment_series(request, series_id):
                         'seg_series_uid': seg_series_uid,
                         'instance_number': idx + 1
                     }
-                    
-                    seg_response = requests.post(
-                        f"{SEGMENTATION_API_URL}/inference",
-                        json=payload,
-                        timeout=30  # 개별 슬라이스는 30초로 충분
-                    )
                 else:
                     # 단일 이미지 세그멘테이션
                     dicom_data = client.get_instance_file(instance_id)
                     
-                    # JSON으로 전송 (Series UID와 Instance Number 포함)
                     payload = {
                         'dicom_data': base64.b64encode(dicom_data).decode('utf-8'),
                         'seg_series_uid': seg_series_uid,
                         'instance_number': idx + 1
                     }
-                    
-                    seg_response = requests.post(
-                        f"{SEGMENTATION_API_URL}/inference",
-                        json=payload,
-                        timeout=30  # 개별 슬라이스는 30초로 충분
-                    )
+                
+                # Mosec으로 전송
+                seg_response = requests.post(
+                    f"{SEGMENTATION_API_URL}/inference",
+                    json=payload,
+                    timeout=60
+                )
                 
                 seg_response.raise_for_status()
                 seg_result = seg_response.json()
                 
                 if seg_result.get('success'):
-                    results.append({
+                    result = {
                         'instance_id': instance_id,
                         'slice_index': idx,
                         'tumor_ratio_percent': seg_result.get('tumor_ratio_percent', 0),
                         'seg_instance_id': seg_result.get('seg_instance_id')
-                    })
+                    }
                     
-                    if seg_result.get('seg_instance_id'):
-                        seg_instance_ids.append(seg_result.get('seg_instance_id'))
-                
+                    with results_lock:
+                        results.append(result)
+                        if seg_result.get('seg_instance_id'):
+                            seg_instance_ids.append(seg_result.get('seg_instance_id'))
+                    
+                    if (idx + 1) % 10 == 0:
+                        logger.info(f"  진행: {idx + 1}/{len(instance_ids)}")
+                    
+                    return result
+                else:
+                    logger.error(f"  ❌ 슬라이스 {idx} 실패: {seg_result.get('error')}")
+                    return None
+                    
             except Exception as e:
-                logger.error(f"  ❌ 슬라이스 {idx} 세그멘테이션 실패: {e}")
-                results.append({
-                    'instance_id': instance_id,
-                    'slice_index': idx,
-                    'error': str(e)
-                })
+                logger.error(f"  ❌ 슬라이스 {idx} 처리 실패: {e}")
+                with results_lock:
+                    results.append({
+                        'instance_id': instance_id,
+                        'slice_index': idx,
+                        'error': str(e)
+                    })
+                return None
         
-        # 4. 결과 반환
-        logger.info(f"✅ 시리즈 세그멘테이션 완료: {len(seg_instance_ids)}/{len(instance_ids)} 성공")
+        # 5. ThreadPoolExecutor로 병렬 처리 (10개씩 동시)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [
+                executor.submit(process_slice, idx, instance_id)
+                for idx, instance_id in enumerate(instance_ids)
+            ]
+            
+            # 완료 대기
+            concurrent.futures.wait(futures)
+        
+        # 6. 결과 반환
+        logger.info(f"✅ 병렬 세그멘테이션 완료: {len(seg_instance_ids)}/{len(instance_ids)} 성공")
         
         return Response({
             'success': True,
