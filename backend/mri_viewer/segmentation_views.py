@@ -8,12 +8,57 @@ import requests
 import io
 import logging
 import base64
+import json
+import uuid
+from datetime import datetime
+from google.cloud import storage
 from .orthanc_client import OrthancClient
 
 logger = logging.getLogger(__name__)
 
-# 세그멘테이션 API 서버 URL (FastAPI 프록시)
-SEGMENTATION_API_URL = "http://localhost:5007"
+# 세그멘테이션 API 서버 URL (Mosec)
+SEGMENTATION_API_URL = "http://localhost:5006"
+
+# GCS 설정
+GCS_BUCKET_NAME = "hospital-mri-temp-data"
+GCS_TEMP_FOLDER = "mri_temp"
+
+
+def upload_to_gcs(data_dict, filename=None):
+    """
+    데이터를 GCS에 업로드하고 Public URL 반환
+    
+    Args:
+        data_dict: 업로드할 데이터 (dict)
+        filename: 파일명 (없으면 UUID 생성)
+    
+    Returns:
+        str: GCS Public URL
+    """
+    if filename is None:
+        filename = f"{uuid.uuid4().hex}.json"
+    
+    blob_name = f"{GCS_TEMP_FOLDER}/{datetime.now().strftime('%Y%m%d')}/{filename}"
+    
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        blob = bucket.blob(blob_name)
+        
+        # JSON 데이터 업로드
+        json_data = json.dumps(data_dict)
+        blob.upload_from_string(json_data, content_type='application/json')
+        
+        # Public URL 생성
+        blob.make_public()
+        public_url = blob.public_url
+        
+        logger.info(f"✅ GCS 업로드 완료: {blob_name} ({len(json_data) / (1024**2):.2f} MB)")
+        return public_url
+        
+    except Exception as e:
+        logger.error(f"❌ GCS 업로드 실패: {e}", exc_info=True)
+        raise
 
 
 @api_view(['POST'])
@@ -193,28 +238,28 @@ def segment_series(request, series_id):
             sequences_3d.append(slices_data)  # [96] 크기의 리스트 추가
             logger.info(f"✅ 시퀀스 {seq_idx+1}/4 수집 완료: {len(slices_data)}개 슬라이스")
         
-        # Mosec에 전송할 payload (4-channel 3D)
-        import json
-        import gzip
+        # 1. DICOM 데이터를 GCS에 업로드
+        logger.info("📤 DICOM 데이터를 GCS에 업로드 중...")
         
-        payload = {
+        gcs_payload = {
             "sequences_3d": sequences_3d,  # [4][96] 형태, 각 요소는 base64 인코딩된 DICOM
             "seg_series_uid": seg_series_uid,
             "original_series_id": series_id,
             "start_instance_number": start_idx + 1
         }
         
-        # Gzip 압축
-        compressed_payload = gzip.compress(json.dumps(payload).encode('utf-8'))
+        gcs_url = upload_to_gcs(gcs_payload, f"mri_{seg_series_uid}.json")
         
-        logger.info(f"📡 Mosec으로 전송 중... "
-                    f"원본 크기: {len(json.dumps(payload).encode('utf-8')) / (1024*1024):.2f} MB, "
-                    f"압축 크기: {len(compressed_payload) / (1024*1024):.2f} MB")
+        # 2. Mosec에는 GCS URL만 전송 (작은 payload)
+        logger.info(f"📡 Mosec으로 GCS URL 전송 중...")
         
         seg_response = requests.post(
             f"{SEGMENTATION_API_URL}/inference",
-            data=compressed_payload,
-            headers={'Content-Type': 'application/json', 'Content-Encoding': 'gzip'},
+            json={
+                "gcs_url": gcs_url,
+                "seg_series_uid": seg_series_uid,
+                "original_series_id": series_id,
+            },
             timeout=600  # 10분
         )
         
