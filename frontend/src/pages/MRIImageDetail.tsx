@@ -164,8 +164,14 @@ export default function MRIImageDetail() {
 
     try {
       const instanceId = orthancImages[selectedImage].instance_id;
+      const isMRI = imageType === 'MRI 영상';
       
-      const response = await fetch(`/api/mri/yolo/instances/${instanceId}/detect/`, {
+      // MRI는 세그멘테이션, 유방촬영술은 YOLO 디텍션
+      const endpoint = isMRI 
+        ? `/api/mri/segmentation/instances/${instanceId}/segment/`
+        : `/api/mri/yolo/instances/${instanceId}/detect/`;
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,13 +184,20 @@ export default function MRIImageDetail() {
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
 
-      setAiResult(data);
+      setAiResult({...data, isMRI});
       setShowAiResult(true);
 
-      toast({
-        title: "AI 분석 완료",
-        description: `${data.detection_count}개의 병변이 감지되었습니다.`,
-      });
+      if (isMRI) {
+        toast({
+          title: "AI 세그멘테이션 완료",
+          description: `종양 영역: ${(data.tumor_ratio * 100).toFixed(1)}%`,
+        });
+      } else {
+        toast({
+          title: "AI 디텍션 완료",
+          description: `${data.detection_count}개의 병변이 감지되었습니다.`,
+        });
+      }
     } catch (error) {
       console.error('AI 분석 오류:', error);
       toast({
@@ -381,37 +394,74 @@ export default function MRIImageDetail() {
                     </div>
                     
                     <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-700/30 rounded-xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-white">검출된 병변</span>
-                        <Badge className="bg-purple-600 text-white font-bold">
-                          {aiResult.detection_count}개
-                        </Badge>
-                      </div>
-                      
-                      {aiResult.detections && aiResult.detections.length > 0 ? (
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {aiResult.detections.map((det: any, idx: number) => (
-                            <div key={idx} className="bg-gray-900/50 rounded-lg p-3 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-purple-300">
-                                  {det.class_name || `객체 ${idx + 1}`}
-                                </span>
-                                <Badge className="bg-green-600/20 text-green-400 text-xs">
-                                  {(det.confidence * 100).toFixed(1)}%
-                                </Badge>
-                              </div>
-                              <div className="text-xs text-gray-400 font-mono">
-                                위치: [{det.bbox[0].toFixed(0)}, {det.bbox[1].toFixed(0)}] - 
-                                [{det.bbox[2].toFixed(0)}, {det.bbox[3].toFixed(0)}]
-                              </div>
+                      {/* MRI 세그멘테이션 결과 */}
+                      {aiResult.isMRI ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-white">종양 영역</span>
+                            <Badge className="bg-purple-600 text-white font-bold">
+                              {(aiResult.tumor_ratio * 100).toFixed(1)}%
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">종양 픽셀</span>
+                              <span className="text-white font-bold">{aiResult.tumor_pixels?.toLocaleString()}</span>
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">전체 픽셀</span>
+                              <span className="text-white font-bold">{aiResult.total_pixels?.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          
+                          {aiResult.mask_base64 && (
+                            <div className="pt-3 border-t border-gray-800">
+                              <p className="text-xs text-gray-400 mb-2">세그멘테이션 마스크</p>
+                              <img 
+                                src={`data:image/png;base64,${aiResult.mask_base64}`}
+                                alt="Segmentation Mask"
+                                className="w-full rounded-lg border border-gray-700"
+                              />
+                            </div>
+                          )}
+                        </>
                       ) : (
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <span>병변이 검출되지 않았습니다</span>
-                        </div>
+                        /* 유방촬영술 디텍션 결과 */
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-white">검출된 병변</span>
+                            <Badge className="bg-purple-600 text-white font-bold">
+                              {aiResult.detection_count}개
+                            </Badge>
+                          </div>
+                          
+                          {aiResult.detections && aiResult.detections.length > 0 ? (
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {aiResult.detections.map((det: any, idx: number) => (
+                                <div key={idx} className="bg-gray-900/50 rounded-lg p-3 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-purple-300">
+                                      {det.class_name || `객체 ${idx + 1}`}
+                                    </span>
+                                    <Badge className="bg-green-600/20 text-green-400 text-xs">
+                                      {(det.confidence * 100).toFixed(1)}%
+                                    </Badge>
+                                  </div>
+                                  <div className="text-xs text-gray-400 font-mono">
+                                    위치: [{det.bbox[0].toFixed(0)}, {det.bbox[1].toFixed(0)}] - 
+                                    [{det.bbox[2].toFixed(0)}, {det.bbox[3].toFixed(0)}]
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-gray-400">
+                              <CheckCircle className="w-4 h-4 text-green-400" />
+                              <span>병변이 검출되지 않았습니다</span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
