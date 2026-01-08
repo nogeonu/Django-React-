@@ -26,14 +26,14 @@ GCS_TEMP_FOLDER = "mri_temp"
 
 def upload_to_gcs(data_dict, filename=None):
     """
-    데이터를 GCS에 업로드하고 Public URL 반환
+    데이터를 GCS에 업로드하고 gs:// URL 반환
     
     Args:
         data_dict: 업로드할 데이터 (dict)
         filename: 파일명 (없으면 UUID 생성)
     
     Returns:
-        str: GCS Public URL
+        str: GCS gs:// URL (Mosec이 직접 접근)
     """
     if filename is None:
         filename = f"{uuid.uuid4().hex}.json"
@@ -49,16 +49,12 @@ def upload_to_gcs(data_dict, filename=None):
         json_data = json.dumps(data_dict)
         blob.upload_from_string(json_data, content_type='application/json')
         
-        # 서명된 URL 생성 (1시간 유효)
-        from datetime import timedelta
-        signed_url = blob.generate_signed_url(
-            version="v4",
-            expiration=timedelta(hours=1),
-            method="GET"
-        )
+        # gs:// URL 반환 (Mosec이 같은 GCP 환경에서 직접 접근)
+        gs_url = f"gs://{GCS_BUCKET_NAME}/{blob_name}"
         
         logger.info(f"✅ GCS 업로드 완료: {blob_name} ({len(json_data) / (1024**2):.2f} MB)")
-        return signed_url
+        logger.info(f"📍 GCS URL: {gs_url}")
+        return gs_url
         
     except Exception as e:
         logger.error(f"❌ GCS 업로드 실패: {e}", exc_info=True)
