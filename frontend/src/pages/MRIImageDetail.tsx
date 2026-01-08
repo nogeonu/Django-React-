@@ -73,7 +73,6 @@ export default function MRIImageDetail() {
   // 시리즈 전체 세그멘테이션 상태
   const [seriesSegmentationResults, setSeriesSegmentationResults] = useState<{[seriesId: string]: any}>({});
   const [showSegmentationOverlay, setShowSegmentationOverlay] = useState(false);
-  const [segmentationAnalyzing, setSegmentationAnalyzing] = useState(false);
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -179,7 +178,8 @@ export default function MRIImageDetail() {
     setShowAiResult(false);
   };
 
-  const handleSeriesSegmentation = async () => {
+  const handleAiAnalysis = async () => {
+    // AI 분석 = 시리즈 전체 세그멘테이션
     if (seriesGroups.length === 0 || selectedSeriesIndex === -1) {
       toast({
         title: "오류",
@@ -191,21 +191,64 @@ export default function MRIImageDetail() {
 
     const currentSeries = seriesGroups[selectedSeriesIndex];
     const seriesId = currentSeries.series_id;
+    const isMRI = imageType === 'MRI 영상';
 
-    // 이미 세그멘테이션 결과가 있으면 토글만
-    if (seriesSegmentationResults[seriesId]) {
-      setShowSegmentationOverlay(!showSegmentationOverlay);
+    // 유방촬영술은 단일 이미지 분석
+    if (!isMRI) {
+      if (!currentImage) {
+        toast({
+          title: "오류",
+          description: "이미지를 선택해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAiAnalyzing(true);
+      setAiResult(null);
+
+      try {
+        const instanceId = currentImage.instance_id;
+        const response = await fetch(`/api/mri/yolo/instances/${instanceId}/detect/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `서버 오류 (${response.status})`);
+        }
+
+        setAiResult({ ...data, isMRI: false });
+        setShowAiResult(true);
+
+        toast({
+          title: "AI 디텍션 완료",
+          description: `${data.detection_count}개의 병변이 감지되었습니다.`,
+        });
+      } catch (error) {
+        console.error('AI 분석 오류:', error);
+        toast({
+          title: "AI 분석 실패",
+          description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      } finally {
+        setAiAnalyzing(false);
+      }
       return;
     }
 
-    setSegmentationAnalyzing(true);
+    // MRI: 시리즈 전체 세그멘테이션
+    setAiAnalyzing(true);
 
     try {
-      const isMRI = imageType === 'MRI 영상';
-      
       // 4-channel 모드 확인
       let payload: any = {};
-      if (isMRI && selectedSeriesFor4Channel.length === 4) {
+      if (selectedSeriesFor4Channel.length === 4) {
         const sequenceSeriesIds = selectedSeriesFor4Channel.map(idx => seriesGroups[idx].series_id);
         payload.sequence_series_ids = sequenceSeriesIds;
         
@@ -239,145 +282,16 @@ export default function MRIImageDetail() {
         ...seriesSegmentationResults,
         [seriesId]: data
       });
-      
-      setShowSegmentationOverlay(true);
 
       toast({
         title: "시리즈 세그멘테이션 완료",
-        description: `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료`,
+        description: `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료. 병변 탐지 버튼으로 오버레이를 확인하세요.`,
       });
     } catch (error) {
       console.error('시리즈 세그멘테이션 오류:', error);
       toast({
         title: "세그멘테이션 실패",
         description: error instanceof Error ? error.message : "세그멘테이션 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
-    } finally {
-      setSegmentationAnalyzing(false);
-    }
-  };
-
-  const handleAiAnalysis = async () => {
-    if (!currentImage) {
-      toast({
-        title: "오류",
-        description: "이미지를 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const isMRI = imageType === 'MRI 영상';
-
-    // MRI이고 4개 Series가 선택되어 있으면 4-channel 모드
-    if (isMRI && selectedSeriesFor4Channel.length === 4) {
-      // 4개 Series에서 같은 슬라이스 인덱스의 instance_id 수집
-      const sequenceInstanceIds = selectedSeriesFor4Channel.map(seriesIdx => {
-        const series = seriesGroups[seriesIdx];
-        const img = series?.images[selectedImageIndex];
-        return img?.instance_id;
-      }).filter(Boolean);
-
-      if (sequenceInstanceIds.length !== 4) {
-        toast({
-          title: "오류",
-          description: "4개 Series의 같은 슬라이스를 찾을 수 없습니다.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "4-channel DCE-MRI 분석 시작",
-        description: "4개 시퀀스를 사용하여 분석합니다...",
-      });
-
-      setAiAnalyzing(true);
-      setAiResult(null);
-
-      try {
-        const response = await fetch(`/api/mri/segmentation/instances/${sequenceInstanceIds[0]}/segment/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            sequence_instance_ids: sequenceInstanceIds
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || `서버 오류 (${response.status})`);
-        }
-
-        setAiResult({ ...data, isMRI: true });
-        setShowAiResult(true);
-
-        const ratio = data.tumor_ratio_percent || (data.tumor_ratio * 100) || 0;
-        toast({
-          title: "AI 세그멘테이션 완료 (4-channel)",
-          description: `종양 영역: ${ratio.toFixed(1)}%`,
-        });
-      } catch (error) {
-        console.error('AI 분석 오류:', error);
-        toast({
-          title: "AI 분석 실패",
-          description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
-          variant: "destructive",
-        });
-      } finally {
-        setAiAnalyzing(false);
-      }
-      return;
-    }
-
-    // 단일 이미지 모드 (기존 방식)
-    setAiAnalyzing(true);
-    setAiResult(null);
-
-    try {
-      const instanceId = currentImage.instance_id;
-
-      const endpoint = isMRI
-        ? `/api/mri/segmentation/instances/${instanceId}/segment/`
-        : `/api/mri/yolo/instances/${instanceId}/detect/`;
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `서버 오류 (${response.status})`);
-      }
-
-      setAiResult({ ...data, isMRI });
-      setShowAiResult(true);
-
-      if (isMRI) {
-        const ratio = data.tumor_ratio_percent || (data.tumor_ratio * 100) || 0;
-        toast({
-          title: "AI 세그멘테이션 완료",
-          description: `종양 영역: ${ratio.toFixed(1)}%`,
-        });
-      } else {
-        toast({
-          title: "AI 디텍션 완료",
-          description: `${data.detection_count}개의 병변이 감지되었습니다.`,
-        });
-      }
-    } catch (error) {
-      console.error('AI 분석 오류:', error);
-      toast({
-        title: "AI 분석 실패",
-        description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {
@@ -463,23 +377,20 @@ export default function MRIImageDetail() {
                 )}
               </Button>
 
-              {/* 병변 탐지 토글 버튼 (MRI만) */}
-              {imageType === 'MRI 영상' && (
+              {/* 병변 탐지 토글 버튼 (세그멘테이션 결과가 있을 때만 표시) */}
+              {imageType === 'MRI 영상' && 
+               seriesGroups.length > 0 && 
+               selectedSeriesIndex !== -1 &&
+               seriesSegmentationResults[seriesGroups[selectedSeriesIndex]?.series_id] && (
                 <Button
-                  onClick={handleSeriesSegmentation}
-                  disabled={segmentationAnalyzing || seriesGroups.length === 0}
+                  onClick={() => setShowSegmentationOverlay(!showSegmentationOverlay)}
                   className={`font-bold px-6 py-2 rounded-xl flex items-center gap-2 shadow-lg ${
                     showSegmentationOverlay
                       ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
                       : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
                   } text-white`}
                 >
-                  {segmentationAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      분석 중...
-                    </>
-                  ) : showSegmentationOverlay ? (
+                  {showSegmentationOverlay ? (
                     <>
                       <Scan className="w-4 h-4" />
                       병변 탐지 OFF
