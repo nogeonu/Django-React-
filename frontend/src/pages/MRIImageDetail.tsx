@@ -66,6 +66,9 @@ export default function MRIImageDetail() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
   const [showAiResult, setShowAiResult] = useState(false);
+  
+  // 4-channel DCE-MRI를 위한 Series 선택
+  const [selectedSeriesFor4Channel, setSelectedSeriesFor4Channel] = useState<number[]>([]);
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -181,12 +184,78 @@ export default function MRIImageDetail() {
       return;
     }
 
+    const isMRI = imageType === 'MRI 영상';
+
+    // MRI이고 4개 Series가 선택되어 있으면 4-channel 모드
+    if (isMRI && selectedSeriesFor4Channel.length === 4) {
+      // 4개 Series에서 같은 슬라이스 인덱스의 instance_id 수집
+      const sequenceInstanceIds = selectedSeriesFor4Channel.map(seriesIdx => {
+        const series = seriesGroups[seriesIdx];
+        const img = series?.images[selectedImageIndex];
+        return img?.instance_id;
+      }).filter(Boolean);
+
+      if (sequenceInstanceIds.length !== 4) {
+        toast({
+          title: "오류",
+          description: "4개 Series의 같은 슬라이스를 찾을 수 없습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "4-channel DCE-MRI 분석 시작",
+        description: "4개 시퀀스를 사용하여 분석합니다...",
+      });
+
+      setAiAnalyzing(true);
+      setAiResult(null);
+
+      try {
+        const response = await fetch(`/api/mri/segmentation/instances/${sequenceInstanceIds[0]}/segment/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sequence_instance_ids: sequenceInstanceIds
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `서버 오류 (${response.status})`);
+        }
+
+        setAiResult({ ...data, isMRI: true });
+        setShowAiResult(true);
+
+        const ratio = data.tumor_ratio_percent || (data.tumor_ratio * 100) || 0;
+        toast({
+          title: "AI 세그멘테이션 완료 (4-channel)",
+          description: `종양 영역: ${ratio.toFixed(1)}%`,
+        });
+      } catch (error) {
+        console.error('AI 분석 오류:', error);
+        toast({
+          title: "AI 분석 실패",
+          description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      } finally {
+        setAiAnalyzing(false);
+      }
+      return;
+    }
+
+    // 단일 이미지 모드 (기존 방식)
     setAiAnalyzing(true);
     setAiResult(null);
 
     try {
       const instanceId = currentImage.instance_id;
-      const isMRI = imageType === 'MRI 영상';
 
       const endpoint = isMRI
         ? `/api/mri/segmentation/instances/${instanceId}/segment/`
@@ -303,6 +372,9 @@ export default function MRIImageDetail() {
                   <>
                     <Brain className="w-4 h-4" />
                     AI 분석
+                    {imageType === 'MRI 영상' && selectedSeriesFor4Channel.length === 4 && (
+                      <Badge className="ml-2 bg-purple-800 text-white text-xs">4CH</Badge>
+                    )}
                   </>
                 )}
               </Button>
@@ -325,26 +397,65 @@ export default function MRIImageDetail() {
                     Series 선택
                   </h3>
                 </div>
+                
+                {/* 4-channel 모드 안내 */}
+                {imageType === 'MRI 영상' && seriesGroups.length >= 4 && (
+                  <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-2 mb-2">
+                    <p className="text-xs text-purple-300 font-bold">
+                      4-channel DCE-MRI 분석
+                    </p>
+                    <p className="text-xs text-purple-400 mt-1">
+                      4개 Series 선택: {selectedSeriesFor4Channel.length}/4
+                    </p>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   {seriesGroups.length > 0 ? (
-                    seriesGroups.map((series, idx) => (
-                      <button
-                        key={series.series_id}
-                        onClick={() => handleSeriesChange(idx)}
-                        className={`w-full p-3 rounded-xl text-left transition-all ${selectedSeriesIndex === idx
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                          }`}
-                      >
-                        <div className="text-xs font-bold">Series {idx + 1}</div>
-                        <div className="text-xs opacity-75 mt-1 truncate">
-                          {series.series_description}
+                    seriesGroups.map((series, idx) => {
+                      const is4ChannelSelected = selectedSeriesFor4Channel.includes(idx);
+                      const isCurrentSeries = selectedSeriesIndex === idx;
+                      
+                      return (
+                        <div key={series.series_id} className="relative">
+                          <button
+                            onClick={() => handleSeriesChange(idx)}
+                            className={`w-full p-3 rounded-xl text-left transition-all ${
+                              isCurrentSeries
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">Series {idx + 1}</div>
+                            <div className="text-xs opacity-75 mt-1 truncate">
+                              {series.series_description}
+                            </div>
+                            <div className="text-xs opacity-60 mt-1">
+                              {series.images.length} images
+                            </div>
+                          </button>
+                          
+                          {/* 4-channel 선택 체크박스 (MRI만) */}
+                          {imageType === 'MRI 영상' && (
+                            <input
+                              type="checkbox"
+                              checked={is4ChannelSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.checked) {
+                                  if (selectedSeriesFor4Channel.length < 4) {
+                                    setSelectedSeriesFor4Channel([...selectedSeriesFor4Channel, idx]);
+                                  }
+                                } else {
+                                  setSelectedSeriesFor4Channel(selectedSeriesFor4Channel.filter(i => i !== idx));
+                                }
+                              }}
+                              className="absolute top-2 right-2 w-4 h-4 rounded border-2 border-purple-500 bg-gray-800 checked:bg-purple-600"
+                            />
+                          )}
                         </div>
-                        <div className="text-xs opacity-60 mt-1">
-                          {series.images.length} images
-                        </div>
-                      </button>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center text-gray-500 text-xs py-4">
                       Series가 없습니다

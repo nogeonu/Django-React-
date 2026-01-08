@@ -22,23 +22,53 @@ def mri_segmentation(request, instance_id):
     MRI 세그멘테이션 실행 및 Orthanc에 저장
     
     POST /api/mri/segmentation/instances/<instance_id>/segment/
+    Body (optional): {
+        "sequence_instance_ids": [id1, id2, id3, id4]  // 4-channel DCE-MRI
+    }
     """
     try:
-        logger.info(f"🔍 MRI 세그멘테이션 시작: instance_id={instance_id}")
+        # Request body에서 4개 시퀀스 ID 가져오기 (없으면 단일 이미지 모드)
+        sequence_ids = request.data.get('sequence_instance_ids', [instance_id])
         
-        # 1. Orthanc에서 DICOM 이미지 가져오기
+        logger.info(f"🔍 MRI 세그멘테이션 시작: {len(sequence_ids)}개 시퀀스")
+        logger.info(f"   Instance IDs: {sequence_ids}")
+        
+        # 1. Orthanc에서 DICOM 이미지들 가져오기
         client = OrthancClient()
-        dicom_data = client.get_instance_file(instance_id)
         
-        # 2. 세그멘테이션 API 호출 (Mosec)
-        logger.info(f"📡 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
-        
-        seg_response = requests.post(
-            f"{SEGMENTATION_API_URL}/inference",
-            data=dicom_data,  # Mosec은 raw bytes를 받음
-            headers={'Content-Type': 'application/octet-stream'},
-            timeout=600  # 타임아웃 600초 (10분)
-        )
+        if len(sequence_ids) == 4:
+            # 4-channel DCE-MRI: 4개 시퀀스를 모두 가져와서 전송
+            dicom_data_list = []
+            for seq_id in sequence_ids:
+                dicom_data = client.get_instance_file(seq_id)
+                dicom_data_list.append(dicom_data)
+            
+            # JSON으로 4개 시퀀스 전송
+            import json
+            payload = json.dumps({
+                'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list]
+            })
+            
+            logger.info(f"📡 4-channel 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
+            
+            seg_response = requests.post(
+                f"{SEGMENTATION_API_URL}/inference",
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=600
+            )
+        else:
+            # 단일 이미지 모드 (기존 방식)
+            dicom_data = client.get_instance_file(instance_id)
+            
+            logger.info(f"📡 단일 이미지 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
+            
+            seg_response = requests.post(
+                f"{SEGMENTATION_API_URL}/inference",
+                data=dicom_data,
+                headers={'Content-Type': 'application/octet-stream'},
+                timeout=600
+            )
         
         seg_response.raise_for_status()
         seg_result = seg_response.json()
