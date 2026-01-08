@@ -50,14 +50,18 @@ def mri_segmentation(request, instance_id):
         response_data = {
             'success': True,
             'instance_id': instance_id,
-            'mask_base64': seg_result.get('mask_base64', ''),
-            'tumor_pixels': seg_result.get('tumor_pixels', 0),
-            'total_pixels': seg_result.get('total_pixels', 0),
-            'tumor_ratio': seg_result.get('tumor_ratio', 0.0),
+            'segmentation_mask_base64': seg_result.get('segmentation_mask_base64', ''),
+            'tumor_pixel_count': seg_result.get('tumor_pixel_count', 0),
+            'total_pixel_count': seg_result.get('total_pixel_count', 0),
+            'tumor_ratio_percent': seg_result.get('tumor_ratio_percent', 0.0),
             'image_size': seg_result.get('image_size', []),
+            'seg_instance_id': seg_result.get('seg_instance_id'),  # Orthanc에 저장된 세그멘테이션 Instance ID
+            'saved_to_orthanc': seg_result.get('saved_to_orthanc', False),
         }
         
-        logger.info(f"✅ 세그멘테이션 완료: 종양 비율 {response_data['tumor_ratio']:.2%}")
+        logger.info(f"✅ 세그멘테이션 완료: 종양 비율 {response_data['tumor_ratio_percent']:.2f}%")
+        if response_data['saved_to_orthanc']:
+            logger.info(f"💾 Orthanc 저장 완료: {response_data['seg_instance_id']}")
         return Response(response_data)
         
     except requests.exceptions.Timeout:
