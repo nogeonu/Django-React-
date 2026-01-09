@@ -222,6 +222,7 @@ def segment_series(request, series_id):
             'success': True,
             'series_id': series_id,
             'total_slices': 96,
+            'successful_slices': 96,  # 세그멘테이션 성공한 슬라이스 수
             'seg_instance_id': result.get('seg_instance_id'),
             'tumor_ratio_percent': result.get('tumor_ratio_percent', 0),
             'saved_to_orthanc': result.get('saved_to_orthanc', False)
