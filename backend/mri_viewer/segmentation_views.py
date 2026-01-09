@@ -195,16 +195,21 @@ def segment_series(request, series_id):
         # Mosec에 Orthanc Instance ID 목록만 전송 (작은 payload, 몇 KB)
         logger.info(f"📡 Mosec으로 Orthanc Instance ID 전송 중...")
         
+        payload = {
+            "orthanc_instance_ids": orthanc_instance_ids,  # [4][96] Instance ID 목록
+            "orthanc_url": ORTHANC_URL,
+            "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
+            "seg_series_uid": seg_series_uid,
+            "original_series_id": series_id,
+            "start_instance_number": start_idx + 1
+        }
+        
+        logger.info(f"📦 Payload 크기: {len(orthanc_instance_ids)}개 시퀀스")
+        logger.info(f"📦 첫 번째 시퀀스 Instance ID 샘플: {orthanc_instance_ids[0][:3] if orthanc_instance_ids else 'None'}")
+        
         seg_response = requests.post(
             f"{SEGMENTATION_API_URL}/inference",
-            json={
-                "orthanc_instance_ids": orthanc_instance_ids,  # [4][96] Instance ID 목록
-                "orthanc_url": ORTHANC_URL,
-                "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
-                "seg_series_uid": seg_series_uid,
-                "original_series_id": series_id,
-                "start_instance_number": start_idx + 1
-            },
+            json=payload,
             timeout=600  # 10분
         )
         
