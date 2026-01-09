@@ -74,7 +74,6 @@ export default function MRIImageDetail() {
   const [seriesSegmentationResults, setSeriesSegmentationResults] = useState<{[seriesId: string]: any}>({});
   const [showSegmentationOverlay, setShowSegmentationOverlay] = useState(false);
   const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
-  const [loadingFrames, setLoadingFrames] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
 
   // 현재 선택된 Series의 이미지들
@@ -308,7 +307,6 @@ export default function MRIImageDetail() {
   };
 
   const loadSegmentationFrames = async (seriesId: string, segInstanceId: string) => {
-    setLoadingFrames(true);
     try {
       const response = await fetch(`/api/mri/segmentation/instances/${segInstanceId}/frames/`);
       const data = await response.json();
@@ -330,8 +328,6 @@ export default function MRIImageDetail() {
         description: error instanceof Error ? error.message : "프레임을 불러올 수 없습니다.",
         variant: "destructive",
       });
-    } finally {
-      setLoadingFrames(false);
     }
   };
 
