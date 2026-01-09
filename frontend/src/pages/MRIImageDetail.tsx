@@ -74,6 +74,7 @@ export default function MRIImageDetail() {
   const [seriesSegmentationResults, setSeriesSegmentationResults] = useState<{[seriesId: string]: any}>({});
   const [showSegmentationOverlay, setShowSegmentationOverlay] = useState(false);
   const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
+  const [segmentationStartIndex, setSegmentationStartIndex] = useState<{[seriesId: string]: number}>({});
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
 
   // 현재 선택된 Series의 이미지들
@@ -284,6 +285,15 @@ export default function MRIImageDetail() {
         ...seriesSegmentationResults,
         [seriesId]: data
       });
+
+      // 시작 인덱스 저장 (슬라이스 매핑용)
+      if (data.start_slice_index !== undefined) {
+        setSegmentationStartIndex({
+          ...segmentationStartIndex,
+          [seriesId]: data.start_slice_index
+        });
+        console.log(`📍 세그멘테이션 범위: 슬라이스 ${data.start_slice_index}~${data.end_slice_index}번 (총 ${data.total_slices}개)`);
+      }
 
       // 세그멘테이션 프레임 로드
       if (data.seg_instance_id) {
@@ -570,23 +580,49 @@ export default function MRIImageDetail() {
                     />
                     
                     {/* Segmentation Overlay */}
-                    {showSegmentationOverlay && 
-                     seriesGroups[selectedSeriesIndex] &&
-                     segmentationFrames[seriesGroups[selectedSeriesIndex].series_id] &&
-                     segmentationFrames[seriesGroups[selectedSeriesIndex].series_id][selectedImageIndex] && (
-                      <div className="absolute inset-0 pointer-events-none">
-                        <img
-                          src={`data:image/png;base64,${segmentationFrames[seriesGroups[selectedSeriesIndex].series_id][selectedImageIndex].mask_base64}`}
-                          alt="Segmentation Overlay"
-                          className="w-full h-full object-contain"
-                          style={{
-                            opacity: overlayOpacity,
-                            mixBlendMode: 'screen',
-                            filter: 'hue-rotate(120deg) saturate(2)',
-                          }}
-                        />
-                      </div>
-                    )}
+                    {(() => {
+                      if (!showSegmentationOverlay || !seriesGroups[selectedSeriesIndex]) return null;
+                      
+                      const currentSeriesId = seriesGroups[selectedSeriesIndex].series_id;
+                      const frames = segmentationFrames[currentSeriesId];
+                      const startIdx = segmentationStartIndex[currentSeriesId];
+                      
+                      if (!frames || startIdx === undefined) return null;
+                      
+                      // 슬라이스 인덱스를 프레임 인덱스로 변환
+                      const frameIndex = selectedImageIndex - startIdx;
+                      
+                      // 범위 체크
+                      if (frameIndex < 0 || frameIndex >= frames.length) {
+                        return (
+                          <div className="absolute top-4 left-4 bg-yellow-600/80 text-white px-3 py-1 rounded-lg text-xs">
+                            세그멘테이션 범위 밖 (슬라이스 {startIdx}~{startIdx + frames.length - 1}만 분석됨)
+                          </div>
+                        );
+                      }
+                      
+                      const frame = frames[frameIndex];
+                      if (!frame) return null;
+                      
+                      return (
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="absolute top-4 left-4 bg-green-600/80 text-white px-3 py-1 rounded-lg text-xs z-10">
+                            슬라이스 {selectedImageIndex} → 프레임 {frameIndex}
+                          </div>
+                          <img
+                            src={`data:image/png;base64,${frame.mask_base64}`}
+                            alt="Segmentation Overlay"
+                            className="w-full h-full object-contain"
+                            style={{
+                              opacity: overlayOpacity,
+                              mixBlendMode: 'screen',
+                              filter: 'hue-rotate(120deg) saturate(2)',
+                              transform: 'scaleX(-1)',  // 좌우 반전 (필요시)
+                            }}
+                          />
+                        </div>
+                      );
+                    })()}
                     
                     {isFullscreen && (
                       <Button
