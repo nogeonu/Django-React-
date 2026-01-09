@@ -8,6 +8,9 @@ import requests
 import io
 import logging
 import os
+import base64
+import numpy as np
+import pydicom
 from .orthanc_client import OrthancClient
 
 logger = logging.getLogger(__name__)
@@ -268,4 +271,94 @@ def segmentation_health(request):
             'status': 'unavailable',
             'error': str(e)
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['GET'])
+def get_segmentation_frames(request, seg_instance_id):
+    """
+    DICOM SEG 파일에서 모든 프레임을 추출하여 반환
+    
+    GET /api/mri/segmentation/instances/<seg_instance_id>/frames/
+    
+    Returns:
+        {
+            "success": true,
+            "num_frames": 96,
+            "frames": [
+                {"index": 0, "mask_base64": "..."},
+                {"index": 1, "mask_base64": "..."},
+                ...
+            ]
+        }
+    """
+    try:
+        logger.info(f"🔍 DICOM SEG 프레임 추출 시작: {seg_instance_id}")
+        
+        # Orthanc에서 DICOM SEG 파일 다운로드
+        response = requests.get(
+            f"{ORTHANC_URL}/instances/{seg_instance_id}/file",
+            auth=(ORTHANC_USER, ORTHANC_PASSWORD),
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        # DICOM 파일 파싱
+        dicom_data = io.BytesIO(response.content)
+        ds = pydicom.dcmread(dicom_data, force=True)
+        
+        # NumberOfFrames 확인
+        num_frames = getattr(ds, 'NumberOfFrames', 1)
+        rows = ds.Rows
+        cols = ds.Columns
+        
+        logger.info(f"📊 DICOM SEG 정보: {num_frames} frames, {rows}×{cols}")
+        
+        # PixelData 추출
+        if not hasattr(ds, 'PixelData'):
+            raise Exception("PixelData가 없습니다")
+        
+        pixel_array = np.frombuffer(ds.PixelData, dtype=np.uint8)
+        frame_size = rows * cols
+        
+        # 각 프레임을 base64로 인코딩
+        frames = []
+        for i in range(num_frames):
+            start_idx = i * frame_size
+            end_idx = start_idx + frame_size
+            frame_data = pixel_array[start_idx:end_idx]
+            
+            # 2D 배열로 reshape
+            frame_2d = frame_data.reshape(rows, cols)
+            
+            # PNG로 인코딩 (더 효율적)
+            from PIL import Image
+            img = Image.fromarray(frame_2d, mode='L')
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='PNG')
+            img_base64 = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+            
+            frames.append({
+                "index": i,
+                "mask_base64": img_base64
+            })
+            
+            if (i + 1) % 20 == 0:
+                logger.info(f"  {i + 1}/{num_frames} 프레임 처리 완료")
+        
+        logger.info(f"✅ {num_frames}개 프레임 추출 완료")
+        
+        return Response({
+            'success': True,
+            'num_frames': num_frames,
+            'rows': rows,
+            'cols': cols,
+            'frames': frames
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 프레임 추출 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

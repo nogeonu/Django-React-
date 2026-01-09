@@ -73,6 +73,9 @@ export default function MRIImageDetail() {
   // 시리즈 전체 세그멘테이션 상태
   const [seriesSegmentationResults, setSeriesSegmentationResults] = useState<{[seriesId: string]: any}>({});
   const [showSegmentationOverlay, setShowSegmentationOverlay] = useState(false);
+  const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
+  const [loadingFrames, setLoadingFrames] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.5);
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -283,6 +286,11 @@ export default function MRIImageDetail() {
         [seriesId]: data
       });
 
+      // 세그멘테이션 프레임 로드
+      if (data.seg_instance_id) {
+        await loadSegmentationFrames(seriesId, data.seg_instance_id);
+      }
+
       toast({
         title: "시리즈 세그멘테이션 완료",
         description: `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료. 병변 탐지 버튼으로 오버레이를 확인하세요.`,
@@ -296,6 +304,34 @@ export default function MRIImageDetail() {
       });
     } finally {
       setAiAnalyzing(false);
+    }
+  };
+
+  const loadSegmentationFrames = async (seriesId: string, segInstanceId: string) => {
+    setLoadingFrames(true);
+    try {
+      const response = await fetch(`/api/mri/segmentation/instances/${segInstanceId}/frames/`);
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '프레임 로드 실패');
+      }
+
+      setSegmentationFrames({
+        ...segmentationFrames,
+        [seriesId]: data.frames
+      });
+
+      console.log(`✅ ${data.num_frames}개 세그멘테이션 프레임 로드 완료`);
+    } catch (error) {
+      console.error('프레임 로드 오류:', error);
+      toast({
+        title: "프레임 로드 실패",
+        description: error instanceof Error ? error.message : "프레임을 불러올 수 없습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingFrames(false);
     }
   };
 
@@ -536,6 +572,26 @@ export default function MRIImageDetail() {
                       onIndexChange={setSelectedImageIndex}
                       showMeasurementTools={true}
                     />
+                    
+                    {/* Segmentation Overlay */}
+                    {showSegmentationOverlay && 
+                     seriesGroups[selectedSeriesIndex] &&
+                     segmentationFrames[seriesGroups[selectedSeriesIndex].series_id] &&
+                     segmentationFrames[seriesGroups[selectedSeriesIndex].series_id][selectedImageIndex] && (
+                      <div className="absolute inset-0 pointer-events-none">
+                        <img
+                          src={`data:image/png;base64,${segmentationFrames[seriesGroups[selectedSeriesIndex].series_id][selectedImageIndex].mask_base64}`}
+                          alt="Segmentation Overlay"
+                          className="w-full h-full object-contain"
+                          style={{
+                            opacity: overlayOpacity,
+                            mixBlendMode: 'screen',
+                            filter: 'hue-rotate(120deg) saturate(2)',
+                          }}
+                        />
+                      </div>
+                    )}
+                    
                     {isFullscreen && (
                       <Button
                         variant="ghost"
@@ -600,6 +656,24 @@ export default function MRIImageDetail() {
                     className="w-full"
                   />
                 </div>
+
+                {/* Segmentation Overlay Opacity */}
+                {showSegmentationOverlay && (
+                  <div className="space-y-2 pt-2 border-t border-gray-800">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-green-400">오버레이 투명도</label>
+                      <span className="text-sm font-black text-white">{Math.round(overlayOpacity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[overlayOpacity * 100]}
+                      onValueChange={(v) => setOverlayOpacity(v[0] / 100)}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
+                )}
 
                 {/* Rotation */}
                 <div className="space-y-2">
