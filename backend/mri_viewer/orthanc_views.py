@@ -209,6 +209,7 @@ def orthanc_patient_detail(request, patient_id):
             logger.debug(f"Processing study: {study_id}")
             
             study_info = client.get_study_info(study_id)
+            study_tags = study_info.get('MainDicomTags', {})
             series_list = client.get_study_series(study_id)
             
             for series in series_list:
@@ -274,6 +275,9 @@ def orthanc_patient_detail(request, patient_id):
                         'series_id': series_id,
                         'study_id': study_id,
                         'series_description': series_tags.get('SeriesDescription', ''),
+                        'series_number': series_tags.get('SeriesNumber', ''),
+                        'study_description': study_tags.get('StudyDescription', ''),
+                        'study_date': study_tags.get('StudyDate', ''),
                         'instance_number': str(instance_number),
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
                         'modality': modality,
