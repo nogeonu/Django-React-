@@ -7,11 +7,7 @@ from rest_framework import status
 import requests
 import io
 import logging
-import base64
-import json
-import uuid
-from datetime import datetime
-from google.cloud import storage
+import os
 from .orthanc_client import OrthancClient
 
 logger = logging.getLogger(__name__)
@@ -19,46 +15,10 @@ logger = logging.getLogger(__name__)
 # 세그멘테이션 API 서버 URL (Mosec)
 SEGMENTATION_API_URL = "http://localhost:5006"
 
-# GCS 설정
-GCS_BUCKET_NAME = "hospital-mri-temp-data"
-GCS_TEMP_FOLDER = "mri_temp"
-
-
-def upload_to_gcs(data_dict, filename=None):
-    """
-    데이터를 GCS에 업로드하고 gs:// URL 반환
-    
-    Args:
-        data_dict: 업로드할 데이터 (dict)
-        filename: 파일명 (없으면 UUID 생성)
-    
-    Returns:
-        str: GCS gs:// URL (Mosec이 직접 접근)
-    """
-    if filename is None:
-        filename = f"{uuid.uuid4().hex}.json"
-    
-    blob_name = f"{GCS_TEMP_FOLDER}/{datetime.now().strftime('%Y%m%d')}/{filename}"
-    
-    try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(GCS_BUCKET_NAME)
-        blob = bucket.blob(blob_name)
-        
-        # JSON 데이터 업로드
-        json_data = json.dumps(data_dict)
-        blob.upload_from_string(json_data, content_type='application/json')
-        
-        # gs:// URL 반환 (Mosec이 같은 GCP 환경에서 직접 접근)
-        gs_url = f"gs://{GCS_BUCKET_NAME}/{blob_name}"
-        
-        logger.info(f"✅ GCS 업로드 완료: {blob_name} ({len(json_data) / (1024**2):.2f} MB)")
-        logger.info(f"📍 GCS URL: {gs_url}")
-        return gs_url
-        
-    except Exception as e:
-        logger.error(f"❌ GCS 업로드 실패: {e}", exc_info=True)
-        raise
+# Orthanc 설정
+ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://34.42.223.43:8042')
+ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
+ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
 
 @api_view(['POST'])
@@ -213,8 +173,8 @@ def segment_series(request, series_id):
         
         logger.info(f"📍 슬라이스 선택: {start_idx}~{end_idx-1}번 (중앙 96개)")
         
-        # 4개 시퀀스에서 각각 96개 슬라이스 수집
-        sequences_3d = []  # [4][96] 형태 (각 요소는 base64 인코딩된 DICOM)
+        # 4개 시퀀스에서 각각 96개 슬라이스의 Instance ID 수집
+        orthanc_instance_ids = []  # [4][96] 형태 (각 요소는 Orthanc Instance ID)
         
         for seq_idx, current_seq_series_id in enumerate(sequence_series_ids):
             seq_info = client.get(f"/series/{current_seq_series_id}")
@@ -228,37 +188,22 @@ def segment_series(request, series_id):
             
             # 같은 범위에서 96개 선택
             selected_instances = seq_instances[start_idx:end_idx]
+            orthanc_instance_ids.append(selected_instances)  # Instance ID 목록만 저장
             
-            # 각 슬라이스의 DICOM 데이터 수집 (base64 인코딩)
-            slices_data = []
-            for instance_id in selected_instances:
-                dicom_data = client.get_instance_file(instance_id)
-                slices_data.append(base64.b64encode(dicom_data).decode("utf-8"))
-            
-            sequences_3d.append(slices_data)  # [96] 크기의 리스트 추가
-            logger.info(f"✅ 시퀀스 {seq_idx+1}/4 수집 완료: {len(slices_data)}개 슬라이스")
+            logger.info(f"✅ 시퀀스 {seq_idx+1}/4 Instance ID 수집 완료: {len(selected_instances)}개")
         
-        # 1. DICOM 데이터를 GCS에 업로드
-        logger.info("📤 DICOM 데이터를 GCS에 업로드 중...")
-        
-        gcs_payload = {
-            "sequences_3d": sequences_3d,  # [4][96] 형태, 각 요소는 base64 인코딩된 DICOM
-            "seg_series_uid": seg_series_uid,
-            "original_series_id": series_id,
-            "start_instance_number": start_idx + 1
-        }
-        
-        gcs_url = upload_to_gcs(gcs_payload, f"mri_{seg_series_uid}.json")
-        
-        # 2. Mosec에는 GCS URL만 전송 (작은 payload)
-        logger.info(f"📡 Mosec으로 GCS URL 전송 중...")
+        # Mosec에 Orthanc Instance ID 목록만 전송 (작은 payload, 몇 KB)
+        logger.info(f"📡 Mosec으로 Orthanc Instance ID 전송 중...")
         
         seg_response = requests.post(
             f"{SEGMENTATION_API_URL}/inference",
             json={
-                "gcs_url": gcs_url,
+                "orthanc_instance_ids": orthanc_instance_ids,  # [4][96] Instance ID 목록
+                "orthanc_url": ORTHANC_URL,
+                "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
                 "seg_series_uid": seg_series_uid,
                 "original_series_id": series_id,
+                "start_instance_number": start_idx + 1
             },
             timeout=600  # 10분
         )
@@ -296,14 +241,21 @@ def segmentation_health(request):
     try:
         response = requests.get(f"{SEGMENTATION_API_URL}/", timeout=5)
         response.raise_for_status()
-        health = response.json()
         
-        return Response({
-            'success': True,
-            'status': 'healthy',
-            'model_loaded': health.get('model_loaded', False),
-            'model_type': health.get('model_type', 'Unknown')
-        })
+        # Mosec은 "MOSEC service" 텍스트만 반환
+        if "MOSEC" in response.text:
+            return Response({
+                'success': True,
+                'status': 'healthy',
+                'service': 'Mosec Segmentation',
+                'orthanc_url': ORTHANC_URL
+            })
+        else:
+            return Response({
+                'success': False,
+                'status': 'unknown',
+                'response': response.text
+            })
     except Exception as e:
         return Response({
             'success': False,
