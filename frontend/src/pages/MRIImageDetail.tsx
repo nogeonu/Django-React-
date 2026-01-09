@@ -97,7 +97,7 @@ export default function MRIImageDetail() {
     setLoading(true);
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
-        cache: 'no-cache',
+        cache: 'force-cache', // 캐싱 활성화로 재방문 시 빠른 로딩
       });
       
       const data = await response.json();
@@ -108,6 +108,12 @@ export default function MRIImageDetail() {
       
       if (data.success && data.images && Array.isArray(data.images)) {
         setAllOrthancImages(data.images);
+        
+        // 첫 번째 이미지 프리로드 (유방촬영술은 보통 4장 정도)
+        if (imageType === '유방촬영술 영상') {
+          const mgImages = data.images.filter((img: OrthancImage) => img.modality === 'MG');
+          preloadImages(mgImages.slice(0, 4)); // 처음 4장 프리로드
+        }
       } else {
         setAllOrthancImages([]);
       }
@@ -121,6 +127,17 @@ export default function MRIImageDetail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 이미지 프리로드 함수
+  const preloadImages = (images: OrthancImage[]) => {
+    images.forEach((img) => {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.as = 'fetch';
+      link.href = `/api/mri/orthanc/instances/${img.instance_id}/preview/`;
+      document.head.appendChild(link);
+    });
   };
 
   const groupImagesBySeries = () => {

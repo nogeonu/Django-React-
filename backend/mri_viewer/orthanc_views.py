@@ -209,7 +209,6 @@ def orthanc_patient_detail(request, patient_id):
             logger.debug(f"Processing study: {study_id}")
             
             study_info = client.get_study_info(study_id)
-            study_tags = study_info.get('MainDicomTags', {})
             series_list = client.get_study_series(study_id)
             
             for series in series_list:
@@ -275,9 +274,6 @@ def orthanc_patient_detail(request, patient_id):
                         'series_id': series_id,
                         'study_id': study_id,
                         'series_description': series_tags.get('SeriesDescription', ''),
-                        'series_number': series_tags.get('SeriesNumber', ''),
-                        'study_description': study_tags.get('StudyDescription', ''),
-                        'study_date': study_tags.get('StudyDate', ''),
                         'instance_number': str(instance_number),
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
                         'modality': modality,
@@ -302,13 +298,16 @@ def orthanc_patient_detail(request, patient_id):
                 images.extend(series_images)
         
         logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id} (sorted by z-axis)")
-        return Response({
+        response = Response({
             'success': True,
             'patient': patient_info,
             'images': images,
             'image_count': len(images),
             'orthanc_patient_id': orthanc_patient_id  # 디버깅용
         })
+        # 캐싱 헤더 추가 (10분간 캐시)
+        response['Cache-Control'] = 'public, max-age=600'
+        return response
     except requests.exceptions.HTTPError as e:
         logger.error(f"HTTP error while fetching patient detail for {patient_id}: {e}", exc_info=True)
         if e.response.status_code == 404:
@@ -337,7 +336,10 @@ def orthanc_instance_preview(request, instance_id):
     try:
         client = OrthancClient()
         image_data = client.get_instance_preview(instance_id)
-        return HttpResponse(image_data, content_type='image/png')
+        response = HttpResponse(image_data, content_type='image/png')
+        # 이미지 캐싱 (1시간)
+        response['Cache-Control'] = 'public, max-age=3600, immutable'
+        return response
     except Exception as e:
         return Response({
             'success': False,
@@ -351,7 +353,10 @@ def orthanc_instance_file(request, instance_id):
     try:
         client = OrthancClient()
         dicom_data = client.get_instance_file(instance_id)
-        return HttpResponse(dicom_data, content_type='application/dicom')
+        response = HttpResponse(dicom_data, content_type='application/dicom')
+        # DICOM 파일 캐싱 (1시간)
+        response['Cache-Control'] = 'public, max-age=3600, immutable'
+        return response
     except Exception as e:
         logger.error(f"Failed to get DICOM file for instance {instance_id}: {e}")
         return Response({
