@@ -311,21 +311,19 @@ export default function MRIImageDetail() {
 
       // 세그멘테이션 프레임 로드
       if (data.seg_instance_id) {
-        await loadSegmentationFrames(seriesId, data.seg_instance_id);
+        const loadedFrames = await loadSegmentationFrames(seriesId, data.seg_instance_id);
         
         // 4-channel 모드면 4개 시리즈 모두에 동일한 프레임 매핑
-        if (selectedSeriesFor4Channel.length === 4) {
+        if (selectedSeriesFor4Channel.length === 4 && loadedFrames) {
           const sequenceSeriesIds = selectedSeriesFor4Channel.map(idx => seriesGroups[idx].series_id);
-          const loadedFrames = segmentationFrames[seriesId];
+          const newFrames = { ...segmentationFrames };
           
-          if (loadedFrames) {
-            const newFrames = { ...segmentationFrames };
-            sequenceSeriesIds.forEach(seqSeriesId => {
-              newFrames[seqSeriesId] = loadedFrames;
-            });
-            setSegmentationFrames(newFrames);
-            console.log(`✅ 4개 시리즈 모두에 프레임 매핑 완료`);
-          }
+          sequenceSeriesIds.forEach(seqSeriesId => {
+            newFrames[seqSeriesId] = loadedFrames;
+          });
+          
+          setSegmentationFrames(newFrames);
+          console.log(`✅ 4개 시리즈 모두에 프레임 매핑 완료: ${sequenceSeriesIds.join(', ')}`);
         }
       }
 
@@ -360,6 +358,9 @@ export default function MRIImageDetail() {
       });
 
       console.log(`✅ ${data.num_frames}개 세그멘테이션 프레임 로드 완료`);
+      
+      // 로드된 프레임 반환 (4개 시리즈 매핑용)
+      return data.frames;
     } catch (error) {
       console.error('프레임 로드 오류:', error);
       toast({
@@ -367,6 +368,7 @@ export default function MRIImageDetail() {
         description: error instanceof Error ? error.message : "프레임을 불러올 수 없습니다.",
         variant: "destructive",
       });
+      return null;
     }
   };
 
