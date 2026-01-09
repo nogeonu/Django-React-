@@ -403,11 +403,23 @@ class SegmentationWorker(Worker):
                 pred_prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy()  # [96, 96, 96]
                 pred_mask = (pred_prob > 0.5).astype(np.uint8)
                 logger.info(f"📊 Output shape: {pred_mask.shape}")
+                logger.info(f"📊 모델 출력 통계: min={pred_prob.min():.4f}, max={pred_prob.max():.4f}, mean={pred_prob.mean():.4f}")
+                logger.info(f"📊 마스크 통계: 총 픽셀={pred_mask.size}, 종양 픽셀={pred_mask.sum()}, 비율={pred_mask.sum()/pred_mask.size*100:.2f}%")
             
             # 96개 슬라이스 전체 후처리 및 리사이즈
             logger.info(f"📍 96개 슬라이스 전체 후처리 시작")
             from scipy.ndimage import zoom
-            h, w = slice_2d.shape if slice_2d is not None else (256, 256)
+            
+            # 원본 크기 가져오기 (4-channel 모드에서는 original_dicom에서, 단일 이미지 모드에서는 slice_2d에서)
+            if original_dicom is not None:
+                h = getattr(original_dicom, 'Rows', 256)
+                w = getattr(original_dicom, 'Columns', 256)
+            elif slice_2d is not None:
+                h, w = slice_2d.shape
+            else:
+                h, w = 256, 256
+            
+            logger.info(f"📍 원본 크기: {h}×{w}, 모델 출력 크기: 96×96")
             zoom_factors = (h / 96, w / 96)
             
             mask_resized_3d = []
@@ -418,6 +430,7 @@ class SegmentationWorker(Worker):
             
             mask_resized_3d = np.stack(mask_resized_3d, axis=0)  # [96, H, W]
             logger.info(f"✅ 96개 슬라이스 후처리 완료: {mask_resized_3d.shape}")
+            logger.info(f"📊 후처리 후 마스크 통계: min={mask_resized_3d.min()}, max={mask_resized_3d.max()}, 총 픽셀={mask_resized_3d.size}, 종양 픽셀={mask_resized_3d.sum()}")
             
             # 중앙 슬라이스를 대표 이미지로 사용 (PNG 미리보기용)
             center_idx = pred_mask.shape[0] // 2
