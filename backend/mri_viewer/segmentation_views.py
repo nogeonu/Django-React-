@@ -210,7 +210,7 @@ def segment_series(request, series_id):
         seg_response = requests.post(
             f"{SEGMENTATION_API_URL}/inference",
             json=payload,
-            timeout=1200  # 20분 (Orthanc 다운로드 + 세그멘테이션 + 업로드)
+            timeout=2400  # 40분 (CPU 추론 시간 고려: Orthanc 다운로드 + 세그멘테이션 + 업로드)
         )
         
         seg_response.raise_for_status()
