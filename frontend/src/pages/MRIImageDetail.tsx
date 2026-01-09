@@ -99,13 +99,13 @@ export default function MRIImageDetail() {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
         cache: 'no-cache',
       });
-
+      
       const data = await response.json();
-
+      
       if (!response.ok) {
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
-
+      
       if (data.success && data.images && Array.isArray(data.images)) {
         setAllOrthancImages(data.images);
       } else {
@@ -134,8 +134,8 @@ export default function MRIImageDetail() {
         filtered = allOrthancImages.filter(img => img.modality === 'MR');
         break;
       case '병리 영상':
-        filtered = allOrthancImages.filter(img =>
-          img.modality === 'SM' || img.modality === 'OT' ||
+        filtered = allOrthancImages.filter(img => 
+          img.modality === 'SM' || img.modality === 'OT' || 
           (img.modality && img.modality !== 'MG' && img.modality !== 'MR')
         );
         break;
@@ -259,7 +259,7 @@ export default function MRIImageDetail() {
           title: "시리즈 전체 세그멘테이션 시작",
           description: `4-channel 모드로 ${currentSeries.images.length}개 슬라이스 분석 중...`,
         });
-      } else {
+    } else {
         toast({
           title: "시리즈 전체 세그멘테이션 시작",
           description: `${currentSeries.images.length}개 슬라이스 분석 중...`,
@@ -280,24 +280,53 @@ export default function MRIImageDetail() {
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
 
-      // 결과 저장
-      setSeriesSegmentationResults({
-        ...seriesSegmentationResults,
-        [seriesId]: data
-      });
-
-      // 시작 인덱스 저장 (슬라이스 매핑용)
-      if (data.start_slice_index !== undefined) {
-        setSegmentationStartIndex({
-          ...segmentationStartIndex,
-          [seriesId]: data.start_slice_index
+      // 결과 저장 - 4-channel 모드면 4개 시리즈 모두에 저장
+      const newResults = { ...seriesSegmentationResults };
+      const newStartIndex = { ...segmentationStartIndex };
+      
+      if (selectedSeriesFor4Channel.length === 4) {
+        // 4개 시리즈 모두에 동일한 결과 저장
+        const sequenceSeriesIds = selectedSeriesFor4Channel.map(idx => seriesGroups[idx].series_id);
+        sequenceSeriesIds.forEach(seqSeriesId => {
+          newResults[seqSeriesId] = data;
+          if (data.start_slice_index !== undefined) {
+            newStartIndex[seqSeriesId] = data.start_slice_index;
+          }
         });
+        console.log(`📍 4개 시리즈 모두에 세그멘테이션 결과 저장: ${sequenceSeriesIds.join(', ')}`);
+      } else {
+        // 단일 시리즈 모드
+        newResults[seriesId] = data;
+        if (data.start_slice_index !== undefined) {
+          newStartIndex[seriesId] = data.start_slice_index;
+        }
+      }
+      
+      setSeriesSegmentationResults(newResults);
+      setSegmentationStartIndex(newStartIndex);
+      
+      if (data.start_slice_index !== undefined) {
         console.log(`📍 세그멘테이션 범위: 슬라이스 ${data.start_slice_index}~${data.end_slice_index}번 (총 ${data.total_slices}개)`);
       }
 
       // 세그멘테이션 프레임 로드
       if (data.seg_instance_id) {
         await loadSegmentationFrames(seriesId, data.seg_instance_id);
+        
+        // 4-channel 모드면 4개 시리즈 모두에 동일한 프레임 매핑
+        if (selectedSeriesFor4Channel.length === 4) {
+          const sequenceSeriesIds = selectedSeriesFor4Channel.map(idx => seriesGroups[idx].series_id);
+          const loadedFrames = segmentationFrames[seriesId];
+          
+          if (loadedFrames) {
+            const newFrames = { ...segmentationFrames };
+            sequenceSeriesIds.forEach(seqSeriesId => {
+              newFrames[seqSeriesId] = loadedFrames;
+            });
+            setSegmentationFrames(newFrames);
+            console.log(`✅ 4개 시리즈 모두에 프레임 매핑 완료`);
+          }
+        }
       }
 
       toast({
@@ -393,9 +422,9 @@ export default function MRIImageDetail() {
                 {imageType}
               </Badge>
               {currentImages.length > 0 && (
-                <Badge className="bg-gray-800 text-gray-300 border border-gray-700 px-4 py-2 rounded-xl">
+              <Badge className="bg-gray-800 text-gray-300 border border-gray-700 px-4 py-2 rounded-xl">
                   {selectedImageIndex + 1} / {currentImages.length}
-                </Badge>
+              </Badge>
               )}
 
               <Button
@@ -820,24 +849,24 @@ export default function MRIImageDetail() {
 
                 {/* Reset & Fullscreen */}
                 <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleReset}
-                    className="w-full bg-gray-800 border-gray-700 hover:bg-gray-700 text-white rounded-xl"
-                  >
-                    초기화
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReset}
+                  className="w-full bg-gray-800 border-gray-700 hover:bg-gray-700 text-white rounded-xl"
+                >
+                  초기화
+                </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsFullscreen(!isFullscreen)}
-                    className="w-full bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30 text-blue-400 rounded-xl"
-                  >
-                    <Maximize2 className="w-4 h-4 mr-2" />
-                    {isFullscreen ? "전체화면 종료" : "전체화면"}
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="w-full bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30 text-blue-400 rounded-xl"
+                >
+                  <Maximize2 className="w-4 h-4 mr-2" />
+                  {isFullscreen ? "전체화면 종료" : "전체화면"}
+                </Button>
                 </div>
 
                 {/* Keyboard Shortcuts */}
