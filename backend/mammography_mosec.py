@@ -266,12 +266,16 @@ class MammographyWorker(MsgpackMixin, Worker):
         
         for item in data:
             try:
-                # 1. DICOM 데이터 디코딩
-                dicom_base64 = item.get('dicom_data')
-                if not dicom_base64:
+                # 1. DICOM 데이터 가져오기 (바이너리 또는 base64)
+                dicom_data = item.get('dicom_data')
+                if not dicom_data:
                     raise ValueError("dicom_data가 없습니다.")
                 
-                dicom_bytes = base64.b64decode(dicom_base64)
+                # 바이너리면 그대로, 문자열이면 base64 디코딩
+                if isinstance(dicom_data, bytes):
+                    dicom_bytes = dicom_data
+                else:
+                    dicom_bytes = base64.b64decode(dicom_data)
                 
                 # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
                 image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))

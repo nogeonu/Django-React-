@@ -4,7 +4,7 @@ Mosec 서비스 (포트 5007)를 호출하여 4-class 분류 수행
 """
 
 import logging
-import base64
+import msgpack
 import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -58,28 +58,34 @@ def mammography_ai_analysis(request):
         
         logger.info(f"📊 맘모그래피 4장 분석 시작: {instance_ids}")
         
-        # 1. Orthanc에서 4개 DICOM 파일 다운로드 + Base64 인코딩
+        # 1. Orthanc에서 4개 DICOM 파일 다운로드 (바이너리 그대로)
         client = OrthancClient()
         dicom_data_list = []
         
         for instance_id in instance_ids:
             dicom_data = client.get_instance_file(instance_id)
-            dicom_base64 = base64.b64encode(dicom_data).decode('utf-8')
-            dicom_data_list.append({"dicom_data": dicom_base64})
+            dicom_data_list.append({"dicom_data": dicom_data})  # 바이너리 그대로
             logger.info(f"📥 DICOM 데이터 로드: {instance_id} ({len(dicom_data)} bytes)")
         
-        # 2. Mosec 서비스 호출 (배치 처리)
-        logger.info(f"🚀 Mosec 서비스 호출 중... (4장 배치)")
+        # 2. Mosec 서비스 호출 (msgpack으로 바이너리 전송)
+        logger.info(f"🚀 Mosec 서비스 호출 중... (4장 배치, msgpack)")
+        
+        # msgpack으로 직렬화
+        packed_data = msgpack.packb(dicom_data_list)
+        logger.info(f"📦 msgpack 크기: {len(packed_data)} bytes")
+        
         response = requests.post(
             f"{MAMMOGRAPHY_API_URL}/inference",
-            json=dicom_data_list,
+            data=packed_data,
+            headers={'Content-Type': 'application/msgpack'},
             timeout=120  # 2분 (4장 처리)
         )
         
         if response.status_code != 200:
             raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
         
-        mosec_results = response.json()
+        # msgpack 응답 디코딩
+        mosec_results = msgpack.unpackb(response.content, raw=False)
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []
