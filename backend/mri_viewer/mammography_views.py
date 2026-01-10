@@ -4,7 +4,6 @@ Mosec 서비스 (포트 5007)를 호출하여 4-class 분류 수행
 """
 
 import logging
-import msgpack
 import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -58,34 +57,32 @@ def mammography_ai_analysis(request):
         
         logger.info(f"📊 맘모그래피 4장 분석 시작: {instance_ids}")
         
-        # 1. Orthanc에서 4개 DICOM 파일 다운로드 (바이너리 그대로)
+        # 1. Orthanc에서 4개 DICOM 파일 다운로드
         client = OrthancClient()
-        dicom_data_list = []
         
-        for instance_id in instance_ids:
+        # 2. 각 이미지를 순차적으로 Mosec에 전송 (MRI 세그멘테이션 방식)
+        mosec_results = []
+        
+        for idx, instance_id in enumerate(instance_ids):
             dicom_data = client.get_instance_file(instance_id)
-            dicom_data_list.append({"dicom_data": dicom_data})  # 바이너리 그대로
-            logger.info(f"📥 DICOM 데이터 로드: {instance_id} ({len(dicom_data)} bytes)")
-        
-        # 2. Mosec 서비스 호출 (msgpack으로 바이너리 전송)
-        logger.info(f"🚀 Mosec 서비스 호출 중... (4장 배치, msgpack)")
-        
-        # msgpack으로 직렬화
-        packed_data = msgpack.packb(dicom_data_list)
-        logger.info(f"📦 msgpack 크기: {len(packed_data)} bytes")
-        
-        response = requests.post(
-            f"{MAMMOGRAPHY_API_URL}/inference",
-            data=packed_data,
-            headers={'Content-Type': 'application/msgpack'},
-            timeout=120  # 2분 (4장 처리)
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
-        
-        # msgpack 응답 디코딩
-        mosec_results = msgpack.unpackb(response.content, raw=False)
+            logger.info(f"📥 DICOM 데이터 로드 {idx+1}/4: {instance_id} ({len(dicom_data)} bytes)")
+            
+            # 단일 이미지를 바이너리로 직접 전송 (MRI 방식과 동일)
+            logger.info(f"🚀 Mosec 서비스 호출 중... ({idx+1}/4)")
+            
+            response = requests.post(
+                f"{MAMMOGRAPHY_API_URL}/inference",
+                data=dicom_data,
+                headers={'Content-Type': 'application/octet-stream'},
+                timeout=60  # 1분 (1장 처리)
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Mosec 서비스 오류 ({idx+1}/4): {response.status_code} - {response.text}")
+            
+            result = response.json()
+            mosec_results.append(result)
+            logger.info(f"✅ 이미지 {idx+1}/4 분석 완료")
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []

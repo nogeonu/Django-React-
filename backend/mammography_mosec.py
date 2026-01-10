@@ -224,23 +224,32 @@ def preprocess_dicom_image(dicom_data: bytes, target_size=(512, 512)):
     return image_rgb
 
 
-class MammographyWorker(MsgpackMixin, Worker):
-    """맘모그래피 AI 분석 워커"""
+class MammographyWorker(Worker):
+    """맘모그래피 AI 분석 워커 (바이너리 입력)"""
     
     def __init__(self):
         super().__init__()
         self.model = None
         self.transform = None
     
-    def forward(self, data: List[Dict]) -> List[Dict]:
+    def deserialize(self, data: bytes) -> bytes:
+        """바이너리 DICOM 데이터를 그대로 반환"""
+        return data
+    
+    def serialize(self, data: dict) -> bytes:
+        """결과를 JSON으로 직렬화"""
+        import json
+        return json.dumps(data).encode('utf-8')
+    
+    def forward(self, dicom_bytes: bytes) -> dict:
         """
-        맘모그래피 이미지 분류 추론
+        맘모그래피 이미지 분류 추론 (단일 이미지)
         
         Args:
-            data: [{"dicom_data": base64_encoded_dicom}, ...]
+            dicom_bytes: DICOM 바이너리 데이터
         
         Returns:
-            [{"class_id": int, "class_name": str, "confidence": float, "probabilities": dict}, ...]
+            {"class_id": int, "class_name": str, "confidence": float, "probabilities": dict}
         """
         if self.model is None:
             logger.info("📦 모델 로딩 중...")
@@ -262,63 +271,48 @@ class MammographyWorker(MsgpackMixin, Worker):
             
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
         
-        results = []
-        
-        for item in data:
-            try:
-                # 1. DICOM 데이터 가져오기 (바이너리 또는 base64)
-                dicom_data = item.get('dicom_data')
-                if not dicom_data:
-                    raise ValueError("dicom_data가 없습니다.")
-                
-                # 바이너리면 그대로, 문자열이면 base64 디코딩
-                if isinstance(dicom_data, bytes):
-                    dicom_bytes = dicom_data
-                else:
-                    dicom_bytes = base64.b64decode(dicom_data)
-                
-                # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
-                image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
-                
-                # 3. PIL Image로 변환 및 Transform 적용
-                image_pil = Image.fromarray(image_rgb)
-                image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
-                
-                # 4. 모델 추론
-                with torch.no_grad():
-                    outputs = self.model(image_tensor)
-                    probabilities = torch.softmax(outputs, dim=1)[0]
-                    confidence, predicted_class = torch.max(probabilities, 0)
-                
-                # 5. 결과 생성
-                class_id = predicted_class.item()
-                class_name = CLASS_NAMES[class_id]
-                confidence_value = confidence.item()
-                
-                # 모든 클래스별 확률
-                probabilities_dict = {
-                    CLASS_NAMES[i]: float(probabilities[i].item())
-                    for i in range(4)
-                }
-                
-                results.append({
-                    'success': True,
-                    'class_id': class_id,
-                    'class_name': class_name,
-                    'confidence': confidence_value,
-                    'probabilities': probabilities_dict
-                })
-                
-                logger.info(f"✅ 분류 완료: {class_name} (신뢰도: {confidence_value:.4f})")
-                
-            except Exception as e:
-                logger.error(f"❌ 추론 오류: {str(e)}", exc_info=True)
-                results.append({
-                    'success': False,
-                    'error': str(e)
-                })
-        
-        return results
+        try:
+            # 1. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
+            image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
+            
+            # 2. PIL Image로 변환 및 Transform 적용
+            image_pil = Image.fromarray(image_rgb)
+            image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
+            
+            # 3. 모델 추론
+            with torch.no_grad():
+                outputs = self.model(image_tensor)
+                probabilities = torch.softmax(outputs, dim=1)[0]
+                confidence, predicted_class = torch.max(probabilities, 0)
+            
+            # 4. 결과 생성
+            class_id = predicted_class.item()
+            class_name = CLASS_NAMES[class_id]
+            confidence_value = confidence.item()
+            
+            # 모든 클래스별 확률
+            probabilities_dict = {
+                CLASS_NAMES[i]: float(probabilities[i].item())
+                for i in range(4)
+            }
+            
+            result = {
+                'success': True,
+                'class_id': class_id,
+                'class_name': class_name,
+                'confidence': confidence_value,
+                'probabilities': probabilities_dict
+            }
+            
+            logger.info(f"✅ 분류 완료: {class_name} (신뢰도: {confidence_value:.4f})")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ 추론 오류: {str(e)}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 
 if __name__ == "__main__":
