@@ -28,8 +28,6 @@ import {
   Settings2,
   Cpu,
   Plus,
-  Brain,
-  Activity,
   Maximize2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -123,10 +121,6 @@ export default function MRIViewer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
-  // MRI AI 분석 상태
-  const [isAnalyzingMRI, setIsAnalyzingMRI] = useState(false);
-  const [mriAnalysisComplete, setMriAnalysisComplete] = useState(false);
-  const [mriAnalysisResult, setMriAnalysisResult] = useState<any>(null);
 
   useEffect(() => {
     fetchPatients();
@@ -610,104 +604,6 @@ export default function MRIViewer() {
                   <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
                 </div>
 
-                {/* MRI AI 분석 버튼 - 방사선과가 아닌 경우만 표시 */}
-                {!isRadiologyTech && imageType === 'MRI 영상' && (
-                  <div className="pt-4 border-t border-gray-200">
-                    <Button
-                      variant={mriAnalysisComplete ? "secondary" : "default"}
-                      className={`w-full ${mriAnalysisComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-bold`}
-                      onClick={async () => {
-                        if (!selectedPatient) return;
-                        
-                        setIsAnalyzingMRI(true);
-                        setMriAnalysisComplete(false);
-                        setMriAnalysisResult(null);
-                        
-                        try {
-                          const response = await fetch(`${API_BASE_URL}/patients/${selectedPatient}/analyze/`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                              clinical_data: {
-                                age: patientDetail?.patient_info?.clinical_data?.age,
-                                tumor_subtype: patientDetail?.patient_info?.primary_lesion?.tumor_subtype
-                              }
-                            })
-                          });
-                          
-                          const data = await response.json();
-                          setMriAnalysisResult(data);
-                          setMriAnalysisComplete(true);
-                          
-                          if (data.success) {
-                            toast({
-                              title: "MRI 분석 완료",
-                              description: `pCR 확률: ${(data.pCR_probability * 100).toFixed(1)}%`,
-                            });
-                          } else {
-                            toast({
-                              title: "분석 실패",
-                              description: data.error || "MRI 분석 중 오류가 발생했습니다",
-                              variant: "destructive",
-                            });
-                          }
-                        } catch (error) {
-                          console.error('MRI analysis failed:', error);
-                          toast({
-                            title: "분석 실패",
-                            description: "MRI 분석 중 오류가 발생했습니다",
-                            variant: "destructive",
-                          });
-                        } finally {
-                          setIsAnalyzingMRI(false);
-                        }
-                      }}
-                      disabled={isAnalyzingMRI || !selectedPatient}
-                    >
-                      {isAnalyzingMRI ? (
-                        <>
-                          <Activity className="w-4 h-4 mr-2 animate-spin" />
-                          MRI 분석 중...
-                        </>
-                      ) : mriAnalysisComplete ? (
-                        <>
-                          <Brain className="w-4 h-4 mr-2" />
-                          분석 완료 (다시 분석)
-                        </>
-                      ) : (
-                        <>
-                          <Brain className="w-4 h-4 mr-2" />
-                          MRI AI 분석 실행
-                        </>
-                      )}
-                    </Button>
-                    
-                    {/* 분석 결과 표시 */}
-                    {mriAnalysisComplete && mriAnalysisResult && mriAnalysisResult.success && (
-                      <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                        <h4 className="font-bold text-sm text-blue-900 mb-2">분석 결과</h4>
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">pCR 확률:</span>
-                            <span className="font-bold text-blue-700">{(mriAnalysisResult.pCR_probability * 100).toFixed(1)}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">예측:</span>
-                            <span className="font-bold">{mriAnalysisResult.prediction}</span>
-                          </div>
-                          {mriAnalysisResult.tumor_voxels && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">종양 복셀:</span>
-                              <span className="font-bold">{mriAnalysisResult.tumor_voxels.toLocaleString()}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}

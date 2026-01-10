@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from . import views, orthanc_views, mri_ai_views, segmentation_views
+from . import views, orthanc_views, segmentation_views
 
 urlpatterns = [
     # 기존 MRI Viewer API
@@ -23,10 +23,6 @@ urlpatterns = [
     # AI Segmentation API (MRI - 향후 모델 통합)
     path('orthanc/patients/<str:patient_id>/segmentation/', orthanc_views.orthanc_segmentation, name='orthanc-segmentation'),
     path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
-    
-    # MRI AI Analysis API (pCR Prediction)
-    path('patients/<str:patient_id>/analyze/', mri_ai_views.mri_ai_analysis, name='mri-ai-analysis'),
-    path('ai/health/', mri_ai_views.mri_ai_health, name='mri-ai-health'),
     
     # MRI 세그멘테이션 API
     path('segmentation/instances/<str:instance_id>/segment/', segmentation_views.mri_segmentation, name='mri-segmentation'),

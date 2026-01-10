@@ -31,19 +31,12 @@ else:
     model_loaded = False
     print(f"❌ ML 모델 로드 실패: {model_path}, {feature_path}")
 
-# MRI 모델 경로 설정
-MRI_MODEL_DIR = os.getenv(
-    'MRI_MODEL_DIR',
-    '/home/shrjsdn908/models/mri_models'
-)
-
 @app.route('/health', methods=['GET'])
 def health():
     """헬스 체크 엔드포인트"""
     return jsonify({
         'status': 'healthy',
-        'model_loaded': model_loaded,
-        'mri_models_available': os.path.exists(os.path.join(MRI_MODEL_DIR, 'Phase1_Segmentation_best.pth'))
+        'model_loaded': model_loaded
     })
 
 @app.route('/predict', methods=['POST'])
@@ -109,49 +102,6 @@ def predict():
         print(f"❌ 예측 중 오류: {e}")
         return jsonify({
             'error': f'예측 중 오류가 발생했습니다: {str(e)}'
-        }), 500
-
-@app.route('/mri/analyze', methods=['POST'])
-def mri_analyze():
-    """MRI 분석 API (pCR 예측) - 환자 ID로 분석"""
-    try:
-        data = request.get_json()
-        patient_id = data.get('patient_id')
-        clinical_data = data.get('clinical_data', {})
-        
-        if not patient_id:
-            return jsonify({
-                'success': False,
-                'error': 'patient_id가 제공되지 않았습니다.'
-            }), 400
-        
-        # MRI 분석 실행 (타임아웃 600초 = 10분)
-        from .mri_inference import run_mri_analysis
-        result = run_mri_analysis(patient_id, clinical_data)
-        
-        if result.get('success', False):
-            return jsonify({
-                'success': True,
-                'pCR_probability': result.get('pCR_probability'),
-                'prediction': result.get('prediction'),
-                'tumor_voxels': result.get('tumor_voxels'),
-                'clinical': result.get('clinical', {})
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', '알 수 없는 오류'),
-                'details': result.get('traceback')
-            }), 500
-            
-    except Exception as e:
-        import traceback
-        print(f"❌ MRI 분석 API 오류: {e}", flush=True)
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'MRI 분석 API 오류: {str(e)}',
-            'details': traceback.format_exc()
         }), 500
 
 if __name__ == '__main__':
