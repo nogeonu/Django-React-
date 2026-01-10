@@ -118,6 +118,7 @@ export default function MRIViewer() {
   const [showOrthancImages, setShowOrthancImages] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
@@ -355,8 +356,66 @@ export default function MRIViewer() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!uploading) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (!selectedPatient) {
+      toast({ 
+        title: "오류", 
+        description: "먼저 환자를 선택해주세요.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    const items = Array.from(e.dataTransfer.items);
+    const files: File[] = [];
+
+    // 드롭된 파일 수집
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          // DICOM 또는 NIfTI 파일만 허용
+          if (file.name.endsWith('.dicom') || 
+              file.name.endsWith('.dcm') || 
+              file.name.endsWith('.nii') || 
+              file.name.endsWith('.nii.gz')) {
+            files.push(file);
+          }
+        }
+      }
+    }
+
+    if (files.length === 0) {
+      toast({ 
+        title: "오류", 
+        description: "DICOM 또는 NIfTI 파일을 드롭해주세요.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    await uploadFiles(files);
+  };
+
+  const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
     if (!selectedPatient) {
       toast({ 
@@ -366,6 +425,19 @@ export default function MRIViewer() {
       });
       return;
     }
+    
+    const fileArray = Array.from(files);
+    await uploadFiles(fileArray);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    await processFiles(files);
+  };
+
+  const uploadFiles = async (files: File[]) => {
+    if (!selectedPatient) return;
     if (!imageType) {
       toast({ 
         title: "오류", 
@@ -374,7 +446,6 @@ export default function MRIViewer() {
       });
       return;
     }
-    
     setUploading(true);
     let successCount = 0;
     let errorMessages: string[] = [];
@@ -622,11 +693,41 @@ export default function MRIViewer() {
                 <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
                   DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
                 </p>
+                
+                {/* 드래그 앤 드롭 영역 */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-200 ${
+                    isDragging 
+                      ? 'border-blue-400 bg-blue-500/10 scale-[1.02]' 
+                      : 'border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="text-center space-y-3">
+                    <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                      isDragging ? 'bg-blue-500' : 'bg-gray-800'
+                    }`}>
+                      <Upload className={`w-6 h-6 ${isDragging ? 'text-white' : 'text-gray-400'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        {isDragging ? '여기에 놓으세요!' : '폴더를 드래그하세요'}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        또는 아래 버튼으로 파일 선택 (Cmd+A로 전체 선택)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="relative">
                   <input
                     ref={fileInputRef}
                     type="file"
                     multiple
+                    accept=".dicom,.dcm,.nii,.nii.gz"
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"
