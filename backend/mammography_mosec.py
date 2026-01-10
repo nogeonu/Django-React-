@@ -329,6 +329,8 @@ if __name__ == "__main__":
     logger.info(f"🔧 디바이스: {DEVICE}")
     logger.info(f"📊 클래스: {list(CLASS_NAMES.values())}")
     logger.info("="*70)
+    logger.info("⚠️  명령줄 인자로 설정: --port 5007 --timeout 120000 --max-body-size 104857600")
+    logger.info("="*70)
     
     server = Server()
     server.append_worker(
@@ -337,5 +339,5 @@ if __name__ == "__main__":
         max_batch_size=8,
         max_wait_time=60  # 60초 대기
     )
-    server.run()
+    server.run()  # 명령줄 인자는 Mosec이 자동으로 파싱
 
