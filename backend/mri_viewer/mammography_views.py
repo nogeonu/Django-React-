@@ -83,17 +83,29 @@ def mammography_ai_analysis(request):
         if response.status_code != 200:
             raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
         
-        # Mosec 응답: [{"results": [...]}]
-        mosec_response = response.json()
-        if not isinstance(mosec_response, list) or len(mosec_response) == 0:
-            raise Exception("Mosec 응답 형식 오류")
-        
-        # 첫 번째 배치 결과에서 results 배열 추출
-        batch_result = mosec_response[0]
-        mosec_results = batch_result.get("results", [])
-        
-        if len(mosec_results) != len(instance_ids):
-            raise Exception(f"결과 개수 불일치: 기대 {len(instance_ids)}, 실제 {len(mosec_results)}")
+        # Mosec 응답 확인 (MRI 세그멘테이션과 동일하게 단일 딕셔너리)
+        try:
+            mosec_result = response.json()
+            logger.info(f"📥 Mosec 응답 타입: {type(mosec_result)}")
+            
+            if not isinstance(mosec_result, dict):
+                logger.error(f"❌ Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}")
+                raise Exception(f"Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}")
+            
+            # results 배열 추출
+            mosec_results = mosec_result.get("results", [])
+            
+            if not isinstance(mosec_results, list):
+                logger.error(f"❌ results가 리스트가 아님: {type(mosec_results)}")
+                raise Exception(f"Mosec 응답 형식 오류: results가 리스트가 아님")
+            
+            if len(mosec_results) != len(instance_ids):
+                logger.error(f"❌ 결과 개수 불일치: 기대 {len(instance_ids)}, 실제 {len(mosec_results)}")
+                raise Exception(f"결과 개수 불일치: 기대 {len(instance_ids)}, 실제 {len(mosec_results)}")
+                
+        except Exception as e:
+            logger.error(f"❌ Mosec 응답 처리 실패: {str(e)}, 응답 텍스트: {response.text[:500]}")
+            raise Exception(f"Mosec 응답 처리 실패: {str(e)}")
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []

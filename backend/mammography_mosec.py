@@ -242,23 +242,23 @@ class MammographyWorker(Worker):
             logger.error(f"❌ 역직렬화 오류: {str(e)}")
             raise
     
-    def serialize(self, data: List[Dict]) -> bytes:
-        """결과 직렬화"""
+    def serialize(self, data: dict) -> bytes:
+        """결과 직렬화 (MRI 세그멘테이션과 동일)"""
         return json.dumps(data).encode('utf-8')
     
-    def forward(self, data: List[dict]) -> List[Dict]:
+    def forward(self, data: dict) -> dict:
         """
         맘모그래피 이미지 분류 추론 (Orthanc API 직접 호출)
         
         Args:
-            data: [{
+            data: {
                 "instance_ids": [id1, id2, id3, id4],
                 "orthanc_url": "http://localhost:8042",
                 "orthanc_auth": ["admin", "admin123"]
-            }]  # Mosec이 배치로 리스트로 전달
+            }  # Mosec이 deserialize 결과를 그대로 전달
         
         Returns:
-            [{"results": [...]}]  # 입력 1개 → 출력 1개 (안에 4개 결과 포함)
+            {"results": [...]}  # 4개 결과 포함 딕셔너리
         """
         if self.model is None:
             logger.info("📦 모델 로딩 중...")
@@ -280,79 +280,73 @@ class MammographyWorker(Worker):
             
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
         
-        # Mosec은 배치로 리스트를 전달하므로 각 요청 처리
-        batch_results = []
+        # Orthanc API 설정
+        instance_ids = data.get("instance_ids", [])
+        orthanc_url = data.get("orthanc_url", "http://localhost:8042")
+        orthanc_auth = tuple(data.get("orthanc_auth", ["admin", "admin123"]))
         
-        for request_data in data:
-            # Orthanc API 설정
-            instance_ids = request_data.get("instance_ids", [])
-            orthanc_url = request_data.get("orthanc_url", "http://localhost:8042")
-            orthanc_auth = tuple(request_data.get("orthanc_auth", ["admin", "admin123"]))
-            
-            logger.info(f"📥 Orthanc에서 데이터 다운로드 중: {orthanc_url}")
-            logger.info(f"📊 총 {len(instance_ids)}장 이미지")
-            
-            results = []
-            
-            # Orthanc API로 각 이미지 다운로드 및 분석
-            for idx, instance_id in enumerate(instance_ids):
-                try:
-                    # Orthanc API로 DICOM 파일 다운로드
-                    logger.info(f"📥 DICOM 다운로드 {idx+1}/{len(instance_ids)}: {instance_id}")
-                    response = requests.get(
-                        f"{orthanc_url}/instances/{instance_id}/file",
-                        auth=orthanc_auth,
-                        timeout=60
-                    )
-                    response.raise_for_status()
-                    dicom_bytes = response.content
-                    logger.info(f"✅ DICOM 다운로드 완료: {len(dicom_bytes)} bytes")
-                    
-                    # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
-                    image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
-                    
-                    # 3. PIL Image로 변환 및 Transform 적용
-                    image_pil = Image.fromarray(image_rgb)
-                    image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
-                    
-                    # 4. 모델 추론
-                    with torch.no_grad():
-                        outputs = self.model(image_tensor)
-                        probabilities = torch.softmax(outputs, dim=1)[0]
-                        confidence, predicted_class = torch.max(probabilities, 0)
-                    
-                    # 5. 결과 생성
-                    class_id = predicted_class.item()
-                    class_name = CLASS_NAMES[class_id]
-                    confidence_value = confidence.item()
-                    
-                    # 모든 클래스별 확률
-                    probabilities_dict = {
-                        CLASS_NAMES[i]: float(probabilities[i].item())
-                        for i in range(4)
-                    }
-                    
-                    results.append({
-                        'success': True,
-                        'class_id': class_id,
-                        'class_name': class_name,
-                        'confidence': confidence_value,
-                        'probabilities': probabilities_dict
-                    })
-                    
-                    logger.info(f"✅ 분류 완료 {idx+1}/{len(instance_ids)}: {class_name} (신뢰도: {confidence_value:.4f})")
-                    
-                except Exception as e:
-                    logger.error(f"❌ 추론 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
-                    results.append({
-                        'success': False,
-                        'error': str(e)
-                    })
-            
-            # 입력 1개에 대해 출력 1개 반환 (안에 4개 결과 포함)
-            batch_results.append({"results": results})
+        logger.info(f"📥 Orthanc에서 데이터 다운로드 중: {orthanc_url}")
+        logger.info(f"📊 총 {len(instance_ids)}장 이미지")
         
-        return batch_results
+        results = []
+        
+        # Orthanc API로 각 이미지 다운로드 및 분석
+        for idx, instance_id in enumerate(instance_ids):
+            try:
+                # Orthanc API로 DICOM 파일 다운로드
+                logger.info(f"📥 DICOM 다운로드 {idx+1}/{len(instance_ids)}: {instance_id}")
+                response = requests.get(
+                    f"{orthanc_url}/instances/{instance_id}/file",
+                    auth=orthanc_auth,
+                    timeout=60
+                )
+                response.raise_for_status()
+                dicom_bytes = response.content
+                logger.info(f"✅ DICOM 다운로드 완료: {len(dicom_bytes)} bytes")
+                
+                # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
+                image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
+                
+                # 3. PIL Image로 변환 및 Transform 적용
+                image_pil = Image.fromarray(image_rgb)
+                image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
+                
+                # 4. 모델 추론
+                with torch.no_grad():
+                    outputs = self.model(image_tensor)
+                    probabilities = torch.softmax(outputs, dim=1)[0]
+                    confidence, predicted_class = torch.max(probabilities, 0)
+                
+                # 5. 결과 생성
+                class_id = predicted_class.item()
+                class_name = CLASS_NAMES[class_id]
+                confidence_value = confidence.item()
+                
+                # 모든 클래스별 확률
+                probabilities_dict = {
+                    CLASS_NAMES[i]: float(probabilities[i].item())
+                    for i in range(4)
+                }
+                
+                results.append({
+                    'success': True,
+                    'class_id': class_id,
+                    'class_name': class_name,
+                    'confidence': confidence_value,
+                    'probabilities': probabilities_dict
+                })
+                
+                logger.info(f"✅ 분류 완료 {idx+1}/{len(instance_ids)}: {class_name} (신뢰도: {confidence_value:.4f})")
+                
+            except Exception as e:
+                logger.error(f"❌ 추론 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
+                results.append({
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        # MRI 세그멘테이션과 동일하게 단일 딕셔너리 반환
+        return {"results": results}
 
 
 if __name__ == "__main__":
