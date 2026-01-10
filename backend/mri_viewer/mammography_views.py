@@ -4,6 +4,7 @@ Mosec 서비스 (포트 5007)를 호출하여 4-class 분류 수행
 """
 
 import logging
+import base64
 import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -60,20 +61,21 @@ def mammography_ai_analysis(request):
         # 1. Orthanc에서 4개 DICOM 파일 다운로드
         client = OrthancClient()
         
-        # 2. 각 이미지를 순차적으로 Mosec에 전송 (MRI 세그멘테이션 방식)
+        # 2. 각 이미지를 순차적으로 Mosec에 전송 (base64 JSON)
         mosec_results = []
         
         for idx, instance_id in enumerate(instance_ids):
             dicom_data = client.get_instance_file(instance_id)
-            logger.info(f"📥 DICOM 데이터 로드 {idx+1}/4: {instance_id} ({len(dicom_data)} bytes)")
+            dicom_base64 = base64.b64encode(dicom_data).decode('utf-8')
+            logger.info(f"📥 DICOM 데이터 로드 {idx+1}/4: {instance_id} ({len(dicom_data)} bytes, base64: {len(dicom_base64)} bytes)")
             
-            # 단일 이미지를 바이너리로 직접 전송 (MRI 방식과 동일)
+            # base64로 인코딩해서 JSON으로 전송
             logger.info(f"🚀 Mosec 서비스 호출 중... ({idx+1}/4)")
             
             response = requests.post(
                 f"{MAMMOGRAPHY_API_URL}/inference",
-                data=dicom_data,
-                headers={'Content-Type': 'application/octet-stream'},
+                json={"dicom_data": dicom_base64},
+                headers={'Content-Type': 'application/json'},
                 timeout=60  # 1분 (1장 처리)
             )
             
