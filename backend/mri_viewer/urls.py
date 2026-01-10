@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from . import views, orthanc_views, mammography_ai_views, mri_ai_views, yolo_detection_views, segmentation_views
+from . import views, orthanc_views, mri_ai_views, segmentation_views
 
 urlpatterns = [
     # 기존 MRI Viewer API
@@ -24,17 +24,9 @@ urlpatterns = [
     path('orthanc/patients/<str:patient_id>/segmentation/', orthanc_views.orthanc_segmentation, name='orthanc-segmentation'),
     path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
     
-    # Mammography AI Detection API (YOLO11)
-    path('mammography/instances/<str:instance_id>/detect/', mammography_ai_views.mammography_ai_detection, name='mammography-ai-detection'),
-    path('mammography/ai/health/', mammography_ai_views.mammography_ai_health, name='mammography-ai-health'),
-    
     # MRI AI Analysis API (pCR Prediction)
     path('patients/<str:patient_id>/analyze/', mri_ai_views.mri_ai_analysis, name='mri-ai-analysis'),
     path('ai/health/', mri_ai_views.mri_ai_health, name='mri-ai-health'),
-    
-    # YOLO 디텍션 API (FastAPI 서버 사용)
-    path('yolo/instances/<str:instance_id>/detect/', yolo_detection_views.yolo_detection, name='yolo-detection'),
-    path('yolo/health/', yolo_detection_views.yolo_health, name='yolo-health'),
     
     # MRI 세그멘테이션 API
     path('segmentation/instances/<str:instance_id>/segment/', segmentation_views.mri_segmentation, name='mri-segmentation'),
