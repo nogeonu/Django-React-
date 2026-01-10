@@ -87,16 +87,20 @@ def mammography_ai_analysis(request):
         try:
             mosec_result = response.json()
             logger.info(f"📥 Mosec 응답 타입: {type(mosec_result)}")
+            logger.info(f"📥 Mosec 응답 내용: {mosec_result}")
             
             if not isinstance(mosec_result, dict):
                 logger.error(f"❌ Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}")
+                logger.error(f"❌ 실제 응답: {mosec_result}")
                 raise Exception(f"Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}")
             
             # results 배열 추출
             mosec_results = mosec_result.get("results", [])
+            logger.info(f"📥 results 타입: {type(mosec_results)}, 길이: {len(mosec_results) if isinstance(mosec_results, list) else 'N/A'}")
             
             if not isinstance(mosec_results, list):
                 logger.error(f"❌ results가 리스트가 아님: {type(mosec_results)}")
+                logger.error(f"❌ results 내용: {mosec_results}")
                 raise Exception(f"Mosec 응답 형식 오류: results가 리스트가 아님")
             
             if len(mosec_results) != len(instance_ids):

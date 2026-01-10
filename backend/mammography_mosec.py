@@ -242,9 +242,18 @@ class MammographyWorker(Worker):
             logger.error(f"❌ 역직렬화 오류: {str(e)}")
             raise
     
-    def serialize(self, data: dict) -> bytes:
+    def serialize(self, data) -> bytes:
         """결과 직렬화 (MRI 세그멘테이션과 동일)"""
-        return json.dumps(data).encode('utf-8')
+        # Mosec이 리스트로 전달할 수 있으므로 처리
+        if isinstance(data, list) and len(data) > 0:
+            result_data = data[0]
+        elif isinstance(data, dict):
+            result_data = data
+        else:
+            logger.error(f"❌ serialize 예상치 못한 데이터 타입: {type(data)}")
+            result_data = {"error": f"Invalid data type: {type(data)}"}
+        
+        return json.dumps(result_data).encode('utf-8')
     
     def forward(self, data) -> dict:
         """
