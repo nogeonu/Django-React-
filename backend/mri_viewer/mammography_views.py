@@ -83,10 +83,17 @@ def mammography_ai_analysis(request):
         if response.status_code != 200:
             raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
         
-        # Mosec은 결과 리스트를 반환
-        mosec_results = response.json()
-        if not isinstance(mosec_results, list):
-            mosec_results = [mosec_results]
+        # Mosec 응답: [{"results": [...]}]
+        mosec_response = response.json()
+        if not isinstance(mosec_response, list) or len(mosec_response) == 0:
+            raise Exception("Mosec 응답 형식 오류")
+        
+        # 첫 번째 배치 결과에서 results 배열 추출
+        batch_result = mosec_response[0]
+        mosec_results = batch_result.get("results", [])
+        
+        if len(mosec_results) != len(instance_ids):
+            raise Exception(f"결과 개수 불일치: 기대 {len(instance_ids)}, 실제 {len(mosec_results)}")
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []
