@@ -81,16 +81,31 @@ def mammography_ai_analysis(request):
         
         mosec_results = response.json()
         
-        # 3. 결과 매핑 (뷰 정보 추가)
+        # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []
-        view_names = ['L-CC', 'L-MLO', 'R-CC', 'R-MLO']  # 기본 순서
         
         for idx, (instance_id, mosec_result) in enumerate(zip(instance_ids, mosec_results)):
             if not mosec_result.get('success'):
                 raise Exception(f"이미지 {idx+1} 분석 실패: {mosec_result.get('error', 'Unknown error')}")
             
-            # 뷰 이름 결정 (Orthanc 메타데이터에서 가져오거나 기본값 사용)
-            view_name = view_names[idx] if idx < len(view_names) else f"Image {idx+1}"
+            # Orthanc에서 인스턴스 메타데이터 가져오기
+            try:
+                instance_info = client.get_instance_info(instance_id)
+                main_tags = instance_info.get('MainDicomTags', {})
+                
+                view_position = main_tags.get('ViewPosition', '')  # CC, MLO 등
+                image_laterality = main_tags.get('ImageLaterality', '')  # L, R
+                
+                # 뷰 이름 생성
+                if view_position and image_laterality:
+                    view_name = f"{image_laterality}-{view_position}"  # L-CC, R-MLO 등
+                else:
+                    view_name = f"Image {idx+1}"
+                    
+                logger.info(f"📋 메타데이터: {instance_id} → {view_name} (ViewPosition={view_position}, ImageLaterality={image_laterality})")
+            except Exception as e:
+                logger.warning(f"⚠️ 메타데이터 로드 실패: {instance_id}, 기본값 사용")
+                view_name = f"Image {idx+1}"
             
             # 클래스 이름 매핑
             class_names = ['Mass', 'Calcification', 'Architectural/Asymmetry', 'Normal']
