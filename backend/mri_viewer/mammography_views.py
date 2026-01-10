@@ -58,33 +58,35 @@ def mammography_ai_analysis(request):
         
         logger.info(f"📊 맘모그래피 4장 분석 시작: {instance_ids}")
         
-        # 1. Orthanc에서 4개 DICOM 파일 다운로드
+        # 1. Orthanc 클라이언트 설정 (Mosec에서 사용할 정보)
+        import os
         client = OrthancClient()
         
-        # 2. 각 이미지를 순차적으로 Mosec에 전송 (base64 JSON)
-        mosec_results = []
+        # 2. Mosec에 instance_ids만 전송 (MRI 세그멘테이션 방식)
+        # Mosec 내부에서 Orthanc API로 직접 DICOM 파일 다운로드
+        logger.info(f"🚀 Mosec 서비스 호출 중... (4장, Orthanc API 사용)")
         
-        for idx, instance_id in enumerate(instance_ids):
-            dicom_data = client.get_instance_file(instance_id)
-            dicom_base64 = base64.b64encode(dicom_data).decode('utf-8')
-            logger.info(f"📥 DICOM 데이터 로드 {idx+1}/4: {instance_id} ({len(dicom_data)} bytes, base64: {len(dicom_base64)} bytes)")
-            
-            # base64로 인코딩해서 JSON으로 전송
-            logger.info(f"🚀 Mosec 서비스 호출 중... ({idx+1}/4)")
-            
-            response = requests.post(
-                f"{MAMMOGRAPHY_API_URL}/inference",
-                json={"dicom_data": dicom_base64},
-                headers={'Content-Type': 'application/json'},
-                timeout=60  # 1분 (1장 처리)
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Mosec 서비스 오류 ({idx+1}/4): {response.status_code} - {response.text}")
-            
-            result = response.json()
-            mosec_results.append(result)
-            logger.info(f"✅ 이미지 {idx+1}/4 분석 완료")
+        import json
+        payload = json.dumps({
+            "instance_ids": instance_ids,
+            "orthanc_url": os.getenv('ORTHANC_URL', 'http://localhost:8042'),
+            "orthanc_auth": [os.getenv('ORTHANC_USER', 'admin'), os.getenv('ORTHANC_PASSWORD', 'admin123')]
+        })
+        
+        response = requests.post(
+            f"{MAMMOGRAPHY_API_URL}/inference",
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=300  # 5분 (4장 처리)
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
+        
+        # Mosec은 결과 리스트를 반환
+        mosec_results = response.json()
+        if not isinstance(mosec_results, list):
+            mosec_results = [mosec_results]
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
         results = []
