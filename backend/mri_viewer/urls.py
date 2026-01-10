@@ -32,7 +32,7 @@ urlpatterns = [
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
     
     # 맘모그래피 AI 분석 API
-    path('mammography/analyze/', mammography_views.analyze_mammography, name='analyze-mammography'),
+    path('mammography/analyze/', mammography_views.mammography_ai_analysis, name='analyze-mammography'),
     path('mammography/health/', mammography_views.mammography_health, name='mammography-health'),
 ]
 

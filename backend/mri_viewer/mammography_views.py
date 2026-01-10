@@ -18,73 +18,106 @@ MAMMOGRAPHY_API_URL = "http://localhost:5007"
 
 
 @api_view(['POST'])
-def analyze_mammography(request):
+def mammography_ai_analysis(request):
     """
-    맘모그래피 이미지 AI 분석
+    맘모그래피 4장 이미지 AI 분석
     
     POST /api/mri/mammography/analyze/
     Body: {
-        "instance_id": "orthanc_instance_id"
+        "instance_ids": ["id1", "id2", "id3", "id4"]
     }
     
     Returns: {
         "success": true,
-        "instance_id": "...",
-        "class_id": 0,
-        "class_name": "Mass",
-        "confidence": 0.95,
-        "probabilities": {
-            "Mass": 0.95,
-            "Calcification": 0.03,
-            "Architectural/Asymmetry": 0.01,
-            "Normal": 0.01
-        }
+        "results": [
+            {
+                "instance_id": "...",
+                "view": "L-CC",
+                "predicted_class": 0,
+                "probability": 0.95,
+                "all_probabilities": [0.95, 0.03, 0.01, 0.01]
+            },
+            ...
+        ]
     }
     """
     try:
-        instance_id = request.data.get('instance_id')
+        instance_ids = request.data.get('instance_ids')
         
-        if not instance_id:
+        if not instance_ids or not isinstance(instance_ids, list):
             return Response({
                 'success': False,
-                'error': 'instance_id가 필요합니다.'
+                'error': 'instance_ids 배열이 필요합니다.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        logger.info(f"📊 맘모그래피 분석 시작: {instance_id}")
+        if len(instance_ids) != 4:
+            return Response({
+                'success': False,
+                'error': '맘모그래피는 4장의 이미지가 필요합니다 (L-CC, L-MLO, R-CC, R-MLO).'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        # 1. Orthanc에서 DICOM 파일 다운로드
+        logger.info(f"📊 맘모그래피 4장 분석 시작: {instance_ids}")
+        
+        # 1. Orthanc에서 4개 DICOM 파일 다운로드 + Base64 인코딩
         client = OrthancClient()
-        dicom_data = client.get_instance_file(instance_id)
+        dicom_data_list = []
         
-        # 2. Base64 인코딩
-        dicom_base64 = base64.b64encode(dicom_data).decode('utf-8')
+        for instance_id in instance_ids:
+            dicom_data = client.get_instance_file(instance_id)
+            dicom_base64 = base64.b64encode(dicom_data).decode('utf-8')
+            dicom_data_list.append({"dicom_data": dicom_base64})
+            logger.info(f"📥 DICOM 데이터 로드: {instance_id} ({len(dicom_data)} bytes)")
         
-        logger.info(f"📥 DICOM 데이터 크기: {len(dicom_data)} bytes")
-        
-        # 3. Mosec 서비스 호출
+        # 2. Mosec 서비스 호출 (배치 처리)
+        logger.info(f"🚀 Mosec 서비스 호출 중... (4장 배치)")
         response = requests.post(
             f"{MAMMOGRAPHY_API_URL}/inference",
-            json=[{"dicom_data": dicom_base64}],
-            timeout=60  # 1분
+            json=dicom_data_list,
+            timeout=120  # 2분 (4장 처리)
         )
         
         if response.status_code != 200:
             raise Exception(f"Mosec 서비스 오류: {response.status_code} - {response.text}")
         
-        result = response.json()[0]
+        mosec_results = response.json()
         
-        if not result.get('success'):
-            raise Exception(result.get('error', 'Unknown error'))
+        # 3. 결과 매핑 (뷰 정보 추가)
+        results = []
+        view_names = ['L-CC', 'L-MLO', 'R-CC', 'R-MLO']  # 기본 순서
         
-        logger.info(f"✅ 분석 완료: {result['class_name']} (신뢰도: {result['confidence']:.4f})")
+        for idx, (instance_id, mosec_result) in enumerate(zip(instance_ids, mosec_results)):
+            if not mosec_result.get('success'):
+                raise Exception(f"이미지 {idx+1} 분석 실패: {mosec_result.get('error', 'Unknown error')}")
+            
+            # 뷰 이름 결정 (Orthanc 메타데이터에서 가져오거나 기본값 사용)
+            view_name = view_names[idx] if idx < len(view_names) else f"Image {idx+1}"
+            
+            # 클래스 이름 매핑
+            class_names = ['Mass', 'Calcification', 'Architectural/Asymmetry', 'Normal']
+            predicted_class = mosec_result['class_id']
+            
+            # 모든 확률값 배열로 변환
+            all_probs = [
+                mosec_result['probabilities'].get('Mass', 0.0),
+                mosec_result['probabilities'].get('Calcification', 0.0),
+                mosec_result['probabilities'].get('Architectural/Asymmetry', 0.0),
+                mosec_result['probabilities'].get('Normal', 0.0)
+            ]
+            
+            results.append({
+                'instance_id': instance_id,
+                'view': view_name,
+                'predicted_class': predicted_class,
+                'class_name': class_names[predicted_class],
+                'probability': mosec_result['confidence'],
+                'all_probabilities': all_probs
+            })
+            
+            logger.info(f"✅ {view_name}: {class_names[predicted_class]} (신뢰도: {mosec_result['confidence']:.4f})")
         
         return Response({
             'success': True,
-            'instance_id': instance_id,
-            'class_id': result['class_id'],
-            'class_name': result['class_name'],
-            'confidence': result['confidence'],
-            'probabilities': result['probabilities']
+            'results': results
         })
         
     except requests.exceptions.Timeout:
