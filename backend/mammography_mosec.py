@@ -246,20 +246,29 @@ class MammographyWorker(Worker):
         """결과 직렬화 (MRI 세그멘테이션과 동일)"""
         return json.dumps(data).encode('utf-8')
     
-    def forward(self, data: dict) -> dict:
+    def forward(self, data) -> dict:
         """
         맘모그래피 이미지 분류 추론 (Orthanc API 직접 호출)
         
         Args:
-            data: {
-                "instance_ids": [id1, id2, id3, id4],
-                "orthanc_url": "http://localhost:8042",
-                "orthanc_auth": ["admin", "admin123"]
-            }  # Mosec이 deserialize 결과를 그대로 전달
+            data: dict 또는 List[dict] (Mosec 버전에 따라 다를 수 있음)
+                {
+                    "instance_ids": [id1, id2, id3, id4],
+                    "orthanc_url": "http://localhost:8042",
+                    "orthanc_auth": ["admin", "admin123"]
+                }
         
         Returns:
             {"results": [...]}  # 4개 결과 포함 딕셔너리
         """
+        # Mosec이 리스트로 전달할 수 있으므로 처리
+        if isinstance(data, list) and len(data) > 0:
+            request_data = data[0]
+        elif isinstance(data, dict):
+            request_data = data
+        else:
+            raise ValueError(f"예상치 못한 데이터 타입: {type(data)}")
+        
         if self.model is None:
             logger.info("📦 모델 로딩 중...")
             self.model = create_resnet50_model(num_classes=4)
@@ -280,10 +289,10 @@ class MammographyWorker(Worker):
             
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
         
-        # Orthanc API 설정
-        instance_ids = data.get("instance_ids", [])
-        orthanc_url = data.get("orthanc_url", "http://localhost:8042")
-        orthanc_auth = tuple(data.get("orthanc_auth", ["admin", "admin123"]))
+        # Orthanc API 설정 (request_data 사용)
+        instance_ids = request_data.get("instance_ids", [])
+        orthanc_url = request_data.get("orthanc_url", "http://localhost:8042")
+        orthanc_auth = tuple(request_data.get("orthanc_auth", ["admin", "admin123"]))
         
         logger.info(f"📥 Orthanc에서 데이터 다운로드 중: {orthanc_url}")
         logger.info(f"📊 총 {len(instance_ids)}장 이미지")
