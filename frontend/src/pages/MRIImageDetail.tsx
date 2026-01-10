@@ -213,12 +213,13 @@ export default function MRIImageDetail() {
     const seriesId = currentSeries.series_id;
     const isMRI = imageType === 'MRI 영상';
 
-    // 유방촬영술은 단일 이미지 분석
+    // 유방촬영술은 4장 이미지 분석 (L-CC, L-MLO, R-CC, R-MLO)
     if (!isMRI) {
-      if (!currentImage) {
+      // 맘모그래피는 4장이 모두 있어야 함
+      if (currentSeries.images.length < 4) {
         toast({
           title: "오류",
-          description: "이미지를 선택해주세요.",
+          description: "맘모그래피 분석은 4장의 이미지(L-CC, L-MLO, R-CC, R-MLO)가 필요합니다.",
           variant: "destructive",
         });
         return;
@@ -228,12 +229,17 @@ export default function MRIImageDetail() {
       setAiResult(null);
 
       try {
-        const instanceId = currentImage.instance_id;
-        const response = await fetch(`/api/mri/yolo/instances/${instanceId}/detect/`, {
+        // 4장의 instance_id를 수집
+        const instanceIds = currentSeries.images.map(img => img.instance_id);
+        
+        const response = await fetch(`/api/mri/mammography/analyze/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            instance_ids: instanceIds
+          }),
         });
 
         const data = await response.json();
@@ -246,7 +252,7 @@ export default function MRIImageDetail() {
         setShowAiResult(true);
 
         toast({
-          title: "AI 디텍션 완료",
+          title: "맘모그래피 AI 분석 완료",
           description: `${data.detection_count}개의 병변이 감지되었습니다.`,
         });
       } catch (error) {
@@ -828,36 +834,63 @@ export default function MRIImageDetail() {
                         </>
                       ) : (
                         <>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-white">검출된 병변</span>
-                            <Badge className="bg-purple-600 text-white font-bold">
-                              {aiResult.detection_count}개
-                            </Badge>
-                          </div>
+                          {/* 맘모그래피 분류 결과 */}
+                          {aiResult.results && Array.isArray(aiResult.results) ? (
+                            <div className="space-y-3">
+                              <div className="text-xs font-bold text-white mb-2">
+                                4장 분석 결과
+                              </div>
+                              {aiResult.results.map((result: any, idx: number) => {
+                                const classNames = ['Mass', 'Calcification', 'Architectural/Asymmetry', 'Normal'];
+                                const predictedClass = classNames[result.predicted_class];
+                                const probability = result.probability;
+                                
+                                // 색상 결정
+                                let colorClass = 'bg-green-600/20 text-green-400 border-green-600/30';
+                                if (predictedClass === 'Mass') {
+                                  colorClass = 'bg-red-600/20 text-red-400 border-red-600/30';
+                                } else if (predictedClass === 'Calcification') {
+                                  colorClass = 'bg-orange-600/20 text-orange-400 border-orange-600/30';
+                                } else if (predictedClass === 'Architectural/Asymmetry') {
+                                  colorClass = 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30';
+                                }
 
-                          {aiResult.detections && aiResult.detections.length > 0 ? (
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {aiResult.detections.map((det: any, idx: number) => (
-                                <div key={idx} className="bg-gray-900/50 rounded-lg p-3 space-y-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-purple-300">
-                                      {det.class_name || `객체 ${idx + 1}`}
-                                    </span>
-                                    <Badge className="bg-green-600/20 text-green-400 text-xs">
-                                      {(det.confidence * 100).toFixed(1)}%
-                                    </Badge>
+                                return (
+                                  <div key={idx} className={`rounded-lg p-3 border ${colorClass}`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-bold">
+                                        {result.view || `이미지 ${idx + 1}`}
+                                      </span>
+                                      <Badge className={`${colorClass} text-xs font-bold`}>
+                                        {predictedClass}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">확률</span>
+                                      <span className="text-sm font-bold">
+                                        {(probability * 100).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                    {/* 확률 바 */}
+                                    <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${
+                                          predictedClass === 'Mass' ? 'bg-red-500' :
+                                          predictedClass === 'Calcification' ? 'bg-orange-500' :
+                                          predictedClass === 'Architectural/Asymmetry' ? 'bg-yellow-500' :
+                                          'bg-green-500'
+                                        }`}
+                                        style={{ width: `${probability * 100}%` }}
+                                      />
+                                    </div>
                                   </div>
-                                  <div className="text-xs text-gray-400 font-mono">
-                                    위치: [{det.bbox[0].toFixed(0)}, {det.bbox[1].toFixed(0)}] -
-                                    [{det.bbox[2].toFixed(0)}, {det.bbox[3].toFixed(0)}]
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 text-sm text-gray-400">
                               <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span>병변이 검출되지 않았습니다</span>
+                              <span>분석 결과 없음</span>
                             </div>
                           )}
                         </>
