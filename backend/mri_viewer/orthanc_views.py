@@ -9,6 +9,9 @@ from django.http import HttpResponse
 from .orthanc_client import OrthancClient
 import traceback
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -359,6 +362,106 @@ def orthanc_instance_file(request, instance_id):
         return response
     except Exception as e:
         logger.error(f"Failed to get DICOM file for instance {instance_id}: {e}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def orthanc_upload_dicom_folder(request):
+    """
+    맘모그래피 폴더 업로드 (한 환자의 여러 이미지)
+    
+    POST /api/mri/orthanc/upload-folder/
+    Body (multipart/form-data):
+        - files: 여러 DICOM 파일
+        - patient_id: 환자 ID
+        - study_description: 검사 설명
+    """
+    try:
+        # 여러 파일 가져오기
+        files = request.FILES.getlist('files')
+        patient_id = request.data.get('patient_id')
+        study_description = request.data.get('study_description', 'Mammography')
+        
+        if not files:
+            return Response({
+                'success': False,
+                'error': '파일이 없습니다.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"📁 폴더 업로드 시작: {len(files)}개 파일, 환자 ID: {patient_id}")
+        
+        client = OrthancClient()
+        uploaded_instances = []
+        view_info = []
+        failed_files = []
+        
+        # 각 파일 업로드 및 뷰 정보 추출
+        for idx, file in enumerate(files):
+            try:
+                file_data = file.read()
+                
+                # Orthanc에 업로드
+                result = client.upload_dicom(file_data)
+                instance_id = result['ID']
+                uploaded_instances.append(instance_id)
+                
+                # 뷰 정보 추출
+                instance_info = client.get_instance_info(instance_id)
+                main_tags = instance_info.get('MainDicomTags', {})
+                
+                view_position = main_tags.get('ViewPosition', 'Unknown')
+                image_laterality = main_tags.get('ImageLaterality', 'Unknown')
+                modality = main_tags.get('Modality', 'Unknown')
+                
+                view_label = f"{image_laterality}-{view_position}" if image_laterality != 'Unknown' and view_position != 'Unknown' else 'Unknown'
+                
+                view_info.append({
+                    'instance_id': instance_id,
+                    'view': view_label,
+                    'modality': modality,
+                    'file_name': file.name
+                })
+                
+                logger.info(f"  ✅ {idx+1}/{len(files)}: {file.name} → {view_label} ({modality})")
+                
+            except Exception as e:
+                logger.error(f"  ❌ {file.name} 업로드 실패: {str(e)}")
+                failed_files.append({
+                    'file_name': file.name,
+                    'error': str(e)
+                })
+                continue
+        
+        # 맘모그래피인 경우 4개 뷰 확인
+        mg_views = [v for v in view_info if v['modality'] == 'MG']
+        if mg_views:
+            expected_views = {'L-CC', 'L-MLO', 'R-CC', 'R-MLO'}
+            actual_views = {v['view'] for v in mg_views}
+            missing_views = expected_views - actual_views
+            
+            if missing_views:
+                logger.warning(f"⚠️ 일부 맘모그래피 뷰가 누락되었습니다: {missing_views}")
+        else:
+            missing_views = []
+        
+        return Response({
+            'success': True,
+            'uploaded_count': len(uploaded_instances),
+            'failed_count': len(failed_files),
+            'instances': uploaded_instances,
+            'views': view_info,
+            'failed_files': failed_files,
+            'missing_views': list(missing_views) if mg_views else [],
+            'patient_id': patient_id,
+            'study_description': study_description
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 폴더 업로드 실패: {str(e)}", exc_info=True)
         return Response({
             'success': False,
             'error': str(e)

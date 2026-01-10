@@ -327,6 +327,11 @@ if __name__ == "__main__":
     logger.info("="*70)
     
     server = Server()
-    server.append_worker(MammographyWorker, num=1, max_batch_size=8)
+    server.append_worker(
+        MammographyWorker, 
+        num=1, 
+        max_batch_size=8,
+        max_wait_time=60  # 60초 대기
+    )
     server.run()
 
