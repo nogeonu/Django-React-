@@ -242,20 +242,21 @@ class MammographyWorker(Worker):
             logger.error(f"❌ 역직렬화 오류: {str(e)}")
             raise
     
-    def serialize(self, data) -> bytes:
-        """결과 직렬화 (MRI 세그멘테이션과 동일)"""
-        # Mosec이 리스트로 전달할 수 있으므로 처리
-        if isinstance(data, list) and len(data) > 0:
-            result_data = data[0]
-        elif isinstance(data, dict):
-            result_data = data
-        else:
-            logger.error(f"❌ serialize 예상치 못한 데이터 타입: {type(data)}")
-            result_data = {"error": f"Invalid data type: {type(data)}"}
+    def serialize(self, data: dict) -> bytes:
+        """결과 직렬화 - forward가 리스트를 반환하면 각 항목이 여기로 전달됨"""
+        logger.info(f"📦 serialize 입력 타입: {type(data)}")
         
-        return json.dumps(result_data).encode('utf-8')
+        # forward가 [{"results": [...]}]를 반환하면, 
+        # Mosec이 리스트를 반복하면서 각 딕셔너리를 serialize에 전달
+        if not isinstance(data, dict):
+            logger.error(f"❌ serialize 예상치 못한 데이터 타입: {type(data)}, 값: {str(data)[:200]}")
+            data = {"error": f"Invalid data type: {type(data)}"}
+        
+        json_str = json.dumps(data)
+        logger.info(f"📦 JSON 길이: {len(json_str)} bytes, 키: {list(data.keys()) if isinstance(data, dict) else 'N/A'}")
+        return json_str.encode('utf-8')
     
-    def forward(self, data) -> dict:
+    def forward(self, data) -> list:
         """
         맘모그래피 이미지 분류 추론 (Orthanc API 직접 호출)
         
@@ -363,8 +364,12 @@ class MammographyWorker(Worker):
                     'error': str(e)
                 })
         
-        # MRI 세그멘테이션과 동일하게 단일 딕셔너리 반환
-        return {"results": results}
+        # Mosec 배치 처리: 리스트 반환 (각 항목이 serialize로 전달됨)
+        # 4개 이미지 결과를 하나의 딕셔너리로 묶어서 리스트에 담아 반환
+        result_dict = {"results": results}
+        logger.info(f"📤 forward 반환 타입: list, 길이: 1")
+        logger.info(f"📤 results 길이: {len(results)}")
+        return [result_dict]  # 리스트로 감싸서 반환
 
 
 if __name__ == "__main__":
