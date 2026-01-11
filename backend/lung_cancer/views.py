@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -43,6 +43,10 @@ class PatientViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = 'patient_id'
     lookup_value_regex = '[^/]+'
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'patient_id', 'phone']
+    ordering_fields = ['created_at', 'name']
+    ordering = ['-created_at']
     
     def get_serializer_class(self):
         """요청에 따라 적절한 시리얼라이저 반환"""

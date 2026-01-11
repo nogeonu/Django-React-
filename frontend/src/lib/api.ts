@@ -115,10 +115,12 @@ export const getPatientsApi = async (
 };
 
 export const searchPatientsApi = async (searchTerm: string) => {
-  const res = await apiClient.get('/api/patients/patients/', {
+  // lung_cancer 앱의 환자 검색 API 사용 (환자 정보 페이지와 동일)
+  const res = await apiClient.get('/api/lung_cancer/patients/', {
     params: { search: searchTerm },
   });
-  return res.data;
+  // 응답 형식: {results: [...]} 또는 배열
+  return res.data.results || res.data || [];
 };
 
 export const createAppointmentApi = async (data: Record<string, unknown>) => {
