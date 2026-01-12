@@ -228,10 +228,21 @@ class PathologyWorker(Worker):
             # SVS 파일 경로 받기
             svs_file_path = request_data.get("svs_file_path", "")
             
-            if not svs_file_path or not os.path.exists(svs_file_path):
+            logger.info(f"📥 받은 svs_file_path: '{svs_file_path}' (타입: {type(svs_file_path)})")
+            logger.info(f"📥 request_data 전체: {list(request_data.keys())}")
+            
+            if not svs_file_path:
+                logger.error(f"❌ svs_file_path가 비어있습니다!")
+                raise ValueError("svs_file_path가 전달되지 않았습니다.")
+            
+            if not os.path.exists(svs_file_path):
+                logger.error(f"❌ 파일이 존재하지 않습니다: {svs_file_path}")
+                # 디렉토리 확인
+                if os.path.dirname(svs_file_path):
+                    logger.info(f"📁 디렉토리 존재 여부: {os.path.exists(os.path.dirname(svs_file_path))}")
                 raise ValueError(f"SVS 파일을 찾을 수 없습니다: {svs_file_path}")
             
-            logger.info(f"📥 SVS 파일 경로: {svs_file_path}")
+            logger.info(f"✅ SVS 파일 경로 확인: {svs_file_path}")
             
             # 파일 크기 확인
             file_size = os.path.getsize(svs_file_path)
