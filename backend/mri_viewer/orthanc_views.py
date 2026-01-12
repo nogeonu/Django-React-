@@ -760,15 +760,6 @@ def orthanc_run_segmentation(request, patient_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-            })
-    except Exception as e:
-        return Response({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 @api_view(['DELETE'])
 def orthanc_delete_patient(request, patient_id):
     """환자 데이터 삭제"""
