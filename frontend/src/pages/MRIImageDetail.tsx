@@ -212,6 +212,62 @@ export default function MRIImageDetail() {
     const currentSeries = seriesGroups[selectedSeriesIndex];
     const seriesId = currentSeries.series_id;
     const isMRI = imageType === 'MRI 영상';
+    const isPathology = imageType === '병리 영상';
+
+    // 병리 영상 분석
+    if (isPathology) {
+      setAiAnalyzing(true);
+      setAiResult(null);
+
+      try {
+        // 병리 이미지의 instance_id
+        const instanceId = currentSeries.images[0]?.instance_id;
+        
+        if (!instanceId) {
+          throw new Error('병리 이미지를 찾을 수 없습니다.');
+        }
+
+        toast({
+          title: "병리 이미지 분석 시작",
+          description: "AI 모델이 조직 이미지를 분석하고 있습니다... (약 1-2분 소요)",
+        });
+
+        // 병리 AI 분석 API 호출 (instance_id만 전달)
+        const response = await fetch(`/api/mri/pathology/analyze/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            instance_id: instanceId
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `서버 오류 (${response.status})`);
+        }
+
+        setAiResult({ ...data, isPathology: true });
+        setShowAiResult(true);
+
+        toast({
+          title: "병리 이미지 분석 완료",
+          description: `분류 결과: ${data.class_name} (신뢰도: ${(data.confidence * 100).toFixed(1)}%)`,
+        });
+      } catch (error) {
+        console.error('병리 이미지 분석 오류:', error);
+        toast({
+          title: "AI 분석 실패",
+          description: error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      } finally {
+        setAiAnalyzing(false);
+      }
+      return;
+    }
 
     // 유방촬영술은 4장 이미지 분석 (L-CC, L-MLO, R-CC, R-MLO)
     if (!isMRI) {
@@ -797,7 +853,69 @@ export default function MRIImageDetail() {
                     </div>
 
                     <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-700/30 rounded-xl p-4 space-y-3">
-                      {aiResult.isMRI ? (
+                      {aiResult.isPathology ? (
+                        <>
+                          {/* 병리 이미지 분류 결과 */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-white">분류 결과</span>
+                              <Badge className={`${
+                                aiResult.class_name === 'Tumor' 
+                                  ? 'bg-red-600 text-white' 
+                                  : 'bg-green-600 text-white'
+                              } font-bold`}>
+                                {aiResult.class_name === 'Tumor' ? '종양' : '정상'}
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-400">신뢰도</span>
+                                <span className="text-white font-bold">
+                                  {(aiResult.confidence * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-400">분석 패치 수</span>
+                                <span className="text-white font-bold">
+                                  {aiResult.num_patches?.toLocaleString() || 0}개
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 확률 바 */}
+                            <div className="space-y-2">
+                              <div className="text-xs text-gray-400">클래스별 확률</div>
+                              {aiResult.probabilities && Object.entries(aiResult.probabilities).map(([className, prob]: [string, any]) => (
+                                <div key={className} className="space-y-1">
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-300">{className === 'Normal' ? '정상' : '종양'}</span>
+                                    <span className="text-white font-bold">{(prob * 100).toFixed(1)}%</span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${className === 'Tumor' ? 'bg-red-500' : 'bg-green-500'}`}
+                                      style={{ width: `${prob * 100}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Top Attention Patches */}
+                            {aiResult.top_attention_patches && aiResult.top_attention_patches.length > 0 && (
+                              <div className="pt-3 border-t border-gray-800">
+                                <p className="text-xs text-gray-400 mb-2">
+                                  주요 관심 영역 (Top {aiResult.top_attention_patches.length} 패치)
+                                </p>
+                                <div className="text-xs text-gray-300 font-mono">
+                                  {aiResult.top_attention_patches.join(', ')}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : aiResult.isMRI ? (
                         <>
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-bold text-white">종양 영역</span>

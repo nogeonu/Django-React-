@@ -68,7 +68,7 @@ export default function Profile() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">마이페이지</h1>
         <p className="text-muted-foreground">개인 정보를 확인하고 수정할 수 있습니다</p>
-      </div>
+            </div>
         <Card className="border-none shadow-md">
           <CardHeader className="border-b border-slate-200 dark:border-slate-800">
             <CardTitle>프로필 정보</CardTitle>

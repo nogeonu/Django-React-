@@ -22,7 +22,7 @@ def pathology_ai_analysis(request):
     
     Request Body:
         {
-            "svs_file_base64": "base64 encoded SVS file"
+            "instance_id": "Orthanc instance ID"
         }
     
     Response:
@@ -40,17 +40,45 @@ def pathology_ai_analysis(request):
         }
     """
     try:
-        # 요청 데이터 파싱
-        svs_file_base64 = request.data.get('svs_file_base64')
+        import os
         
-        if not svs_file_base64:
+        # Orthanc 설정
+        ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://localhost:8042')
+        ORTHANC_USERNAME = os.getenv('ORTHANC_USERNAME', 'admin')
+        ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
+        
+        # 요청 데이터 파싱
+        instance_id = request.data.get('instance_id')
+        
+        if not instance_id:
             return Response(
-                {'error': 'svs_file_base64가 필요합니다'},
+                {'error': 'instance_id가 필요합니다'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        logger.info(f"📥 병리 이미지 분석 요청")
-        logger.info(f"📊 SVS 파일 크기: {len(svs_file_base64)} bytes (base64)")
+        logger.info(f"📥 병리 이미지 분석 요청: instance_id={instance_id}")
+        
+        # Orthanc에서 DICOM 파일 다운로드
+        logger.info(f"📥 Orthanc에서 DICOM 다운로드 중...")
+        dicom_response = requests.get(
+            f"{ORTHANC_URL}/instances/{instance_id}/file",
+            auth=(ORTHANC_USERNAME, ORTHANC_PASSWORD),
+            timeout=60
+        )
+        
+        if dicom_response.status_code != 200:
+            logger.error(f"❌ Orthanc DICOM 다운로드 실패: {dicom_response.status_code}")
+            return Response(
+                {'error': f'Orthanc에서 이미지를 가져올 수 없습니다: {dicom_response.status_code}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        dicom_bytes = dicom_response.content
+        logger.info(f"✅ DICOM 다운로드 완료: {len(dicom_bytes)} bytes")
+        
+        # Base64 인코딩
+        svs_file_base64 = base64.b64encode(dicom_bytes).decode('utf-8')
+        logger.info(f"📊 Base64 인코딩 완료: {len(svs_file_base64)} bytes")
         
         # Mosec 서비스 호출
         payload = {

@@ -118,36 +118,36 @@ export default function Sidebar({ isSidebarOpen }: SidebarProps) {
                 <div className="flex flex-col">
                   <span className="font-bold text-sm">CDSS</span>
                   <span className="text-xs text-muted-foreground">Platform</span>
-                </div>
+          </div>
               )}
-            </div>
+          </div>
           </NavLink>
-        </div>
+      </div>
 
         {/* Menu Items */}
         <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-180px)]">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.href;
-            return (
-              <NavLink
-                key={item.href}
-                to={item.href}
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.href;
+              return (
+                <NavLink
+                  key={item.href}
+                  to={item.href}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group cursor-pointer block",
                   isActive
                     ? "bg-primary text-white"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 )}
-              >
+                >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {isSidebarOpen && (
                   <span className="text-sm font-medium">{item.name}</span>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
+                  )}
+                </NavLink>
+              );
+            })}
+      </nav>
 
         {/* Sidebar Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -156,8 +156,8 @@ export default function Sidebar({ isSidebarOpen }: SidebarProps) {
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center flex-shrink-0">
                   <Activity className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
+            </div>
+            <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-foreground truncate">{userName}</p>
                   <p className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit", getRoleBadgeColor(user?.role || ''))}>
                     {getRoleLabel(user?.role || '')}

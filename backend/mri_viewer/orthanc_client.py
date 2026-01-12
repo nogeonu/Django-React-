@@ -301,7 +301,7 @@ class OrthancClient:
         response = requests.delete(f"{self.base_url}/studies/{study_id}", auth=self.auth)
         response.raise_for_status()
         return True
-    
+
     def get(self, endpoint: str) -> Dict[str, Any]:
         """범용 GET 요청"""
         url = f"{self.base_url}{endpoint}"
