@@ -235,12 +235,40 @@ class PathologyWorker(Worker):
             
             all_features = []
             with torch.no_grad():
-                for batch in loader:
+                for i, batch in enumerate(loader):
                     batch = batch.to(DEVICE)
-                    # H-optimus-0의 forward_features 사용 (CLS token 추출)
-                    outputs = self.backbone.forward_features(batch)
-                    feats = outputs[:, 0].cpu()  # CLS token
-                    all_features.append(feats)
+                    
+                    # H-optimus-0의 forward_features 사용
+                    try:
+                        outputs = self.backbone.forward_features(batch)
+                        
+                        # 출력 형태 확인 (첫 배치만)
+                        if i == 0:
+                            logger.info(f"🔍 Backbone 출력 형태: {outputs.shape if hasattr(outputs, 'shape') else type(outputs)}")
+                        
+                        # CLS token 추출 시도
+                        if len(outputs.shape) == 3:
+                            # (batch, tokens, features) 형태
+                            feats = outputs[:, 0].cpu()  # CLS token
+                        elif len(outputs.shape) == 2:
+                            # (batch, features) 형태 - 이미 pooling됨
+                            feats = outputs.cpu()
+                        else:
+                            logger.error(f"❌ 예상치 못한 출력 형태: {outputs.shape}")
+                            raise ValueError(f"Unexpected output shape: {outputs.shape}")
+                        
+                        all_features.append(feats)
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Feature 추출 오류 (배치 {i}): {str(e)}")
+                        # forward 메서드 시도 (fallback)
+                        logger.info(f"⚠️ forward() 메서드로 재시도...")
+                        outputs = self.backbone(batch)
+                        if len(outputs.shape) == 2:
+                            feats = outputs.cpu()
+                        else:
+                            feats = outputs[:, 0].cpu() if len(outputs.shape) == 3 else outputs.cpu()
+                        all_features.append(feats)
             
             if len(all_features) == 0:
                 logger.error(f"❌ Feature 추출 실패!")
