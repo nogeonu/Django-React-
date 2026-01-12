@@ -152,11 +152,18 @@ class PathologyWorker(Worker):
             logger.error(f"❌ 역직렬화 오류: {str(e)}")
             raise
     
-    def serialize(self, data: dict) -> bytes:
+    def serialize(self, data) -> bytes:
         """결과 직렬화"""
         logger.info(f"📦 serialize 입력 타입: {type(data)}")
         
-        if not isinstance(data, dict):
+        # Mosec은 list를 전달할 수 있음
+        if isinstance(data, list):
+            if len(data) > 0 and isinstance(data[0], dict):
+                # list[dict] 형태 -> 첫 번째 dict 추출
+                data = data[0]
+            else:
+                data = {"error": f"Unexpected list content: {type(data[0]) if data else 'empty'}"}
+        elif not isinstance(data, dict):
             logger.error(f"❌ serialize 예상치 못한 데이터 타입: {type(data)}")
             data = {"error": f"Invalid data type: {type(data)}"}
         
@@ -196,11 +203,24 @@ class PathologyWorker(Worker):
             
             # H-optimus-0 백본 로드
             logger.info(f"🧠 H-optimus-0 백본 로딩 중...")
-            self.backbone = timm.create_model(
-                "hf-hub:bioptimus/H-optimus-0",
-                pretrained=True,
-                init_values=1e-5
-            ).to(DEVICE).eval()
+            
+            # HuggingFace 토큰 확인
+            hf_token = os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_TOKEN')
+            if hf_token:
+                logger.info(f"🔑 HuggingFace 토큰 사용")
+                from huggingface_hub import login
+                login(token=hf_token)
+            
+            try:
+                self.backbone = timm.create_model(
+                    "hf-hub:bioptimus/H-optimus-0",
+                    pretrained=True,
+                    init_values=1e-5
+                ).to(DEVICE).eval()
+            except Exception as e:
+                logger.error(f"❌ H-optimus-0 로드 실패: {str(e)}")
+                logger.error(f"💡 HuggingFace 토큰이 필요할 수 있습니다. HF_TOKEN 환경변수를 설정하세요.")
+                raise
             
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
         
@@ -238,37 +258,44 @@ class PathologyWorker(Worker):
                 for i, batch in enumerate(loader):
                     batch = batch.to(DEVICE)
                     
-                    # H-optimus-0의 forward_features 사용
+                    # H-optimus-0의 Feature 추출
                     try:
-                        outputs = self.backbone.forward_features(batch)
+                        # 먼저 forward_features() 시도 (조원 코드 방식)
+                        if hasattr(self.backbone, 'forward_features'):
+                            outputs = self.backbone.forward_features(batch)
+                        else:
+                            # forward_features()가 없으면 forward() 사용
+                            outputs = self.backbone(batch)
                         
                         # 출력 형태 확인 (첫 배치만)
                         if i == 0:
                             logger.info(f"🔍 Backbone 출력 형태: {outputs.shape if hasattr(outputs, 'shape') else type(outputs)}")
+                            logger.info(f"🔍 Backbone 메서드: {'forward_features' if hasattr(self.backbone, 'forward_features') else 'forward'}")
                         
-                        # CLS token 추출 시도
-                        if len(outputs.shape) == 3:
-                            # (batch, tokens, features) 형태
-                            feats = outputs[:, 0].cpu()  # CLS token
-                        elif len(outputs.shape) == 2:
-                            # (batch, features) 형태 - 이미 pooling됨
-                            feats = outputs.cpu()
+                        # Feature 추출
+                        if hasattr(outputs, 'shape'):
+                            if len(outputs.shape) == 3:
+                                # (batch, tokens, features) 형태 - CLS token 추출
+                                feats = outputs[:, 0].cpu()  # CLS token
+                            elif len(outputs.shape) == 2:
+                                # (batch, features) 형태 - 이미 pooling됨
+                                feats = outputs.cpu()
+                            else:
+                                logger.error(f"❌ 예상치 못한 출력 형태: {outputs.shape}")
+                                raise ValueError(f"Unexpected output shape: {outputs.shape}")
                         else:
-                            logger.error(f"❌ 예상치 못한 출력 형태: {outputs.shape}")
-                            raise ValueError(f"Unexpected output shape: {outputs.shape}")
+                            logger.error(f"❌ 출력이 Tensor가 아닙니다: {type(outputs)}")
+                            raise ValueError(f"Output is not a tensor: {type(outputs)}")
+                        
+                        # Feature 차원 확인
+                        if i == 0:
+                            logger.info(f"🔍 추출된 Feature 형태: {feats.shape}")
                         
                         all_features.append(feats)
                         
                     except Exception as e:
-                        logger.error(f"❌ Feature 추출 오류 (배치 {i}): {str(e)}")
-                        # forward 메서드 시도 (fallback)
-                        logger.info(f"⚠️ forward() 메서드로 재시도...")
-                        outputs = self.backbone(batch)
-                        if len(outputs.shape) == 2:
-                            feats = outputs.cpu()
-                        else:
-                            feats = outputs[:, 0].cpu() if len(outputs.shape) == 3 else outputs.cpu()
-                        all_features.append(feats)
+                        logger.error(f"❌ Feature 추출 오류 (배치 {i}): {str(e)}", exc_info=True)
+                        raise  # 에러를 다시 발생시켜서 전체 프로세스 중단
             
             if len(all_features) == 0:
                 logger.error(f"❌ Feature 추출 실패!")
