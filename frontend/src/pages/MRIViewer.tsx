@@ -732,7 +732,7 @@ export default function MRIViewer() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={imageType === 'Pathology' ? '.svs' : '.dicom,.dcm,.nii,.nii.gz'}
+                    accept={imageType === '병리 영상' ? '.svs' : '.dicom,.dcm,.nii,.nii.gz'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"
