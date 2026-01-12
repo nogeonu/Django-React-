@@ -54,11 +54,15 @@ def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Patholog
             thumbnail = slide.get_thumbnail(thumbnail_size)
             thumbnail_array = np.array(thumbnail)
             
-            # RGB to Grayscale (DICOM은 보통 grayscale)
-            if len(thumbnail_array.shape) == 3:
-                thumbnail_gray = np.mean(thumbnail_array, axis=2).astype(np.uint8)
+            # RGB 컬러 유지 (병리 이미지는 염색 정보가 중요)
+            if len(thumbnail_array.shape) == 3 and thumbnail_array.shape[2] >= 3:
+                # RGB 이미지 유지 (알파 채널 제거)
+                thumbnail_rgb = thumbnail_array[:, :, :3].astype(np.uint8)
             else:
-                thumbnail_gray = thumbnail_array
+                # 흑백 이미지를 RGB로 변환
+                thumbnail_rgb = np.stack([thumbnail_array] * 3, axis=-1).astype(np.uint8)
+            
+            logger.info(f"🎨 썸네일 생성: {thumbnail_rgb.shape}, dtype={thumbnail_rgb.dtype}")
             
             # DICOM 파일 생성
             file_meta = pydicom.dataset.FileMetaDataset()
@@ -97,18 +101,19 @@ def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Patholog
             ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
             ds.InstanceNumber = '1'
             
-            # Image Information
-            ds.SamplesPerPixel = 1
-            ds.PhotometricInterpretation = 'MONOCHROME2'
-            ds.Rows = thumbnail_gray.shape[0]
-            ds.Columns = thumbnail_gray.shape[1]
+            # Image Information (RGB 컬러)
+            ds.SamplesPerPixel = 3
+            ds.PhotometricInterpretation = 'RGB'
+            ds.PlanarConfiguration = 0  # 0 = R1G1B1R2G2B2... (인터리브)
+            ds.Rows = thumbnail_rgb.shape[0]
+            ds.Columns = thumbnail_rgb.shape[1]
             ds.BitsAllocated = 8
             ds.BitsStored = 8
             ds.HighBit = 7
             ds.PixelRepresentation = 0
             
-            # Pixel Data
-            ds.PixelData = thumbnail_gray.tobytes()
+            # Pixel Data (RGB)
+            ds.PixelData = thumbnail_rgb.tobytes()
             
             # WSI 메타데이터 추가
             ds.TotalPixelMatrixColumns = slide.dimensions[0]
