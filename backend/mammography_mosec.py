@@ -191,15 +191,26 @@ def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, crop_info, alpha=0.5):
             # 크롭이 없었다면 전체 영역에 리사이즈
             heatmap_full = cv2.resize(heatmap, (original_w, original_h), interpolation=cv2.INTER_LINEAR)
         
+        # 임계값 적용: 상위 30% 이상의 활성화 영역만 표시
+        threshold = 0.3
+        heatmap_thresholded = np.where(heatmap_full >= threshold, heatmap_full, 0)
+        
         # 히트맵을 컬러맵으로 변환 (JET 컬러맵)
-        heatmap_uint8 = (heatmap_full * 255).astype(np.uint8)
+        heatmap_uint8 = (heatmap_thresholded * 255).astype(np.uint8)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         
         # RGB로 변환 (OpenCV는 BGR 사용)
         heatmap_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
         
-        # 원본 이미지와 히트맵 오버레이
-        overlay = cv2.addWeighted(dicom_rgb, 1 - alpha, heatmap_rgb, alpha, 0)
+        # 임계값 이하 영역은 투명하게 처리 (마스크 생성)
+        mask = (heatmap_thresholded > 0).astype(np.uint8)
+        mask_3ch = np.stack([mask, mask, mask], axis=-1)
+        
+        # 원본 이미지와 히트맵 오버레이 (마스크 적용)
+        overlay = dicom_rgb.copy()
+        overlay = np.where(mask_3ch > 0, 
+                          cv2.addWeighted(dicom_rgb, 1 - alpha, heatmap_rgb, alpha, 0),
+                          dicom_rgb)
         
         # PNG로 인코딩
         _, buffer = cv2.imencode('.png', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
