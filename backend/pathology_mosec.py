@@ -296,8 +296,8 @@ class PathologyWorker(Worker):
                 raise ValueError("조직 패치가 없습니다. 이미지가 대부분 배경입니다.")
             
             # Feature 추출 (배치 처리) - 메모리 최적화: 작은 배치 크기 사용
-            # 배치 크기를 32로 줄여서 메모리 사용량 감소
-            batch_size = 32  # 128 -> 32로 감소 (메모리 부족 방지)
+            # 배치 크기를 16으로 줄여서 메모리 사용량 감소
+            batch_size = 16  # 128 -> 32 -> 16으로 감소 (메모리 부족 방지)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
             
             all_features = []
