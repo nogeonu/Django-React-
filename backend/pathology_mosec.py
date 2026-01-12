@@ -196,13 +196,22 @@ class PathologyWorker(Worker):
         if self.clam_model is None:
             logger.info(f"📦 모델 로딩 중...")
             
-            # CLAM 모델 로드
+            # 메모리 최적화: 불필요한 그래디언트 계산 비활성화
+            torch.set_grad_enabled(False)
+            
+            # CLAM 모델 로드 (메모리 효율적으로)
+            logger.info(f"📦 CLAM 모델 로딩 중...")
             self.clam_model = AttentionMIL(input_dim=1536).to(DEVICE)
-            self.clam_model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+            # map_location으로 CPU에 로드 후 이동 (메모리 효율적)
+            state_dict = torch.load(MODEL_PATH, map_location='cpu')
+            self.clam_model.load_state_dict(state_dict)
             self.clam_model.eval()
+            # 메모리 정리
+            del state_dict
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
             
             # H-optimus-0 백본 로드
-            logger.info(f"🧠 H-optimus-0 백본 로딩 중...")
+            logger.info(f"🧠 H-optimus-0 백본 로딩 중... (메모리 최적화 모드)")
             
             # HuggingFace 토큰 확인 (선택적)
             hf_token = os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_TOKEN')
@@ -218,12 +227,23 @@ class PathologyWorker(Worker):
                 logger.info(f"💡 토큰 없이 캐시에서 모델을 찾으려고 시도합니다...")
             
             try:
+                # 메모리 효율적인 모델 로드
+                # CPU에 먼저 로드한 후 이동 (메모리 사용량 감소)
+                logger.info(f"💾 모델 로드 중... (CPU 우선)")
                 self.backbone = timm.create_model(
                     "hf-hub:bioptimus/H-optimus-0",
                     pretrained=True,
                     init_values=1e-5
-                ).to(DEVICE).eval()
-                logger.info(f"✅ H-optimus-0 로드 성공!")
+                )
+                # CPU에서 로드 후 eval 모드로 전환 (메모리 최적화)
+                self.backbone.eval()
+                # CPU에 유지 (GPU가 없으므로)
+                self.backbone = self.backbone.to(DEVICE)
+                
+                # 메모리 정리
+                torch.cuda.empty_cache() if torch.cuda.is_available() else None
+                
+                logger.info(f"✅ H-optimus-0 로드 성공! (메모리 최적화)")
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"❌ H-optimus-0 로드 실패: {error_msg}")
@@ -275,8 +295,10 @@ class PathologyWorker(Worker):
                 logger.error(f"❌ 조직 패치가 없습니다! Tissue masking 결과 유효한 영역이 없습니다.")
                 raise ValueError("조직 패치가 없습니다. 이미지가 대부분 배경입니다.")
             
-            # Feature 추출 (배치 처리)
-            loader = DataLoader(dataset, batch_size=128, shuffle=False)
+            # Feature 추출 (배치 처리) - 메모리 최적화: 작은 배치 크기 사용
+            # 배치 크기를 32로 줄여서 메모리 사용량 감소
+            batch_size = 32  # 128 -> 32로 감소 (메모리 부족 방지)
+            loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
             
             all_features = []
             with torch.no_grad():
@@ -301,10 +323,10 @@ class PathologyWorker(Worker):
                         if hasattr(outputs, 'shape'):
                             if len(outputs.shape) == 3:
                                 # (batch, tokens, features) 형태 - CLS token 추출
-                                feats = outputs[:, 0].cpu()  # CLS token
+                                feats = outputs[:, 0].cpu()  # CLS token (CPU로 즉시 이동)
                             elif len(outputs.shape) == 2:
                                 # (batch, features) 형태 - 이미 pooling됨
-                                feats = outputs.cpu()
+                                feats = outputs.cpu()  # CPU로 즉시 이동
                             else:
                                 logger.error(f"❌ 예상치 못한 출력 형태: {outputs.shape}")
                                 raise ValueError(f"Unexpected output shape: {outputs.shape}")
@@ -317,6 +339,14 @@ class PathologyWorker(Worker):
                             logger.info(f"🔍 추출된 Feature 형태: {feats.shape}")
                         
                         all_features.append(feats)
+                        
+                        # 메모리 정리 (매 배치마다)
+                        del batch, outputs, feats
+                        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+                        
+                        # 진행 상황 로깅 (10배치마다)
+                        if (i + 1) % 10 == 0:
+                            logger.info(f"📊 Feature 추출 진행: {i + 1}/{len(loader)} 배치 완료")
                         
                     except Exception as e:
                         logger.error(f"❌ Feature 추출 오류 (배치 {i}): {str(e)}", exc_info=True)

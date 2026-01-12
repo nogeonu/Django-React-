@@ -96,8 +96,8 @@ jobs:
             sudo chown -R www-data:www-data "$APP_DIR/frontend/dist" || true
             sudo chmod -R 755 "$APP_DIR/frontend/dist" || true
             
-            # H-optimus-0 모델 다운로드 (캐시에 저장)
-            echo "📥 H-optimus-0 모델 다운로드 중..."
+            # H-optimus-0 모델 다운로드 (캐시에 저장) - 메모리 최적화
+            echo "📥 H-optimus-0 모델 다운로드 중... (메모리 최적화 모드)"
             cd "$APP_DIR/backend"
             source .venv/bin/activate
             
@@ -107,6 +107,7 @@ jobs:
                 python3 << PYEOF
 import os
 import sys
+import gc
 
 hf_token = os.environ.get('HF_TOKEN')
 
@@ -119,14 +120,26 @@ except Exception as e:
     print(f"⚠️ 로그인 실패 (이미 로그인되어 있을 수 있음): {e}")
 
 try:
+    import torch
     import timm
-    print("📦 H-optimus-0 모델 다운로드 중...")
-    model = timm.create_model(
-        "hf-hub:bioptimus/H-optimus-0",
-        pretrained=True,
-        init_values=1e-5
+    
+    # 메모리 최적화: 불필요한 그래디언트 계산 비활성화
+    torch.set_grad_enabled(False)
+    
+    print("📦 H-optimus-0 모델 다운로드 중... (메모리 최적화)")
+    # 모델 다운로드만 수행 (로드는 하지 않음)
+    from huggingface_hub import snapshot_download
+    cache_dir = snapshot_download(
+        repo_id="bioptimus/H-optimus-0",
+        token=hf_token,
+        local_files_only=False
     )
-    print("✅ 모델 다운로드 완료! (캐시에 저장됨)")
+    print(f"✅ 모델 다운로드 완료! (캐시 경로: {cache_dir})")
+    
+    # 메모리 정리
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    
 except Exception as e:
     print(f"⚠️ 모델 다운로드 실패 (이미 캐시에 있을 수 있음): {e}")
     print("💡 계속 진행합니다...")
