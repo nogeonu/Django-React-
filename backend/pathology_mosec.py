@@ -78,60 +78,57 @@ class AttentionMIL(nn.Module):
 
 
 class WSIPatchDataset(Dataset):
-    """WSI 패치 추출 Dataset"""
-    def __init__(self, svs_path, patch_size=224, target_mag=20.0, max_patches=1000):
+    """WSI 패치 추출 Dataset (TCGA 학습 방식과 동일)"""
+    def __init__(self, svs_path, patch_size=224, target_mag=20.0):
         self.wsi = openslide.OpenSlide(svs_path)
         self.patch_size = patch_size
-        self.target_mag = target_mag
-        self.max_patches = max_patches
         
-        # 패치 좌표 생성
-        self.patch_coords = self._generate_patch_coords()
+        # 배율 계산
+        mag = float(self.wsi.properties.get(openslide.PROPERTY_NAME_OBJECTIVE_POWER, 40))
+        self.scale = mag / target_mag
         
-        # Transform
+        # Tissue Masking (Thumbnail 기반)
+        logger.info(f"🔍 Tissue masking 중...")
+        thumb_width = self.wsi.dimensions[0] // 100
+        thumb_height = self.wsi.dimensions[1] // 100
+        thumb = self.wsi.get_thumbnail((thumb_width, thumb_height))
+        thumb_gray = np.array(thumb.convert('L'))
+        self.mask = thumb_gray < 235  # 조직 영역만 선택
+        
+        logger.info(f"📊 Tissue mask 크기: {self.mask.shape}")
+        logger.info(f"📊 Tissue 비율: {self.mask.sum() / self.mask.size * 100:.2f}%")
+        
+        # 조직 영역에서만 패치 좌표 생성
+        self.coords = []
+        step = int(patch_size * self.scale)
+        for y in range(0, self.wsi.dimensions[1] - step, step):
+            for x in range(0, self.wsi.dimensions[0] - step, step):
+                my = int(y / self.wsi.dimensions[1] * self.mask.shape[0])
+                mx = int(x / self.wsi.dimensions[0] * self.mask.shape[1])
+                if self.mask[my, mx]:  # 조직 영역인 경우만 추가
+                    self.coords.append((x, y))
+        
+        logger.info(f"✅ 총 {len(self.coords)}개 패치 좌표 생성")
+        
+        # Transform (TCGA 데이터셋 통계 사용)
         self.transform = transforms.Compose([
-            transforms.Resize((patch_size, patch_size)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(
+                mean=(0.707, 0.578, 0.703),  # TCGA 통계
+                std=(0.212, 0.230, 0.182)
+            )
         ])
     
-    def _generate_patch_coords(self):
-        """패치 좌표 생성 (간단한 그리드 샘플링)"""
-        width, height = self.wsi.dimensions
-        stride = self.patch_size * 2  # 50% 오버랩
-        
-        coords = []
-        for y in range(0, height - self.patch_size, stride):
-            for x in range(0, width - self.patch_size, stride):
-                coords.append((x, y))
-                if len(coords) >= self.max_patches:
-                    return coords
-        return coords
-    
     def __len__(self):
-        return len(self.patch_coords)
+        return len(self.coords)
     
     def __getitem__(self, idx):
-        x, y = self.patch_coords[idx]
-        patch = self.wsi.read_region((x, y), 0, (self.patch_size, self.patch_size))
-        patch = patch.convert('RGB')
+        x, y = self.coords[idx]
+        step = int(self.patch_size * self.scale)
         
-        # 배경 필터링 개선 (흰색 배경 제거)
-        patch_np = np.array(patch)
-        
-        # 방법 1: 평균 픽셀값 체크 (더 관대하게)
-        mean_val = patch_np.mean()
-        
-        # 방법 2: 표준편차 체크 (배경은 편차가 작음)
-        std_val = patch_np.std()
-        
-        # 배경 조건: 평균이 매우 높고(>240) AND 표준편차가 매우 작음(<10)
-        if mean_val > 240 and std_val < 10:
-            return None
-        
-        # 또는 평균이 극도로 높음(>250)
-        if mean_val > 250:
-            return None
+        # 패치 읽기 및 리사이즈
+        patch = self.wsi.read_region((x, y), 0, (step, step)).convert('RGB')
+        patch = patch.resize((self.patch_size, self.patch_size), Image.LANCZOS)
         
         return self.transform(patch)
 
@@ -223,39 +220,40 @@ class PathologyWorker(Worker):
             # OpenSlide로 직접 열기 (파일 복사 불필요)
             tmp_path = svs_file_path
             
-            # 패치 추출
+            # 패치 추출 (Tissue Masking 포함)
             logger.info(f"🔍 패치 추출 중...")
-            dataset = WSIPatchDataset(tmp_path, patch_size=PATCH_SIZE, max_patches=1000)
+            dataset = WSIPatchDataset(tmp_path, patch_size=PATCH_SIZE, target_mag=TARGET_MAG)
             
-            # Feature 추출
-            logger.info(f"🔍 총 패치 좌표 개수: {len(dataset)}")
-            features = []
-            skipped_count = 0
+            logger.info(f"📊 총 조직 패치 개수: {len(dataset)}")
             
+            if len(dataset) == 0:
+                logger.error(f"❌ 조직 패치가 없습니다! Tissue masking 결과 유효한 영역이 없습니다.")
+                raise ValueError("조직 패치가 없습니다. 이미지가 대부분 배경입니다.")
+            
+            # Feature 추출 (배치 처리)
+            from torch.utils.data import DataLoader
+            loader = DataLoader(dataset, batch_size=128, shuffle=False)
+            
+            all_features = []
             with torch.no_grad():
-                for i in range(len(dataset)):
-                    patch = dataset[i]
-                    if patch is None:
-                        skipped_count += 1
-                        continue
-                    patch = patch.unsqueeze(0).to(DEVICE)
-                    feat = self.backbone(patch)  # (1, 1536)
-                    features.append(feat.cpu())
+                for batch in loader:
+                    batch = batch.to(DEVICE)
+                    # H-optimus-0의 forward_features 사용 (CLS token 추출)
+                    outputs = self.backbone.forward_features(batch)
+                    feats = outputs[:, 0].cpu()  # CLS token
+                    all_features.append(feats)
             
-            logger.info(f"📊 패치 통계: 총 {len(dataset)}개, 유효 {len(features)}개, 스킵 {skipped_count}개")
+            if len(all_features) == 0:
+                logger.error(f"❌ Feature 추출 실패!")
+                raise ValueError("Feature 추출에 실패했습니다.")
             
-            if len(features) == 0:
-                logger.error(f"❌ 유효한 패치가 없습니다! 모든 패치가 배경으로 판단되었습니다.")
-                raise ValueError(f"유효한 패치가 없습니다. 총 {len(dataset)}개 중 {skipped_count}개가 배경으로 필터링되었습니다.")
-            
-            features = torch.cat(features, dim=0)  # (N, 1536)
-            logger.info(f"✅ Feature 추출 완료: {features.shape}")
+            slide_features = torch.cat(all_features, dim=0).to(DEVICE)  # (N, 1536)
+            logger.info(f"✅ Feature 추출 완료: {slide_features.shape}")
             
             # CLAM 추론
             logger.info(f"🔮 CLAM 추론 중...")
             with torch.no_grad():
-                features = features.to(DEVICE)
-                logits, attention = self.clam_model(features)
+                logits, attention = self.clam_model(slide_features)
                 probabilities = torch.softmax(logits, dim=1)[0]
                 confidence, predicted_class = torch.max(probabilities, 0)
             
@@ -273,7 +271,7 @@ class PathologyWorker(Worker):
                     CLASS_NAMES[i]: float(probabilities[i].item())
                     for i in range(2)
                 },
-                'num_patches': len(features),
+                'num_patches': len(slide_features),
                 'top_attention_patches': attention[0].topk(5).indices.tolist()
             }
             
