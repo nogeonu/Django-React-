@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import timm
 from torchvision import transforms
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 from mosec import Server, Worker, get_logger
 
@@ -231,7 +231,6 @@ class PathologyWorker(Worker):
                 raise ValueError("조직 패치가 없습니다. 이미지가 대부분 배경입니다.")
             
             # Feature 추출 (배치 처리)
-            from torch.utils.data import DataLoader
             loader = DataLoader(dataset, batch_size=128, shuffle=False)
             
             all_features = []
