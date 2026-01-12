@@ -204,12 +204,18 @@ class PathologyWorker(Worker):
             # H-optimus-0 백본 로드
             logger.info(f"🧠 H-optimus-0 백본 로딩 중...")
             
-            # HuggingFace 토큰 확인
+            # HuggingFace 토큰 확인 (선택적)
             hf_token = os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_TOKEN')
             if hf_token:
                 logger.info(f"🔑 HuggingFace 토큰 사용")
-                from huggingface_hub import login
-                login(token=hf_token)
+                try:
+                    from huggingface_hub import login
+                    login(token=hf_token)
+                except Exception as e:
+                    logger.warning(f"⚠️ HuggingFace 로그인 실패: {str(e)}")
+                    logger.info(f"💡 캐시에서 모델을 찾으려고 시도합니다...")
+            else:
+                logger.info(f"💡 토큰 없이 캐시에서 모델을 찾으려고 시도합니다...")
             
             try:
                 self.backbone = timm.create_model(
@@ -217,9 +223,17 @@ class PathologyWorker(Worker):
                     pretrained=True,
                     init_values=1e-5
                 ).to(DEVICE).eval()
+                logger.info(f"✅ H-optimus-0 로드 성공!")
             except Exception as e:
-                logger.error(f"❌ H-optimus-0 로드 실패: {str(e)}")
-                logger.error(f"💡 HuggingFace 토큰이 필요할 수 있습니다. HF_TOKEN 환경변수를 설정하세요.")
+                error_msg = str(e)
+                logger.error(f"❌ H-optimus-0 로드 실패: {error_msg}")
+                
+                # Gated repo 에러인 경우
+                if "401" in error_msg or "gated" in error_msg.lower() or "restricted" in error_msg.lower():
+                    logger.error(f"💡 HuggingFace 토큰이 필요합니다!")
+                    logger.error(f"💡 해결 방법:")
+                    logger.error(f"   1. HF_TOKEN 환경변수 설정: export HF_TOKEN='your_token'")
+                    logger.error(f"   2. 또는 한 번 다운로드: python3 -c \"from huggingface_hub import login; login(token='token'); import timm; timm.create_model('hf-hub:bioptimus/H-optimus-0', pretrained=True)\"")
                 raise
             
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
