@@ -96,6 +96,47 @@ jobs:
             sudo chown -R www-data:www-data "$APP_DIR/frontend/dist" || true
             sudo chmod -R 755 "$APP_DIR/frontend/dist" || true
             
+            # H-optimus-0 모델 다운로드 (캐시에 저장)
+            echo "📥 H-optimus-0 모델 다운로드 중..."
+            cd "$APP_DIR/backend"
+            source .venv/bin/activate
+            
+            # GitHub Secrets에서 토큰 가져오기 (없으면 스킵)
+            HF_TOKEN="${{ secrets.HF_TOKEN }}"
+            if [ -n "$HF_TOKEN" ]; then
+                python3 << PYEOF
+import os
+import sys
+
+hf_token = os.environ.get('HF_TOKEN')
+
+try:
+    from huggingface_hub import login
+    print("🔑 HuggingFace 로그인 중...")
+    login(token=hf_token)
+    print("✅ 로그인 성공!")
+except Exception as e:
+    print(f"⚠️ 로그인 실패 (이미 로그인되어 있을 수 있음): {e}")
+
+try:
+    import timm
+    print("📦 H-optimus-0 모델 다운로드 중...")
+    model = timm.create_model(
+        "hf-hub:bioptimus/H-optimus-0",
+        pretrained=True,
+        init_values=1e-5
+    )
+    print("✅ 모델 다운로드 완료! (캐시에 저장됨)")
+except Exception as e:
+    print(f"⚠️ 모델 다운로드 실패 (이미 캐시에 있을 수 있음): {e}")
+    print("💡 계속 진행합니다...")
+PYEOF
+            else
+                echo "⚠️ HF_TOKEN이 설정되지 않았습니다. 모델 다운로드를 건너뜁니다."
+                echo "💡 GitHub Secrets에 HF_TOKEN을 추가하거나 수동으로 다운로드하세요."
+            fi
+            deactivate
+            
             # Mosec AI 서비스 재시작
             echo "🔄 Mosec AI 서비스 재시작 중..."
             sudo systemctl restart segmentation-mosec 2>/dev/null || echo "⚠️ segmentation-mosec 서비스 없음"
