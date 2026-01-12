@@ -162,7 +162,7 @@ class PathologyWorker(Worker):
         Args:
             data: dict 또는 List[dict]
                 {
-                    "svs_file_base64": "base64 encoded SVS file"
+                    "svs_file_path": "/path/to/svs/file.svs"
                 }
         
         Returns:
@@ -196,71 +196,70 @@ class PathologyWorker(Worker):
             logger.info(f"✅ 모델 로드 완료: {MODEL_PATH}")
         
         try:
-            # SVS 파일 디코딩
-            import base64
-            svs_base64 = request_data.get("svs_file_base64", "")
-            svs_bytes = base64.b64decode(svs_base64)
-            logger.info(f"📥 SVS 파일 크기: {len(svs_bytes)} bytes")
+            # SVS 파일 경로 받기
+            svs_file_path = request_data.get("svs_file_path", "")
             
-            # 임시 파일로 저장 (OpenSlide는 파일 경로 필요)
-            with tempfile.NamedTemporaryFile(suffix='.svs', delete=False) as tmp_file:
-                tmp_file.write(svs_bytes)
-                tmp_path = tmp_file.name
+            if not svs_file_path or not os.path.exists(svs_file_path):
+                raise ValueError(f"SVS 파일을 찾을 수 없습니다: {svs_file_path}")
             
-            try:
-                # 패치 추출
-                logger.info(f"🔍 패치 추출 중...")
-                dataset = WSIPatchDataset(tmp_path, patch_size=PATCH_SIZE, max_patches=1000)
-                
-                # Feature 추출
-                logger.info(f"🧬 Feature 추출 중 ({len(dataset)} 패치)...")
-                features = []
-                with torch.no_grad():
-                    for i in range(len(dataset)):
-                        patch = dataset[i]
-                        if patch is None:
-                            continue
-                        patch = patch.unsqueeze(0).to(DEVICE)
-                        feat = self.backbone(patch)  # (1, 1536)
-                        features.append(feat.cpu())
-                
-                if len(features) == 0:
-                    raise ValueError("유효한 패치가 없습니다")
-                
-                features = torch.cat(features, dim=0)  # (N, 1536)
-                logger.info(f"✅ Feature 추출 완료: {features.shape}")
-                
-                # CLAM 추론
-                logger.info(f"🔮 CLAM 추론 중...")
-                with torch.no_grad():
-                    features = features.to(DEVICE)
-                    logits, attention = self.clam_model(features)
-                    probabilities = torch.softmax(logits, dim=1)[0]
-                    confidence, predicted_class = torch.max(probabilities, 0)
-                
-                # 결과 생성
-                class_id = predicted_class.item()
-                class_name = CLASS_NAMES[class_id]
-                confidence_value = confidence.item()
-                
-                result = {
-                    'success': True,
-                    'class_id': class_id,
-                    'class_name': class_name,
-                    'confidence': confidence_value,
-                    'probabilities': {
-                        CLASS_NAMES[i]: float(probabilities[i].item())
-                        for i in range(2)
-                    },
-                    'num_patches': len(features),
-                    'top_attention_patches': attention[0].topk(5).indices.tolist()
-                }
-                
-                logger.info(f"✅ 분류 완료: {class_name} (신뢰도: {confidence_value:.4f})")
-                
-            finally:
-                # 임시 파일 삭제
-                os.unlink(tmp_path)
+            logger.info(f"📥 SVS 파일 경로: {svs_file_path}")
+            
+            # 파일 크기 확인
+            file_size = os.path.getsize(svs_file_path)
+            logger.info(f"📊 SVS 파일 크기: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)")
+            
+            # OpenSlide로 직접 열기 (파일 복사 불필요)
+            tmp_path = svs_file_path
+            
+            # 패치 추출
+            logger.info(f"🔍 패치 추출 중...")
+            dataset = WSIPatchDataset(tmp_path, patch_size=PATCH_SIZE, max_patches=1000)
+            
+            # Feature 추출
+            logger.info(f"🧬 Feature 추출 중 ({len(dataset)} 패치)...")
+            features = []
+            with torch.no_grad():
+                for i in range(len(dataset)):
+                    patch = dataset[i]
+                    if patch is None:
+                        continue
+                    patch = patch.unsqueeze(0).to(DEVICE)
+                    feat = self.backbone(patch)  # (1, 1536)
+                    features.append(feat.cpu())
+            
+            if len(features) == 0:
+                raise ValueError("유효한 패치가 없습니다")
+            
+            features = torch.cat(features, dim=0)  # (N, 1536)
+            logger.info(f"✅ Feature 추출 완료: {features.shape}")
+            
+            # CLAM 추론
+            logger.info(f"🔮 CLAM 추론 중...")
+            with torch.no_grad():
+                features = features.to(DEVICE)
+                logits, attention = self.clam_model(features)
+                probabilities = torch.softmax(logits, dim=1)[0]
+                confidence, predicted_class = torch.max(probabilities, 0)
+            
+            # 결과 생성
+            class_id = predicted_class.item()
+            class_name = CLASS_NAMES[class_id]
+            confidence_value = confidence.item()
+            
+            result = {
+                'success': True,
+                'class_id': class_id,
+                'class_name': class_name,
+                'confidence': confidence_value,
+                'probabilities': {
+                    CLASS_NAMES[i]: float(probabilities[i].item())
+                    for i in range(2)
+                },
+                'num_patches': len(features),
+                'top_attention_patches': attention[0].topk(5).indices.tolist()
+            }
+            
+            logger.info(f"✅ 분류 완료: {class_name} (신뢰도: {confidence_value:.4f})")
             
         except Exception as e:
             logger.error(f"❌ 추론 오류: {str(e)}", exc_info=True)

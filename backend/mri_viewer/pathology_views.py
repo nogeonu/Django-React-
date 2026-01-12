@@ -110,19 +110,9 @@ def pathology_ai_analysis(request):
         
         logger.info(f"✅ 원본 SVS 파일 경로: {original_svs_path}")
         
-        # 원본 SVS 파일 읽기
-        with open(original_svs_path, 'rb') as f:
-            svs_bytes = f.read()
-        
-        logger.info(f"✅ SVS 파일 읽기 완료: {len(svs_bytes)} bytes")
-        
-        # Base64 인코딩
-        svs_file_base64 = base64.b64encode(svs_bytes).decode('utf-8')
-        logger.info(f"📊 Base64 인코딩 완료: {len(svs_file_base64)} bytes")
-        
-        # Mosec 서비스 호출
+        # Mosec 서비스 호출 (파일 경로만 전달)
         payload = {
-            "svs_file_base64": svs_file_base64
+            "svs_file_path": original_svs_path
         }
         
         logger.info(f"🚀 Mosec 서비스 호출: {PATHOLOGY_MOSEC_URL}")
