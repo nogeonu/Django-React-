@@ -96,6 +96,12 @@ jobs:
             sudo chown -R www-data:www-data "$APP_DIR/frontend/dist" || true
             sudo chmod -R 755 "$APP_DIR/frontend/dist" || true
             
+            # Mosec AI 서비스 재시작
+            echo "🔄 Mosec AI 서비스 재시작 중..."
+            sudo systemctl restart segmentation-mosec 2>/dev/null || echo "⚠️ segmentation-mosec 서비스 없음"
+            sudo systemctl restart mammography-mosec 2>/dev/null || echo "⚠️ mammography-mosec 서비스 없음"
+            sudo systemctl restart pathology-mosec 2>/dev/null || echo "⚠️ pathology-mosec 서비스 없음"
+            
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx
 
