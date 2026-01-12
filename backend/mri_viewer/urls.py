@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from . import views, orthanc_views, segmentation_views, mammography_views, pathology_views
+from . import views, orthanc_views, segmentation_views, mammography_views, pathology_views, pathology_upload_views
 
 urlpatterns = [
     # 기존 MRI Viewer API
@@ -38,5 +38,9 @@ urlpatterns = [
     # 병리 이미지 AI 분석 API
     path('pathology/analyze/', pathology_views.pathology_ai_analysis, name='analyze-pathology'),
     path('pathology/health/', pathology_views.pathology_ai_health, name='pathology-health'),
+    
+    # 병리 이미지 업로드 API
+    path('pathology/upload/', csrf_exempt(pathology_upload_views.upload_pathology_image), name='upload-pathology'),
+    path('pathology/images/', pathology_upload_views.get_pathology_images, name='get-pathology-images'),
 ]
 

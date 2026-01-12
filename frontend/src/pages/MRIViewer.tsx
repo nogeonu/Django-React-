@@ -458,7 +458,12 @@ export default function MRIViewer() {
           formData.append('patient_id', selectedPatient);
           formData.append('image_type', imageType); // 영상 유형 전달
           
-          const response = await fetch('/api/mri/orthanc/upload/', { 
+          // 병리 이미지는 별도 엔드포인트 사용
+          const uploadUrl = imageType === '병리 영상' 
+            ? '/api/mri/pathology/upload/' 
+            : '/api/mri/orthanc/upload/';
+          
+          const response = await fetch(uploadUrl, { 
             method: 'POST', 
             body: formData 
           });
@@ -727,7 +732,7 @@ export default function MRIViewer() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept=".dicom,.dcm,.nii,.nii.gz"
+                    accept={imageType === 'Pathology' ? '.svs' : '.dicom,.dcm,.nii,.nii.gz'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"
