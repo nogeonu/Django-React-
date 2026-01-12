@@ -71,7 +71,13 @@ jobs:
             cd "$APP_DIR/frontend"
             npm ci
             export NODE_OPTIONS="--max-old-space-size=1536"
+            # dist 디렉토리 권한 수정
+            mkdir -p dist
+            chmod -R 755 dist || true
             npm run build
+            # 빌드 후 권한 설정
+            chmod -R 755 dist
+            sudo chown -R www-data:www-data dist || true
 
             # mammography-ai-service 중지 및 비활성화 (Flask 서비스로 통합)
             sudo systemctl stop mammography-ai-service 2>/dev/null || true
@@ -83,6 +89,10 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl enable ml-service
             sudo systemctl restart ml-service || sudo systemctl start ml-service
+            
+            # 프론트엔드 dist 디렉토리 최종 권한 설정
+            sudo chown -R www-data:www-data "$APP_DIR/frontend/dist" || true
+            sudo chmod -R 755 "$APP_DIR/frontend/dist" || true
             
             sudo systemctl restart gunicorn || sudo systemctl start gunicorn
             sudo systemctl restart nginx || sudo systemctl start nginx
