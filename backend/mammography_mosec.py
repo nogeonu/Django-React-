@@ -138,13 +138,14 @@ def generate_gradcam(model, image_tensor, target_class, original_image_shape):
         handle_forward.remove()
 
 
-def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, alpha=0.5):
+def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, crop_info, alpha=0.5):
     """
-    원본 DICOM 이미지와 Grad-CAM 히트맵을 오버레이
+    원본 DICOM 이미지와 Grad-CAM 히트맵을 오버레이 (크롭 정보 반영)
     
     Args:
         dicom_bytes: 원본 DICOM 파일 바이트
-        heatmap: Grad-CAM 히트맵 (numpy array, float32, 0-1)
+        heatmap: Grad-CAM 히트맵 (numpy array, float32, 0-1, 크롭된 이미지 기준 512x512)
+        crop_info: 크롭 정보 {"bbox": (x, y, w, h), "original_shape": (H, W)}
         alpha: 히트맵 투명도 (0-1, 기본값 0.5)
     
     Returns:
@@ -154,6 +155,10 @@ def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, alpha=0.5):
         # DICOM 파일 읽기
         dcm = pydicom.dcmread(io.BytesIO(dicom_bytes))
         pixel_array = dcm.pixel_array
+        
+        # MONOCHROME1 처리 (반전)
+        if hasattr(dcm, 'PhotometricInterpretation') and dcm.PhotometricInterpretation == "MONOCHROME1":
+            pixel_array = pixel_array.max() - pixel_array
         
         # 정규화 (0-255)
         pixel_min = pixel_array.min()
@@ -169,11 +174,25 @@ def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, alpha=0.5):
         else:
             dicom_rgb = pixel_normalized
         
-        # 히트맵을 원본 DICOM 크기로 리사이즈
-        heatmap_resized = cv2.resize(heatmap, (dicom_rgb.shape[1], dicom_rgb.shape[0]))
+        # 원본 크기의 빈 히트맵 생성
+        original_h, original_w = crop_info["original_shape"]
+        heatmap_full = np.zeros((original_h, original_w), dtype=np.float32)
+        
+        bbox = crop_info["bbox"]
+        if bbox is not None:
+            x, y, w, h = bbox
+            
+            # 히트맵을 크롭된 영역 크기로 리사이즈
+            heatmap_cropped = cv2.resize(heatmap, (w, h), interpolation=cv2.INTER_LINEAR)
+            
+            # 원본 이미지의 크롭 영역에 히트맵 배치
+            heatmap_full[y:y+h, x:x+w] = heatmap_cropped
+        else:
+            # 크롭이 없었다면 전체 영역에 리사이즈
+            heatmap_full = cv2.resize(heatmap, (original_w, original_h), interpolation=cv2.INTER_LINEAR)
         
         # 히트맵을 컬러맵으로 변환 (JET 컬러맵)
-        heatmap_uint8 = (heatmap_resized * 255).astype(np.uint8)
+        heatmap_uint8 = (heatmap_full * 255).astype(np.uint8)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         
         # RGB로 변환 (OpenCV는 BGR 사용)
@@ -312,10 +331,12 @@ def preprocess_dicom_image(dicom_data: bytes, target_size=(512, 512)):
     
     Returns:
         processed_image: 전처리된 이미지 (512x512, uint8, RGB 3채널)
+        crop_info: 크롭 정보 딕셔너리 {"bbox": (x, y, w, h), "original_shape": (H, W)}
     """
     # 1. DICOM 파일 읽기
     ds = pydicom.dcmread(io.BytesIO(dicom_data))
     pixel_array = ds.pixel_array
+    original_shape = pixel_array.shape  # 원본 크기 저장
     
     # 2. uint16 형식으로 변환
     if pixel_array.dtype != np.uint16:
@@ -344,6 +365,11 @@ def preprocess_dicom_image(dicom_data: bytes, target_size=(512, 512)):
     # 5. 윤곽선 방법을 사용한 바운딩 박스 생성
     bounding_box = find_contours_and_bounding_box(binary_image)
     
+    crop_info = {
+        "bbox": bounding_box,  # (x, y, w, h) 또는 None
+        "original_shape": original_shape  # (H, W)
+    }
+    
     if bounding_box is None:
         cropped_image = medical_image
     else:
@@ -359,7 +385,7 @@ def preprocess_dicom_image(dicom_data: bytes, target_size=(512, 512)):
     # 9. RGB 3채널로 변환 (ResNet은 3채널 입력 필요)
     image_rgb = cv2.cvtColor(image_8bit, cv2.COLOR_GRAY2RGB)
     
-    return image_rgb
+    return image_rgb, crop_info
 
 
 class MammographyWorker(Worker):
@@ -463,7 +489,7 @@ class MammographyWorker(Worker):
                 logger.info(f"✅ DICOM 다운로드 완료: {len(dicom_bytes)} bytes")
                 
                 # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
-                image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
+                image_rgb, crop_info = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
                 original_shape = image_rgb.shape[:2]  # (H, W) 저장
                 
                 # 3. PIL Image로 변환 및 Transform 적용
@@ -476,7 +502,7 @@ class MammographyWorker(Worker):
                 probabilities = torch.softmax(outputs, dim=1)[0]
                 confidence, predicted_class = torch.max(probabilities, 0)
                 
-                # 5. Grad-CAM 생성 및 원본 DICOM에 오버레이
+                # 5. Grad-CAM 생성 및 원본 DICOM에 오버레이 (크롭 정보 반영)
                 gradcam_overlay_base64 = None
                 try:
                     class_id = predicted_class.item()
@@ -488,13 +514,14 @@ class MammographyWorker(Worker):
                     )
                     
                     if heatmap is not None:
-                        # 원본 DICOM 이미지에 히트맵 오버레이
+                        # 원본 DICOM 이미지에 히트맵 오버레이 (크롭 정보 사용)
                         gradcam_overlay_base64 = create_gradcam_overlay_on_dicom(
                             dicom_bytes, 
                             heatmap, 
+                            crop_info,  # 크롭 정보 전달
                             alpha=0.5
                         )
-                        logger.info(f"✅ Grad-CAM 오버레이 생성 완료 {idx+1}/{len(instance_ids)}")
+                        logger.info(f"✅ Grad-CAM 오버레이 생성 완료 {idx+1}/{len(instance_ids)} (bbox: {crop_info['bbox']})")
                     else:
                         logger.warning(f"⚠️ Grad-CAM 생성 실패 {idx+1}/{len(instance_ids)}")
                 except Exception as e:
