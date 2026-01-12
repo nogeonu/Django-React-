@@ -104,47 +104,13 @@ jobs:
             # GitHub Secrets에서 토큰 가져오기 (없으면 스킵)
             HF_TOKEN="${{ secrets.HF_TOKEN }}"
             if [ -n "$HF_TOKEN" ]; then
-                python3 << 'PYEOF'
-import os
-import sys
-import gc
-
-hf_token = os.environ.get('HF_TOKEN')
-
-try:
-    from huggingface_hub import login
-    print("🔑 HuggingFace 로그인 중...")
-    login(token=hf_token)
-    print("✅ 로그인 성공!")
-except Exception as e:
-    print("⚠️ 로그인 실패 (이미 로그인되어 있을 수 있음): " + str(e))
-
-try:
-    import torch
-    import timm
-    
-    # 메모리 최적화: 불필요한 그래디언트 계산 비활성화
-    torch.set_grad_enabled(False)
-    
-    print("📦 H-optimus-0 모델 다운로드 중... (메모리 최적화)")
-    # 모델 다운로드만 수행 (로드는 하지 않음)
-    from huggingface_hub import snapshot_download
-    cache_dir = snapshot_download(
-        repo_id="bioptimus/H-optimus-0",
-        token=hf_token,
-        local_files_only=False
-    )
-    print("✅ 모델 다운로드 완료! (캐시 경로: " + str(cache_dir) + ")")
-    
-    # 메모리 정리
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    
-except Exception as e:
-    print("⚠️ 모델 다운로드 실패 (이미 캐시에 있을 수 있음): " + str(e))
-    print("💡 계속 진행합니다...")
-PYEOF
+                export HF_TOKEN
+                if [ -f "$APP_DIR/scripts/download_h_optimus.py" ]; then
+                    python3 "$APP_DIR/scripts/download_h_optimus.py"
+                else
+                    echo "⚠️ download_h_optimus.py 스크립트를 찾을 수 없습니다."
+                    echo "💡 모델 다운로드를 건너뜁니다."
+                fi
             else
                 echo "⚠️ HF_TOKEN이 설정되지 않았습니다. 모델 다운로드를 건너뜁니다."
                 echo "💡 GitHub Secrets에 HF_TOKEN을 추가하거나 수동으로 다운로드하세요."
