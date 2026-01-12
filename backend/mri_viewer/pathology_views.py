@@ -1,6 +1,7 @@
 """
 병리 이미지 분류 API 뷰
 """
+import os
 import logging
 import json
 import base64
@@ -40,8 +41,6 @@ def pathology_ai_analysis(request):
         }
     """
     try:
-        import os
-        
         # Orthanc 설정
         ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://localhost:8042')
         ORTHANC_USERNAME = os.getenv('ORTHANC_USERNAME', 'admin')
