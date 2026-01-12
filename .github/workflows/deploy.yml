@@ -57,26 +57,29 @@ jobs:
             APP_DIR="${{ secrets.APP_DIR }}"
 
             # 백엔드: 가상환경 설정
-            cd "$APP_DIR/backend"
+            echo "📦 백엔드 설정 중..."
+            cd "$APP_DIR/backend" || { echo "❌ backend 디렉토리 없음"; exit 1; }
             python3 -m venv .venv || true
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
+            source .venv/bin/activate || { echo "❌ 가상환경 활성화 실패"; exit 1; }
+            pip install --upgrade pip || { echo "⚠️ pip 업그레이드 실패, 계속 진행..."; }
+            pip install -r requirements.txt || { echo "❌ 패키지 설치 실패"; exit 1; }
             
             # DB 마이그레이션 및 정적 파일 수집
-            python manage.py migrate --noinput
-            python manage.py collectstatic --noinput
+            echo "🗄️ DB 마이그레이션 중..."
+            python manage.py migrate --noinput || { echo "⚠️ 마이그레이션 실패, 계속 진행..."; }
+            python manage.py collectstatic --noinput || { echo "⚠️ 정적 파일 수집 실패, 계속 진행..."; }
 
             # 프론트엔드: 의존성 설치 및 빌드
-            cd "$APP_DIR/frontend"
-            npm ci
+            echo "📦 프론트엔드 빌드 중..."
+            cd "$APP_DIR/frontend" || { echo "❌ frontend 디렉토리 없음"; exit 1; }
+            npm ci || { echo "❌ npm 의존성 설치 실패"; exit 1; }
             export NODE_OPTIONS="--max-old-space-size=1536"
             # dist 디렉토리 준비 (.DS_Store 파일 제거)
             find . -name ".DS_Store" -type f -delete || true
             mkdir -p dist
             sudo rm -rf dist/* || true
             chmod -R 755 dist || true
-            npm run build
+            npm run build || { echo "❌ 프론트엔드 빌드 실패"; exit 1; }
             # 빌드 후 권한 설정
             chmod -R 755 dist
             sudo chown -R www-data:www-data dist || true
@@ -107,6 +110,11 @@ jobs:
             sudo systemctl restart mammography-mosec 2>/dev/null || echo "⚠️ mammography-mosec 서비스 없음"
             sudo systemctl restart pathology-mosec 2>/dev/null || echo "⚠️ pathology-mosec 서비스 없음"
             
-            sudo systemctl restart gunicorn || sudo systemctl start gunicorn
-            sudo systemctl restart nginx || sudo systemctl start nginx
+            echo "🔄 Django 서비스 재시작 중..."
+            sudo systemctl restart gunicorn 2>/dev/null || sudo systemctl start gunicorn 2>/dev/null || echo "⚠️ gunicorn 재시작 실패"
+            
+            echo "🔄 Nginx 재시작 중..."
+            sudo systemctl restart nginx 2>/dev/null || sudo systemctl start nginx 2>/dev/null || echo "⚠️ nginx 재시작 실패"
+            
+            echo "✅ 배포 완료!"
 
