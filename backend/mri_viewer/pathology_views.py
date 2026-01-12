@@ -77,6 +77,30 @@ def pathology_ai_analysis(request):
         # Private Tag에서 원본 SVS 경로 추출 (0011,1001)
         original_svs_path = metadata.get('0011,1001')
         
+        # Private Tag가 없으면 파일 시스템에서 검색 (임시 해결책)
+        if not original_svs_path:
+            logger.warning(f"⚠️ DICOM에 원본 경로가 없습니다. 파일 시스템 검색 중...")
+            
+            # 환자 ID와 Series Description에서 파일명 추출
+            patient_id = metadata.get('PatientID', '')
+            series_desc = metadata.get('SeriesDescription', '')
+            
+            # Series Description에서 원본 파일명 추출 (예: "Pathology WSI - xxx.svs")
+            if ' - ' in series_desc:
+                original_filename = series_desc.split(' - ', 1)[1]
+                
+                # 파일 시스템에서 검색
+                SVS_STORAGE_DIR = '/home/shrjsdn908/pathology_images'
+                if os.path.exists(SVS_STORAGE_DIR):
+                    import glob
+                    # 패턴: {patient_id}_*_{original_filename}
+                    pattern = os.path.join(SVS_STORAGE_DIR, f"{patient_id}_*_{original_filename}")
+                    matching_files = glob.glob(pattern)
+                    
+                    if matching_files:
+                        original_svs_path = matching_files[0]  # 첫 번째 매칭 파일 사용
+                        logger.info(f"✅ 파일 시스템에서 발견: {original_svs_path}")
+        
         if not original_svs_path or not os.path.exists(original_svs_path):
             logger.error(f"❌ 원본 SVS 파일을 찾을 수 없습니다: {original_svs_path}")
             return Response(
