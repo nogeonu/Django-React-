@@ -105,8 +105,8 @@ jobs:
             HF_TOKEN="${{ secrets.HF_TOKEN }}"
             if [ -n "$HF_TOKEN" ]; then
                 export HF_TOKEN
-                if [ -f "$APP_DIR/scripts/download_h_optimus.py" ]; then
-                    python3 "$APP_DIR/scripts/download_h_optimus.py"
+                if [ -f "$APP_DIR/backend/download_h_optimus.py" ]; then
+                    python3 "$APP_DIR/backend/download_h_optimus.py"
                 else
                     echo "⚠️ download_h_optimus.py 스크립트를 찾을 수 없습니다."
                     echo "💡 모델 다운로드를 건너뜁니다."
