@@ -104,7 +104,7 @@ jobs:
             # GitHub Secrets에서 토큰 가져오기 (없으면 스킵)
             HF_TOKEN="${{ secrets.HF_TOKEN }}"
             if [ -n "$HF_TOKEN" ]; then
-                python3 << PYEOF
+                python3 << 'PYEOF'
 import os
 import sys
 import gc
@@ -117,7 +117,7 @@ try:
     login(token=hf_token)
     print("✅ 로그인 성공!")
 except Exception as e:
-    print(f"⚠️ 로그인 실패 (이미 로그인되어 있을 수 있음): {e}")
+    print("⚠️ 로그인 실패 (이미 로그인되어 있을 수 있음): " + str(e))
 
 try:
     import torch
@@ -134,14 +134,15 @@ try:
         token=hf_token,
         local_files_only=False
     )
-    print(f"✅ 모델 다운로드 완료! (캐시 경로: {cache_dir})")
+    print("✅ 모델 다운로드 완료! (캐시 경로: " + str(cache_dir) + ")")
     
     # 메모리 정리
     gc.collect()
-    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
 except Exception as e:
-    print(f"⚠️ 모델 다운로드 실패 (이미 캐시에 있을 수 있음): {e}")
+    print("⚠️ 모델 다운로드 실패 (이미 캐시에 있을 수 있음): " + str(e))
     print("💡 계속 진행합니다...")
 PYEOF
             else
