@@ -8,15 +8,17 @@ import os
 import io
 import json
 import logging
+import base64
 import numpy as np
 import cv2
 import pydicom
 import requests
 from PIL import Image
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.transforms as transforms
 
@@ -52,6 +54,113 @@ def create_resnet50_model(num_classes=4):
     num_features = model.fc.in_features
     model.fc = nn.Linear(num_features, num_classes)
     return model
+
+
+def generate_gradcam(model, image_tensor, target_class, original_image_shape):
+    """
+    Grad-CAM 히트맵 생성
+    
+    Args:
+        model: ResNet50 모델
+        image_tensor: 입력 이미지 텐서 [1, 3, H, W] (requires_grad=True)
+        target_class: 타겟 클래스 인덱스
+        original_image_shape: 원본 이미지 크기 (H, W)
+    
+    Returns:
+        heatmap: Grad-CAM 히트맵 (numpy array)
+    """
+    model.eval()
+    
+    # 마지막 convolutional layer (ResNet50의 layer4)
+    target_layer = model.layer4
+    
+    # Gradient와 activation 저장
+    gradients = []
+    activations = []
+    
+    def backward_hook(module, grad_input, grad_output):
+        if grad_output[0] is not None:
+            gradients.append(grad_output[0].cpu().data.numpy())
+    
+    def forward_hook(module, input, output):
+        activations.append(output.cpu().data.numpy())
+    
+    # Hook 등록
+    handle_backward = target_layer.register_full_backward_hook(backward_hook)
+    handle_forward = target_layer.register_forward_hook(forward_hook)
+    
+    try:
+        # Forward pass (gradient 계산을 위해 no_grad 사용 안 함)
+        output = model(image_tensor)
+        
+        # Target class에 대한 gradient 계산
+        model.zero_grad()
+        class_loss = output[0, target_class]
+        class_loss.backward()
+        
+        # Grad-CAM 계산
+        if len(gradients) == 0 or len(activations) == 0:
+            logger.warning("⚠️ Grad-CAM: gradients 또는 activations가 비어있음")
+            return None
+        
+        gradients_val = gradients[0][0]  # [C, H, W]
+        activations_val = activations[0][0]  # [C, H, W]
+        
+        # 각 채널에 대한 가중치 계산 (gradient의 평균)
+        weights = np.mean(gradients_val, axis=(1, 2))  # [C]
+        
+        # 가중치 합산으로 CAM 생성
+        cam = np.zeros(activations_val.shape[1:], dtype=np.float32)  # [H, W]
+        for i, w in enumerate(weights):
+            cam += w * activations_val[i]
+        
+        # ReLU 적용 (양수 값만)
+        cam = np.maximum(cam, 0)
+        
+        # 정규화
+        if cam.max() > 0:
+            cam = cam / (cam.max() + 1e-8)
+        else:
+            logger.warning("⚠️ Grad-CAM: 모든 값이 0입니다")
+            return None
+        
+        # 원본 이미지 크기로 리사이즈
+        cam_resized = cv2.resize(cam, (original_image_shape[1], original_image_shape[0]))
+        
+        return cam_resized
+        
+    except Exception as e:
+        logger.error(f"❌ Grad-CAM 생성 오류: {str(e)}", exc_info=True)
+        return None
+    finally:
+        # Hook 제거
+        handle_backward.remove()
+        handle_forward.remove()
+
+
+def create_heatmap_overlay(original_image, heatmap, alpha=0.4):
+    """
+    원본 이미지와 히트맵을 오버레이
+    
+    Args:
+        original_image: 원본 이미지 (numpy array, uint8, RGB)
+        heatmap: Grad-CAM 히트맵 (numpy array, float32, 0-1)
+        alpha: 오버레이 투명도 (0-1)
+    
+    Returns:
+        overlay: 오버레이된 이미지 (numpy array, uint8, RGB)
+    """
+    # 히트맵을 컬러맵으로 변환
+    heatmap_uint8 = (heatmap * 255).astype(np.uint8)
+    heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+    
+    # RGB로 변환 (OpenCV는 BGR 사용)
+    heatmap_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+    
+    # 원본 이미지와 오버레이
+    overlay = cv2.addWeighted(original_image, 1 - alpha, heatmap_rgb, alpha, 0)
+    
+    return overlay
 
 
 def otsu_threshold_optimized(image_16bit: np.ndarray):
@@ -325,18 +434,43 @@ class MammographyWorker(Worker):
                 
                 # 2. DICOM 전처리 (Otsu + 윤곽선 + 크롭 + 리사이즈)
                 image_rgb = preprocess_dicom_image(dicom_bytes, target_size=(512, 512))
+                original_shape = image_rgb.shape[:2]  # (H, W) 저장
                 
                 # 3. PIL Image로 변환 및 Transform 적용
                 image_pil = Image.fromarray(image_rgb)
                 image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
                 
                 # 4. 모델 추론
-                with torch.no_grad():
-                    outputs = self.model(image_tensor)
-                    probabilities = torch.softmax(outputs, dim=1)[0]
-                    confidence, predicted_class = torch.max(probabilities, 0)
+                image_tensor_grad = image_tensor.clone().requires_grad_(True)
+                outputs = self.model(image_tensor_grad)
+                probabilities = torch.softmax(outputs, dim=1)[0]
+                confidence, predicted_class = torch.max(probabilities, 0)
                 
-                # 5. 결과 생성
+                # 5. Grad-CAM 생성
+                heatmap_base64 = None
+                try:
+                    class_id = predicted_class.item()
+                    heatmap = generate_gradcam(
+                        self.model, 
+                        image_tensor_grad, 
+                        class_id,
+                        original_shape
+                    )
+                    
+                    if heatmap is not None:
+                        # 히트맵 오버레이 생성
+                        overlay = create_heatmap_overlay(image_rgb, heatmap, alpha=0.4)
+                        
+                        # Base64 인코딩
+                        _, buffer = cv2.imencode('.png', overlay)
+                        heatmap_base64 = base64.b64encode(buffer).decode('utf-8')
+                        logger.info(f"✅ Grad-CAM 생성 완료 {idx+1}/{len(instance_ids)}")
+                    else:
+                        logger.warning(f"⚠️ Grad-CAM 생성 실패 {idx+1}/{len(instance_ids)}")
+                except Exception as e:
+                    logger.error(f"❌ Grad-CAM 생성 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
+                
+                # 6. 결과 생성
                 class_id = predicted_class.item()
                 class_name = CLASS_NAMES[class_id]
                 confidence_value = confidence.item()
@@ -347,13 +481,19 @@ class MammographyWorker(Worker):
                     for i in range(4)
                 }
                 
-                results.append({
+                result_item = {
                     'success': True,
                     'class_id': class_id,
                     'class_name': class_name,
                     'confidence': confidence_value,
                     'probabilities': probabilities_dict
-                })
+                }
+                
+                # Grad-CAM 히트맵이 있으면 추가
+                if heatmap_base64:
+                    result_item['heatmap_base64'] = heatmap_base64
+                
+                results.append(result_item)
                 
                 logger.info(f"✅ 분류 완료 {idx+1}/{len(instance_ids)}: {class_name} (신뢰도: {confidence_value:.4f})")
                 

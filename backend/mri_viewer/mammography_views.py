@@ -149,14 +149,20 @@ def mammography_ai_analysis(request):
                 mosec_result['probabilities'].get('Normal', 0.0)
             ]
             
-            results.append({
+            result_item = {
                 'instance_id': instance_id,
                 'view': view_name,
                 'predicted_class': predicted_class,
                 'class_name': class_names[predicted_class],
                 'probability': mosec_result['confidence'],
                 'all_probabilities': all_probs
-            })
+            }
+            
+            # Grad-CAM 히트맵이 있으면 추가
+            if 'heatmap_base64' in mosec_result:
+                result_item['heatmap_base64'] = mosec_result['heatmap_base64']
+            
+            results.append(result_item)
             
             logger.info(f"✅ {view_name}: {class_names[predicted_class]} (신뢰도: {mosec_result['confidence']:.4f})")
         

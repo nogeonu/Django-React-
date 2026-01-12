@@ -883,6 +883,56 @@ export default function MRIImageDetail() {
                                         style={{ width: `${probability * 100}%` }}
                                       />
                                     </div>
+                                    {/* Grad-CAM 히트맵 표시 */}
+                                    {result.heatmap_base64 && (
+                                      <div className="mt-3 pt-3 border-t border-gray-700">
+                                        <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                                          <span>🔍</span>
+                                          <span>AI가 주목한 영역</span>
+                                        </div>
+                                        <img 
+                                          src={`data:image/png;base64,${result.heatmap_base64}`}
+                                          alt="AI Attention Map"
+                                          className="w-full rounded-lg border border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                          onClick={() => {
+                                            // 클릭 시 전체화면으로 보기
+                                            const newWindow = window.open('', '_blank');
+                                            if (newWindow) {
+                                              newWindow.document.write(`
+                                                <html>
+                                                  <head>
+                                                    <title>AI Attention Map - ${result.view || `이미지 ${idx + 1}`}</title>
+                                                    <style>
+                                                      body {
+                                                        margin: 0;
+                                                        padding: 20px;
+                                                        background: #000;
+                                                        display: flex;
+                                                        justify-content: center;
+                                                        align-items: center;
+                                                        min-height: 100vh;
+                                                      }
+                                                      img {
+                                                        max-width: 100%;
+                                                        max-height: 100vh;
+                                                        border: 2px solid #333;
+                                                        border-radius: 8px;
+                                                      }
+                                                    </style>
+                                                  </head>
+                                                  <body>
+                                                    <img src="data:image/png;base64,${result.heatmap_base64}" alt="AI Attention Map" />
+                                                  </body>
+                                                </html>
+                                              `);
+                                            }
+                                          }}
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-1">
+                                          빨간색 = 높은 중요도, 파란색 = 낮은 중요도
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
