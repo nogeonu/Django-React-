@@ -116,9 +116,21 @@ class WSIPatchDataset(Dataset):
         patch = self.wsi.read_region((x, y), 0, (self.patch_size, self.patch_size))
         patch = patch.convert('RGB')
         
-        # 배경 필터링 (흰색 배경 제거)
+        # 배경 필터링 개선 (흰색 배경 제거)
         patch_np = np.array(patch)
-        if patch_np.mean() > 220:  # 대부분 흰색이면 스킵
+        
+        # 방법 1: 평균 픽셀값 체크 (더 관대하게)
+        mean_val = patch_np.mean()
+        
+        # 방법 2: 표준편차 체크 (배경은 편차가 작음)
+        std_val = patch_np.std()
+        
+        # 배경 조건: 평균이 매우 높고(>240) AND 표준편차가 매우 작음(<10)
+        if mean_val > 240 and std_val < 10:
+            return None
+        
+        # 또는 평균이 극도로 높음(>250)
+        if mean_val > 250:
             return None
         
         return self.transform(patch)
@@ -216,19 +228,25 @@ class PathologyWorker(Worker):
             dataset = WSIPatchDataset(tmp_path, patch_size=PATCH_SIZE, max_patches=1000)
             
             # Feature 추출
-            logger.info(f"🧬 Feature 추출 중 ({len(dataset)} 패치)...")
+            logger.info(f"🔍 총 패치 좌표 개수: {len(dataset)}")
             features = []
+            skipped_count = 0
+            
             with torch.no_grad():
                 for i in range(len(dataset)):
                     patch = dataset[i]
                     if patch is None:
+                        skipped_count += 1
                         continue
                     patch = patch.unsqueeze(0).to(DEVICE)
                     feat = self.backbone(patch)  # (1, 1536)
                     features.append(feat.cpu())
             
+            logger.info(f"📊 패치 통계: 총 {len(dataset)}개, 유효 {len(features)}개, 스킵 {skipped_count}개")
+            
             if len(features) == 0:
-                raise ValueError("유효한 패치가 없습니다")
+                logger.error(f"❌ 유효한 패치가 없습니다! 모든 패치가 배경으로 판단되었습니다.")
+                raise ValueError(f"유효한 패치가 없습니다. 총 {len(dataset)}개 중 {skipped_count}개가 배경으로 필터링되었습니다.")
             
             features = torch.cat(features, dim=0)  # (N, 1536)
             logger.info(f"✅ Feature 추출 완료: {features.shape}")
