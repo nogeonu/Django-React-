@@ -448,12 +448,17 @@ export default function MRIViewer() {
     let successCount = 0;
     let errorMessages: string[] = [];
     
+    // 선택된 환자의 이름 찾기
+    const selectedPatientInfo = systemPatients.find(p => p.patient_id === selectedPatient);
+    const patientName = selectedPatientInfo?.name || selectedPatient;
+    
     try {
       for (let i = 0; i < files.length; i++) {
         try {
           const formData = new FormData();
           formData.append('file', files[i]);
           formData.append('patient_id', selectedPatient);
+          formData.append('patient_name', patientName); // 환자 이름 추가
           formData.append('image_type', imageType); // 영상 유형 전달
           
           // 병리 이미지는 별도 엔드포인트 사용
