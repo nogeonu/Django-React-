@@ -502,34 +502,38 @@ class MammographyWorker(Worker):
                 probabilities = torch.softmax(outputs, dim=1)[0]
                 confidence, predicted_class = torch.max(probabilities, 0)
                 
-                # 5. Grad-CAM 생성 및 원본 DICOM에 오버레이 (크롭 정보 반영)
+                # 5. Grad-CAM 생성 및 원본 DICOM에 오버레이 (병변 클래스에만)
                 gradcam_overlay_base64 = None
-                try:
-                    class_id = predicted_class.item()
-                    heatmap = generate_gradcam(
-                        self.model, 
-                        image_tensor_grad, 
-                        class_id,
-                        original_shape
-                    )
-                    
-                    if heatmap is not None:
-                        # 원본 DICOM 이미지에 히트맵 오버레이 (크롭 정보 사용)
-                        gradcam_overlay_base64 = create_gradcam_overlay_on_dicom(
-                            dicom_bytes, 
-                            heatmap, 
-                            crop_info,  # 크롭 정보 전달
-                            alpha=0.5
-                        )
-                        logger.info(f"✅ Grad-CAM 오버레이 생성 완료 {idx+1}/{len(instance_ids)} (bbox: {crop_info['bbox']})")
-                    else:
-                        logger.warning(f"⚠️ Grad-CAM 생성 실패 {idx+1}/{len(instance_ids)}")
-                except Exception as e:
-                    logger.error(f"❌ Grad-CAM 오버레이 생성 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
-                
-                # 6. 결과 생성
                 class_id = predicted_class.item()
                 class_name = CLASS_NAMES[class_id]
+                
+                # Normal 클래스가 아닌 경우에만 Grad-CAM 생성
+                if class_name != 'Normal':
+                    try:
+                        heatmap = generate_gradcam(
+                            self.model, 
+                            image_tensor_grad, 
+                            class_id,
+                            original_shape
+                        )
+                        
+                        if heatmap is not None:
+                            # 원본 DICOM 이미지에 히트맵 오버레이 (크롭 정보 사용)
+                            gradcam_overlay_base64 = create_gradcam_overlay_on_dicom(
+                                dicom_bytes, 
+                                heatmap, 
+                                crop_info,  # 크롭 정보 전달
+                                alpha=0.5
+                            )
+                            logger.info(f"✅ Grad-CAM 오버레이 생성 완료 {idx+1}/{len(instance_ids)} - {class_name} (bbox: {crop_info['bbox']})")
+                        else:
+                            logger.warning(f"⚠️ Grad-CAM 생성 실패 {idx+1}/{len(instance_ids)}")
+                    except Exception as e:
+                        logger.error(f"❌ Grad-CAM 오버레이 생성 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
+                else:
+                    logger.info(f"ℹ️ Normal 클래스 - Grad-CAM 생성 생략 {idx+1}/{len(instance_ids)}")
+                
+                # 6. 결과 생성
                 confidence_value = confidence.item()
                 
                 # 모든 클래스별 확률
