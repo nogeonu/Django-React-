@@ -883,16 +883,17 @@ export default function MRIImageDetail() {
                                         style={{ width: `${probability * 100}%` }}
                                       />
                                     </div>
-                                    {/* Grad-CAM 히트맵 표시 */}
-                                    {result.heatmap_base64 && (
+                                    
+                                    {/* Grad-CAM 오버레이 이미지 표시 */}
+                                    {result.gradcam_overlay && (
                                       <div className="mt-3 pt-3 border-t border-gray-700">
                                         <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
                                           <span>🔍</span>
-                                          <span>AI가 주목한 영역</span>
+                                          <span>AI 분석 영역 (클릭하여 확대)</span>
                                         </div>
                                         <img 
-                                          src={`data:image/png;base64,${result.heatmap_base64}`}
-                                          alt="AI Attention Map"
+                                          src={`data:image/png;base64,${result.gradcam_overlay}`}
+                                          alt={`Grad-CAM Overlay - ${result.view || `이미지 ${idx + 1}`}`}
                                           className="w-full rounded-lg border border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
                                           onClick={() => {
                                             // 클릭 시 전체화면으로 보기
@@ -901,7 +902,7 @@ export default function MRIImageDetail() {
                                               newWindow.document.write(`
                                                 <html>
                                                   <head>
-                                                    <title>AI Attention Map - ${result.view || `이미지 ${idx + 1}`}</title>
+                                                    <title>Grad-CAM Analysis - ${result.view || `이미지 ${idx + 1}`}</title>
                                                     <style>
                                                       body {
                                                         margin: 0;
@@ -921,15 +922,15 @@ export default function MRIImageDetail() {
                                                     </style>
                                                   </head>
                                                   <body>
-                                                    <img src="data:image/png;base64,${result.heatmap_base64}" alt="AI Attention Map" />
+                                                    <img src="data:image/png;base64,${result.gradcam_overlay}" alt="Grad-CAM Analysis" />
                                                   </body>
                                                 </html>
                                               `);
                                             }
                                           }}
                                         />
-                                        <p className="text-[10px] text-gray-500 mt-1">
-                                          빨간색 = 높은 중요도, 파란색 = 낮은 중요도
+                                        <p className="text-[10px] text-gray-500 mt-1 text-center">
+                                          빨간색 영역 = AI가 주목한 부분
                                         </p>
                                       </div>
                                     )}

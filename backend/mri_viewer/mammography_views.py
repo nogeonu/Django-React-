@@ -158,9 +158,9 @@ def mammography_ai_analysis(request):
                 'all_probabilities': all_probs
             }
             
-            # Grad-CAM 히트맵이 있으면 추가
-            if 'heatmap_base64' in mosec_result:
-                result_item['heatmap_base64'] = mosec_result['heatmap_base64']
+            # Grad-CAM 오버레이가 있으면 추가
+            if 'gradcam_overlay' in mosec_result:
+                result_item['gradcam_overlay'] = mosec_result['gradcam_overlay']
             
             results.append(result_item)
             

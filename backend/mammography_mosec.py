@@ -8,15 +8,17 @@ import os
 import io
 import json
 import logging
+import base64
 import numpy as np
 import cv2
 import pydicom
 import requests
 from PIL import Image
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.transforms as transforms
 
@@ -52,6 +54,143 @@ def create_resnet50_model(num_classes=4):
     num_features = model.fc.in_features
     model.fc = nn.Linear(num_features, num_classes)
     return model
+
+
+def generate_gradcam(model, image_tensor, target_class, original_image_shape):
+    """
+    Grad-CAM 히트맵 생성
+    
+    Args:
+        model: ResNet50 모델
+        image_tensor: 입력 이미지 텐서 [1, 3, H, W] (requires_grad=True)
+        target_class: 타겟 클래스 인덱스
+        original_image_shape: 원본 이미지 크기 (H, W)
+    
+    Returns:
+        heatmap: Grad-CAM 히트맵 (numpy array, 0-1 normalized)
+    """
+    model.eval()
+    
+    # 마지막 convolutional layer (ResNet50의 layer4)
+    target_layer = model.layer4
+    
+    # Gradient와 activation 저장
+    gradients = []
+    activations = []
+    
+    def backward_hook(module, grad_input, grad_output):
+        if grad_output[0] is not None:
+            gradients.append(grad_output[0].cpu().data.numpy())
+    
+    def forward_hook(module, input, output):
+        activations.append(output.cpu().data.numpy())
+    
+    # Hook 등록
+    handle_backward = target_layer.register_full_backward_hook(backward_hook)
+    handle_forward = target_layer.register_forward_hook(forward_hook)
+    
+    try:
+        # Forward pass (gradient 계산을 위해 no_grad 사용 안 함)
+        output = model(image_tensor)
+        
+        # Target class에 대한 gradient 계산
+        model.zero_grad()
+        class_loss = output[0, target_class]
+        class_loss.backward()
+        
+        # Grad-CAM 계산
+        if len(gradients) == 0 or len(activations) == 0:
+            logger.warning("⚠️ Grad-CAM: gradients 또는 activations가 비어있음")
+            return None
+        
+        gradients_val = gradients[0][0]  # [C, H, W]
+        activations_val = activations[0][0]  # [C, H, W]
+        
+        # 각 채널에 대한 가중치 계산 (gradient의 평균)
+        weights = np.mean(gradients_val, axis=(1, 2))  # [C]
+        
+        # 가중치 합산으로 CAM 생성
+        cam = np.zeros(activations_val.shape[1:], dtype=np.float32)  # [H, W]
+        for i, w in enumerate(weights):
+            cam += w * activations_val[i]
+        
+        # ReLU 적용 (양수 값만)
+        cam = np.maximum(cam, 0)
+        
+        # 정규화
+        if cam.max() > 0:
+            cam = cam / (cam.max() + 1e-8)
+        else:
+            logger.warning("⚠️ Grad-CAM: 모든 값이 0입니다")
+            return None
+        
+        # 원본 이미지 크기로 리사이즈
+        cam_resized = cv2.resize(cam, (original_image_shape[1], original_image_shape[0]))
+        
+        return cam_resized
+        
+    except Exception as e:
+        logger.error(f"❌ Grad-CAM 생성 오류: {str(e)}", exc_info=True)
+        return None
+    finally:
+        # Hook 제거
+        handle_backward.remove()
+        handle_forward.remove()
+
+
+def create_gradcam_overlay_on_dicom(dicom_bytes, heatmap, alpha=0.5):
+    """
+    원본 DICOM 이미지와 Grad-CAM 히트맵을 오버레이
+    
+    Args:
+        dicom_bytes: 원본 DICOM 파일 바이트
+        heatmap: Grad-CAM 히트맵 (numpy array, float32, 0-1)
+        alpha: 히트맵 투명도 (0-1, 기본값 0.5)
+    
+    Returns:
+        overlay_base64: 오버레이된 이미지의 base64 문자열
+    """
+    try:
+        # DICOM 파일 읽기
+        dcm = pydicom.dcmread(io.BytesIO(dicom_bytes))
+        pixel_array = dcm.pixel_array
+        
+        # 정규화 (0-255)
+        pixel_min = pixel_array.min()
+        pixel_max = pixel_array.max()
+        if pixel_max > pixel_min:
+            pixel_normalized = ((pixel_array - pixel_min) / (pixel_max - pixel_min) * 255).astype(np.uint8)
+        else:
+            pixel_normalized = np.zeros_like(pixel_array, dtype=np.uint8)
+        
+        # 그레이스케일을 RGB로 변환
+        if len(pixel_normalized.shape) == 2:
+            dicom_rgb = cv2.cvtColor(pixel_normalized, cv2.COLOR_GRAY2RGB)
+        else:
+            dicom_rgb = pixel_normalized
+        
+        # 히트맵을 원본 DICOM 크기로 리사이즈
+        heatmap_resized = cv2.resize(heatmap, (dicom_rgb.shape[1], dicom_rgb.shape[0]))
+        
+        # 히트맵을 컬러맵으로 변환 (JET 컬러맵)
+        heatmap_uint8 = (heatmap_resized * 255).astype(np.uint8)
+        heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+        
+        # RGB로 변환 (OpenCV는 BGR 사용)
+        heatmap_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+        
+        # 원본 이미지와 히트맵 오버레이
+        overlay = cv2.addWeighted(dicom_rgb, 1 - alpha, heatmap_rgb, alpha, 0)
+        
+        # PNG로 인코딩
+        _, buffer = cv2.imencode('.png', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+        overlay_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        return overlay_base64
+        
+    except Exception as e:
+        logger.error(f"❌ DICOM 오버레이 생성 오류: {str(e)}", exc_info=True)
+        return None
 
 
 def otsu_threshold_optimized(image_16bit: np.ndarray):
@@ -331,14 +470,14 @@ class MammographyWorker(Worker):
                 image_pil = Image.fromarray(image_rgb)
                 image_tensor = self.transform(image_pil).unsqueeze(0).to(DEVICE)
                 
-                # 4. 모델 추론
+                # 4. 모델 추론 (Grad-CAM을 위해 gradient 활성화)
                 image_tensor_grad = image_tensor.clone().requires_grad_(True)
                 outputs = self.model(image_tensor_grad)
                 probabilities = torch.softmax(outputs, dim=1)[0]
                 confidence, predicted_class = torch.max(probabilities, 0)
                 
-                # 5. Grad-CAM 생성
-                heatmap_base64 = None
+                # 5. Grad-CAM 생성 및 원본 DICOM에 오버레이
+                gradcam_overlay_base64 = None
                 try:
                     class_id = predicted_class.item()
                     heatmap = generate_gradcam(
@@ -349,17 +488,17 @@ class MammographyWorker(Worker):
                     )
                     
                     if heatmap is not None:
-                        # 히트맵 오버레이 생성
-                        overlay = create_heatmap_overlay(image_rgb, heatmap, alpha=0.4)
-                        
-                        # Base64 인코딩
-                        _, buffer = cv2.imencode('.png', overlay)
-                        heatmap_base64 = base64.b64encode(buffer).decode('utf-8')
-                        logger.info(f"✅ Grad-CAM 생성 완료 {idx+1}/{len(instance_ids)}")
+                        # 원본 DICOM 이미지에 히트맵 오버레이
+                        gradcam_overlay_base64 = create_gradcam_overlay_on_dicom(
+                            dicom_bytes, 
+                            heatmap, 
+                            alpha=0.5
+                        )
+                        logger.info(f"✅ Grad-CAM 오버레이 생성 완료 {idx+1}/{len(instance_ids)}")
                     else:
                         logger.warning(f"⚠️ Grad-CAM 생성 실패 {idx+1}/{len(instance_ids)}")
                 except Exception as e:
-                    logger.error(f"❌ Grad-CAM 생성 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
+                    logger.error(f"❌ Grad-CAM 오버레이 생성 오류 {idx+1}/{len(instance_ids)}: {str(e)}", exc_info=True)
                 
                 # 6. 결과 생성
                 class_id = predicted_class.item()
@@ -380,9 +519,9 @@ class MammographyWorker(Worker):
                     'probabilities': probabilities_dict
                 }
                 
-                # Grad-CAM 히트맵이 있으면 추가
-                if heatmap_base64:
-                    result_item['heatmap_base64'] = heatmap_base64
+                # Grad-CAM 오버레이가 있으면 추가
+                if gradcam_overlay_base64:
+                    result_item['gradcam_overlay'] = gradcam_overlay_base64
                 
                 results.append(result_item)
                 

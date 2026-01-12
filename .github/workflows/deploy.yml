@@ -71,8 +71,10 @@ jobs:
             cd "$APP_DIR/frontend"
             npm ci
             export NODE_OPTIONS="--max-old-space-size=1536"
-            # dist 디렉토리 권한 수정
+            # dist 디렉토리 준비 (.DS_Store 파일 제거)
+            find . -name ".DS_Store" -type f -delete || true
             mkdir -p dist
+            sudo rm -rf dist/* || true
             chmod -R 755 dist || true
             npm run build
             # 빌드 후 권한 설정
