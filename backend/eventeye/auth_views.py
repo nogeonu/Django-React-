@@ -8,7 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from .doctor_utils import (
     ALLOWED_DEPARTMENTS,
     DEPARTMENT_ADMIN,
+    DEPARTMENT_IMAGING,
     DEPARTMENT_MAPPING,
+    DEPARTMENT_RADIOLOGY,
+    DEPARTMENT_RESPIRATORY,
+    DEPARTMENT_SURGERY,
     ensure_doctor_id,
     get_department,
     get_doctor_id,
@@ -163,17 +167,22 @@ def list_doctors(request):
             return JsonResponse({"detail": "Invalid department"}, status=400)
         if department == DEPARTMENT_ADMIN:
             return JsonResponse({"detail": "Department must be medical"}, status=400)
+        # 호흡기내과와 외과만 허용
+        if department not in (DEPARTMENT_RESPIRATORY, DEPARTMENT_SURGERY):
+            return JsonResponse({"detail": "Only respiratory and surgery departments are allowed"}, status=400)
 
+    # 원무과, 방사선과, 영상의학과 제외 (호흡기내과와 외과만 포함)
     query = [
         "SELECT id, username, email, first_name, last_name, doctor_id, department",
         "FROM auth_user",
-        "WHERE department <> %s",
+        "WHERE department <> %s AND department <> %s AND department <> %s",
     ]
-    params = [DEPARTMENT_ADMIN]
+    params = [DEPARTMENT_ADMIN, DEPARTMENT_RADIOLOGY, DEPARTMENT_IMAGING]
 
     if department:
-        query.append("AND department = %s")
-        params.append(department)
+        # 특정 진료과로 추가 필터링
+        query[2] = "WHERE department <> %s AND department <> %s AND department <> %s AND department = %s"
+        params = [DEPARTMENT_ADMIN, DEPARTMENT_RADIOLOGY, DEPARTMENT_IMAGING, department]
 
     query.append("ORDER BY first_name, last_name, username")
     sql = " ".join(query)
