@@ -58,26 +58,43 @@ def pathology_ai_analysis(request):
         
         logger.info(f"📥 병리 이미지 분석 요청: instance_id={instance_id}")
         
-        # Orthanc에서 DICOM 파일 다운로드
-        logger.info(f"📥 Orthanc에서 DICOM 다운로드 중...")
-        dicom_response = requests.get(
-            f"{ORTHANC_URL}/instances/{instance_id}/file",
+        # Orthanc에서 DICOM 메타데이터 조회 (원본 SVS 경로 확인)
+        logger.info(f"📥 Orthanc에서 DICOM 메타데이터 조회 중...")
+        metadata_response = requests.get(
+            f"{ORTHANC_URL}/instances/{instance_id}/tags?simplify",
             auth=(ORTHANC_USERNAME, ORTHANC_PASSWORD),
-            timeout=60
+            timeout=30
         )
         
-        if dicom_response.status_code != 200:
-            logger.error(f"❌ Orthanc DICOM 다운로드 실패: {dicom_response.status_code}")
+        if metadata_response.status_code != 200:
+            logger.error(f"❌ Orthanc 메타데이터 조회 실패: {metadata_response.status_code}")
             return Response(
-                {'error': f'Orthanc에서 이미지를 가져올 수 없습니다: {dicom_response.status_code}'},
+                {'error': f'Orthanc에서 메타데이터를 가져올 수 없습니다: {metadata_response.status_code}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        dicom_bytes = dicom_response.content
-        logger.info(f"✅ DICOM 다운로드 완료: {len(dicom_bytes)} bytes")
+        metadata = metadata_response.json()
+        
+        # Private Tag에서 원본 SVS 경로 추출 (0011,1001)
+        original_svs_path = metadata.get('0011,1001')
+        
+        if not original_svs_path or not os.path.exists(original_svs_path):
+            logger.error(f"❌ 원본 SVS 파일을 찾을 수 없습니다: {original_svs_path}")
+            return Response(
+                {'error': '원본 SVS 파일을 찾을 수 없습니다. 이미지를 다시 업로드해주세요.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        logger.info(f"✅ 원본 SVS 파일 경로: {original_svs_path}")
+        
+        # 원본 SVS 파일 읽기
+        with open(original_svs_path, 'rb') as f:
+            svs_bytes = f.read()
+        
+        logger.info(f"✅ SVS 파일 읽기 완료: {len(svs_bytes)} bytes")
         
         # Base64 인코딩
-        svs_file_base64 = base64.b64encode(dicom_bytes).decode('utf-8')
+        svs_file_base64 = base64.b64encode(svs_bytes).decode('utf-8')
         logger.info(f"📊 Base64 인코딩 완료: {len(svs_file_base64)} bytes")
         
         # Mosec 서비스 호출

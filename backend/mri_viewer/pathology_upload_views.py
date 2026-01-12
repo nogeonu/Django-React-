@@ -22,7 +22,7 @@ ORTHANC_USERNAME = os.getenv('ORTHANC_USERNAME', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
 
-def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Pathology WSI"):
+def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Pathology WSI", save_original=True):
     """
     SVS 파일을 DICOM으로 변환
     
@@ -31,19 +31,39 @@ def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Patholog
         patient_id: 환자 ID
         patient_name: 환자 이름
         study_description: 검사 설명
+        save_original: 원본 SVS 파일을 저장할지 여부
     
     Returns:
-        DICOM 파일 바이트
+        tuple: (DICOM 파일 바이트, 원본 SVS 파일 경로)
     """
     try:
         import openslide
         
-        # 임시 파일로 저장 (OpenSlide는 파일 경로 필요)
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix='.svs', delete=False) as tmp_file:
-            for chunk in svs_file.chunks():
-                tmp_file.write(chunk)
-            tmp_path = tmp_file.name
+        # 원본 SVS 파일 저장 디렉토리
+        SVS_STORAGE_DIR = '/home/shrjsdn908/pathology_images'
+        os.makedirs(SVS_STORAGE_DIR, exist_ok=True)
+        
+        # 원본 SVS 파일을 영구 저장
+        original_svs_path = None
+        if save_original:
+            # 파일명: {patient_id}_{timestamp}_{original_filename}
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_filename = f"{patient_id}_{timestamp}_{svs_file.name}"
+            original_svs_path = os.path.join(SVS_STORAGE_DIR, safe_filename)
+            
+            with open(original_svs_path, 'wb') as f:
+                for chunk in svs_file.chunks():
+                    f.write(chunk)
+            
+            logger.info(f"💾 원본 SVS 파일 저장: {original_svs_path}")
+            tmp_path = original_svs_path
+        else:
+            # 임시 파일로 저장 (OpenSlide는 파일 경로 필요)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.svs', delete=False) as tmp_file:
+                for chunk in svs_file.chunks():
+                    tmp_file.write(chunk)
+                tmp_path = tmp_file.name
         
         try:
             # SVS 파일 열기
@@ -119,6 +139,14 @@ def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Patholog
             ds.TotalPixelMatrixColumns = slide.dimensions[0]
             ds.TotalPixelMatrixRows = slide.dimensions[1]
             
+            # 원본 SVS 파일 경로를 DICOM 메타데이터에 저장 (Private Tag 사용)
+            if original_svs_path:
+                # Private Creator 등록 (0x0011, 0x0010)
+                ds.add_new([0x0011, 0x0010], 'LO', 'PATHOLOGY_ORIGINAL')
+                # 원본 파일 경로 저장 (0x0011, 0x1001)
+                ds.add_new([0x0011, 0x1001], 'LO', original_svs_path)
+                logger.info(f"📝 DICOM에 원본 경로 저장: {original_svs_path}")
+            
             # DICOM 파일을 바이트로 변환
             output = io.BytesIO()
             ds.save_as(output, write_like_original=False)
@@ -126,11 +154,12 @@ def svs_to_dicom(svs_file, patient_id, patient_name, study_description="Patholog
             
             logger.info(f"✅ SVS to DICOM 변환 완료: {svs_file.name} -> {len(dicom_bytes)} bytes")
             
-            return dicom_bytes
+            return dicom_bytes, original_svs_path
             
         finally:
-            # 임시 파일 삭제
-            os.unlink(tmp_path)
+            # 임시 파일만 삭제 (원본은 유지)
+            if not save_original and tmp_path:
+                os.unlink(tmp_path)
             slide.close()
             
     except Exception as e:
@@ -185,9 +214,9 @@ def upload_pathology_image(request):
         logger.info(f"📥 병리 이미지 업로드 시작: {svs_file.name}")
         logger.info(f"👤 환자 ID: {patient_id}, 이름: {patient_name}")
         
-        # SVS를 DICOM으로 변환
+        # SVS를 DICOM으로 변환 (원본 SVS 파일도 저장)
         logger.info(f"🔄 SVS to DICOM 변환 중...")
-        dicom_bytes = svs_to_dicom(svs_file, patient_id, patient_name, study_description)
+        dicom_bytes, original_svs_path = svs_to_dicom(svs_file, patient_id, patient_name, study_description, save_original=True)
         
         # Orthanc에 업로드
         logger.info(f"📤 Orthanc에 업로드 중...")
@@ -221,7 +250,8 @@ def upload_pathology_image(request):
             'study_id': result.get('ParentStudy'),
             'series_id': result.get('ParentSeries'),
             'instance_id': result.get('ID'),
-            'file_name': svs_file.name
+            'file_name': svs_file.name,
+            'original_svs_path': original_svs_path
         }, status=status.HTTP_201_CREATED)
         
     except Exception as e:
