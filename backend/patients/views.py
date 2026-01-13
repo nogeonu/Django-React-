@@ -173,6 +173,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
+        # 기본적으로 취소되지 않은 예약만 조회
+        # status 파라미터가 명시적으로 전달된 경우에만 해당 상태의 예약 조회
+        status = self.request.query_params.get('status')
+        if status is None:
+            # status 파라미터가 없으면 취소된 예약 제외
+            queryset = queryset.exclude(status='cancelled')
+        
         # patient_id로 필터링 (patient_identifier 필드 사용)
         patient_id = self.request.query_params.get('patient_id')
         if patient_id:
