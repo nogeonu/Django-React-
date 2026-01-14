@@ -101,16 +101,44 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class OrderCreateSerializer(serializers.ModelSerializer):
     """주문 생성 Serializer (간소화)"""
+    patient_id = serializers.CharField(write_only=True, required=False, help_text="환자 ID (patient_id 또는 patient 필드 사용)")
     
     class Meta:
         model = Order
         fields = [
-            'order_type', 'patient', 'order_data', 'target_department',
+            'order_type', 'patient', 'patient_id', 'order_data', 'target_department',
             'priority', 'due_time', 'notes'
         ]
     
+    def validate_patient(self, value):
+        """환자 검증"""
+        if value is None:
+            raise serializers.ValidationError("환자 정보가 필요합니다.")
+        return value
+    
     def validate(self, data):
         """주문 데이터 검증"""
+        # patient_id가 제공된 경우 patient 객체로 변환
+        patient_id = data.pop('patient_id', None)
+        if patient_id and not data.get('patient'):
+            try:
+                patient = Patient.objects.get(patient_id=patient_id)
+                data['patient'] = patient
+            except Patient.DoesNotExist:
+                raise serializers.ValidationError({
+                    'patient_id': f'환자 ID "{patient_id}"를 찾을 수 없습니다.'
+                })
+            except Patient.MultipleObjectsReturned:
+                raise serializers.ValidationError({
+                    'patient_id': f'환자 ID "{patient_id}"에 해당하는 환자가 여러 명입니다.'
+                })
+        
+        # patient 필드가 없으면 에러
+        if not data.get('patient'):
+            raise serializers.ValidationError({
+                'patient': '환자 정보가 필요합니다. patient 또는 patient_id 필드를 제공해주세요.'
+            })
+        
         order_type = data.get('order_type')
         order_data = data.get('order_data', {})
         target_department = data.get('target_department')

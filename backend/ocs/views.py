@@ -94,11 +94,33 @@ class OrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """주문 생성 (에러 로깅 추가)"""
         try:
-            logger.info(f"Order creation request: user={request.user.id}, data={request.data}")
+            logger.info(f"Order creation request: user={request.user.id}, username={request.user.username}, data={request.data}")
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                logger.error(f"Order creation validation failed: {serializer.errors}")
+                return Response(
+                    {
+                        'error': '주문 생성 검증 실패',
+                        'details': serializer.errors
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             return super().create(request, *args, **kwargs)
+        except PermissionDenied as e:
+            logger.error(f"Order creation permission denied: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
         except Exception as e:
             logger.error(f"Order creation error: {str(e)}", exc_info=True)
-            raise
+            return Response(
+                {
+                    'error': '주문 생성 중 오류가 발생했습니다.',
+                    'details': str(e)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def perform_create(self, serializer):
         """주문 생성 시 권한 체크 및 검증 수행"""
@@ -345,6 +367,7 @@ class OrderStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """주문 상태 이력 ViewSet (읽기 전용)"""
     queryset = OrderStatusHistory.objects.select_related('order', 'changed_by').all()
     serializer_class = OrderStatusHistorySerializer
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'status', 'changed_by']
@@ -356,6 +379,7 @@ class DrugInteractionCheckViewSet(viewsets.ReadOnlyModelViewSet):
     """약물 상호작용 검사 ViewSet (읽기 전용)"""
     queryset = DrugInteractionCheck.objects.select_related('order', 'checked_by').all()
     serializer_class = DrugInteractionCheckSerializer
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'severity']
@@ -367,6 +391,7 @@ class AllergyCheckViewSet(viewsets.ReadOnlyModelViewSet):
     """알레르기 검사 ViewSet (읽기 전용)"""
     queryset = AllergyCheck.objects.select_related('order', 'checked_by').all()
     serializer_class = AllergyCheckSerializer
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'has_allergy_risk']
@@ -377,6 +402,7 @@ class AllergyCheckViewSet(viewsets.ReadOnlyModelViewSet):
 class NotificationViewSet(viewsets.ModelViewSet):
     """알림 ViewSet"""
     serializer_class = NotificationSerializer
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['notification_type', 'is_read']
@@ -415,6 +441,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
 class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
     """영상 분석 결과 ViewSet"""
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'analyzed_by']
