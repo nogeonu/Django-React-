@@ -433,13 +433,13 @@ class SegmentationWorker(Worker):
             # Sliding Window Inference로 전체 볼륨 처리
             # 모델은 96×96×96 패치로 학습되었지만, sliding window로 더 큰 볼륨 처리 가능
             with torch.no_grad():
-                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(96, 96, 96), overlap=0.75")
+                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(96, 96, 96), overlap=0.5")
                 output = sliding_window_inference(
                     inputs=input_tensor,              # [1, 4, D, H, W] (D는 전체 슬라이스 수)
                     roi_size=(96, 96, 96),            # 모델이 학습한 패치 크기
                     sw_batch_size=1,
                     predictor=self.model,
-                    overlap=0.75  # 75% overlap으로 경계 정확도 향상
+                    overlap=0.5  # 50% overlap (메모리 절약)
                 )
                 # output: [1, 1, D, H, W] (out_channels=1이므로)
                 pred_prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy()  # [D, H, W]
