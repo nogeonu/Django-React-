@@ -80,7 +80,7 @@ def _next_doctor_sequence(prefix: str) -> int:
 
 
 def ensure_doctor_id(user_id: int, force: bool = False) -> Optional[str]:
-    """Ensure the specified user has a doctor_id assigned (medical staff only)."""
+    """Ensure the specified user has a doctor_id assigned (medical staff, pharmacy, lab)."""
     department = get_department(user_id)
     if department in (None, DEPARTMENT_ADMIN):
         return None
@@ -89,7 +89,14 @@ def ensure_doctor_id(user_id: int, force: bool = False) -> Optional[str]:
     if current and not force:
         return current
 
-    prefix = f"D{timezone.now().year}"
+    # 부서별 접두사 결정
+    if department == DEPARTMENT_PHARMACY:
+        prefix = f"P{timezone.now().year}"  # Pharmacy: P2025001
+    elif department == DEPARTMENT_LAB:
+        prefix = f"L{timezone.now().year}"  # Lab: L2025001
+    else:
+        prefix = f"D{timezone.now().year}"  # Doctor: D2025001
+
     attempt = 0
 
     while True:
