@@ -255,8 +255,9 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
     elif (new_status == 'processing' and 
           order.order_type == 'imaging' and 
           order.target_department == 'radiology' and
-          old_status in ['sent', 'processing']):
-        # 방사선과가 영상 촬영 및 업로드 완료 → 영상의학과에 알림 (판독 대기)
+          old_status == 'processing'):
+        # 방사선과가 'processing' 상태에서 완료 처리 → 영상의학과에 알림 (판독 대기)
+        # (처리 시작 시에는 알림 없음, 완료 처리 시에만 알림)
         patient_name = order.patient.name
         imaging_type = order.order_data.get('imaging_type', '영상')
         body_part = order.order_data.get('body_part', '')

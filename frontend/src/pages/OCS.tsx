@@ -782,30 +782,23 @@ function OrderCard({
                 전달
               </Button>
             )}
-            {/* 부서 담당자: 전달된 주문 처리 시작 및 완료 */}
+            {/* 부서 담당자: 전달된 주문 처리 시작 */}
             {order.status === "sent" && (
-              <>
-                <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
-                  <Clock className="mr-2 h-4 w-4" />
-                  처리 시작
-                </Button>
-                <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  완료 처리
-                </Button>
-              </>
+              <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
+                <Clock className="mr-2 h-4 w-4" />
+                처리 시작
+              </Button>
             )}
-            {/* 영상 촬영 주문의 경우: 방사선과가 완료하면 'processing' 상태로 유지되므로 완료 처리 버튼 숨김 */}
-            {order.status === "processing" && 
-             !(order.order_type === "imaging" && order.target_department === "radiology") && (
+            {/* 부서 담당자: 처리 중인 주문 완료 처리 */}
+            {order.status === "processing" && (
               <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 완료 처리
               </Button>
             )}
-            {/* 영상의학과: 영상 분석 결과 입력 */}
+            {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "imaging" && 
-             order.status === "completed" && 
+             (order.status === "processing" || order.status === "completed") && 
              !order.imaging_analysis &&
              user?.department === "영상의학과" && (
               <Button

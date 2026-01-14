@@ -260,7 +260,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         # 영상의학과가 분석 결과를 입력해야 진짜 완료
         if order.order_type == 'imaging' and order.target_department == 'radiology':
             # 방사선과가 촬영 및 업로드 완료 → '처리중' 상태 유지 (판독 대기)
-            update_order_status(order, 'processing', request.user, '영상 촬영 및 업로드 완료 (판독 대기중)')
+            # 단, 이미 'processing' 상태인 경우에만 (처리 시작 후 완료 처리)
+            if order.status == 'processing':
+                update_order_status(order, 'processing', request.user, '영상 촬영 및 업로드 완료 (판독 대기중)')
+            else:
+                # 'sent' 상태에서 바로 완료 처리하는 경우는 처리 시작으로 변경
+                update_order_status(order, 'processing', request.user, '처리 시작')
             logger.info(f"Imaging order {order.id} completed by radiology, status remains 'processing' (awaiting analysis)")
         else:
             # 다른 주문 유형은 일반적으로 완료 처리
