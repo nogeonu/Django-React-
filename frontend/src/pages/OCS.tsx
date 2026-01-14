@@ -316,7 +316,6 @@ export default function OCS() {
               </DialogDescription>
             </DialogHeader>
             <CreateOrderForm
-              user={user}
               selectedPatient={selectedPatient}
               setSelectedPatient={setSelectedPatient}
               patientSearchTerm={patientSearchTerm}
@@ -699,11 +698,11 @@ function OrderCard({
                     {order.imaging_analysis.findings?.length > 100 && "..."}
                   </p>
                 </div>
-                {onViewAnalysis && (
+                {onViewAnalysis && order.imaging_analysis?.id && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onViewAnalysis(order.imaging_analysis.id)}
+                    onClick={() => onViewAnalysis(order.imaging_analysis!.id)}
                   >
                     상세 보기
                   </Button>
@@ -830,7 +829,6 @@ function OrderCard({
 }
 
 function CreateOrderForm({
-  user,
   selectedPatient,
   setSelectedPatient,
   patientSearchTerm,
@@ -840,7 +838,6 @@ function CreateOrderForm({
   onSubmit,
   isLoading,
 }: {
-  user: any;
   selectedPatient: any;
   setSelectedPatient: (patient: any) => void;
   patientSearchTerm: string;
