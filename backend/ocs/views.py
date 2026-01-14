@@ -5,6 +5,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg
@@ -29,6 +30,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.select_related('patient', 'doctor').prefetch_related(
         'status_history', 'drug_interaction_checks', 'allergy_checks'
     ).all()
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['order_type', 'status', 'priority', 'target_department', 'patient', 'doctor']
