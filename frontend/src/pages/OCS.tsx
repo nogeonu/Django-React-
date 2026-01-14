@@ -925,13 +925,37 @@ function CreateOrderForm({
     let department = targetDepartment;
 
     if (orderType === "prescription") {
-      orderData = { medications: medications.filter((m) => m.name) };
+      const validMedications = medications.filter((m) => m.name.trim());
+      if (validMedications.length === 0) {
+        alert("최소 하나의 약물 정보를 입력해주세요.");
+        return;
+      }
+      orderData = { medications: validMedications };
       department = "pharmacy";
     } else if (orderType === "lab_test") {
-      orderData = { test_items: testItems.filter((t) => t.name) };
+      const validTestItems = testItems.filter((t) => t.name.trim());
+      if (validTestItems.length === 0) {
+        alert("최소 하나의 검사 항목을 입력해주세요.");
+        return;
+      }
+      orderData = { test_items: validTestItems };
       department = "lab";
     } else if (orderType === "imaging") {
-      orderData = imagingData;
+      // 촬영 유형 필수 체크
+      if (!imagingData.imaging_type || !imagingData.imaging_type.trim()) {
+        alert("촬영 유형을 선택해주세요.");
+        return;
+      }
+      // 촬영 부위 필수 체크
+      if (!imagingData.body_part || !imagingData.body_part.trim()) {
+        alert("촬영 부위를 입력해주세요.");
+        return;
+      }
+      orderData = {
+        imaging_type: imagingData.imaging_type,
+        body_part: imagingData.body_part,
+        contrast: imagingData.contrast || false,
+      };
       department = "radiology";
     }
 

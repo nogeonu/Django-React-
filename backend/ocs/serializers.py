@@ -213,7 +213,9 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             if target_department != 'radiology':
                 raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
             if 'imaging_type' not in order_data or not order_data.get('imaging_type'):
-                raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형이 필요합니다.")
+                raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형(imaging_type)이 필요합니다. (예: MRI, CT, X-RAY, 초음파)")
+            if 'body_part' not in order_data or not order_data.get('body_part'):
+                raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 부위(body_part)가 필요합니다.")
         
         return data
     
