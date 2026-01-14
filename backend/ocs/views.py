@@ -256,7 +256,17 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        update_order_status(order, 'completed', request.user, '처리 완료')
+        # 영상 촬영 주문의 경우: 방사선과가 완료해도 '처리중' 상태 유지 (영상의학과 분석 대기)
+        # 영상의학과가 분석 결과를 입력해야 진짜 완료
+        if order.order_type == 'imaging' and order.target_department == 'radiology':
+            # 방사선과가 촬영 및 업로드 완료 → '처리중' 상태 유지 (판독 대기)
+            update_order_status(order, 'processing', request.user, '영상 촬영 및 업로드 완료 (판독 대기중)')
+            logger.info(f"Imaging order {order.id} completed by radiology, status remains 'processing' (awaiting analysis)")
+        else:
+            # 다른 주문 유형은 일반적으로 완료 처리
+            update_order_status(order, 'completed', request.user, '처리 완료')
+            logger.info(f"Order {order.id} completed by {request.user}")
+        
         serializer = self.get_serializer(order)
         return Response(serializer.data)
     
