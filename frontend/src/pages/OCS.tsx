@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import {
   Plus,
   Search,
-  Filter,
   Send,
   CheckCircle,
   XCircle,
@@ -276,7 +275,7 @@ export default function OCS() {
         </div>
         <div className="flex gap-2">
           {/* 역할별로 주문 생성 버튼 표시 */}
-          {(user?.role === "medical_staff" || user?.is_superuser) && (
+          {(user?.role === "medical_staff" || user?.role === "superuser") && (
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
