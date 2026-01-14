@@ -314,23 +314,26 @@ export default function OCS() {
       return;
     }
 
-    // patient_id가 문자열인 경우 patient_id 필드로 전달, 아니면 patient 필드로 전달
-    const patientValue = selectedPatient.id || selectedPatient.patient_id;
-    const isPatientIdString = typeof patientValue === 'string' && !/^\d+$/.test(patientValue);
-    
+    // pk (숫자 ID) 또는 id (문자열 patient_id) 사용
+    // pk가 있으면 숫자 ID로, 없으면 patient_id 문자열로 전달
     const orderData = {
       ...formData,
     };
     
-    if (isPatientIdString) {
-      // patient_id가 문자열인 경우 (예: "P2024001")
-      orderData.patient_id = patientValue;
+    if (selectedPatient.pk !== undefined) {
+      // 숫자 primary key가 있는 경우
+      orderData.patient = selectedPatient.pk;
+    } else if (selectedPatient.id && typeof selectedPatient.id === 'number') {
+      // 숫자 id가 있는 경우
+      orderData.patient = selectedPatient.id;
     } else {
-      // patient가 숫자 ID인 경우
-      orderData.patient = patientValue;
+      // 문자열 patient_id인 경우
+      const patientId = selectedPatient.patient_id || selectedPatient.id;
+      orderData.patient_id = patientId;
     }
 
     console.log("주문 생성 데이터:", orderData);
+    console.log("선택된 환자:", selectedPatient);
     createOrderMutation.mutate(orderData);
   };
 
