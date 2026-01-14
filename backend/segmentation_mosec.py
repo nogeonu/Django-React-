@@ -557,7 +557,7 @@ if __name__ == "__main__":
         SegmentationWorker,
         num=1,
         max_batch_size=1,
-        timeout=2400,  # 40분 (134 슬라이스 처리 시간 고려)
+        timeout=2400000,  # 40분 (2400초 = 2,400,000 밀리초)
     )
     # CLI arguments are automatically parsed by Mosec
     # max_body_size is set via --max-body-size CLI arg
