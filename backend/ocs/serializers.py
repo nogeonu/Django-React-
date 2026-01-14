@@ -102,6 +102,7 @@ class OrderSerializer(serializers.ModelSerializer):
 class OrderCreateSerializer(serializers.ModelSerializer):
     """주문 생성 Serializer (간소화)"""
     patient_id = serializers.CharField(write_only=True, required=False, help_text="환자 ID (patient_id 또는 patient 필드 사용)")
+    patient = serializers.PrimaryKeyRelatedField(queryset=Patient.objects.all(), required=False, allow_null=True)
     
     class Meta:
         model = Order
@@ -110,12 +111,6 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             'priority', 'due_time', 'notes'
         ]
     
-    def validate_patient(self, value):
-        """환자 검증"""
-        if value is None:
-            raise serializers.ValidationError("환자 정보가 필요합니다.")
-        return value
-    
     def validate(self, data):
         """주문 데이터 검증"""
         import logging
@@ -123,11 +118,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         
         # patient_id가 제공된 경우 patient 객체로 변환
         patient_id = data.pop('patient_id', None)
-        logger.info(f"OrderCreateSerializer validate: patient_id={patient_id}, patient={data.get('patient')}")
+        patient_value = data.get('patient')
         
-        if patient_id and not data.get('patient'):
+        logger.info(f"OrderCreateSerializer validate: patient_id={patient_id}, patient={patient_value}, patient_type={type(patient_value)}")
+        
+        # patient_id가 문자열로 제공된 경우
+        if patient_id:
             try:
-                # patient_id로 환자 찾기 (문자열 ID)
+                # patient_id로 환자 찾기 (문자열 ID, 예: "P2024001")
                 patient = Patient.objects.get(patient_id=patient_id)
                 data['patient'] = patient
                 logger.info(f"Found patient by patient_id: {patient.id}, patient_id={patient.patient_id}")
@@ -141,13 +139,34 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'patient_id': f'환자 ID "{patient_id}"에 해당하는 환자가 여러 명입니다.'
                 })
-        
-        # patient 필드가 숫자 ID로 전달된 경우도 처리
-        patient_value = data.get('patient')
-        if patient_value and isinstance(patient_value, (int, str)) and str(patient_value).isdigit():
+        # patient 필드가 문자열로 전달된 경우 (patient_id 문자열)
+        elif patient_value and isinstance(patient_value, str):
+            # 숫자로 변환 가능하면 숫자 ID로 처리
+            if patient_value.isdigit():
+                try:
+                    patient = Patient.objects.get(id=int(patient_value))
+                    data['patient'] = patient
+                    logger.info(f"Found patient by numeric id: {patient.id}, patient_id={patient.patient_id}")
+                except Patient.DoesNotExist:
+                    logger.error(f"Patient not found with numeric id: {patient_value}")
+                    raise serializers.ValidationError({
+                        'patient': f'환자 ID "{patient_value}"를 찾을 수 없습니다.'
+                    })
+            else:
+                # 문자열이면 patient_id로 처리
+                try:
+                    patient = Patient.objects.get(patient_id=patient_value)
+                    data['patient'] = patient
+                    logger.info(f"Found patient by patient_id string: {patient.id}, patient_id={patient.patient_id}")
+                except Patient.DoesNotExist:
+                    logger.error(f"Patient not found with patient_id: {patient_value}")
+                    raise serializers.ValidationError({
+                        'patient': f'환자 ID "{patient_value}"를 찾을 수 없습니다. patient_id 필드를 사용하거나 숫자 ID를 사용해주세요.'
+                    })
+        # patient 필드가 숫자로 전달된 경우
+        elif patient_value and isinstance(patient_value, int):
             try:
-                # 숫자 ID로 환자 찾기 시도
-                patient = Patient.objects.get(id=int(patient_value))
+                patient = Patient.objects.get(id=patient_value)
                 data['patient'] = patient
                 logger.info(f"Found patient by id: {patient.id}, patient_id={patient.patient_id}")
             except Patient.DoesNotExist:
@@ -160,7 +179,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         if not data.get('patient'):
             logger.error("No patient provided in order data")
             raise serializers.ValidationError({
-                'patient': '환자 정보가 필요합니다. patient 또는 patient_id 필드를 제공해주세요.'
+                'patient': '환자 정보가 필요합니다. patient (숫자 ID) 또는 patient_id (문자열) 필드를 제공해주세요.'
             })
         
         order_type = data.get('order_type')
