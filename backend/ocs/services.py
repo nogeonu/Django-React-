@@ -287,6 +287,12 @@ def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings
     )
     
     # 의사(주문 생성자)에게 알림
+
+    # 영상 분석 결과 입력 시 주문 상태를 'completed'로 변경
+    # (방사선과가 완료해도 'processing' 상태였던 것을 이제 완료 처리)
+    if order.status != 'completed':
+        update_order_status(order, 'completed', analyzed_by, '영상 분석 완료')
+        logger.info(f"Order {order.id} status updated to 'completed' after imaging analysis")
     doctor = order.doctor
     patient_name = order.patient.name
     imaging_type = order.order_data.get('imaging_type', '영상')
