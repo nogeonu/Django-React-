@@ -94,7 +94,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = self.request.user
         user_department = get_department(user.id) if user else None
         
-        logger.info(f"Order creation attempt by user {user.id} (dept: {user_department})")
+        logger.info(f"Order creation attempt by user {user.id} (username: {user.username}, dept: {user_department}, is_staff: {user.is_staff})")
+        
+        # 부서가 없는 경우 체크
+        if not user_department:
+            logger.warning(f"Order creation denied: No department found for user {user.id}")
+            raise PermissionDenied("부서 정보가 없습니다. 관리자에게 문의하세요.")
         
         # 원무과는 주문 생성 불가
         if user_department == "원무과":
@@ -111,14 +116,20 @@ class OrderViewSet(viewsets.ModelViewSet):
             logger.warning(f"Order creation denied: 방사선과 cannot create orders (user: {user.id})")
             raise PermissionDenied("방사선과는 주문을 생성할 수 없습니다. 의사가 생성한 주문을 받아서 처리합니다.")
         
+        # 의료진(외과, 호흡기내과 등)은 주문 생성 가능
+        # 부서가 위의 제한된 부서가 아니면 주문 생성 허용
+        # is_staff가 False인 경우도 체크 (원무과는 is_staff=False)
+        if not user.is_staff:
+            logger.warning(f"Order creation denied: User {user.id} is not staff (is_staff=False)")
+            raise PermissionDenied("의료진만 주문을 생성할 수 있습니다.")
+        
+        logger.info(f"Order creation allowed for department: {user_department}")
+        
         # 주문 유형 확인
         order_type = serializer.validated_data.get('order_type')
         target_department = serializer.validated_data.get('target_department')
         
         logger.info(f"Order type: {order_type}, target_department: {target_department}")
-        
-        # 의료진(외과, 호흡기내과 등)만 주문 생성 가능
-        # 모든 주문 유형 생성 가능 (처방전, 검사, 영상촬영)
         
         try:
             # OrderCreateSerializer에서 이미 doctor 설정됨
