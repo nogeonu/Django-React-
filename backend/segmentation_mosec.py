@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 Mosec 기반 MRI 세그멘테이션 서버
-모델 입력: [4, 96, 96, 96] (4 channels, 96 depth, 96 height, 96 width)
+Sliding Window Inference를 사용하여 96×96×96 모델로 전체 볼륨 처리
+- 모델 학습 크기: [4, 96, 96, 96] (4 channels, 96 depth, 96 height, 96 width)
+- 실제 처리: [4, D, H, W] (D는 전체 슬라이스 수, 예: 134)
+- Sliding Window: roi_size=(96, 96, 96), overlap=0.75
 """
 import os
 import io
@@ -13,6 +16,7 @@ from monai.inferers import sliding_window_inference
 import pydicom
 from PIL import Image
 from scipy import ndimage
+from scipy.ndimage import binary_opening, binary_closing, gaussian_filter
 from datetime import datetime
 from pydicom.uid import generate_uid
 from pydicom.dataset import Dataset, FileDataset
@@ -45,19 +49,26 @@ def dicom_to_numpy(dicom_bytes):
     return pixel_array, dicom
 
 
-def create_4d_input_from_sequences(sequences_3d):
-    """4개 시퀀스의 3D 볼륨을 [4, 96, 96, 96]로 변환
+def create_4d_input_from_sequences(sequences_3d, target_spatial=None, target_depth=None):
+    """4개 시퀀스의 3D 볼륨을 [4, D, H, W]로 변환 (원본 크기 유지 또는 리사이즈)
     
     Args:
-        sequences_3d: list of 4 numpy arrays, 각각 [D, H, W] 형태 (D=96, H=256, W=256)
+        sequences_3d: list of 4 numpy arrays, 각각 [D, H, W] 형태
+        target_spatial: 공간 크기 (None이면 원본 유지)
+        target_depth: 깊이 크기 (None이면 원본 유지)
     
     Returns:
-        volume_4d: [4, 96, 96, 96] numpy array
+        volume_4d: [4, D, H, W] numpy array
     """
     from scipy.ndimage import zoom
-    target_spatial = 96
-    target_depth = 96
     
+    if target_spatial is None or target_depth is None:
+        # 원본 크기 유지
+        volume_4d = np.stack(sequences_3d, axis=0)
+        logger.info(f"✅ 3D 볼륨 생성 완료 (원본 크기): {volume_4d.shape} (4 channels, {volume_4d.shape[1]} depth, {volume_4d.shape[2]}×{volume_4d.shape[3]})")
+        return volume_4d
+    
+    # 리사이즈 모드
     resized_sequences = []
     for seq_3d in sequences_3d:
         d, h, w = seq_3d.shape
@@ -65,10 +76,10 @@ def create_4d_input_from_sequences(sequences_3d):
         resized = zoom(seq_3d, zoom_factors, order=1)
         resized_sequences.append(resized)
     
-    # [4, 96, 96, 96]
+    # [4, D, H, W]
     volume_4d = np.stack(resized_sequences, axis=0)
     
-    logger.info(f"✅ 3D 볼륨 생성 완료: {volume_4d.shape} (4 channels, 96 depth, 96x96)")
+    logger.info(f"✅ 3D 볼륨 생성 완료 (리사이즈): {volume_4d.shape} (4 channels, {target_depth} depth, {target_spatial}×{target_spatial})")
     return volume_4d
 
 
@@ -78,16 +89,42 @@ def create_mock_4d_input(slice_2d):
     return create_4d_input_from_sequences([mock_3d] * 4)
 
 
-def postprocess_mask(mask):
-    """세그멘테이션 마스크 후처리"""
+def postprocess_mask(mask, smooth_boundary=True):
+    """세그멘테이션 마스크 후처리 (경계 정확도 향상)
+    
+    Args:
+        mask: 입력 마스크 (2D numpy array)
+        smooth_boundary: 경계 부드럽게 처리 여부
+    
+    Returns:
+        mask_cleaned: 후처리된 마스크
+    """
+    # 1. 구멍 채우기
     mask_filled = ndimage.binary_fill_holes(mask)
-    labeled, num_features = ndimage.label(mask_filled)
+    
+    # 2. 작은 노이즈 제거 (opening: erosion 후 dilation)
+    # 작은 돌출부 제거
+    structure = np.ones((3, 3), dtype=bool)
+    mask_opened = binary_opening(mask_filled, structure=structure)
+    
+    # 3. 작은 구멍 채우기 (closing: dilation 후 erosion)
+    mask_closed = binary_closing(mask_opened, structure=structure)
+    
+    # 4. 가장 큰 연결된 컴포넌트만 유지
+    labeled, num_features = ndimage.label(mask_closed)
     if num_features > 0:
-        sizes = ndimage.sum(mask_filled, labeled, range(1, num_features + 1))
+        sizes = ndimage.sum(mask_closed, labeled, range(1, num_features + 1))
         max_label = np.argmax(sizes) + 1
         mask_cleaned = (labeled == max_label).astype(np.uint8)
     else:
-        mask_cleaned = mask_filled.astype(np.uint8)
+        mask_cleaned = mask_closed.astype(np.uint8)
+    
+    # 5. 경계 부드럽게 처리 (선택사항)
+    if smooth_boundary:
+        # 경계를 약간 부드럽게 (가우시안 필터 + 임계값)
+        smoothed = gaussian_filter(mask_cleaned.astype(float), sigma=1.0)
+        mask_cleaned = (smoothed > 0.5).astype(np.uint8)
+    
     return mask_cleaned
 
 
@@ -268,8 +305,9 @@ class SegmentationWorker(Worker):
                 orthanc_url = json_data["orthanc_url"]
                 orthanc_auth = tuple(json_data["orthanc_auth"])
                 
+                total_slices = len(json_data['orthanc_instance_ids'][0])
                 logger.info(f"📥 Orthanc에서 데이터 다운로드 중: {orthanc_url}")
-                logger.info(f"📊 총 {len(json_data['orthanc_instance_ids'])}개 시퀀스, 각 {len(json_data['orthanc_instance_ids'][0])}개 슬라이스")
+                logger.info(f"📊 총 {len(json_data['orthanc_instance_ids'])}개 시퀀스, 각 {total_slices}개 슬라이스 (전체 처리)")
                 
                 sequences_3d = []
                 for seq_idx, seq_instances in enumerate(json_data["orthanc_instance_ids"]):
@@ -296,7 +334,8 @@ class SegmentationWorker(Worker):
                     "sequences_3d": sequences_3d,
                     "seg_series_uid": json_data.get("seg_series_uid"),
                     "original_series_id": json_data.get("original_series_id"),
-                    "start_instance_number": json_data.get("start_instance_number", 1)
+                    "start_instance_number": json_data.get("start_instance_number", 1),
+                    "total_slices": json_data.get("total_slices", total_slices)  # 전체 슬라이스 수 전달
                 }
             
             # 기존 방식 (sequences_3d가 직접 포함된 경우)
@@ -349,8 +388,9 @@ class SegmentationWorker(Worker):
             
             # DICOM 변환
             if "sequences_3d" in data and len(data["sequences_3d"]) == 4:
-                # 4-channel 3D DCE-MRI 모드
-                logger.info("📊 4-channel 3D DCE-MRI 입력 감지 (96 slices per sequence)")
+                # 4-channel 3D DCE-MRI 모드 (전체 슬라이스 처리)
+                total_slices = data.get("total_slices", len(data["sequences_3d"][0]))
+                logger.info(f"📊 4-channel 3D DCE-MRI 입력 감지 ({total_slices} slices per sequence) - Sliding Window 사용")
                 sequences_3d = []
                 original_dicom = None
                 
@@ -360,16 +400,16 @@ class SegmentationWorker(Worker):
                         slice_bytes = base64.b64decode(slice_b64)
                         slice_2d, dicom = dicom_to_numpy(slice_bytes)
                         slices_2d.append(slice_2d)
-                        if seq_idx == 0 and slice_idx == 48:  # 중앙 슬라이스
+                        if seq_idx == 0 and slice_idx == len(seq_slices_b64) // 2:  # 중앙 슬라이스
                             original_dicom = dicom
                     
-                    # [96, H, W] 형태로 스택
+                    # [D, H, W] 형태로 스택 (D는 전체 슬라이스 수)
                     seq_volume = np.stack(slices_2d, axis=0)
                     sequences_3d.append(seq_volume)
                 
                 logger.info(f"✅ 3D 볼륨 로드 완료: 4 sequences × {len(seq_slices_b64)} slices")
                 
-                # 4D 입력 생성: [4, 96, 96, 96]
+                # 4D 입력 생성: [4, D, H, W] (원본 크기 유지)
                 volume_4d = create_4d_input_from_sequences(sequences_3d)
                 logger.info(f"✅ 4채널 3D 입력 생성 완료: {volume_4d.shape}")
             elif "dicom_data" in data:
@@ -390,50 +430,75 @@ class SegmentationWorker(Worker):
             input_tensor = torch.from_numpy(volume_4d).unsqueeze(0).float().to(self.device)
             logger.info(f"📊 Input shape: {input_tensor.shape}")
             
-            # 추론 with sliding_window_inference
+            # Sliding Window Inference로 전체 볼륨 처리
+            # 모델은 96×96×96 패치로 학습되었지만, sliding window로 더 큰 볼륨 처리 가능
             with torch.no_grad():
+                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(96, 96, 96), overlap=0.75")
                 output = sliding_window_inference(
-                    inputs=input_tensor,              # [1, 4, 96, 96, 96]
-                    roi_size=(96, 96, 96),
+                    inputs=input_tensor,              # [1, 4, D, H, W] (D는 전체 슬라이스 수)
+                    roi_size=(96, 96, 96),            # 모델이 학습한 패치 크기
                     sw_batch_size=1,
                     predictor=self.model,
-                    overlap=0.5
+                    overlap=0.75  # 75% overlap으로 경계 정확도 향상
                 )
-                # output: [1, 1, 96, 96, 96] (out_channels=1이므로)
-                pred_prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy()  # [96, 96, 96]
-                pred_mask = (pred_prob > 0.5).astype(np.uint8)
+                # output: [1, 1, D, H, W] (out_channels=1이므로)
+                pred_prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy()  # [D, H, W]
+                
+                # 임계값 조정 가능 (0.5보다 낮게 설정하면 더 민감하게 검출)
+                threshold = 0.5
+                pred_mask = (pred_prob > threshold).astype(np.uint8)
                 logger.info(f"📊 Output shape: {pred_mask.shape}")
                 logger.info(f"📊 모델 출력 통계: min={pred_prob.min():.4f}, max={pred_prob.max():.4f}, mean={pred_prob.mean():.4f}")
                 logger.info(f"📊 마스크 통계: 총 픽셀={pred_mask.size}, 종양 픽셀={pred_mask.sum()}, 비율={pred_mask.sum()/pred_mask.size*100:.2f}%")
             
-            # 96개 슬라이스 전체 후처리 및 리사이즈
-            logger.info(f"📍 96개 슬라이스 전체 후처리 시작")
+            # 전체 슬라이스 후처리 (원본 크기 유지 또는 리사이즈)
+            logger.info(f"📍 {pred_mask.shape[0]}개 슬라이스 전체 후처리 시작")
             from scipy.ndimage import zoom
             
             # 원본 크기 가져오기 (4-channel 모드에서는 original_dicom에서, 단일 이미지 모드에서는 slice_2d에서)
             if original_dicom is not None:
                 h = getattr(original_dicom, 'Rows', 256)
                 w = getattr(original_dicom, 'Columns', 256)
-            elif slice_2d is not None:
+            elif 'slice_2d' in locals() and slice_2d is not None:
                 h, w = slice_2d.shape
             else:
-                h, w = 256, 256
+                # 모델 출력 크기 사용
+                h, w = pred_mask.shape[1], pred_mask.shape[2]
             
-            logger.info(f"📍 원본 크기: {h}×{w}, 모델 출력 크기: 96×96")
-            zoom_factors = (h / 96, w / 96)
+            # 모델 출력 크기 확인
+            model_h, model_w = pred_mask.shape[1], pred_mask.shape[2]
             
-            mask_resized_3d = []
-            for i in range(pred_mask.shape[0]):
-                mask_cleaned = postprocess_mask(pred_mask[i, :, :])
-                mask_resized = zoom(mask_cleaned, zoom_factors, order=0)
-                mask_resized_3d.append(mask_resized)
+            # 크기가 다르면 리사이즈, 같으면 그대로 사용
+            if h != model_h or w != model_w:
+                logger.info(f"📍 원본 크기: {h}×{w}, 모델 출력 크기: {model_h}×{model_w} → 리사이즈 필요")
+                zoom_factors = (h / model_h, w / model_w)
+                
+                mask_resized_3d = []
+                for i in range(pred_mask.shape[0]):
+                    # 후처리 (경계 정확도 향상)
+                    mask_cleaned = postprocess_mask(pred_mask[i, :, :], smooth_boundary=True)
+                    # Nearest neighbor로 리사이즈 (경계 보존)
+                    mask_resized = zoom(mask_cleaned, zoom_factors, order=0)
+                    # 리사이즈 후 추가 후처리 (경계 부드럽게)
+                    mask_resized = postprocess_mask(mask_resized, smooth_boundary=True)
+                    mask_resized_3d.append(mask_resized)
+                
+                mask_resized_3d = np.stack(mask_resized_3d, axis=0)  # [D, H, W]
+            else:
+                logger.info(f"📍 원본 크기와 모델 출력 크기 동일: {h}×{w} → 리사이즈 불필요")
+                # 후처리만 수행 (경계 정확도 향상)
+                mask_resized_3d = []
+                for i in range(pred_mask.shape[0]):
+                    mask_cleaned = postprocess_mask(pred_mask[i, :, :], smooth_boundary=True)
+                    mask_resized_3d.append(mask_cleaned)
+                
+                mask_resized_3d = np.stack(mask_resized_3d, axis=0)  # [D, H, W]
             
-            mask_resized_3d = np.stack(mask_resized_3d, axis=0)  # [96, H, W]
-            logger.info(f"✅ 96개 슬라이스 후처리 완료: {mask_resized_3d.shape}")
+            logger.info(f"✅ {mask_resized_3d.shape[0]}개 슬라이스 후처리 완료: {mask_resized_3d.shape}")
             logger.info(f"📊 후처리 후 마스크 통계: min={mask_resized_3d.min()}, max={mask_resized_3d.max()}, 총 픽셀={mask_resized_3d.size}, 종양 픽셀={mask_resized_3d.sum()}")
             
             # 중앙 슬라이스를 대표 이미지로 사용 (PNG 미리보기용)
-            center_idx = pred_mask.shape[0] // 2
+            center_idx = mask_resized_3d.shape[0] // 2
             mask_resized = mask_resized_3d[center_idx]
             
             # Base64 인코딩
@@ -447,8 +512,9 @@ class SegmentationWorker(Worker):
             total_pixels = int(mask_resized.size)
             tumor_ratio = float(tumor_pixels / total_pixels)
             
-            # Orthanc에 저장 (96개 슬라이스 Multi-frame DICOM SEG)
+            # Orthanc에 저장 (전체 슬라이스 Multi-frame DICOM SEG)
             seg_instance_id = None
+            successful_slices = mask_resized_3d.shape[0]
             try:
                 seg_series_uid = data.get('seg_series_uid')
                 start_instance_number = data.get('start_instance_number', 1)
@@ -456,7 +522,7 @@ class SegmentationWorker(Worker):
                 
                 dicom_seg = create_dicom_seg_multiframe(original_dicom, mask_resized_3d, seg_series_uid, start_instance_number, original_series_id)
                 seg_instance_id = upload_to_orthanc(dicom_seg)
-                logger.info(f"✅ 세그멘테이션 결과 Orthanc 저장 완료: {seg_instance_id} (96 frames)")
+                logger.info(f"✅ 세그멘테이션 결과 Orthanc 저장 완료: {seg_instance_id} ({successful_slices} frames)")
             except Exception as e:
                 logger.error(f"⚠️ Orthanc 저장 실패 (계속 진행): {e}")
             
@@ -468,7 +534,9 @@ class SegmentationWorker(Worker):
                 "tumor_ratio_percent": tumor_ratio * 100,
                 "image_size": [int(w), int(h)],
                 "seg_instance_id": seg_instance_id,
-                "saved_to_orthanc": seg_instance_id is not None
+                "saved_to_orthanc": seg_instance_id is not None,
+                "successful_slices": successful_slices,  # 처리된 슬라이스 수
+                "total_slices": mask_resized_3d.shape[0]  # 전체 슬라이스 수
             }
             
         except Exception as e:

@@ -130,7 +130,8 @@ def mri_segmentation(request, instance_id):
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
-    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 96 슬라이스)
+    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 전체 슬라이스)
+    Sliding Window Inference를 사용하여 96×96×96 모델로 전체 볼륨 처리
     
     POST /api/mri/segmentation/series/<series_id>/segment/
     Body (required): {
@@ -158,10 +159,10 @@ def segment_series(request, series_id):
         main_instances = main_series_info.get("Instances", [])
         total_slices = len(main_instances)
         
-        if total_slices < 96:
+        if total_slices < 1:
             return Response({
                 "success": False,
-                "error": f"슬라이스 수가 부족합니다 (최소 96개 필요, 현재 {total_slices}개)"
+                "error": f"슬라이스가 없습니다 (현재 {total_slices}개)"
             }, status=400)
         
         # 세그멘테이션을 위한 고유 Series UID 생성
@@ -169,28 +170,20 @@ def segment_series(request, series_id):
         seg_series_uid = generate_uid()
         
         logger.info(f"🚀 세그멘테이션 Series UID: {seg_series_uid}")
+        logger.info(f"📍 전체 슬라이스 처리: 0~{total_slices-1}번 ({total_slices}개) - Sliding Window 사용")
         
-        # 중앙 부분에서 96개 슬라이스 선택
-        start_idx = (total_slices - 96) // 2
-        end_idx = start_idx + 96
-        
-        logger.info(f"📍 슬라이스 선택: {start_idx}~{end_idx-1}번 (중앙 96개)")
-        
-        # 4개 시퀀스에서 각각 96개 슬라이스의 Instance ID 수집
-        orthanc_instance_ids = []  # [4][96] 형태 (각 요소는 Orthanc Instance ID)
+        # 4개 시퀀스에서 전체 슬라이스의 Instance ID 수집
+        orthanc_instance_ids = []  # [4][total_slices] 형태 (각 요소는 Orthanc Instance ID)
         
         for seq_idx, current_seq_series_id in enumerate(sequence_series_ids):
             seq_info = client.get(f"/series/{current_seq_series_id}")
             seq_instances = seq_info.get("Instances", [])
             
-            if len(seq_instances) < 96:
-                return Response({
-                    "success": False,
-                    "error": f"시퀀스 {current_seq_series_id}의 슬라이스가 부족합니다 (최소 96개 필요)"
-                }, status=400)
+            if len(seq_instances) != total_slices:
+                logger.warning(f"⚠️ 시퀀스 {seq_idx+1}의 슬라이스 수가 다릅니다: {len(seq_instances)} vs {total_slices}")
             
-            # 같은 범위에서 96개 선택
-            selected_instances = seq_instances[start_idx:end_idx]
+            # 전체 슬라이스 선택 (96개 제한 제거)
+            selected_instances = seq_instances  # 전체 슬라이스
             orthanc_instance_ids.append(selected_instances)  # Instance ID 목록만 저장
             
             logger.info(f"✅ 시퀀스 {seq_idx+1}/4 Instance ID 수집 완료: {len(selected_instances)}개")
@@ -204,7 +197,8 @@ def segment_series(request, series_id):
             "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
             "seg_series_uid": seg_series_uid,
             "original_series_id": series_id,
-            "start_instance_number": start_idx + 1
+            "start_instance_number": 1,  # 전체 슬라이스 처리
+            "total_slices": total_slices  # 전체 슬라이스 수 전달
         }
         
         logger.info(f"📦 Payload 크기: {len(orthanc_instance_ids)}개 시퀀스")
@@ -224,10 +218,10 @@ def segment_series(request, series_id):
         return Response({
             'success': True,
             'series_id': series_id,
-            'total_slices': 96,
-            'successful_slices': 96,  # 세그멘테이션 성공한 슬라이스 수
-            'start_slice_index': start_idx,  # 시작 슬라이스 인덱스 (예: 19)
-            'end_slice_index': end_idx - 1,  # 끝 슬라이스 인덱스 (예: 114)
+            'total_slices': total_slices,  # 전체 슬라이스 수
+            'successful_slices': result.get('successful_slices', total_slices),  # 세그멘테이션 성공한 슬라이스 수
+            'start_slice_index': 0,  # 시작 슬라이스 인덱스 (전체 처리)
+            'end_slice_index': total_slices - 1,  # 끝 슬라이스 인덱스
             'seg_instance_id': result.get('seg_instance_id'),
             'tumor_ratio_percent': result.get('tumor_ratio_percent', 0),
             'saved_to_orthanc': result.get('saved_to_orthanc', False)
