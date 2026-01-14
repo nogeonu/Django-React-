@@ -109,6 +109,43 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             'priority', 'due_time', 'notes'
         ]
     
+    def validate(self, data):
+        """주문 데이터 검증"""
+        order_type = data.get('order_type')
+        order_data = data.get('order_data', {})
+        target_department = data.get('target_department')
+        
+        # 주문 유형별 검증
+        if order_type == 'prescription':
+            if target_department != 'pharmacy':
+                raise serializers.ValidationError("처방전은 약국으로 전달되어야 합니다.")
+            medications = order_data.get('medications', [])
+            if not medications or len(medications) == 0:
+                raise serializers.ValidationError("처방전에는 약물 정보가 필요합니다.")
+            # 빈 약물명 필터링
+            valid_medications = [m for m in medications if m.get('name', '').strip()]
+            if not valid_medications:
+                raise serializers.ValidationError("처방전에는 약물명이 필요합니다.")
+        
+        elif order_type == 'lab_test':
+            if target_department != 'lab':
+                raise serializers.ValidationError("검사 주문은 검사실로 전달되어야 합니다.")
+            test_items = order_data.get('test_items', [])
+            if not test_items or len(test_items) == 0:
+                raise serializers.ValidationError("검사 주문에는 검사 항목이 필요합니다.")
+            # 빈 검사명 필터링
+            valid_test_items = [t for t in test_items if t.get('name', '').strip()]
+            if not valid_test_items:
+                raise serializers.ValidationError("검사 주문에는 검사명이 필요합니다.")
+        
+        elif order_type == 'imaging':
+            if target_department != 'radiology':
+                raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
+            if 'imaging_type' not in order_data or not order_data.get('imaging_type'):
+                raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형이 필요합니다.")
+        
+        return data
+    
     def create(self, validated_data):
         """주문 생성 시 의사 정보 자동 설정"""
         request = self.context.get('request')

@@ -91,6 +91,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         context['request'] = self.request
         return context
     
+    def create(self, request, *args, **kwargs):
+        """주문 생성 (에러 로깅 추가)"""
+        try:
+            logger.info(f"Order creation request: user={request.user.id}, data={request.data}")
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Order creation error: {str(e)}", exc_info=True)
+            raise
+    
     def perform_create(self, serializer):
         """주문 생성 시 권한 체크 및 검증 수행"""
         user = self.request.user
