@@ -138,4 +138,71 @@ export const deleteAppointmentApi = async (id: string) => {
   return res.data;
 };
 
+// OCS API
+export const getOrdersApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/ocs/orders/', { params });
+  return res.data;
+};
+
+export const getOrderApi = async (id: string) => {
+  const res = await apiClient.get(`/api/ocs/orders/${id}/`);
+  return res.data;
+};
+
+export const createOrderApi = async (data: Record<string, unknown>) => {
+  const res = await apiClient.post('/api/ocs/orders/', data);
+  return res.data;
+};
+
+export const updateOrderApi = async (id: string, data: Record<string, unknown>) => {
+  const res = await apiClient.patch(`/api/ocs/orders/${id}/`, data);
+  return res.data;
+};
+
+export const deleteOrderApi = async (id: string) => {
+  const res = await apiClient.delete(`/api/ocs/orders/${id}/`);
+  return res.data;
+};
+
+export const sendOrderApi = async (id: string) => {
+  const res = await apiClient.post(`/api/ocs/orders/${id}/send/`);
+  return res.data;
+};
+
+export const startProcessingOrderApi = async (id: string) => {
+  const res = await apiClient.post(`/api/ocs/orders/${id}/start_processing/`);
+  return res.data;
+};
+
+export const completeOrderApi = async (id: string) => {
+  const res = await apiClient.post(`/api/ocs/orders/${id}/complete/`);
+  return res.data;
+};
+
+export const cancelOrderApi = async (id: string, reason?: string) => {
+  const res = await apiClient.post(`/api/ocs/orders/${id}/cancel/`, { reason });
+  return res.data;
+};
+
+export const revalidateOrderApi = async (id: string) => {
+  const res = await apiClient.post(`/api/ocs/orders/${id}/revalidate/`);
+  return res.data;
+};
+
+export const getOrderStatisticsApi = async () => {
+  const res = await apiClient.get('/api/ocs/orders/statistics/');
+  return res.data;
+};
+
+export const getMyOrdersApi = async () => {
+  const res = await apiClient.get('/api/ocs/orders/my_orders/');
+  return res.data;
+};
+
+export const getPendingOrdersApi = async (department?: string) => {
+  const params = department ? { department } : {};
+  const res = await apiClient.get('/api/ocs/orders/pending_orders/', { params });
+  return res.data;
+};
+
 export default apiClient;

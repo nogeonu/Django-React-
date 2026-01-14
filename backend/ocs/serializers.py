@@ -1,0 +1,123 @@
+"""
+OCS Serializers
+"""
+from rest_framework import serializers
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck
+from patients.models import Patient
+
+
+class OrderStatusHistorySerializer(serializers.ModelSerializer):
+    """주문 상태 이력 Serializer"""
+    changed_by_name = serializers.CharField(source='changed_by.get_full_name', read_only=True)
+    changed_by_username = serializers.CharField(source='changed_by.username', read_only=True)
+    
+    class Meta:
+        model = OrderStatusHistory
+        fields = ['id', 'status', 'changed_by', 'changed_by_name', 'changed_by_username', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class DrugInteractionCheckSerializer(serializers.ModelSerializer):
+    """약물 상호작용 검사 Serializer"""
+    checked_by_name = serializers.CharField(source='checked_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = DrugInteractionCheck
+        fields = ['id', 'checked_drugs', 'interactions', 'severity', 'checked_at', 'checked_by', 'checked_by_name']
+        read_only_fields = ['id', 'checked_at']
+
+
+class AllergyCheckSerializer(serializers.ModelSerializer):
+    """알레르기 검사 Serializer"""
+    checked_by_name = serializers.CharField(source='checked_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = AllergyCheck
+        fields = ['id', 'patient_allergies', 'order_items', 'warnings', 'has_allergy_risk', 'checked_at', 'checked_by', 'checked_by_name']
+        read_only_fields = ['id', 'checked_at']
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """주문 Serializer"""
+    patient_name = serializers.CharField(source='patient.name', read_only=True)
+    patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
+    doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
+    doctor_username = serializers.CharField(source='doctor.username', read_only=True)
+    
+    # 관련 객체들
+    status_history = OrderStatusHistorySerializer(many=True, read_only=True)
+    drug_interaction_checks = DrugInteractionCheckSerializer(many=True, read_only=True)
+    allergy_checks = AllergyCheckSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'order_type', 'patient', 'patient_name', 'patient_number',
+            'doctor', 'doctor_name', 'doctor_username',
+            'status', 'priority', 'order_data', 'target_department',
+            'due_time', 'notes', 'validation_passed', 'validation_notes',
+            'created_at', 'updated_at', 'completed_at',
+            'status_history', 'drug_interaction_checks', 'allergy_checks'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
+    
+    def validate(self, data):
+        """주문 데이터 검증"""
+        order_type = data.get('order_type')
+        order_data = data.get('order_data', {})
+        target_department = data.get('target_department')
+        
+        # 주문 유형별 검증
+        if order_type == 'prescription':
+            if target_department != 'pharmacy':
+                raise serializers.ValidationError("처방전은 약국으로 전달되어야 합니다.")
+            if 'medications' not in order_data:
+                raise serializers.ValidationError("처방전에는 약물 정보가 필요합니다.")
+        
+        elif order_type == 'lab_test':
+            if target_department != 'lab':
+                raise serializers.ValidationError("검사 주문은 검사실로 전달되어야 합니다.")
+            if 'test_items' not in order_data:
+                raise serializers.ValidationError("검사 주문에는 검사 항목이 필요합니다.")
+        
+        elif order_type == 'imaging':
+            if target_department != 'radiology':
+                raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
+            if 'imaging_type' not in order_data:
+                raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형이 필요합니다.")
+        
+        return data
+
+
+class OrderCreateSerializer(serializers.ModelSerializer):
+    """주문 생성 Serializer (간소화)"""
+    
+    class Meta:
+        model = Order
+        fields = [
+            'order_type', 'patient', 'order_data', 'target_department',
+            'priority', 'due_time', 'notes'
+        ]
+    
+    def create(self, validated_data):
+        """주문 생성 시 의사 정보 자동 설정"""
+        request = self.context.get('request')
+        if request and request.user:
+            validated_data['doctor'] = request.user
+        
+        return super().create(validated_data)
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    """주문 목록 Serializer (간소화)"""
+    patient_name = serializers.CharField(source='patient.name', read_only=True)
+    patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
+    doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'order_type', 'patient_name', 'patient_number',
+            'doctor_name', 'status', 'priority', 'target_department',
+            'created_at', 'due_time', 'completed_at'
+        ]

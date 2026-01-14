@@ -1,0 +1,317 @@
+"""
+OCS ViewSet 및 API 엔드포인트
+"""
+from rest_framework import viewsets, status, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q, Avg
+from django.utils import timezone
+from datetime import timedelta
+
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck
+from .serializers import (
+    OrderSerializer, OrderCreateSerializer, OrderListSerializer,
+    OrderStatusHistorySerializer, DrugInteractionCheckSerializer, AllergyCheckSerializer
+)
+from .services import validate_order, update_order_status, check_drug_interactions, check_allergies
+from eventeye.doctor_utils import get_department
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class OrderViewSet(viewsets.ModelViewSet):
+    """OCS 주문 관리 ViewSet"""
+    queryset = Order.objects.select_related('patient', 'doctor').prefetch_related(
+        'status_history', 'drug_interaction_checks', 'allergy_checks'
+    ).all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['order_type', 'status', 'priority', 'target_department', 'patient', 'doctor']
+    search_fields = ['patient__name', 'patient__patient_number', 'notes']
+    ordering_fields = ['created_at', 'due_time', 'priority', 'status']
+    ordering = ['-created_at', '-priority']
+    
+    def get_queryset(self):
+        """역할 및 부서별로 주문 필터링"""
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # 사용자 부서 확인
+        user_department = get_department(user.id) if user else None
+        
+        # 원무과는 모든 주문 조회 가능
+        if user_department == "원무과" or user.is_superuser:
+            return queryset
+        
+        # 의료진인 경우
+        if user.is_staff:
+            # 부서별로 해당하는 주문만 조회
+            if user_department == "방사선과":
+                # 방사선과: 영상촬영 주문만
+                queryset = queryset.filter(
+                    target_department='radiology',
+                    order_type='imaging'
+                )
+            elif user_department == "영상의학과":
+                # 영상의학과: 영상촬영 주문만 (판독용)
+                queryset = queryset.filter(
+                    target_department='radiology',
+                    order_type='imaging'
+                )
+            elif user_department in ["호흡기내과", "외과", "영상의학과"]:
+                # 의사: 자신이 생성한 주문 또는 자신의 환자 주문
+                # 또는 자신의 부서로 온 주문
+                queryset = queryset.filter(
+                    Q(doctor=user) |  # 자신이 생성한 주문
+                    Q(patient__patient_id__in=[])  # 추후 환자 연결 시 확장
+                )
+            else:
+                # 기타 의료진: 자신이 생성한 주문만
+                queryset = queryset.filter(doctor=user)
+        
+        return queryset
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return OrderCreateSerializer
+        elif self.action == 'list':
+            return OrderListSerializer
+        return OrderSerializer
+    
+    def get_serializer_context(self):
+        """Serializer에 request 전달"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def perform_create(self, serializer):
+        """주문 생성 시 검증 수행"""
+        # OrderCreateSerializer에서 이미 doctor 설정됨
+        order = serializer.save()
+        
+        # 주문 검증 (약물 상호작용, 알레르기)
+        validate_order(order)
+        
+        # 상태 이력 기록
+        update_order_status(order, 'pending', self.request.user, '주문 생성')
+        
+        logger.info(f"Order created: {order.id} by {self.request.user}")
+    
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        """주문을 대상 부서로 전달"""
+        order = self.get_object()
+        
+        if order.status != 'pending':
+            return Response(
+                {'error': '이미 처리된 주문입니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 검증 통과 확인
+        if not order.validation_passed:
+            return Response(
+                {
+                    'error': '주문 검증에 실패했습니다.',
+                    'validation_notes': order.validation_notes
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 부서별 전달 로직
+        if order.target_department == 'lab':
+            # LIS로 전달 (추후 구현)
+            update_order_status(order, 'sent', request.user, '검사실로 전달')
+            logger.info(f"Order {order.id} sent to lab")
+            
+        elif order.target_department == 'radiology':
+            # RIS로 전달 (추후 구현)
+            update_order_status(order, 'sent', request.user, '방사선과로 전달')
+            logger.info(f"Order {order.id} sent to radiology")
+            
+        elif order.target_department == 'pharmacy':
+            # 약국으로 전달
+            update_order_status(order, 'sent', request.user, '약국으로 전달')
+            logger.info(f"Order {order.id} sent to pharmacy")
+        
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def start_processing(self, request, pk=None):
+        """주문 처리 시작"""
+        order = self.get_object()
+        
+        if order.status not in ['sent', 'pending']:
+            return Response(
+                {'error': '처리할 수 없는 상태입니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        update_order_status(order, 'processing', request.user, '처리 시작')
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """주문 완료 처리"""
+        order = self.get_object()
+        
+        if order.status not in ['processing', 'sent']:
+            return Response(
+                {'error': '완료할 수 없는 상태입니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        update_order_status(order, 'completed', request.user, '처리 완료')
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """주문 취소"""
+        order = self.get_object()
+        
+        if order.status in ['completed', 'cancelled']:
+            return Response(
+                {'error': '취소할 수 없는 상태입니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        cancel_reason = request.data.get('reason', '')
+        update_order_status(order, 'cancelled', request.user, f'취소: {cancel_reason}')
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def revalidate(self, request, pk=None):
+        """주문 재검증"""
+        order = self.get_object()
+        validation_passed, validation_notes = validate_order(order)
+        
+        return Response({
+            'validation_passed': validation_passed,
+            'validation_notes': validation_notes,
+            'order': self.get_serializer(order).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """OCS 통계"""
+        today = timezone.now().date()
+        
+        stats = {
+            'total_orders_today': self.queryset.filter(created_at__date=today).count(),
+            'orders_by_type': self.queryset.values('order_type').annotate(
+                count=Count('id')
+            ),
+            'orders_by_status': self.queryset.values('status').annotate(
+                count=Count('id')
+            ),
+            'orders_by_priority': self.queryset.values('priority').annotate(
+                count=Count('id')
+            ),
+            'urgent_orders_pending': self.queryset.filter(
+                priority__in=['urgent', 'stat', 'emergency'],
+                status__in=['pending', 'sent']
+            ).count(),
+            'validation_failed_orders': self.queryset.filter(
+                validation_passed=False
+            ).count(),
+            # 평균 완료 시간 계산 (추후 구현)
+            # 'average_completion_time': self.queryset.filter(
+            #     status='completed',
+            #     completed_at__isnull=False
+            # ).aggregate(
+            #     avg_hours=Avg(...)
+            # ),
+        }
+        
+        return Response(stats)
+    
+    @action(detail=False, methods=['get'])
+    def my_orders(self, request):
+        """내가 생성한 주문 목록"""
+        orders = self.queryset.filter(doctor=request.user)
+        page = self.paginate_queryset(orders)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(orders, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def pending_orders(self, request):
+        """대기 중인 주문 목록 (부서별 자동 필터링)"""
+        user = request.user
+        user_department = get_department(user.id) if user else None
+        
+        # 부서별로 자동 필터링
+        if user_department == "방사선과" or user_department == "영상의학과":
+            # 방사선과/영상의학과: 영상촬영 주문만
+            orders = self.get_queryset().filter(
+                target_department='radiology',
+                order_type='imaging',
+                status__in=['pending', 'sent']
+            )
+        elif user_department == "원무과" or user.is_superuser:
+            # 원무과: 모든 대기 주문
+            department = request.query_params.get('department')
+            if department:
+                orders = self.get_queryset().filter(
+                    target_department=department,
+                    status__in=['pending', 'sent']
+                )
+            else:
+                orders = self.get_queryset().filter(status__in=['pending', 'sent'])
+        else:
+            # 의사: 자신이 생성한 대기 주문
+            orders = self.get_queryset().filter(
+                doctor=user,
+                status__in=['pending', 'sent']
+            )
+        
+        page = self.paginate_queryset(orders)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(orders, many=True)
+        return Response(serializer.data)
+
+
+class OrderStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """주문 상태 이력 ViewSet (읽기 전용)"""
+    queryset = OrderStatusHistory.objects.select_related('order', 'changed_by').all()
+    serializer_class = OrderStatusHistorySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'status', 'changed_by']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+
+class DrugInteractionCheckViewSet(viewsets.ReadOnlyModelViewSet):
+    """약물 상호작용 검사 ViewSet (읽기 전용)"""
+    queryset = DrugInteractionCheck.objects.select_related('order', 'checked_by').all()
+    serializer_class = DrugInteractionCheckSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'severity']
+    ordering_fields = ['checked_at']
+    ordering = ['-checked_at']
+
+
+class AllergyCheckViewSet(viewsets.ReadOnlyModelViewSet):
+    """알레르기 검사 ViewSet (읽기 전용)"""
+    queryset = AllergyCheck.objects.select_related('order', 'checked_by').all()
+    serializer_class = AllergyCheckSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'has_allergy_risk']
+    ordering_fields = ['checked_at']
+    ordering = ['-checked_at']

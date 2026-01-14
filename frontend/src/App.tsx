@@ -36,6 +36,7 @@ import AppDownload from "@/pages/AppDownload";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import MedicalLayout from "@/components/MedicalLayout";
+import OCS from "@/pages/OCS";
 
 const queryClient = new QueryClient();
 
@@ -153,6 +154,14 @@ function AppContentInner() {
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "superuser"]}>
             <KnowledgeHub />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ocs"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <OCS />
           </ProtectedRoute>
         }
       />
