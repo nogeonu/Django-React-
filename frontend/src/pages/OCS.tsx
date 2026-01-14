@@ -795,7 +795,9 @@ function OrderCard({
                 </Button>
               </>
             )}
-            {order.status === "processing" && (
+            {/* 영상 촬영 주문의 경우: 방사선과가 완료하면 'processing' 상태로 유지되므로 완료 처리 버튼 숨김 */}
+            {order.status === "processing" && 
+             !(order.order_type === "imaging" && order.target_department === "radiology") && (
               <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 완료 처리
@@ -1136,10 +1138,9 @@ function CreateOrderForm({
               <SelectValue placeholder="촬영 유형" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="유방촬영술">유방촬영술</SelectItem>
+              <SelectItem value="병리이미지">병리이미지</SelectItem>
               <SelectItem value="MRI">MRI</SelectItem>
-              <SelectItem value="CT">CT</SelectItem>
-              <SelectItem value="X-RAY">X-RAY</SelectItem>
-              <SelectItem value="ULTRASOUND">초음파</SelectItem>
             </SelectContent>
           </Select>
           <Input

@@ -252,6 +252,25 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
         )
         logger.info(f"Notification sent to 영상의학과 for order {order.id}")
     
+    elif (new_status == 'processing' and 
+          order.order_type == 'imaging' and 
+          order.target_department == 'radiology' and
+          old_status in ['sent', 'processing']):
+        # 방사선과가 영상 촬영 및 업로드 완료 → 영상의학과에 알림 (판독 대기)
+        patient_name = order.patient.name
+        imaging_type = order.order_data.get('imaging_type', '영상')
+        body_part = order.order_data.get('body_part', '')
+        
+        notify_department_users(
+            department_name="영상의학과",
+            notification_type='imaging_uploaded',
+            title=f'영상 업로드 완료: {patient_name}',
+            message=f'{patient_name}님의 {imaging_type} 촬영이 완료되어 업로드되었습니다. {body_part} 부위 영상을 분석해주세요.',
+            related_order=order,
+            exclude_user=changed_by
+        )
+        logger.info(f"Notification sent to 영상의학과 for order {order.id} (radiology completed, awaiting analysis)")
+    
     elif new_status == 'sent':
         # 주문 전달 시 대상 부서에 알림
         target_dept_map = {
