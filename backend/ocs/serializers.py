@@ -239,6 +239,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order_type', 'patient_name', 'patient_number',
             'doctor_name', 'status', 'priority', 'target_department',
+            'order_data', 'validation_passed', 'validation_notes',  # order_data 추가
             'created_at', 'due_time', 'completed_at'
         ]
 
