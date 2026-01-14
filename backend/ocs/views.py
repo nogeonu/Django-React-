@@ -94,10 +94,17 @@ class OrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """주문 생성 (에러 로깅 추가)"""
         try:
-            logger.info(f"Order creation request: user={request.user.id}, username={request.user.username}, data={request.data}")
+            logger.info(f"Order creation request: user={request.user.id}, username={request.user.username}, is_authenticated={request.user.is_authenticated}")
+            logger.info(f"Order creation data: {request.data}")
+            logger.info(f"Order creation data type: {type(request.data)}")
+            
             serializer = self.get_serializer(data=request.data)
             if not serializer.is_valid():
-                logger.error(f"Order creation validation failed: {serializer.errors}")
+                logger.error(f"Order creation validation failed:")
+                logger.error(f"  - Errors: {serializer.errors}")
+                logger.error(f"  - Data received: {request.data}")
+                logger.error(f"  - Patient field: {request.data.get('patient')}")
+                logger.error(f"  - Patient_id field: {request.data.get('patient_id')}")
                 return Response(
                     {
                         'error': '주문 생성 검증 실패',
@@ -105,6 +112,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+            logger.info("Serializer validation passed, creating order...")
             return super().create(request, *args, **kwargs)
         except PermissionDenied as e:
             logger.error(f"Order creation permission denied: {str(e)}")
@@ -114,6 +123,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"Order creation error: {str(e)}", exc_info=True)
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response(
                 {
                     'error': '주문 생성 중 오류가 발생했습니다.',

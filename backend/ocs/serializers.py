@@ -118,23 +118,47 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """주문 데이터 검증"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # patient_id가 제공된 경우 patient 객체로 변환
         patient_id = data.pop('patient_id', None)
+        logger.info(f"OrderCreateSerializer validate: patient_id={patient_id}, patient={data.get('patient')}")
+        
         if patient_id and not data.get('patient'):
             try:
+                # patient_id로 환자 찾기 (문자열 ID)
                 patient = Patient.objects.get(patient_id=patient_id)
                 data['patient'] = patient
+                logger.info(f"Found patient by patient_id: {patient.id}, patient_id={patient.patient_id}")
             except Patient.DoesNotExist:
+                logger.error(f"Patient not found with patient_id: {patient_id}")
                 raise serializers.ValidationError({
                     'patient_id': f'환자 ID "{patient_id}"를 찾을 수 없습니다.'
                 })
             except Patient.MultipleObjectsReturned:
+                logger.error(f"Multiple patients found with patient_id: {patient_id}")
                 raise serializers.ValidationError({
                     'patient_id': f'환자 ID "{patient_id}"에 해당하는 환자가 여러 명입니다.'
                 })
         
+        # patient 필드가 숫자 ID로 전달된 경우도 처리
+        patient_value = data.get('patient')
+        if patient_value and isinstance(patient_value, (int, str)) and str(patient_value).isdigit():
+            try:
+                # 숫자 ID로 환자 찾기 시도
+                patient = Patient.objects.get(id=int(patient_value))
+                data['patient'] = patient
+                logger.info(f"Found patient by id: {patient.id}, patient_id={patient.patient_id}")
+            except Patient.DoesNotExist:
+                logger.error(f"Patient not found with id: {patient_value}")
+                raise serializers.ValidationError({
+                    'patient': f'환자 ID "{patient_value}"를 찾을 수 없습니다.'
+                })
+        
         # patient 필드가 없으면 에러
         if not data.get('patient'):
+            logger.error("No patient provided in order data")
             raise serializers.ValidationError({
                 'patient': '환자 정보가 필요합니다. patient 또는 patient_id 필드를 제공해주세요.'
             })

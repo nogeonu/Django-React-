@@ -175,18 +175,63 @@ export default function OCS() {
       setSelectedPatient(null);
     },
     onError: (error: any) => {
-      const errorMessage = 
-        error.response?.data?.detail || 
-        error.response?.data?.error || 
-        error.response?.data?.message ||
-        error.message ||
-        "주문 생성에 실패했습니다.";
+      console.error("주문 생성 에러:", error);
+      console.error("에러 응답:", error.response?.data);
+      
+      let errorMessage = "주문 생성에 실패했습니다.";
+      
+      if (error.response?.data) {
+        const data = error.response.data;
+        
+        // details 객체가 있는 경우 (serializer validation errors)
+        if (data.details) {
+          const details = data.details;
+          const errorMessages: string[] = [];
+          
+          // 각 필드별 에러 메시지 수집
+          Object.keys(details).forEach((key) => {
+            const fieldErrors = details[key];
+            if (Array.isArray(fieldErrors)) {
+              errorMessages.push(`${key}: ${fieldErrors.join(", ")}`);
+            } else if (typeof fieldErrors === "string") {
+              errorMessages.push(`${key}: ${fieldErrors}`);
+            } else {
+              errorMessages.push(`${key}: ${JSON.stringify(fieldErrors)}`);
+            }
+          });
+          
+          errorMessage = errorMessages.length > 0 
+            ? errorMessages.join("\n")
+            : data.error || data.detail || errorMessage;
+        } else if (data.error) {
+          errorMessage = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
+        } else if (data.detail) {
+          errorMessage = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+        } else if (data.message) {
+          errorMessage = data.message;
+        } else {
+          // 첫 번째 필드의 에러 메시지 사용
+          const firstKey = Object.keys(data)[0];
+          if (firstKey) {
+            const val = data[firstKey];
+            if (Array.isArray(val)) {
+              errorMessage = `${firstKey}: ${val.join(", ")}`;
+            } else if (typeof val === "string") {
+              errorMessage = `${firstKey}: ${val}`;
+            } else {
+              errorMessage = JSON.stringify(data);
+            }
+          }
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "주문 생성 실패",
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("주문 생성 에러:", error);
     },
   });
 
@@ -269,10 +314,24 @@ export default function OCS() {
       return;
     }
 
-    createOrderMutation.mutate({
+    // patient_id가 문자열인 경우 patient_id 필드로 전달, 아니면 patient 필드로 전달
+    const patientValue = selectedPatient.id || selectedPatient.patient_id;
+    const isPatientIdString = typeof patientValue === 'string' && !/^\d+$/.test(patientValue);
+    
+    const orderData = {
       ...formData,
-      patient: selectedPatient.id || selectedPatient.patient_id,
-    });
+    };
+    
+    if (isPatientIdString) {
+      // patient_id가 문자열인 경우 (예: "P2024001")
+      orderData.patient_id = patientValue;
+    } else {
+      // patient가 숫자 ID인 경우
+      orderData.patient = patientValue;
+    }
+
+    console.log("주문 생성 데이터:", orderData);
+    createOrderMutation.mutate(orderData);
   };
 
   return (
