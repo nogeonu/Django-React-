@@ -749,15 +749,16 @@ function OrderCard({
 
           {/* 영상 분석 결과 */}
           {order.order_type === "imaging" && order.imaging_analysis && (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg space-y-3">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="font-medium text-green-800 dark:text-green-200 mb-1">
+                  <p className="font-medium text-green-800 dark:text-green-200 mb-2">
                     영상 분석 완료
-                  </p>
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                    {order.imaging_analysis.findings?.substring(0, 100) || "분석 결과가 있습니다."}
-                    {order.imaging_analysis.findings?.length > 100 && "..."}
+                    {order.imaging_analysis.confidence_score && (
+                      <span className="ml-2 text-sm font-normal">
+                        (신뢰도: {(order.imaging_analysis.confidence_score * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </p>
                 </div>
                 {onViewAnalysis && order.imaging_analysis?.id && (
@@ -770,6 +771,30 @@ function OrderCard({
                   </Button>
                 )}
               </div>
+              
+              {/* 소견 */}
+              {order.imaging_analysis.findings && (
+                <div>
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                    소견:
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300 whitespace-pre-wrap">
+                    {order.imaging_analysis.findings}
+                  </p>
+                </div>
+              )}
+              
+              {/* 권고사항 */}
+              {order.imaging_analysis.recommendations && (
+                <div>
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                    권고사항:
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300 whitespace-pre-wrap">
+                    {order.imaging_analysis.recommendations}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -790,7 +815,9 @@ function OrderCard({
               </Button>
             )}
             {/* 부서 담당자: 처리 중인 주문 완료 처리 */}
-            {order.status === "processing" && (
+            {/* 영상의학과는 영상 촬영 주문의 경우 완료 처리 버튼 숨김 (분석 결과 입력으로 대체) */}
+            {order.status === "processing" && 
+             !(order.order_type === "imaging" && user?.department === "영상의학과") && (
               <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 완료 처리
