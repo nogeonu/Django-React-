@@ -2,8 +2,10 @@
 OCS 서비스 로직
 """
 from django.utils import timezone
-from .models import Order, DrugInteractionCheck, AllergyCheck, OrderStatusHistory
+from django.db.models import Q
+from .models import Order, DrugInteractionCheck, AllergyCheck, OrderStatusHistory, Notification, ImagingAnalysisResult
 from patients.models import Patient
+from eventeye.doctor_utils import get_department
 import logging
 
 logger = logging.getLogger(__name__)
@@ -173,8 +175,46 @@ def validate_order(order):
     return validation_passed, validation_notes
 
 
+def create_notification(user, notification_type, title, message, related_order=None, related_resource_type=None, related_resource_id=None):
+    """알림 생성"""
+    return Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        related_order=related_order,
+        related_resource_type=related_resource_type,
+        related_resource_id=related_resource_id
+    )
+
+
+def notify_department_users(department_name, notification_type, title, message, related_order=None, exclude_user=None):
+    """특정 부서의 모든 사용자에게 알림 전송"""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    # 부서에 속한 사용자 조회
+    users = User.objects.filter(is_active=True)
+    notifications = []
+    
+    for user in users:
+        user_dept = get_department(user.id)
+        if user_dept == department_name and (exclude_user is None or user.id != exclude_user.id):
+            notification = create_notification(
+                user=user,
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                related_order=related_order
+            )
+            notifications.append(notification)
+    
+    logger.info(f"Created {len(notifications)} notifications for department {department_name}")
+    return notifications
+
+
 def update_order_status(order, new_status, changed_by=None, notes=''):
-    """주문 상태 업데이트 및 이력 기록"""
+    """주문 상태 업데이트 및 이력 기록, 알림 생성"""
     old_status = order.status
     order.status = new_status
     
@@ -193,3 +233,74 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
     )
     
     logger.info(f"Order {order.id} status changed: {old_status} → {new_status} by {changed_by}")
+    
+    # 알림 생성
+    if new_status == 'completed' and order.order_type == 'imaging':
+        # 영상 촬영 완료 → 영상의학과에 알림
+        patient_name = order.patient.name
+        imaging_type = order.order_data.get('imaging_type', '영상')
+        body_part = order.order_data.get('body_part', '')
+        
+        notify_department_users(
+            department_name="영상의학과",
+            notification_type='imaging_uploaded',
+            title=f'영상 업로드 완료: {patient_name}',
+            message=f'{patient_name}님의 {imaging_type} 촬영이 완료되어 업로드되었습니다. {body_part} 부위 영상을 분석해주세요.',
+            related_order=order,
+            exclude_user=changed_by
+        )
+        logger.info(f"Notification sent to 영상의학과 for order {order.id}")
+    
+    elif new_status == 'sent':
+        # 주문 전달 시 대상 부서에 알림
+        target_dept_map = {
+            'pharmacy': '약국',
+            'lab': '검사실',
+            'radiology': '방사선과'
+        }
+        target_dept_kr = target_dept_map.get(order.target_department, order.target_department)
+        
+        if target_dept_kr in ['방사선과', '검사실', '약국']:
+            notify_department_users(
+                department_name=target_dept_kr,
+                notification_type='order_sent',
+                title=f'새 주문 도착: {order.patient.name}',
+                message=f'{order.patient.name}님의 {order.get_order_type_display()} 주문이 전달되었습니다.',
+                related_order=order,
+                exclude_user=changed_by
+            )
+            logger.info(f"Notification sent to {target_dept_kr} for order {order.id}")
+
+
+def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None):
+    """영상 분석 결과 생성 및 의사에게 알림"""
+    # 분석 결과 저장
+    analysis, created = ImagingAnalysisResult.objects.update_or_create(
+        order=order,
+        defaults={
+            'analyzed_by': analyzed_by,
+            'analysis_result': analysis_result,
+            'findings': findings,
+            'recommendations': recommendations,
+            'confidence_score': confidence_score
+        }
+    )
+    
+    # 의사(주문 생성자)에게 알림
+    doctor = order.doctor
+    patient_name = order.patient.name
+    imaging_type = order.order_data.get('imaging_type', '영상')
+    
+    create_notification(
+        user=doctor,
+        notification_type='imaging_analysis_complete',
+        title=f'영상 분석 완료: {patient_name}',
+        message=f'{patient_name}님의 {imaging_type} 영상 분석이 완료되었습니다. 결과를 확인해주세요.',
+        related_order=order,
+        related_resource_type='imaging_analysis',
+        related_resource_id=str(analysis.id)
+    )
+    
+    logger.info(f"Imaging analysis result created for order {order.id}, notification sent to doctor {doctor.id}")
+    
+    return analysis

@@ -37,6 +37,7 @@ import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import MedicalLayout from "@/components/MedicalLayout";
 import OCS from "@/pages/OCS";
+import ImagingAnalysisDetail from "@/pages/ImagingAnalysisDetail";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,22 @@ function AppContentInner() {
       />
       <Route
         path="/ocs"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <OCS />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ocs/imaging-analysis/:id"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <ImagingAnalysisDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ocs/orders/:id"
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
             <OCS />

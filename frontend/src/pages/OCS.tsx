@@ -48,8 +48,10 @@ import {
   getMyOrdersApi,
   getPendingOrdersApi,
   searchPatientsApi,
+  createImagingAnalysisApi,
 } from "@/lib/api";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface Order {
   id: string;
@@ -71,6 +73,12 @@ interface Order {
   notes?: string;
   drug_interaction_checks?: any[];
   allergy_checks?: any[];
+  imaging_analysis?: {
+    id: string;
+    findings: string;
+    recommendations: string;
+    confidence_score: number;
+  };
 }
 
 const ORDER_TYPE_LABELS = {
@@ -113,6 +121,7 @@ export default function OCS() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -166,11 +175,18 @@ export default function OCS() {
       setSelectedPatient(null);
     },
     onError: (error: any) => {
+      const errorMessage = 
+        error.response?.data?.detail || 
+        error.response?.data?.error || 
+        error.response?.data?.message ||
+        error.message ||
+        "주문 생성에 실패했습니다.";
       toast({
         title: "주문 생성 실패",
-        description: error.response?.data?.error || "주문 생성에 실패했습니다.",
+        description: errorMessage,
         variant: "destructive",
       });
+      console.error("주문 생성 에러:", error);
     },
   });
 
@@ -274,15 +290,24 @@ export default function OCS() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* 역할별로 주문 생성 버튼 표시 */}
-          {(user?.role === "medical_staff" || user?.role === "superuser") && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  주문 생성
-                </Button>
-              </DialogTrigger>
+          {/* 부서별로 주문 생성 버튼 표시 */}
+          {(() => {
+            // 원무과, 영상의학과, 방사선과는 주문 생성 불가
+            if (user?.department === "원무과" || 
+                user?.department === "영상의학과" || 
+                user?.department === "방사선과") {
+              return null;
+            }
+            // 의료진(외과, 호흡기내과 등) 또는 superuser만 생성 가능
+            if (user?.role === "medical_staff" || user?.role === "superuser") {
+              return (
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      주문 생성
+                    </Button>
+                  </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>새 주문 생성</DialogTitle>
@@ -291,6 +316,7 @@ export default function OCS() {
               </DialogDescription>
             </DialogHeader>
             <CreateOrderForm
+              user={user}
               selectedPatient={selectedPatient}
               setSelectedPatient={setSelectedPatient}
               patientSearchTerm={patientSearchTerm}
@@ -302,7 +328,10 @@ export default function OCS() {
             />
           </DialogContent>
         </Dialog>
-          )}
+              );
+            }
+            return null;
+          })()}
         </div>
       </div>
 
@@ -445,12 +474,15 @@ export default function OCS() {
             <OrderCard
               key={order.id}
               order={order}
+              user={user}
               onSend={() => sendOrderMutation.mutate(order.id)}
               onStartProcessing={() => startProcessingMutation.mutate(order.id)}
               onComplete={() => completeOrderMutation.mutate(order.id)}
               onCancel={(reason) => cancelOrderMutation.mutate({ id: order.id, reason })}
               isSending={sendOrderMutation.isPending}
               isCompleting={completeOrderMutation.isPending}
+              onCreateAnalysis={createImagingAnalysisApi}
+              onViewAnalysis={(analysisId) => navigate(`/ocs/imaging-analysis/${analysisId}?order=${order.id}`)}
             />
           ))
         )}
@@ -461,21 +493,61 @@ export default function OCS() {
 
 function OrderCard({
   order,
+  user,
   onSend,
   onStartProcessing,
   onComplete,
   onCancel,
   isSending,
   isCompleting,
+  onCreateAnalysis,
+  onViewAnalysis,
 }: {
   order: Order;
+  user: any;
   onSend: () => void;
   onStartProcessing?: () => void;
   onComplete: () => void;
   onCancel: (reason: string) => void;
   isSending: boolean;
   isCompleting: boolean;
+  onCreateAnalysis?: (data: any) => Promise<any>;
+  onViewAnalysis?: (analysisId: string) => void;
 }) {
+  const [showAnalysisDialog, setShowAnalysisDialog] = useState(false);
+  const [findings, setFindings] = useState("");
+  const [recommendations, setRecommendations] = useState("");
+  const [confidenceScore, setConfidenceScore] = useState(0.95);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleCreateAnalysis = async () => {
+    if (!onCreateAnalysis) return;
+    
+    try {
+      await onCreateAnalysis({
+        order: order.id,
+        findings,
+        recommendations,
+        confidence_score: confidenceScore,
+        analysis_result: {},
+      });
+      toast({
+        title: "분석 결과 생성 완료",
+        description: "의사에게 알림이 전송되었습니다.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["ocs-orders"] });
+      setShowAnalysisDialog(false);
+      setFindings("");
+      setRecommendations("");
+    } catch (error: any) {
+      toast({
+        title: "분석 결과 생성 실패",
+        description: error.response?.data?.detail || "분석 결과 생성에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
   const getOrderIcon = () => {
     switch (order.order_type) {
       case "prescription":
@@ -536,6 +608,9 @@ function OrderCard({
               {order.order_type === "imaging" && (
                 <div>
                   촬영 유형: {order.order_data?.imaging_type || "없음"} | 부위: {order.order_data?.body_part || "없음"}
+                  {order.order_data?.contrast && (
+                    <Badge variant="outline" className="ml-2">조영제 사용</Badge>
+                  )}
                 </div>
               )}
             </div>
@@ -611,8 +686,34 @@ function OrderCard({
             )}
           </div>
 
+          {/* 영상 분석 결과 */}
+          {order.order_type === "imaging" && order.imaging_analysis && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="font-medium text-green-800 dark:text-green-200 mb-1">
+                    영상 분석 완료
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    {order.imaging_analysis.findings?.substring(0, 100) || "분석 결과가 있습니다."}
+                    {order.imaging_analysis.findings?.length > 100 && "..."}
+                  </p>
+                </div>
+                {onViewAnalysis && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onViewAnalysis(order.imaging_analysis.id)}
+                  >
+                    상세 보기
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 액션 버튼 (역할별 제한) */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 flex-wrap">
             {/* 의사: 자신이 생성한 주문만 전달 가능 */}
             {order.status === "pending" && order.validation_passed && (
               <Button onClick={onSend} disabled={isSending} size="sm">
@@ -639,6 +740,20 @@ function OrderCard({
                 완료 처리
               </Button>
             )}
+            {/* 영상의학과: 영상 분석 결과 입력 */}
+            {order.order_type === "imaging" && 
+             order.status === "completed" && 
+             !order.imaging_analysis &&
+             user?.department === "영상의학과" && (
+              <Button
+                onClick={() => setShowAnalysisDialog(true)}
+                size="sm"
+                variant="default"
+              >
+                <Scan className="mr-2 h-4 w-4" />
+                분석 결과 입력
+              </Button>
+            )}
             {/* 주문 생성자 또는 원무과만 취소 가능 */}
             {(order.status === "pending" || order.status === "sent") && (
               <Button
@@ -656,11 +771,66 @@ function OrderCard({
           </div>
         </div>
       </CardContent>
+
+      {/* 영상 분석 결과 입력 다이얼로그 */}
+      {showAnalysisDialog && (
+        <Dialog open={showAnalysisDialog} onOpenChange={setShowAnalysisDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>영상 분석 결과 입력</DialogTitle>
+              <DialogDescription>
+                {order.patient_name}님의 {order.order_data?.imaging_type} 영상 분석 결과를 입력하세요.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>소견</Label>
+                <Textarea
+                  value={findings}
+                  onChange={(e) => setFindings(e.target.value)}
+                  placeholder="영상 분석 소견을 입력하세요..."
+                  rows={5}
+                />
+              </div>
+              <div>
+                <Label>권고사항</Label>
+                <Textarea
+                  value={recommendations}
+                  onChange={(e) => setRecommendations(e.target.value)}
+                  placeholder="권고사항을 입력하세요..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label>신뢰도: {(confidenceScore * 100).toFixed(1)}%</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={confidenceScore}
+                  onChange={(e) => setConfidenceScore(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAnalysisDialog(false)}>
+                취소
+              </Button>
+              <Button onClick={handleCreateAnalysis} disabled={!findings.trim()}>
+                분석 결과 저장
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
 }
 
 function CreateOrderForm({
+  user,
   selectedPatient,
   setSelectedPatient,
   patientSearchTerm,
@@ -670,6 +840,7 @@ function CreateOrderForm({
   onSubmit,
   isLoading,
 }: {
+  user: any;
   selectedPatient: any;
   setSelectedPatient: (patient: any) => void;
   patientSearchTerm: string;
@@ -762,6 +933,7 @@ function CreateOrderForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            {/* 의료진(외과, 호흡기내과 등)은 모든 주문 유형 생성 가능 */}
             <SelectItem value="prescription">처방전</SelectItem>
             <SelectItem value="lab_test">검사</SelectItem>
             <SelectItem value="imaging">영상촬영</SelectItem>

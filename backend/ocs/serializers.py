@@ -2,7 +2,7 @@
 OCS Serializers
 """
 from rest_framework import serializers
-from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult
 from patients.models import Patient
 
 
@@ -49,6 +49,9 @@ class OrderSerializer(serializers.ModelSerializer):
     drug_interaction_checks = DrugInteractionCheckSerializer(many=True, read_only=True)
     allergy_checks = AllergyCheckSerializer(many=True, read_only=True)
     
+    # 영상 분석 결과 (영상촬영 주문인 경우)
+    imaging_analysis = serializers.SerializerMethodField()
+    
     class Meta:
         model = Order
         fields = [
@@ -57,9 +60,16 @@ class OrderSerializer(serializers.ModelSerializer):
             'status', 'priority', 'order_data', 'target_department',
             'due_time', 'notes', 'validation_passed', 'validation_notes',
             'created_at', 'updated_at', 'completed_at',
-            'status_history', 'drug_interaction_checks', 'allergy_checks'
+            'status_history', 'drug_interaction_checks', 'allergy_checks',
+            'imaging_analysis'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
+    
+    def get_imaging_analysis(self, obj):
+        """영상 분석 결과 가져오기"""
+        if obj.order_type == 'imaging' and hasattr(obj, 'imaging_analysis'):
+            return ImagingAnalysisResultSerializer(obj.imaging_analysis).data
+        return None
     
     def validate(self, data):
         """주문 데이터 검증"""
@@ -120,4 +130,48 @@ class OrderListSerializer(serializers.ModelSerializer):
             'id', 'order_type', 'patient_name', 'patient_number',
             'doctor_name', 'status', 'priority', 'target_department',
             'created_at', 'due_time', 'completed_at'
+        ]
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """알림 Serializer"""
+    related_order_id = serializers.UUIDField(source='related_order.id', read_only=True)
+    related_order_type = serializers.CharField(source='related_order.order_type', read_only=True)
+    related_patient_name = serializers.CharField(source='related_order.patient.name', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'notification_type', 'title', 'message',
+            'is_read', 'read_at', 'created_at',
+            'related_order_id', 'related_order_type', 'related_patient_name',
+            'related_resource_type', 'related_resource_id'
+        ]
+        read_only_fields = ['id', 'created_at', 'read_at']
+
+
+class ImagingAnalysisResultSerializer(serializers.ModelSerializer):
+    """영상 분석 결과 Serializer"""
+    analyzed_by_name = serializers.CharField(source='analyzed_by.get_full_name', read_only=True)
+    order_patient_name = serializers.CharField(source='order.patient.name', read_only=True)
+    order_imaging_type = serializers.CharField(source='order.order_data.imaging_type', read_only=True)
+    
+    class Meta:
+        model = ImagingAnalysisResult
+        fields = [
+            'id', 'order', 'analyzed_by', 'analyzed_by_name',
+            'analysis_result', 'findings', 'recommendations', 'confidence_score',
+            'order_patient_name', 'order_imaging_type',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ImagingAnalysisResultCreateSerializer(serializers.ModelSerializer):
+    """영상 분석 결과 생성 Serializer"""
+    
+    class Meta:
+        model = ImagingAnalysisResult
+        fields = [
+            'order', 'analysis_result', 'findings', 'recommendations', 'confidence_score'
         ]

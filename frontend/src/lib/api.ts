@@ -205,4 +205,41 @@ export const getPendingOrdersApi = async (department?: string) => {
   return res.data;
 };
 
+// 알림 API
+export const getNotificationsApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/ocs/notifications/', { params });
+  return res.data;
+};
+
+export const markNotificationReadApi = async (id: string) => {
+  const res = await apiClient.post(`/api/ocs/notifications/${id}/mark_read/`);
+  return res.data;
+};
+
+export const markAllNotificationsReadApi = async () => {
+  const res = await apiClient.post('/api/ocs/notifications/mark_all_read/');
+  return res.data;
+};
+
+export const getUnreadNotificationCountApi = async () => {
+  const res = await apiClient.get('/api/ocs/notifications/unread_count/');
+  return res.data;
+};
+
+// 영상 분석 결과 API
+export const getImagingAnalysisApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/ocs/imaging-analysis/', { params });
+  return res.data;
+};
+
+export const getImagingAnalysisByIdApi = async (id: string) => {
+  const res = await apiClient.get(`/api/ocs/imaging-analysis/${id}/`);
+  return res.data;
+};
+
+export const createImagingAnalysisApi = async (data: Record<string, unknown>) => {
+  const res = await apiClient.post('/api/ocs/imaging-analysis/', data);
+  return res.data;
+};
+
 export default apiClient;

@@ -159,3 +159,100 @@ class AllergyCheck(models.Model):
     
     def __str__(self):
         return f"{self.order} - {'위험' if self.has_allergy_risk else '안전'}"
+
+
+class Notification(models.Model):
+    """알림"""
+    NOTIFICATION_TYPE_CHOICES = [
+        ('order_created', '주문 생성'),
+        ('order_sent', '주문 전달'),
+        ('order_processing', '주문 처리 중'),
+        ('order_completed', '주문 완료'),
+        ('imaging_uploaded', '영상 업로드 완료'),
+        ('imaging_analysis_complete', '영상 분석 완료'),
+        ('order_cancelled', '주문 취소'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='수신자'
+    )
+    notification_type = models.CharField(
+        max_length=50,
+        choices=NOTIFICATION_TYPE_CHOICES,
+        verbose_name='알림 유형'
+    )
+    title = models.CharField(max_length=255, verbose_name='제목')
+    message = models.TextField(verbose_name='메시지')
+    is_read = models.BooleanField(default=False, verbose_name='읽음 여부')
+    read_at = models.DateTimeField(null=True, blank=True, verbose_name='읽은 시간')
+    
+    # 관련 리소스
+    related_order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        verbose_name='관련 주문'
+    )
+    related_resource_type = models.CharField(max_length=50, blank=True, verbose_name='관련 리소스 유형')
+    related_resource_id = models.CharField(max_length=255, blank=True, verbose_name='관련 리소스 ID')
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일')
+    
+    class Meta:
+        verbose_name = '알림'
+        verbose_name_plural = '알림들'
+        ordering = ['-created_at', '-is_read']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['notification_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.title} ({'읽음' if self.is_read else '안읽음'})"
+    
+    def mark_as_read(self):
+        """알림을 읽음으로 표시"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+
+
+class ImagingAnalysisResult(models.Model):
+    """영상 분석 결과"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='imaging_analysis',
+        verbose_name='주문'
+    )
+    analyzed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='imaging_analyses',
+        verbose_name='분석자'
+    )
+    analysis_result = models.JSONField(default=dict, verbose_name='분석 결과')
+    findings = models.TextField(blank=True, verbose_name='소견')
+    recommendations = models.TextField(blank=True, verbose_name='권고사항')
+    confidence_score = models.FloatField(null=True, blank=True, verbose_name='신뢰도')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='분석일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일')
+    
+    class Meta:
+        verbose_name = '영상 분석 결과'
+        verbose_name_plural = '영상 분석 결과들'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.order.patient.name} - {self.order.get_order_type_display()} 분석 결과"

@@ -1,12 +1,13 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, Plus, Calendar, Bell, User, Menu, X } from "lucide-react";
+import { Activity, Plus, Calendar, User, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import doctorProfile from "@/assets/doctor-profile.png";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import NotificationBell from "@/components/NotificationBell";
 
 interface MedicalLayoutProps {
     children: React.ReactNode;
@@ -79,10 +80,7 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
                             </div>
 
                         {/* Notifications */}
-                        <button className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </button>
+                        <NotificationBell />
 
                         {/* User Profile */}
                         <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">

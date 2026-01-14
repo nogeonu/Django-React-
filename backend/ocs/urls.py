@@ -7,7 +7,9 @@ from .views import (
     OrderViewSet,
     OrderStatusHistoryViewSet,
     DrugInteractionCheckViewSet,
-    AllergyCheckViewSet
+    AllergyCheckViewSet,
+    NotificationViewSet,
+    ImagingAnalysisResultViewSet
 )
 
 router = DefaultRouter()
@@ -15,6 +17,8 @@ router.register(r'orders', OrderViewSet, basename='order')
 router.register(r'status-history', OrderStatusHistoryViewSet, basename='order-status-history')
 router.register(r'drug-interaction-checks', DrugInteractionCheckViewSet, basename='drug-interaction-check')
 router.register(r'allergy-checks', AllergyCheckViewSet, basename='allergy-check')
+router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'imaging-analysis', ImagingAnalysisResultViewSet, basename='imaging-analysis')
 
 urlpatterns = [
     path('', include(router.urls)),
