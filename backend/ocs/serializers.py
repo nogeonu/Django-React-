@@ -234,14 +234,27 @@ class OrderListSerializer(serializers.ModelSerializer):
     patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     
+    # 영상 분석 결과 (영상촬영 주문인 경우)
+    imaging_analysis = serializers.SerializerMethodField()
+    
     class Meta:
         model = Order
         fields = [
             'id', 'order_type', 'patient_name', 'patient_number',
             'doctor_name', 'status', 'priority', 'target_department',
             'order_data', 'validation_passed', 'validation_notes',  # order_data 추가
-            'created_at', 'due_time', 'completed_at'
+            'created_at', 'due_time', 'completed_at',
+            'imaging_analysis'  # 영상 분석 결과 추가
         ]
+    
+    def get_imaging_analysis(self, obj):
+        """영상 분석 결과 가져오기"""
+        if obj.order_type == 'imaging' and hasattr(obj, 'imaging_analysis'):
+            try:
+                return ImagingAnalysisResultSerializer(obj.imaging_analysis).data
+            except:
+                return None
+        return None
 
 
 class NotificationSerializer(serializers.ModelSerializer):
