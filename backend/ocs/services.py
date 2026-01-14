@@ -177,14 +177,15 @@ def validate_order(order):
 
 def create_notification(user, notification_type, title, message, related_order=None, related_resource_type=None, related_resource_id=None):
     """알림 생성"""
+    # DB 제약 조건: related_resource_type과 related_resource_id는 NOT NULL이므로 None이면 빈 문자열로 변환
     return Notification.objects.create(
         user=user,
         notification_type=notification_type,
         title=title,
         message=message,
         related_order=related_order,
-        related_resource_type=related_resource_type,
-        related_resource_id=related_resource_id
+        related_resource_type=related_resource_type or '',
+        related_resource_id=related_resource_id or ''
     )
 
 
@@ -286,13 +287,13 @@ def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings
         }
     )
     
-    # 의사(주문 생성자)에게 알림
-
     # 영상 분석 결과 입력 시 주문 상태를 'completed'로 변경
     # (방사선과가 완료해도 'processing' 상태였던 것을 이제 완료 처리)
     if order.status != 'completed':
         update_order_status(order, 'completed', analyzed_by, '영상 분석 완료')
         logger.info(f"Order {order.id} status updated to 'completed' after imaging analysis")
+    
+    # 의사(주문 생성자)에게 알림
     doctor = order.doctor
     patient_name = order.patient.name
     imaging_type = order.order_data.get('imaging_type', '영상')
