@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import requests
 from .models import Patient, LungRecord, LungResult, MedicalRecord
+from patients.models import Appointment
 from .serializers import (
     PatientSerializer, 
     LungRecordSerializer, 
@@ -692,7 +693,10 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def dashboard_statistics(self, request):
-        """대시보드 통계 API - medical_record 테이블 기반"""
+        """대시보드 통계 API - medical_record + Appointment 테이블 기반"""
+        from eventeye.doctor_utils import get_department
+        from django.utils import timezone
+        
         try:
             # managed=False이므로 raw SQL 사용
             with connections['default'].cursor() as cursor:
@@ -707,15 +711,20 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
                 # 진료 완료 환자 수
                 cursor.execute("SELECT COUNT(*) FROM medical_record WHERE is_treatment_completed = 1")
                 completed_count = cursor.fetchone()[0]
-                
-                # 오늘 예약 검사 수 (오늘 접수된 기록)
-                from django.utils import timezone
-                today = timezone.now().date()
-                cursor.execute("""
-                    SELECT COUNT(*) FROM medical_record 
-                    WHERE DATE(reception_start_time) = %s
-                """, [today])
-                today_exams = cursor.fetchone()[0]
+            
+            # 오늘 예약 수 (Appointment 모델 사용, 부서별 필터링)
+            today = timezone.now().date()
+            today_appointments = Appointment.objects.filter(
+                start_time__date=today
+            ).exclude(status='cancelled')
+            
+            # 부서별 필터링
+            if request.user.is_authenticated:
+                user_department = get_department(request.user.id)
+                if user_department and user_department != "원무과":
+                    today_appointments = today_appointments.filter(doctor_department=user_department)
+            
+            today_exams = today_appointments.count()
             
             return Response({
                 'total_records': total_records,
@@ -724,7 +733,9 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
                 'today_exams': today_exams,
             })
         except Exception as e:
-            print(f"대시보드 통계 오류: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"대시보드 통계 오류: {e}", exc_info=True)
             return Response({
                 'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
