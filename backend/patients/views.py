@@ -259,6 +259,11 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         """목록 조회 - 부서별 필터링"""
         from eventeye.doctor_utils import get_department
         
+        # 디버깅
+        print(f"[DEBUG] request.user: {request.user}")
+        print(f"[DEBUG] is_authenticated: {request.user.is_authenticated}")
+        print(f"[DEBUG] user.id: {request.user.id if request.user.is_authenticated else 'N/A'}")
+        
         # 전체 예약 조회 (취소 제외)
         queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
         
@@ -266,14 +271,19 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         user_department = None
         if request.user.is_authenticated:
             user_department = get_department(request.user.id)
+            print(f"[DEBUG] user_department: {user_department}")
             
             # 원무과가 아니면 자기 부서만
             if user_department and user_department != "원무과":
+                before = queryset.count()
                 queryset = queryset.filter(doctor_department=user_department)
+                after = queryset.count()
+                print(f"[DEBUG] 필터링: {before} -> {after}")
         
         serializer = self.get_serializer(queryset, many=True)
         response = Response(serializer.data)
         response['X-User-Department'] = user_department or 'None'
+        response['X-User-ID'] = str(request.user.id) if request.user.is_authenticated else 'None'
         response['X-Total-Count'] = str(queryset.count())
         return response
 
