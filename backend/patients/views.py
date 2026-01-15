@@ -26,6 +26,32 @@ class PatientViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'name']
     ordering = ['-created_at']
     
+    def perform_destroy(self, instance):
+        """환자 삭제 시 관련 데이터도 함께 삭제"""
+        try:
+            # OCS 주문 삭제 (CASCADE로 자동 삭제되어야 하지만 명시적으로 처리)
+            from ocs.models import Order
+            orders = Order.objects.filter(patient=instance)
+            order_count = orders.count()
+            if order_count > 0:
+                logger.info(f"환자 {instance.patient_id} 삭제 전 {order_count}개의 OCS 주문 삭제")
+                orders.delete()
+            
+            # 예약 삭제
+            appointments = Appointment.objects.filter(patient=instance)
+            appointment_count = appointments.count()
+            if appointment_count > 0:
+                logger.info(f"환자 {instance.patient_id} 삭제 전 {appointment_count}개의 예약 삭제")
+                appointments.delete()
+            
+            logger.info(f"환자 {instance.patient_id} 삭제 완료")
+        except Exception as e:
+            logger.error(f"환자 삭제 중 오류 발생: {type(e).__name__}: {str(e)}", exc_info=True)
+            raise
+        
+        # 실제 환자 데이터 삭제
+        instance.delete()
+    
     @action(detail=True, methods=['get'])
     def medical_records(self, request, pk=None):
         patient = self.get_object()
