@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.authentication import SessionAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
 import logging
@@ -165,7 +166,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     # queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
-    authentication_classes = []  # 인증 클래스 명시적으로 설정
+    authentication_classes = [SessionAuthentication]  # 세션 인증 활성화
     # filter_backends를 제거하여 get_queryset의 필터링만 사용
     # filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     # filterset_fields = ['doctor', 'status', 'type', 'doctor_code']
