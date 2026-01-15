@@ -163,8 +163,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['doctor', 'status', 'type', 'doctor_code']
+    # filter_backends를 제거하여 get_queryset의 필터링만 사용
+    # filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    # filterset_fields = ['doctor', 'status', 'type', 'doctor_code']
     search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
     ordering_fields = ['start_time', 'created_at']
     ordering = ['start_time']  # 가까운 일정 순으로 정렬
