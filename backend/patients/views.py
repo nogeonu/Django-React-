@@ -200,8 +200,19 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         return queryset
     
     def list(self, request, *args, **kwargs):
-        """목록 조회 - get_queryset 사용"""
-        queryset = self.get_queryset()
+        """목록 조회 - 부서별 필터링 강제 적용"""
+        from eventeye.doctor_utils import get_department
+        
+        # 전체 예약 조회 (취소 제외)
+        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
+        
+        # 부서별 필터링 - 반드시 적용
+        if request.user.is_authenticated:
+            user_department = get_department(request.user.id)
+            if user_department and user_department != "원무과":
+                queryset = queryset.filter(doctor_department=user_department)
+        
+        # Serialization
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
