@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
+import logging
 from .models import Patient, MedicalRecord, PatientUser, Appointment
 from .serializers import (
     PatientSerializer,
@@ -251,6 +252,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(doctor_code=doctor_code)
         
         return queryset
+    
+    def list(self, request, *args, **kwargs):
+        """목록 조회 시 부서별 필터링 강제 적용"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        queryset = self.get_queryset()
+        logger.info(f"[list 메서드] 최종 쿼리셋 크기: {queryset.count()}개")
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
