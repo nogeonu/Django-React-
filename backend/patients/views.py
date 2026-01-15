@@ -161,7 +161,8 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):
-    queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
+    # queryset을 제거하고 get_queryset만 사용
+    # queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
     # filter_backends를 제거하여 get_queryset의 필터링만 사용
