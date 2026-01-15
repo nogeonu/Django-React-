@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,6 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
+
+logger = logging.getLogger(__name__)
 from .models import Patient, MedicalRecord, PatientUser, Appointment
 from .serializers import (
     PatientSerializer,
@@ -40,10 +43,8 @@ class PatientSignupView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             user = serializer.save()
-        except Exception as e:  # pragma: no cover
-            import traceback
-            print(f"[환자 회원가입 VIEW] 에러 발생: {type(e).__name__}: {str(e)}")
-            traceback.print_exc()
+        except Exception as e:
+            logger.error(f"환자 회원가입 실패: {type(e).__name__}: {str(e)}", exc_info=True)
             return Response(
                 {
                     "detail": "환자 계정 생성 중 오류가 발생했습니다.",
@@ -198,8 +199,6 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         else:
             serializer.save()
 
-    def perform_update(self, serializer):
-        serializer.save()
     
     @action(detail=False, methods=['get'])
     def my_appointments(self, request):
