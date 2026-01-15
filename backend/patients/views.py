@@ -174,81 +174,25 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     pagination_class = None  # 페이지네이션 비활성화 - 모든 예약 데이터 반환
 
     def get_queryset(self):
-        # 기본 쿼리셋 생성 (queryset 클래스 속성이 없으므로 직접 생성)
-        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
+        """예약 쿼리셋 - 부서별 필터링"""
+        from eventeye.doctor_utils import get_department
         
-        # 기본적으로 취소되지 않은 예약만 조회
-        # status 파라미터가 명시적으로 전달된 경우에만 해당 상태의 예약 조회
-        status = self.request.query_params.get('status')
-        if status is None:
-            # status 파라미터가 없으면 취소된 예약 제외
-            queryset = queryset.exclude(status='cancelled')
+        # 기본 쿼리셋: 취소되지 않은 예약만
+        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
         
-        # 로그인한 사용자가 의사인 경우, 자신의 진료과 일정만 조회
-        # 원무과는 모든 진료과 일정 조회 가능
+        # 부서별 필터링
         if self.request.user.is_authenticated:
-            import logging
-            logger = logging.getLogger(__name__)
-            from eventeye.doctor_utils import get_department
             user_department = get_department(self.request.user.id)
             
-            logger.info(f"[예약 필터링] 사용자: {self.request.user.username} (ID: {self.request.user.id}), 부서: {user_department}")
-            
-            # 원무과가 아니고 의료진인 경우, 자신의 진료과 일정만 조회
+            # 원무과가 아니면 자기 부서만
             if user_department and user_department != "원무과":
-                # doctor_department 필드로 직접 필터링 (가장 효율적)
-                from django.db.models import Q
-                
-                # 방법 1: doctor_department가 정확히 일치하는 예약
-                matching_by_dept = queryset.filter(doctor_department=user_department)
-                matching_ids = set(matching_by_dept.values_list('id', flat=True))
-                logger.info(f"[예약 필터링] doctor_department='{user_department}'인 예약: {len(matching_ids)}개")
-                
-                # 방법 2: doctor_department가 비어있거나 None인 예약 중에서 doctor의 부서 확인
-                empty_dept_queryset = queryset.filter(
-                    Q(doctor_department='') | Q(doctor_department__isnull=True),
-                    doctor__isnull=False
-                )
-                logger.info(f"[예약 필터링] doctor_department가 비어있는 예약: {empty_dept_queryset.count()}개")
-                
-                # doctor의 부서가 일치하는 예약 찾기 및 doctor_department 업데이트
-                for appointment in empty_dept_queryset:
-                    if appointment.doctor:
-                        doctor_dept = get_department(appointment.doctor.id)
-                        logger.info(f"[예약 필터링] 예약 ID {appointment.id}: doctor_department='{appointment.doctor_department}', doctor 부서='{doctor_dept}', user_department='{user_department}'")
-                        if doctor_dept == user_department:
-                            matching_ids.add(appointment.id)
-                            # doctor_department 업데이트 (다음 조회 시 효율적)
-                            if not appointment.doctor_department:
-                                appointment.doctor_department = user_department
-                                appointment.save(update_fields=['doctor_department'])
-                                logger.info(f"[예약 필터링] 예약 ID {appointment.id}의 doctor_department 업데이트: '{user_department}'")
-                
-                # 필터링된 ID로 queryset 재구성
-                logger.info(f"[예약 필터링] 최종 필터링된 예약 ID 수: {len(matching_ids)}개")
-                if matching_ids:
-                    queryset = queryset.filter(id__in=matching_ids)
-                else:
-                    # 매칭되는 예약이 없으면 빈 쿼리셋 반환
-                    queryset = queryset.none()
-                    logger.info(f"[예약 필터링] 매칭되는 예약이 없어 빈 쿼리셋 반환")
-                
-                # 디버깅: 필터링 후 실제 반환되는 예약 확인
-                final_count = queryset.count()
-                logger.info(f"[예약 필터링] 최종 queryset.count(): {final_count}개")
-                if final_count > 0:
-                    sample_appointments = queryset[:5]
-                    for app in sample_appointments:
-                        logger.info(f"[예약 필터링] 반환 예약 샘플 - ID: {app.id}, doctor_department: '{app.doctor_department}', title: '{app.title}'")
-                else:
-                    logger.warning(f"[예약 필터링] 필터링 후 예약이 없습니다. user_department='{user_department}'")
+                queryset = queryset.filter(doctor_department=user_department)
         
-        # patient_id로 필터링 (patient_identifier 필드 사용)
+        # 추가 필터링 (patient_id, doctor_code 등)
         patient_id = self.request.query_params.get('patient_id')
         if patient_id:
             queryset = queryset.filter(patient_identifier=patient_id)
         
-        # doctor_code로 필터링
         doctor_code = self.request.query_params.get('doctor_code')
         if doctor_code:
             queryset = queryset.filter(doctor_code=doctor_code)
@@ -256,36 +200,10 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         return queryset
     
     def list(self, request, *args, **kwargs):
-        """목록 조회 - 부서별 필터링"""
-        from eventeye.doctor_utils import get_department
-        
-        # 디버깅
-        print(f"[DEBUG] request.user: {request.user}")
-        print(f"[DEBUG] is_authenticated: {request.user.is_authenticated}")
-        print(f"[DEBUG] user.id: {request.user.id if request.user.is_authenticated else 'N/A'}")
-        
-        # 전체 예약 조회 (취소 제외)
-        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
-        
-        # 부서별 필터링
-        user_department = None
-        if request.user.is_authenticated:
-            user_department = get_department(request.user.id)
-            print(f"[DEBUG] user_department: {user_department}")
-            
-            # 원무과가 아니면 자기 부서만
-            if user_department and user_department != "원무과":
-                before = queryset.count()
-                queryset = queryset.filter(doctor_department=user_department)
-                after = queryset.count()
-                print(f"[DEBUG] 필터링: {before} -> {after}")
-        
+        """목록 조회 - get_queryset 사용"""
+        queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        response = Response(serializer.data)
-        response['X-User-Department'] = user_department or 'None'
-        response['X-User-ID'] = str(request.user.id) if request.user.is_authenticated else 'None'
-        response['X-Total-Count'] = str(queryset.count())
-        return response
+        return Response(serializer.data)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
