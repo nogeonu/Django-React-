@@ -22,6 +22,7 @@ const departmentNavigation = {
     { name: "폐암 예측", href: "/lung-cancer", icon: Stethoscope },
     { name: "폐암 통계", href: "/lung-cancer-stats", icon: TrendingUp },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
+    { name: "예약 캘린더", href: "/schedule", icon: CalendarDays },
     { name: "처방전달시스템", href: "/ocs", icon: FileText },
   ],
   방사선과: [
@@ -35,6 +36,7 @@ const departmentNavigation = {
   외과: [
     { name: "영상 판독", href: "/mri-viewer", icon: Scan },
     { name: "지식 허브", href: "/knowledge-hub", icon: BookOpen },
+    { name: "예약 캘린더", href: "/schedule", icon: CalendarDays },
     { name: "처방전달시스템", href: "/ocs", icon: FileText },
   ],
 };
