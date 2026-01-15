@@ -257,34 +257,25 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     
     def list(self, request, *args, **kwargs):
         """목록 조회 시 부서별 필터링 강제 적용"""
-        print(f"[list 메서드 시작] 사용자: {request.user.username}")
+        # get_queryset 호출
+        queryset = self.filter_queryset(self.get_queryset())
         
-        # get_queryset 대신 직접 필터링
-        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
-        print(f"[list 메서드] 전체 예약: {queryset.count()}개")
+        # Serialization
+        serializer = self.get_serializer(queryset, many=True)
         
-        # 취소된 예약 제외
-        queryset = queryset.exclude(status='cancelled')
-        print(f"[list 메서드] 취소 제외 후: {queryset.count()}개")
-        
-        # 부서별 필터링
+        # 부서별 필터링을 serializer 데이터에 적용
         if request.user.is_authenticated:
             from eventeye.doctor_utils import get_department
-            from django.db.models import Q
-            
             user_department = get_department(request.user.id)
-            print(f"[list 메서드] 사용자 부서: {user_department}")
             
             if user_department and user_department != "원무과":
-                # 직접 필터링
-                before_count = queryset.count()
-                queryset = queryset.filter(doctor_department=user_department)
-                after_count = queryset.count()
-                print(f"[list 메서드] 부서 필터링: {before_count}개 -> {after_count}개")
+                # serializer 데이터에서 직접 필터링
+                filtered_data = [
+                    item for item in serializer.data
+                    if item.get('doctor_department') == user_department
+                ]
+                return Response(filtered_data)
         
-        print(f"[list 메서드] 최종 반환: {queryset.count()}개")
-        
-        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     def get_serializer_context(self):
