@@ -100,12 +100,63 @@ class PatientViewSet(viewsets.ModelViewSet):
                     medical_record_count = cursor.rowcount
                     print(f"3. MedicalRecord 삭제: {medical_record_count}개")
                     
-                    # 4. OCS 주문 삭제 (ocs_order 테이블)
+                    # 4. OCS 관련 데이터 삭제 (주문 삭제 전에 하위 데이터 먼저 삭제)
+                    # 4-1. 영상 분석 결과 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_imaginganalysisresult 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    imaging_analysis_count = cursor.rowcount
+                    print(f"4-1. 영상 분석 결과 삭제: {imaging_analysis_count}개")
+                    
+                    # 4-2. 알림 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_notification 
+                        WHERE related_order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    notification_count = cursor.rowcount
+                    print(f"4-2. 알림 삭제: {notification_count}개")
+                    
+                    # 4-3. 주문 상태 이력 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_orderstatushistory 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    status_history_count = cursor.rowcount
+                    print(f"4-3. 주문 상태 이력 삭제: {status_history_count}개")
+                    
+                    # 4-4. 약물 상호작용 검사 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_druginteractioncheck 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    drug_check_count = cursor.rowcount
+                    print(f"4-4. 약물 상호작용 검사 삭제: {drug_check_count}개")
+                    
+                    # 4-5. 알레르기 검사 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_allergycheck 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    allergy_check_count = cursor.rowcount
+                    print(f"4-5. 알레르기 검사 삭제: {allergy_check_count}개")
+                    
+                    # 4-6. OCS 주문 삭제 (ocs_order 테이블)
                     cursor.execute("""
                         DELETE FROM ocs_order WHERE patient_id = %s
                     """, [patient_pk])
                     ocs_order_count = cursor.rowcount
-                    print(f"4. OCS 주문 삭제: {ocs_order_count}개")
+                    print(f"4-6. OCS 주문 삭제: {ocs_order_count}개")
                     
                     # 5. patients_appointment 삭제 (있을 경우)
                     cursor.execute("""
@@ -132,6 +183,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     print(f"7. Patient 정보 삭제: {patient_count}개")
                 
                 print(f"=== 환자 정보 삭제 완료: {patient_identifier} ===")
+                print(f"※ 참고: 계정(patient_user)은 비활성화만 되었습니다 (의료 기록 보존)")
 
         except Exception as e:
             error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
