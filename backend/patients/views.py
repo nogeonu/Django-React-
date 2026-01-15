@@ -180,6 +180,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             # status 파라미터가 없으면 취소된 예약 제외
             queryset = queryset.exclude(status='cancelled')
         
+        # 로그인한 사용자가 의사인 경우, 자신의 진료과 일정만 조회
+        # 원무과는 모든 진료과 일정 조회 가능
+        if self.request.user.is_authenticated:
+            from eventeye.doctor_utils import get_department
+            user_department = get_department(self.request.user.id)
+            
+            # 원무과가 아니고 의료진인 경우, 자신의 진료과 일정만 조회
+            if user_department and user_department != "원무과":
+                # doctor_department 필드로 필터링
+                queryset = queryset.filter(doctor_department=user_department)
+        
         # patient_id로 필터링 (patient_identifier 필드 사용)
         patient_id = self.request.query_params.get('patient_id')
         if patient_id:
