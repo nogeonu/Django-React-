@@ -263,6 +263,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
         
         # 부서별 필터링
+        user_department = None
         if request.user.is_authenticated:
             user_department = get_department(request.user.id)
             
@@ -271,7 +272,10 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(doctor_department=user_department)
         
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        response['X-User-Department'] = user_department or 'None'
+        response['X-Total-Count'] = str(queryset.count())
+        return response
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
