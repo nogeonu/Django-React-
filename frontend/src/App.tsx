@@ -104,6 +104,14 @@ function AppContentInner() {
         }
       />
       <Route
+        path="/schedule"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <ReservationInfo />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/profile"
         element={
           <ProtectedRoute>
