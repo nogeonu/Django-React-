@@ -38,6 +38,7 @@ import Settings from "@/pages/Settings";
 import MedicalLayout from "@/components/MedicalLayout";
 import OCS from "@/pages/OCS";
 import ImagingAnalysisDetail from "@/pages/ImagingAnalysisDetail";
+import Schedule from "@/pages/Schedule";
 
 const queryClient = new QueryClient();
 
@@ -179,6 +180,14 @@ function AppContentInner() {
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
             <OCS />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/schedule"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <Schedule />
           </ProtectedRoute>
         }
       />
