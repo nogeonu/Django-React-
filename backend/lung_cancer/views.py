@@ -100,14 +100,21 @@ class PatientViewSet(viewsets.ModelViewSet):
                     medical_record_count = cursor.rowcount
                     print(f"3. MedicalRecord 삭제: {medical_record_count}개")
                     
-                    # 4. patients_appointment 삭제 (있을 경우)
+                    # 4. OCS 주문 삭제 (ocs_order 테이블)
+                    cursor.execute("""
+                        DELETE FROM ocs_order WHERE patient_id = %s
+                    """, [patient_pk])
+                    ocs_order_count = cursor.rowcount
+                    print(f"4. OCS 주문 삭제: {ocs_order_count}개")
+                    
+                    # 5. patients_appointment 삭제 (있을 경우)
                     cursor.execute("""
                         DELETE FROM patients_appointment WHERE patient_id = %s
                     """, [patient_pk])
                     appointment_count = cursor.rowcount
-                    print(f"4. Appointment 삭제: {appointment_count}개")
+                    print(f"5. Appointment 삭제: {appointment_count}개")
                     
-                    # 5. patient_user 계정 비활성화 (삭제하지 않음)
+                    # 6. patient_user 계정 비활성화 (삭제하지 않음)
                     # 의료 기록 보존을 위해 계정은 유지하되 비활성화만 함
                     cursor.execute("""
                         UPDATE patient_user 
@@ -115,14 +122,14 @@ class PatientViewSet(viewsets.ModelViewSet):
                         WHERE patient_id = %s
                     """, [patient_identifier])
                     user_deactivated = cursor.rowcount
-                    print(f"5. PatientUser 비활성화: {user_deactivated}개")
+                    print(f"6. PatientUser 비활성화: {user_deactivated}개")
                     
-                    # 6. patients_patient 삭제 (Raw SQL로 직접 삭제)
+                    # 7. patients_patient 삭제 (Raw SQL로 직접 삭제)
                     cursor.execute("""
                         DELETE FROM patients_patient WHERE patient_id = %s
                     """, [patient_identifier])
                     patient_count = cursor.rowcount
-                    print(f"6. Patient 정보 삭제: {patient_count}개")
+                    print(f"7. Patient 정보 삭제: {patient_count}개")
                 
                 print(f"=== 환자 정보 삭제 완료: {patient_identifier} ===")
                 print(f"※ 참고: 계정(patient_user)은 비활성화만 되었습니다 (의료 기록 보존)")
