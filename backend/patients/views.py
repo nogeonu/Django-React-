@@ -189,7 +189,32 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             # 원무과가 아니고 의료진인 경우, 자신의 진료과 일정만 조회
             if user_department and user_department != "원무과":
                 # doctor_department 필드로 필터링
-                queryset = queryset.filter(doctor_department=user_department)
+                # 기존 예약 중 doctor_department가 비어있는 경우를 대비해
+                # doctor 필드의 부서도 확인하여 필터링
+                from django.db.models import Q
+                
+                # doctor_department가 정확히 일치하는 예약
+                matching_ids = list(queryset.filter(doctor_department=user_department).values_list('id', flat=True))
+                
+                # doctor_department가 비어있거나 None인 예약 중에서 doctor의 부서 확인
+                empty_dept_queryset = queryset.filter(
+                    Q(doctor_department='') | Q(doctor_department__isnull=True),
+                    doctor__isnull=False
+                )
+                
+                # doctor의 부서가 일치하는 예약 찾기 및 doctor_department 업데이트
+                for appointment in empty_dept_queryset:
+                    if appointment.doctor:
+                        doctor_dept = get_department(appointment.doctor.id)
+                        if doctor_dept == user_department:
+                            matching_ids.append(appointment.id)
+                            # doctor_department 업데이트 (다음 조회 시 효율적)
+                            if not appointment.doctor_department:
+                                appointment.doctor_department = user_department
+                                appointment.save(update_fields=['doctor_department'])
+                
+                # 필터링된 ID로 queryset 재구성
+                queryset = queryset.filter(id__in=matching_ids)
         
         # patient_id로 필터링 (patient_identifier 필드 사용)
         patient_id = self.request.query_params.get('patient_id')
