@@ -164,7 +164,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     # queryset을 제거하고 get_queryset만 사용
     # queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
     serializer_class = AppointmentSerializer
-    permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
+    permission_classes = [permissions.IsAuthenticated]  # 인증 필수로 변경하여 request.user 사용 가능
     # filter_backends를 제거하여 get_queryset의 필터링만 사용
     # filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     # filterset_fields = ['doctor', 'status', 'type', 'doctor_code']
@@ -207,10 +207,10 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
         
         # 부서별 필터링 - 반드시 적용
-        if request.user.is_authenticated:
-            user_department = get_department(request.user.id)
-            if user_department and user_department != "원무과":
-                queryset = queryset.filter(doctor_department=user_department)
+        # permission_classes가 IsAuthenticated이므로 request.user는 항상 인증됨
+        user_department = get_department(request.user.id)
+        if user_department and user_department != "원무과":
+            queryset = queryset.filter(doctor_department=user_department)
         
         # Serialization
         serializer = self.get_serializer(queryset, many=True)
