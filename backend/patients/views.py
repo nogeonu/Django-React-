@@ -5,7 +5,6 @@ from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
-import logging
 from .models import Patient, MedicalRecord, PatientUser, Appointment
 from .serializers import (
     PatientSerializer,
@@ -162,35 +161,26 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):
-    # queryset을 제거하고 get_queryset만 사용
-    # queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
+    """예약 ViewSet - 부서별 필터링 적용"""
     serializer_class = AppointmentSerializer
-    permission_classes = [permissions.AllowAny]  # 환자도 예약 가능하도록 변경
-    authentication_classes = [SessionAuthentication]  # 세션 인증 활성화
-    # filter_backends를 제거하여 get_queryset의 필터링만 사용
-    # filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    # filterset_fields = ['doctor', 'status', 'type', 'doctor_code']
-    search_fields = ['title', 'patient_name', 'patient_id', 'doctor_username', 'doctor_name', 'memo']
-    ordering_fields = ['start_time', 'created_at']
-    ordering = ['start_time']  # 가까운 일정 순으로 정렬
-    pagination_class = None  # 페이지네이션 비활성화 - 모든 예약 데이터 반환
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = [SessionAuthentication]
+    ordering = ['start_time']
+    pagination_class = None
 
     def get_queryset(self):
         """예약 쿼리셋 - 부서별 필터링"""
         from eventeye.doctor_utils import get_department
         
-        # 기본 쿼리셋: 취소되지 않은 예약만
         queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
         
-        # 부서별 필터링
+        # 부서별 필터링: 원무과가 아니면 자신의 부서 예약만
         if self.request.user.is_authenticated:
             user_department = get_department(self.request.user.id)
-            
-            # 원무과가 아니면 자기 부서만
             if user_department and user_department != "원무과":
                 queryset = queryset.filter(doctor_department=user_department)
         
-        # 추가 필터링 (patient_id, doctor_code 등)
+        # 추가 필터링
         patient_id = self.request.query_params.get('patient_id')
         if patient_id:
             queryset = queryset.filter(patient_identifier=patient_id)
@@ -200,33 +190,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(doctor_code=doctor_code)
         
         return queryset
-    
-    def list(self, request, *args, **kwargs):
-        """목록 조회 - 부서별 필터링 강제 적용"""
-        from eventeye.doctor_utils import get_department
-        
-        # 전체 예약 조회 (취소 제외)
-        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').exclude(status='cancelled')
-        
-        # 부서별 필터링 - 반드시 적용
-        if request.user and request.user.is_authenticated:
-            user_department = get_department(request.user.id)
-            if user_department and user_department != "원무과":
-                queryset = queryset.filter(doctor_department=user_department)
-        
-        # Serialization
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
 
     def perform_create(self, serializer):
-        print(f"[예약 등록] 요청 데이터: {self.request.data}")
-        print(f"[예약 등록] 사용자: {self.request.user}")
-        print(f"[예약 등록] 인증 여부: {self.request.user.is_authenticated}")
+        """예약 생성 시 created_by 설정"""
         if self.request.user.is_authenticated:
             serializer.save(created_by=self.request.user)
         else:
@@ -245,6 +211,6 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        appointments = self.queryset.filter(patient_identifier=patient_id).order_by('start_time')
-        serializer = self.get_serializer(appointments, many=True)
+        queryset = self.get_queryset().filter(patient_identifier=patient_id).order_by('start_time')
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
