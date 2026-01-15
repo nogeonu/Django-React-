@@ -114,15 +114,12 @@ class PatientViewSet(viewsets.ModelViewSet):
                     appointment_count = cursor.rowcount
                     print(f"5. Appointment 삭제: {appointment_count}개")
                     
-                    # 6. patient_user 계정 비활성화 (삭제하지 않음)
-                    # 의료 기록 보존을 위해 계정은 유지하되 비활성화만 함
+                    # 6. patient_user 계정 삭제
                     cursor.execute("""
-                        UPDATE patient_user 
-                        SET is_active = 0 
-                        WHERE patient_id = %s
+                        DELETE FROM patient_user WHERE patient_id = %s
                     """, [patient_identifier])
-                    user_deactivated = cursor.rowcount
-                    print(f"6. PatientUser 비활성화: {user_deactivated}개")
+                    user_deleted = cursor.rowcount
+                    print(f"6. PatientUser 삭제: {user_deleted}개")
                     
                     # 7. patients_patient 삭제 (Raw SQL로 직접 삭제)
                     cursor.execute("""
@@ -132,7 +129,6 @@ class PatientViewSet(viewsets.ModelViewSet):
                     print(f"7. Patient 정보 삭제: {patient_count}개")
                 
                 print(f"=== 환자 정보 삭제 완료: {patient_identifier} ===")
-                print(f"※ 참고: 계정(patient_user)은 비활성화만 되었습니다 (의료 기록 보존)")
 
         except Exception as e:
             error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
