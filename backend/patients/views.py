@@ -174,7 +174,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     pagination_class = None  # 페이지네이션 비활성화 - 모든 예약 데이터 반환
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # 기본 쿼리셋 생성 (queryset 클래스 속성이 없으므로 직접 생성)
+        queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by').all()
         
         # 기본적으로 취소되지 않은 예약만 조회
         # status 파라미터가 명시적으로 전달된 경우에만 해당 상태의 예약 조회
