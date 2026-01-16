@@ -434,6 +434,95 @@ export default function MRIViewer() {
     await processFiles(files);
   };
 
+  const handleRunSegmentation = async () => {
+    if (!selectedPatient || !orthancImages || orthancImages.length === 0) {
+      toast({
+        title: "오류",
+        description: "환자와 MRI 이미지를 먼저 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // MRI 영상 중에서 시리즈 그룹 찾기 (4개 시퀀스 필요)
+      // 간단히 첫 번째 이미지의 series_id를 사용
+      const firstImage = orthancImages[0];
+      if (!firstImage?.series_id) {
+        throw new Error("시리즈 정보를 찾을 수 없습니다.");
+      }
+
+      // 4개 시퀀스 찾기 (같은 study_id 내에서 series_description으로 구분)
+      const studyImages = orthancImages.filter(img => img.study_id === firstImage.study_id);
+      const seriesGroups = new Map<string, OrthancImage[]>();
+      studyImages.forEach(img => {
+        const key = img.series_id;
+        if (!seriesGroups.has(key)) {
+          seriesGroups.set(key, []);
+        }
+        seriesGroups.get(key)!.push(img);
+      });
+
+      const seriesIds = Array.from(seriesGroups.keys());
+      if (seriesIds.length < 4) {
+        toast({
+          title: "경고",
+          description: `DCE-MRI 세그멘테이션을 위해서는 4개 시퀀스가 필요합니다. 현재 ${seriesIds.length}개만 발견되었습니다.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 첫 4개 시리즈 사용
+      const selectedSeriesIds = seriesIds.slice(0, 4);
+
+      toast({
+        title: "분석 시작",
+        description: "MRI 세그멘테이션 분석을 시작합니다. 잠시만 기다려주세요...",
+      });
+
+      const response = await fetch(
+        `/api/mri/segmentation/series/${firstImage.series_id}/segment/`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sequence_series_ids: selectedSeriesIds,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast({
+          title: "분석 완료",
+          description: `세그멘테이션이 완료되었습니다. ${data.successful_slices}개 슬라이스가 처리되었습니다.`,
+        });
+        // 세그멘테이션 결과 표시
+        setShowSegmentation(true);
+        // Orthanc 이미지 새로고침
+        if (selectedPatient) {
+          fetchOrthancImages(selectedPatient);
+        }
+      } else {
+        throw new Error(data.error || '세그멘테이션 실패');
+      }
+    } catch (error) {
+      console.error('세그멘테이션 오류:', error);
+      toast({
+        title: "분석 실패",
+        description: error instanceof Error ? error.message : "MRI 분석 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const uploadFiles = async (files: File[]) => {
     if (!selectedPatient) return;
     if (!imageType) {
@@ -675,12 +764,25 @@ export default function MRIViewer() {
                   </Tabs>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
-                  <div className="flex flex-col">
-                    <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI 병변 분할 (Segmentation)</Label>
-                    <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
+                    <div className="flex flex-col">
+                      <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI 병변 분할 (Segmentation)</Label>
+                      <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
+                    </div>
+                    <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
                   </div>
-                  <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
+                  
+                  {showOrthancImages && orthancImages.length > 0 && imageType === 'MRI 영상' && (
+                    <Button
+                      onClick={handleRunSegmentation}
+                      disabled={!selectedPatient || uploading}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-10 rounded-xl"
+                    >
+                      <Cpu className="h-4 w-4 mr-2" />
+                      {uploading ? '분석 중...' : 'MRI 분석 실행'}
+                    </Button>
+                  )}
                 </div>
 
               </CardContent>

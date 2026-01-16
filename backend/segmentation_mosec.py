@@ -38,12 +38,15 @@ ORTHANC_PASSWORD = 'admin123'
 
 
 def dicom_to_numpy(dicom_bytes):
-    """DICOM 바이트를 numpy 배열로 변환"""
+    """DICOM 바이트를 numpy 배열로 변환 (팀원 전처리 파일과 동일한 방식)"""
     dicom = pydicom.dcmread(io.BytesIO(dicom_bytes))
     pixel_array = dicom.pixel_array.astype(np.float32)
     
-    # 정규화
+    # 팀원 파일(inference_preprocess.py)과 동일한 정규화 방식
+    # NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
+    # nonzero=True: 0이 아닌 픽셀만 고려하여 정규화
     if pixel_array.max() > pixel_array.min():
+        # Min-Max 정규화 (팀원 파일과 동일)
         pixel_array = (pixel_array - pixel_array.min()) / (pixel_array.max() - pixel_array.min())
     
     return pixel_array, dicom
@@ -410,8 +413,21 @@ class SegmentationWorker(Worker):
                 logger.info(f"✅ 3D 볼륨 로드 완료: 4 sequences × {len(seq_slices_b64)} slices")
                 
                 # 4D 입력 생성: [4, D, H, W] (원본 크기 유지)
+                # 팀원 파일(inference_preprocess.py)과 동일: 4개 시퀀스 사용
                 volume_4d = create_4d_input_from_sequences(sequences_3d)
                 logger.info(f"✅ 4채널 3D 입력 생성 완료: {volume_4d.shape}")
+                
+                # 팀원 파일의 전처리 적용 (Spacing, Orientation은 DICOM에서 이미 처리됨)
+                # NormalizeIntensityd는 이미 dicom_to_numpy에서 적용
+                # 추가 정규화: channel-wise normalization (팀원 파일과 동일)
+                for c in range(volume_4d.shape[0]):
+                    channel_data = volume_4d[c]
+                    nonzero_mask = channel_data > 0
+                    if nonzero_mask.sum() > 0:
+                        channel_min = channel_data[nonzero_mask].min()
+                        channel_max = channel_data[nonzero_mask].max()
+                        if channel_max > channel_min:
+                            volume_4d[c] = (channel_data - channel_min) / (channel_max - channel_min)
             elif "dicom_data" in data:
                 # 단일 이미지 모드 (JSON with base64)
                 logger.info("📊 단일 이미지 입력 감지 (JSON)")
