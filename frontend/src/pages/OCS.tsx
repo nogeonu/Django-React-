@@ -587,6 +587,7 @@ function OrderCard({
   const [orthancImages, setOrthancImages] = useState<any[]>([]);
   const [selectedOrthancImage, setSelectedOrthancImage] = useState<string | null>(null);
   const [showOrthancSelector, setShowOrthancSelector] = useState(false);
+  const [isLoadingOrthancImages, setIsLoadingOrthancImages] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -617,6 +618,7 @@ function OrderCard({
 
   // Orthanc 이미지 가져오기 및 분석 결과 자동 로드
   const fetchOrthancImages = async (patientId: string) => {
+    setIsLoadingOrthancImages(true);
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
       const data = await response.json();
@@ -656,6 +658,13 @@ function OrderCard({
               title: "분석 데이터 자동 로드",
               description: `${analysisData.heatmap_count}개의 히트맵 이미지를 찾았고 분석 결과를 자동으로 채웠습니다.`,
             });
+          } else {
+            // 히트맵 이미지가 없는 경우 안내
+            toast({
+              title: "히트맵 이미지 없음",
+              description: "Orthanc에 저장된 히트맵 이미지를 찾을 수 없습니다. 파일로 업로드하거나 AI 분석을 먼저 실행해주세요.",
+              variant: "default",
+            });
           }
         } catch (analysisError) {
           console.warn("분석 데이터 자동 로드 실패 (무시):", analysisError);
@@ -663,11 +672,26 @@ function OrderCard({
         }
         
         return heatmapImages;
+      } else {
+        setOrthancImages([]);
+        toast({
+          title: "이미지 로드 실패",
+          description: "Orthanc에서 이미지를 가져올 수 없습니다.",
+          variant: "destructive",
+        });
+        return [];
       }
-      return [];
     } catch (error) {
       console.error("Orthanc 이미지 로드 실패:", error);
+      setOrthancImages([]);
+      toast({
+        title: "오류",
+        description: "Orthanc 이미지를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
       return [];
+    } finally {
+      setIsLoadingOrthancImages(false);
     }
   };
 
@@ -993,46 +1017,72 @@ function OrderCard({
               <div>
                 <Label>종양 탐지 이미지 (Heatmap)</Label>
                 <div className="space-y-2">
-                  {/* Orthanc에서 선택 버튼 */}
-                  {orthancImages.length > 0 && (
-                    <div className="mb-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowOrthancSelector(!showOrthancSelector)}
-                      >
-                        {showOrthancSelector ? "닫기" : "Orthanc에서 선택"}
-                      </Button>
-                      {showOrthancSelector && (
-                        <div className="mt-2 border rounded-lg p-2 max-h-64 overflow-y-auto">
-                          <p className="text-xs text-muted-foreground mb-2">
-                            Orthanc에 저장된 히트맵 이미지를 선택하세요:
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {orthancImages.map((img: any) => (
-                              <div
-                                key={img.instance_id}
-                                className={`border rounded-lg p-2 cursor-pointer hover:bg-accent ${
-                                  selectedOrthancImage === img.instance_id ? 'border-primary' : ''
-                                }`}
-                                onClick={() => handleOrthancImageSelect(img.instance_id, img.preview_url)}
-                              >
-                                <img
-                                  src={img.preview_url}
-                                  alt={`Instance ${img.instance_id}`}
-                                  className="w-full h-32 object-contain"
-                                />
-                                <p className="text-xs text-center mt-1">
-                                  {img.series_description || 'Heatmap'}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                  {/* Orthanc에서 선택 버튼 - 항상 표시 */}
+                  <div className="mb-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowOrthancSelector(!showOrthancSelector)}
+                      disabled={isLoadingOrthancImages}
+                    >
+                      {isLoadingOrthancImages ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          로딩 중...
+                        </>
+                      ) : showOrthancSelector ? (
+                        "닫기"
+                      ) : (
+                        "Orthanc에서 선택"
                       )}
-                    </div>
-                  )}
+                    </Button>
+                    {showOrthancSelector && (
+                      <div className="mt-2 border rounded-lg p-2 max-h-64 overflow-y-auto">
+                        {isLoadingOrthancImages ? (
+                          <div className="text-center py-4">
+                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">이미지 로딩 중...</p>
+                          </div>
+                        ) : orthancImages.length > 0 ? (
+                          <>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Orthanc에 저장된 히트맵 이미지를 선택하세요 ({orthancImages.length}개):
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {orthancImages.map((img: any) => (
+                                <div
+                                  key={img.instance_id}
+                                  className={`border rounded-lg p-2 cursor-pointer hover:bg-accent ${
+                                    selectedOrthancImage === img.instance_id ? 'border-primary' : ''
+                                  }`}
+                                  onClick={() => handleOrthancImageSelect(img.instance_id, img.preview_url)}
+                                >
+                                  <img
+                                    src={img.preview_url}
+                                    alt={`Instance ${img.instance_id}`}
+                                    className="w-full h-32 object-contain"
+                                  />
+                                  <p className="text-xs text-center mt-1">
+                                    {img.series_description || 'Heatmap'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center py-4">
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Orthanc에 저장된 히트맵 이미지를 찾을 수 없습니다.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              파일로 업로드하거나 AI 분석을 먼저 실행해주세요.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {/* 파일 업로드 */}
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">또는 파일로 업로드:</p>
