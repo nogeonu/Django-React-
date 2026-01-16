@@ -59,7 +59,7 @@ interface Order {
   order_type: "prescription" | "lab_test" | "imaging";
   patient: string;
   patient_name: string;
-  patient_number: string;
+  patient_number?: string;  // optional로 변경 (API에서 제공하지 않을 수도 있음)
   doctor: number;
   doctor_name: string;
   status: "pending" | "sent" | "processing" | "completed" | "cancelled";
