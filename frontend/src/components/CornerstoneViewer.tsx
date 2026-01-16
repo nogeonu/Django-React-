@@ -705,9 +705,26 @@ export default function CornerstoneViewer({
       >
         <div
           ref={viewportRef}
-          className="w-full h-full"
+          className="w-full h-full relative"
           style={{ minHeight: '400px' }}
         />
+        
+        {/* 세그멘테이션 오버레이 레이어 */}
+        {showSegmentation && segmentationFrames.length > 0 && currentIndex < segmentationFrames.length && (
+          <div 
+            className="absolute inset-0 pointer-events-none z-10"
+            style={{ mixBlendMode: 'screen', opacity: 0.6 }}
+          >
+            <img
+              src={`data:image/png;base64,${segmentationFrames[currentIndex]?.mask_base64}`}
+              alt="Segmentation overlay"
+              className="w-full h-full object-contain"
+              style={{ 
+                filter: 'hue-rotate(300deg) saturate(2) brightness(1.2)', // 빨간색/마젠타 오버레이
+              }}
+            />
+          </div>
+        )}
 
         {/* 로딩 스켈레톤 */}
         {isImageLoading && (
