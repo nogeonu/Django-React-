@@ -18,6 +18,8 @@ from PIL import Image
 from io import BytesIO
 from .models import MedicalImage, AIAnalysisResult
 from .serializers import MedicalImageSerializer
+from mri_viewer.orthanc_client import OrthancClient
+from mri_viewer.utils import pil_image_to_dicom
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +430,66 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         logger.error(f"마스크 이미지 저장 실패: {str(mask_error)}", exc_info=True)
                         # 마스크 저장 실패해도 분석 결과는 저장
                 
+                # Classification인 경우 heatmap 이미지를 Orthanc에 저장
+                if analysis_type == 'classification' and analysis_data.get('heatmap_image'):
+                    try:
+                        # heatmap 이미지 데이터 가져오기 (base64)
+                        heatmap_data = analysis_data.get('heatmap_image')
+                        
+                        # base64 디코딩
+                        if isinstance(heatmap_data, str):
+                            if heatmap_data.startswith('data:image'):
+                                heatmap_data = heatmap_data.split(',')[1]
+                            heatmap_bytes = base64.b64decode(heatmap_data)
+                        else:
+                            heatmap_bytes = heatmap_data
+                        
+                        # PIL Image로 변환
+                        heatmap_image = Image.open(BytesIO(heatmap_bytes))
+                        
+                        # 원본 이미지도 Orthanc에 저장
+                        original_image_path = medical_image.image_file.path if hasattr(medical_image.image_file, 'path') else None
+                        if original_image_path and os.path.exists(original_image_path):
+                            try:
+                                original_image = Image.open(original_image_path)
+                                original_dicom = pil_image_to_dicom(
+                                    original_image,
+                                    patient_id=str(medical_image.patient_id),
+                                    patient_name=str(medical_image.patient_id),
+                                    series_description="Original Mammography",
+                                    modality="MG"
+                                )
+                                orthanc_client = OrthancClient()
+                                original_result = orthanc_client.upload_dicom(original_dicom)
+                                logger.info(f"원본 맘모그래피 이미지 Orthanc 저장 완료: {original_result}")
+                            except Exception as orig_error:
+                                logger.error(f"원본 이미지 Orthanc 저장 실패: {str(orig_error)}", exc_info=True)
+                        
+                        # heatmap 이미지를 DICOM으로 변환
+                        heatmap_dicom = pil_image_to_dicom(
+                            heatmap_image,
+                            patient_id=str(medical_image.patient_id),
+                            patient_name=str(medical_image.patient_id),
+                            series_description="Heatmap Image",
+                            modality="MG"
+                        )
+                        
+                        # Orthanc에 업로드
+                        orthanc_client = OrthancClient()
+                        heatmap_result = orthanc_client.upload_dicom(heatmap_dicom)
+                        logger.info(f"히트맵 이미지 Orthanc 저장 완료: {heatmap_result}")
+                        
+                        # results에 Orthanc 인스턴스 ID 저장
+                        if not analysis_data.get('results'):
+                            analysis_data['results'] = {}
+                        if isinstance(heatmap_result, dict) and 'ID' in heatmap_result:
+                            analysis_data['results']['heatmap_orthanc_instance_id'] = heatmap_result['ID']
+                            analysis_data['results']['heatmap_orthanc_url'] = f"{orthanc_client.base_url}/instances/{heatmap_result['ID']}/preview"
+                        
+                    except Exception as heatmap_error:
+                        logger.error(f"히트맵 이미지 Orthanc 저장 실패: {str(heatmap_error)}", exc_info=True)
+                        # 히트맵 저장 실패해도 분석 결과는 저장
+                
                 analysis_result = AIAnalysisResult.objects.create(
                     image=medical_image,
                     analysis_type=db_analysis_type,
@@ -660,6 +722,66 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                     )
                 
                 analysis_data = result.get('data', {})
+                
+                # heatmap 이미지를 Orthanc에 저장
+                if analysis_data.get('heatmap_image'):
+                    try:
+                        # heatmap 이미지 데이터 가져오기 (base64)
+                        heatmap_data = analysis_data.get('heatmap_image')
+                        
+                        # base64 디코딩
+                        if isinstance(heatmap_data, str):
+                            if heatmap_data.startswith('data:image'):
+                                heatmap_data = heatmap_data.split(',')[1]
+                            heatmap_bytes = base64.b64decode(heatmap_data)
+                        else:
+                            heatmap_bytes = heatmap_data
+                        
+                        # PIL Image로 변환
+                        heatmap_image = Image.open(BytesIO(heatmap_bytes))
+                        
+                        # 원본 이미지도 Orthanc에 저장
+                        original_image_path = medical_image.image_file.path if hasattr(medical_image.image_file, 'path') else None
+                        if original_image_path and os.path.exists(original_image_path):
+                            try:
+                                original_image = Image.open(original_image_path)
+                                original_dicom = pil_image_to_dicom(
+                                    original_image,
+                                    patient_id=str(medical_image.patient_id),
+                                    patient_name=str(medical_image.patient_id),
+                                    series_description="Original Mammography",
+                                    modality="MG"
+                                )
+                                orthanc_client = OrthancClient()
+                                original_result = orthanc_client.upload_dicom(original_dicom)
+                                logger.info(f"원본 맘모그래피 이미지 Orthanc 저장 완료: {original_result}")
+                            except Exception as orig_error:
+                                logger.error(f"원본 이미지 Orthanc 저장 실패: {str(orig_error)}", exc_info=True)
+                        
+                        # heatmap 이미지를 DICOM으로 변환
+                        heatmap_dicom = pil_image_to_dicom(
+                            heatmap_image,
+                            patient_id=str(medical_image.patient_id),
+                            patient_name=str(medical_image.patient_id),
+                            series_description="Heatmap Image",
+                            modality="MG"
+                        )
+                        
+                        # Orthanc에 업로드
+                        orthanc_client = OrthancClient()
+                        heatmap_result = orthanc_client.upload_dicom(heatmap_dicom)
+                        logger.info(f"히트맵 이미지 Orthanc 저장 완료: {heatmap_result}")
+                        
+                        # results에 Orthanc 인스턴스 ID 저장
+                        if not analysis_data.get('results'):
+                            analysis_data['results'] = {}
+                        if isinstance(heatmap_result, dict) and 'ID' in heatmap_result:
+                            analysis_data['results']['heatmap_orthanc_instance_id'] = heatmap_result['ID']
+                            analysis_data['results']['heatmap_orthanc_url'] = f"{orthanc_client.base_url}/instances/{heatmap_result['ID']}/preview"
+                        
+                    except Exception as heatmap_error:
+                        logger.error(f"히트맵 이미지 Orthanc 저장 실패: {str(heatmap_error)}", exc_info=True)
+                        # 히트맵 저장 실패해도 분석 결과는 저장
                 
                 # 종양분석 결과 저장
                 tumor_analysis_result = AIAnalysisResult.objects.create(

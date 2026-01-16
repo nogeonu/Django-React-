@@ -583,13 +583,62 @@ function OrderCard({
   const [confidenceScore, setConfidenceScore] = useState(0.95);
   const [heatmapImage, setHeatmapImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [orthancImages, setOrthancImages] = useState<any[]>([]);
+  const [selectedOrthancImage, setSelectedOrthancImage] = useState<string | null>(null);
+  const [showOrthancSelector, setShowOrthancSelector] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Orthanc 이미지 가져오기
+  const fetchOrthancImages = async (patientId: string) => {
+    try {
+      const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
+      const data = await response.json();
+      if (data.success && data.images) {
+        // Heatmap 이미지만 필터링 (SeriesDescription이 "Heatmap Image"인 것)
+        const heatmapImages = data.images.filter((img: any) => 
+          img.series_description === "Heatmap Image" || img.series_description?.includes("Heatmap")
+        );
+        setOrthancImages(heatmapImages);
+        return heatmapImages;
+      }
+      return [];
+    } catch (error) {
+      console.error("Orthanc 이미지 로드 실패:", error);
+      return [];
+    }
+  };
+
+  // Orthanc 이미지 선택 시 파일로 변환
+  const handleOrthancImageSelect = async (instanceId: string, previewUrl: string) => {
+    try {
+      // 미리보기 URL에서 이미지 가져오기
+      const response = await fetch(previewUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `heatmap_${instanceId}.png`, { type: 'image/png' });
+      setHeatmapImage(file);
+      setSelectedOrthancImage(instanceId);
+      setImagePreview(previewUrl);
+      setShowOrthancSelector(false);
+      toast({
+        title: "이미지 선택 완료",
+        description: "Orthanc에서 히트맵 이미지를 선택했습니다.",
+      });
+    } catch (error) {
+      console.error("이미지 로드 실패:", error);
+      toast({
+        title: "오류",
+        description: "이미지를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setHeatmapImage(file);
+      setSelectedOrthancImage(null);
       // 이미지 미리보기 생성
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -883,7 +932,19 @@ function OrderCard({
 
       {/* 영상 분석 결과 입력 다이얼로그 */}
       {showAnalysisDialog && (
-        <Dialog open={showAnalysisDialog} onOpenChange={setShowAnalysisDialog}>
+        <Dialog open={showAnalysisDialog} onOpenChange={(open) => {
+          setShowAnalysisDialog(open);
+          if (open) {
+            // 다이얼로그가 열릴 때 Orthanc 이미지 가져오기
+            if (order.patient_number) {
+              fetchOrthancImages(order.patient_number);
+            }
+          } else {
+            // 다이얼로그가 닫힐 때 상태 초기화
+            setOrthancImages([]);
+            setSelectedOrthancImage(null);
+          }
+        }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>영상 분석 결과 입력</DialogTitle>
@@ -894,24 +955,70 @@ function OrderCard({
             <div className="space-y-4">
               <div>
                 <Label>종양 탐지 이미지 (Heatmap)</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="mt-1"
-                />
-                {imagePreview && (
-                  <div className="mt-2">
-                    <img 
-                      src={imagePreview} 
-                      alt="Heatmap 미리보기" 
-                      className="max-w-full max-h-64 object-contain border rounded-lg"
+                <div className="space-y-2">
+                  {/* Orthanc에서 선택 버튼 */}
+                  {orthancImages.length > 0 && (
+                    <div className="mb-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowOrthancSelector(!showOrthancSelector)}
+                      >
+                        {showOrthancSelector ? "닫기" : "Orthanc에서 선택"}
+                      </Button>
+                      {showOrthancSelector && (
+                        <div className="mt-2 border rounded-lg p-2 max-h-64 overflow-y-auto">
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Orthanc에 저장된 히트맵 이미지를 선택하세요:
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {orthancImages.map((img: any) => (
+                              <div
+                                key={img.instance_id}
+                                className={`border rounded-lg p-2 cursor-pointer hover:bg-accent ${
+                                  selectedOrthancImage === img.instance_id ? 'border-primary' : ''
+                                }`}
+                                onClick={() => handleOrthancImageSelect(img.instance_id, img.preview_url)}
+                              >
+                                <img
+                                  src={img.preview_url}
+                                  alt={`Instance ${img.instance_id}`}
+                                  className="w-full h-32 object-contain"
+                                />
+                                <p className="text-xs text-center mt-1">
+                                  {img.series_description || 'Heatmap'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* 파일 업로드 */}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">또는 파일로 업로드:</p>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="mt-1"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      * 종양 탐지된 이미지(heatmap)를 업로드하세요.
-                    </p>
                   </div>
-                )}
+                  {imagePreview && (
+                    <div className="mt-2">
+                      <img 
+                        src={imagePreview} 
+                        alt="Heatmap 미리보기" 
+                        className="max-w-full max-h-64 object-contain border rounded-lg"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selectedOrthancImage ? "Orthanc에서 선택된 이미지" : "* 종양 탐지된 이미지(heatmap)를 업로드하세요."}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <Label>소견</Label>
