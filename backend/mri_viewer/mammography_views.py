@@ -115,33 +115,61 @@ def mammography_ai_analysis(request):
             raise Exception(f"Mosec 응답 처리 실패: {str(e)}")
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
-        # 첫 번째 인스턴스에서 PatientID 가져오기 (모든 인스턴스는 같은 환자)
+        # 첫 번째 인스턴스에서 PatientID와 PatientName 가져오기 (DICOM 파일에서 직접 읽기)
         common_patient_id = None
+        common_patient_name = None
         if instance_ids and len(instance_ids) > 0:
             try:
-                first_instance_info = client.get_instance_info(instance_ids[0])
-                first_tags = first_instance_info.get('MainDicomTags', {})
-                common_patient_id = first_tags.get('PatientID', '')
+                # 방법 1: DICOM 파일 직접 읽기 (가장 확실한 방법)
+                try:
+                    import pydicom
+                    from io import BytesIO
+                    logger.info(f"📋 DICOM 파일에서 PatientID 직접 읽기 시도: {instance_ids[0]}")
+                    dicom_file_bytes = client.get_instance_file(instance_ids[0])
+                    dicom_dataset = pydicom.dcmread(BytesIO(dicom_file_bytes))
+                    common_patient_id = str(dicom_dataset.get('PatientID', ''))
+                    common_patient_name = str(dicom_dataset.get('PatientName', ''))
+                    logger.info(f"✅ DICOM 파일에서 읽음 - PatientID: '{common_patient_id}', PatientName: '{common_patient_name}'")
+                except Exception as dicom_error:
+                    logger.warning(f"⚠️ DICOM 파일 직접 읽기 실패: {dicom_error}, 다른 방법 시도")
                 
-                # PatientID가 없으면 Study에서 가져오기
+                # 방법 2: Orthanc API에서 메타데이터 가져오기
                 if not common_patient_id:
-                    study_id = first_instance_info.get('ParentStudy', '')
-                    if study_id:
-                        study_info = client.get_study_info(study_id)
-                        study_tags = study_info.get('MainDicomTags', {})
-                        common_patient_id = study_tags.get('PatientID', '')
+                    first_instance_info = client.get_instance_info(instance_ids[0])
+                    first_tags = first_instance_info.get('MainDicomTags', {})
+                    common_patient_id = first_tags.get('PatientID', '')
+                    common_patient_name = first_tags.get('PatientName', '')
+                    logger.info(f"📋 Orthanc API에서 읽음 - PatientID: '{common_patient_id}', PatientName: '{common_patient_name}'")
+                    
+                    # PatientID가 없으면 Study에서 가져오기
+                    if not common_patient_id:
+                        study_id = first_instance_info.get('ParentStudy', '')
+                        if study_id:
+                            study_info = client.get_study_info(study_id)
+                            study_tags = study_info.get('MainDicomTags', {})
+                            common_patient_id = study_tags.get('PatientID', '')
+                            common_patient_name = study_tags.get('PatientName', '')
+                    
+                    # 여전히 없으면 Orthanc Patient ID에서 가져오기
+                    if not common_patient_id:
+                        orthanc_patient_id = first_instance_info.get('ParentPatient', '')
+                        if orthanc_patient_id:
+                            patient_info = client.get_patient_info(orthanc_patient_id)
+                            patient_tags = patient_info.get('MainDicomTags', {})
+                            common_patient_id = patient_tags.get('PatientID', '')
+                            common_patient_name = patient_tags.get('PatientName', '')
                 
-                # 여전히 없으면 Orthanc Patient ID에서 가져오기
                 if not common_patient_id:
-                    orthanc_patient_id = first_instance_info.get('ParentPatient', '')
-                    if orthanc_patient_id:
-                        patient_info = client.get_patient_info(orthanc_patient_id)
-                        patient_tags = patient_info.get('MainDicomTags', {})
-                        common_patient_id = patient_tags.get('PatientID', '')
+                    logger.error(f"❌ PatientID를 찾을 수 없습니다. instance_id: {instance_ids[0]}")
+                    common_patient_id = 'UNKNOWN'
+                if not common_patient_name:
+                    common_patient_name = common_patient_id
                 
-                logger.info(f"📋 공통 PatientID (첫 번째 인스턴스에서): '{common_patient_id}'")
+                logger.info(f"📋 최종 공통 PatientID: '{common_patient_id}', PatientName: '{common_patient_name}'")
             except Exception as e:
-                logger.warning(f"⚠️ 공통 PatientID 가져오기 실패: {e}")
+                logger.error(f"❌ 공통 PatientID 가져오기 실패: {e}", exc_info=True)
+                common_patient_id = 'UNKNOWN'
+                common_patient_name = 'UNKNOWN'
         
         results = []
         
@@ -266,12 +294,12 @@ def mammography_ai_analysis(request):
                         except Exception as e:
                             logger.warning(f"⚠️ 기존 StudyInstanceUID 찾기 실패: {e}")
                     
-                    # 히트맵 이미지를 DICOM으로 변환
+                    # 히트맵 이미지를 DICOM으로 변환 (PatientName도 함께 설정)
                     logger.info("🔥 히트맵 DICOM 변환 시작")
                     gradcam_dicom = pil_image_to_dicom(
                         gradcam_image,
                         patient_id=patient_id,
-                        patient_name=patient_id,
+                        patient_name=common_patient_name or patient_id,  # PatientName 사용
                         series_description=f"Heatmap Image - {view_name}",
                         modality="MG",
                         orthanc_client=client,
