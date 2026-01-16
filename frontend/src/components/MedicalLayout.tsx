@@ -20,22 +20,6 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { data: dashboardStats } = useQuery({
-        queryKey: ["dashboard-statistics"],
-        queryFn: async () => {
-            try {
-                const response = await apiRequest("GET", "/api/lung_cancer/medical-records/dashboard_statistics/");
-                return response;
-            } catch (err) {
-                console.error("Layout - 통계 데이터 조회 오류:", err);
-                return {
-                    waiting_count: 0,
-                };
-            }
-        },
-        refetchInterval: 30000,
-    });
-
     const { data: todayAppointments } = useQuery({
         queryKey: ["today-appointments-count"],
         queryFn: async () => {
