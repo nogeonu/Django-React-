@@ -669,12 +669,12 @@ function OrderCard({
               title: "분석 데이터 자동 로드",
               description: `${analysisData.heatmap_count}개의 히트맵 이미지를 찾았고 분석 결과를 자동으로 채웠습니다.`,
             });
-          } else {
-            // 히트맵 이미지가 없는 경우 안내
-            toast({
-              title: "히트맵 이미지 없음",
-              description: "Orthanc에 저장된 히트맵 이미지를 찾을 수 없습니다. 파일로 업로드하거나 AI 분석을 먼저 실행해주세요.",
-              variant: "default",
+          } else if (heatmapImages.length === 0) {
+            // 히트맵 이미지가 실제로 없는 경우에만 안내
+            // (analysisData.has_heatmap이 false여도 heatmapImages가 있으면 무시)
+            console.warn("⚠️ 히트맵 이미지가 필터링되지 않음:", {
+              total_images: data.images.length,
+              heatmap_images: heatmapImages.length
             });
           }
         } catch (analysisError) {
@@ -685,21 +685,14 @@ function OrderCard({
         return heatmapImages;
       } else {
         setOrthancImages([]);
-        toast({
-          title: "이미지 로드 실패",
-          description: "Orthanc에서 이미지를 가져올 수 없습니다.",
-          variant: "destructive",
-        });
+        console.warn("⚠️ Orthanc API 응답 실패:", data);
+        // 에러 메시지는 표시하지 않음 (히트맵이 없을 수도 있음)
         return [];
       }
     } catch (error) {
-      console.error("Orthanc 이미지 로드 실패:", error);
+      console.error("❌ Orthanc 이미지 로드 실패:", error);
       setOrthancImages([]);
-      toast({
-        title: "오류",
-        description: "Orthanc 이미지를 불러오는데 실패했습니다.",
-        variant: "destructive",
-      });
+      // 에러는 로그만 남기고 토스트는 표시하지 않음 (히트맵이 없을 수도 있음)
       return [];
     } finally {
       setIsLoadingOrthancImages(false);
@@ -1047,7 +1040,14 @@ function OrderCard({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setShowOrthancSelector(!showOrthancSelector)}
+                      onClick={() => {
+                        setShowOrthancSelector(!showOrthancSelector);
+                        // 선택자를 열 때 히트맵 이미지가 없으면 다시 로드 시도
+                        if (!showOrthancSelector && orthancImages.length === 0 && order.patient_number && !isLoadingOrthancImages) {
+                          console.log("🔄 히트맵 이미지 다시 로드 시도");
+                          fetchOrthancImages(order.patient_number);
+                        }
+                      }}
                       disabled={isLoadingOrthancImages}
                     >
                       {isLoadingOrthancImages ? (
@@ -1058,7 +1058,7 @@ function OrderCard({
                       ) : showOrthancSelector ? (
                         "닫기"
                       ) : (
-                        "Orthanc에서 선택"
+                        `Orthanc에서 선택${orthancImages.length > 0 ? ` (${orthancImages.length}개)` : ''}`
                       )}
                     </Button>
                     {showOrthancSelector && (
@@ -1098,6 +1098,9 @@ function OrderCard({
                           <div className="text-center py-4">
                             <p className="text-xs text-muted-foreground mb-2">
                               Orthanc에 저장된 히트맵 이미지를 찾을 수 없습니다.
+                            </p>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              환자 ID: <code className="bg-gray-100 px-1 rounded">{order.patient_number}</code>
                             </p>
                             <p className="text-xs text-muted-foreground">
                               파일로 업로드하거나 AI 분석을 먼저 실행해주세요.
