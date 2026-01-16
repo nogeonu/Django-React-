@@ -474,7 +474,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     return dicom_slices
 
 
-def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_description="Heatmap Image", modality="MG"):
+def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_description="Heatmap Image", modality="MG", orthanc_client=None, study_instance_uid=None):
     """
     PIL Image를 DICOM으로 변환
     
@@ -484,6 +484,8 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
         patient_name: 환자 이름
         series_description: Series 설명
         modality: Modality (기본값: MG - Mammography)
+        orthanc_client: OrthancClient 인스턴스 (기존 Study 찾기용, 선택사항)
+        study_instance_uid: 기존 StudyInstanceUID (제공되면 재사용)
     
     Returns:
         bytes: DICOM 파일의 바이트 데이터
@@ -514,6 +516,21 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
     if patient_name is None:
         patient_name = patient_id
     
+    # 기존 Study 찾기 (같은 환자의 기존 Study에 속하도록)
+    if study_instance_uid is None and orthanc_client is not None and patient_id:
+        try:
+            existing_uid = orthanc_client.get_existing_study_instance_uid(patient_id)
+            if existing_uid:
+                study_instance_uid = existing_uid
+                logger.info(f"기존 StudyInstanceUID 재사용: {study_instance_uid[:20]}... (patient_id: {patient_id})")
+        except Exception as e:
+            logger.warning(f"기존 StudyInstanceUID 찾기 실패, 새로 생성: {e}")
+    
+    # Study 정보
+    if study_instance_uid is None:
+        study_instance_uid = generate_uid()
+        logger.info(f"새 StudyInstanceUID 생성: {study_instance_uid[:20]}... (patient_id: {patient_id})")
+    
     # DICOM 데이터셋 생성
     ds = Dataset()
     
@@ -524,7 +541,7 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
     ds.PatientSex = ""
     
     # Study 정보
-    ds.StudyInstanceUID = generate_uid()
+    ds.StudyInstanceUID = study_instance_uid
     ds.StudyDate = datetime.now().strftime("%Y%m%d")
     ds.StudyTime = datetime.now().strftime("%H%M%S")
     ds.StudyID = str(uuid.uuid4())[:8]
