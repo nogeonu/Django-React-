@@ -777,10 +777,15 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             ).exclude(status='cancelled')
             
             # 부서별 필터링
+            # 원무과 또는 superuser: 모든 부서 예약 합계 표시
+            # 외과: 외과 예약만 표시
+            # 호흡기내과: 호흡기내과 예약만 표시
             if request.user.is_authenticated:
                 user_department = get_department(request.user.id)
-                if user_department and user_department != "원무과":
+                # 원무과나 superuser가 아니면 자신의 부서 예약만 필터링
+                if user_department and user_department != "원무과" and not request.user.is_superuser:
                     today_appointments = today_appointments.filter(doctor_department=user_department)
+                    logger.info(f"대시보드 통계: {user_department} 부서 필터링 적용, 오늘 예약 수: {today_appointments.count()}")
             
             today_exams = today_appointments.count()
             
