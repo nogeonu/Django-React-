@@ -431,8 +431,18 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         # 마스크 저장 실패해도 분석 결과는 저장
                 
                 # Classification인 경우 heatmap 이미지를 Orthanc에 저장
-                logger.info(f"Classification 분석 완료. heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
+                logger.info(f"=== Classification 분석 결과 확인 ===")
+                logger.info(f"analysis_type: {analysis_type}")
+                logger.info(f"heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
                 logger.info(f"analysis_data keys: {list(analysis_data.keys())}")
+                logger.info(f"analysis_data 전체: {str(analysis_data)[:500]}")
+                
+                if analysis_type == 'classification':
+                    if not analysis_data.get('heatmap_image'):
+                        logger.error(f"⚠️ heatmap_image가 analysis_data에 없습니다! AI 서비스가 heatmap_image를 반환하지 않았을 수 있습니다.")
+                        logger.error(f"analysis_data 내용: {analysis_data}")
+                    else:
+                        logger.info(f"✅ heatmap_image 발견! Orthanc 저장 시작")
                 
                 if analysis_type == 'classification' and analysis_data.get('heatmap_image'):
                     try:
@@ -758,8 +768,16 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 analysis_data = result.get('data', {})
                 
                 # heatmap 이미지를 Orthanc에 저장
-                logger.info(f"종양 분석 완료. heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
+                logger.info(f"=== 종양 분석 결과 확인 ===")
+                logger.info(f"heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
                 logger.info(f"analysis_data keys: {list(analysis_data.keys())}")
+                logger.info(f"analysis_data 전체: {str(analysis_data)[:500]}")
+                
+                if not analysis_data.get('heatmap_image'):
+                    logger.error(f"⚠️ heatmap_image가 analysis_data에 없습니다! AI 서비스가 heatmap_image를 반환하지 않았을 수 있습니다.")
+                    logger.error(f"analysis_data 내용: {analysis_data}")
+                else:
+                    logger.info(f"✅ heatmap_image 발견! Orthanc 저장 시작")
                 
                 if analysis_data.get('heatmap_image'):
                     try:
