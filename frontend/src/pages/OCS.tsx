@@ -1231,8 +1231,18 @@ function OrderCard({
                 <Textarea
                   value={findings}
                   onChange={(e) => setFindings(e.target.value)}
-                  placeholder="영상 분석 소견을 입력하세요..."
-                  rows={5}
+                  placeholder={`영상 분석 소견을 입력하세요.
+
+예시 항목:
+• 종양 특성 (병변 크기, 위치, 모양 등)
+• BI-RADS 등급 및 평가
+• 석회화 유무 및 특성
+• 유방 밀도 평가
+• 비대칭성 또는 구조 왜곡 유무
+• 추가 검사 필요 여부
+• 임상적 의의`}
+                  rows={8}
+                  className="font-mono text-sm"
                 />
               </div>
               <div>

@@ -387,25 +387,7 @@ export default function ImagingAnalysisDetail() {
               <div className="space-y-2">
                 <h3 className="font-semibold text-lg">소견</h3>
                 <div className="prose max-w-none text-sm">
-                  <p className="whitespace-pre-wrap text-muted-foreground">{analysis.findings}</p>
-                </div>
-              </div>
-            )}
-
-            {/* 신뢰도 */}
-            {analysis.confidence_score !== null && (
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">신뢰도</h3>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-slate-200 rounded-full h-3">
-                    <div
-                      className="bg-primary h-3 rounded-full transition-all"
-                      style={{ width: `${(analysis.confidence_score || 0) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-bold text-primary min-w-[60px]">
-                    {((analysis.confidence_score || 0) * 100).toFixed(1)}%
-                  </span>
+                  <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">{analysis.findings}</p>
                 </div>
               </div>
             )}
