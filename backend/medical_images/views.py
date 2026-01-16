@@ -781,35 +781,62 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         heatmap_image = Image.open(BytesIO(heatmap_bytes))
                         logger.info(f"PIL Image 변환 완료. size: {heatmap_image.size}, mode: {heatmap_image.mode}")
                         
+                        # Orthanc 클라이언트 생성 (기존 Study 찾기용)
+                        logger.info("Orthanc 클라이언트 생성")
+                        orthanc_client = OrthancClient()
+                        logger.info(f"Orthanc URL: {orthanc_client.base_url}")
+                        
+                        # 기존 StudyInstanceUID 찾기 (같은 환자의 기존 Study에 속하도록)
+                        existing_study_uid = None
+                        try:
+                            existing_study_uid = orthanc_client.get_existing_study_instance_uid(str(medical_image.patient_id))
+                            if existing_study_uid:
+                                logger.info(f"기존 StudyInstanceUID 찾음: {existing_study_uid[:20]}... (patient_id: {medical_image.patient_id})")
+                            else:
+                                logger.info(f"기존 Study 없음, 새로 생성 (patient_id: {medical_image.patient_id})")
+                        except Exception as study_error:
+                            logger.warning(f"기존 StudyInstanceUID 찾기 실패: {str(study_error)}")
+                        
                         # 원본 이미지도 Orthanc에 저장
                         original_image_path = medical_image.image_file.path if hasattr(medical_image.image_file, 'path') else None
+                        logger.info(f"원본 이미지 경로: {original_image_path}, 존재 여부: {os.path.exists(original_image_path) if original_image_path else False}")
+                        
                         if original_image_path and os.path.exists(original_image_path):
                             try:
+                                logger.info("원본 이미지 Orthanc 저장 시작")
                                 original_image = Image.open(original_image_path)
                                 original_dicom = pil_image_to_dicom(
                                     original_image,
                                     patient_id=str(medical_image.patient_id),
                                     patient_name=str(medical_image.patient_id),
                                     series_description="Original Mammography",
-                                    modality="MG"
+                                    modality="MG",
+                                    orthanc_client=orthanc_client,
+                                    study_instance_uid=existing_study_uid
                                 )
-                                orthanc_client = OrthancClient()
+                                logger.info(f"원본 DICOM 변환 완료. size: {len(original_dicom)} bytes")
                                 original_result = orthanc_client.upload_dicom(original_dicom)
                                 logger.info(f"원본 맘모그래피 이미지 Orthanc 저장 완료: {original_result}")
                             except Exception as orig_error:
                                 logger.error(f"원본 이미지 Orthanc 저장 실패: {str(orig_error)}", exc_info=True)
+                        else:
+                            logger.warning(f"원본 이미지 경로가 없거나 파일이 존재하지 않습니다: {original_image_path}")
                         
-                        # heatmap 이미지를 DICOM으로 변환
+                        # heatmap 이미지를 DICOM으로 변환 (같은 Study에 속하도록)
+                        logger.info("히트맵 DICOM 변환 시작")
                         heatmap_dicom = pil_image_to_dicom(
                             heatmap_image,
                             patient_id=str(medical_image.patient_id),
                             patient_name=str(medical_image.patient_id),
                             series_description="Heatmap Image",
-                            modality="MG"
+                            modality="MG",
+                            orthanc_client=orthanc_client,
+                            study_instance_uid=existing_study_uid
                         )
+                        logger.info(f"히트맵 DICOM 변환 완료. size: {len(heatmap_dicom)} bytes")
                         
                         # Orthanc에 업로드
-                        orthanc_client = OrthancClient()
+                        logger.info("히트맵 Orthanc 업로드 시작")
                         heatmap_result = orthanc_client.upload_dicom(heatmap_dicom)
                         logger.info(f"히트맵 이미지 Orthanc 저장 완료: {heatmap_result}")
                         
