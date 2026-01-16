@@ -303,7 +303,7 @@ export default function ImagingAnalysisDetail() {
           </CardContent>
         </Card>
 
-        {/* 오른쪽: 소견, 위험도, 신뢰도 */}
+        {/* 오른쪽: 소견, 위험도 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
