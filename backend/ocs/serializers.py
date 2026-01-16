@@ -40,7 +40,7 @@ class AllergyCheckSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     """주문 Serializer"""
     patient_name = serializers.CharField(source='patient.name', read_only=True)
-    patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
+    patient_number = serializers.CharField(source='patient.patient_id', read_only=True)
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     doctor_username = serializers.CharField(source='doctor.username', read_only=True)
     
@@ -231,7 +231,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 class OrderListSerializer(serializers.ModelSerializer):
     """주문 목록 Serializer (간소화)"""
     patient_name = serializers.CharField(source='patient.name', read_only=True)
-    patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
+    patient_number = serializers.CharField(source='patient.patient_id', read_only=True)
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     
     # 영상 분석 결과 (영상촬영 주문인 경우)
