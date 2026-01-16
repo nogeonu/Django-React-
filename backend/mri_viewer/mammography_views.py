@@ -10,6 +10,9 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from .orthanc_client import OrthancClient
+from .utils import pil_image_to_dicom
+from PIL import Image
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +164,83 @@ def mammography_ai_analysis(request):
             # Grad-CAM 오버레이가 있으면 추가
             if 'gradcam_overlay' in mosec_result:
                 result_item['gradcam_overlay'] = mosec_result['gradcam_overlay']
+                
+                # 히트맵 이미지를 Orthanc에 저장
+                try:
+                    logger.info(f"🔥 히트맵 이미지 Orthanc 저장 시작: {instance_id} ({view_name})")
+                    
+                    # gradcam_overlay는 base64 인코딩된 이미지
+                    gradcam_data = mosec_result['gradcam_overlay']
+                    
+                    # base64 디코딩
+                    if isinstance(gradcam_data, str):
+                        if gradcam_data.startswith('data:image'):
+                            gradcam_data = gradcam_data.split(',')[1]
+                        gradcam_bytes = base64.b64decode(gradcam_data)
+                    else:
+                        gradcam_bytes = gradcam_data
+                    
+                    # PIL Image로 변환
+                    gradcam_image = Image.open(BytesIO(gradcam_bytes))
+                    logger.info(f"✅ PIL Image 변환 완료. size: {gradcam_image.size}, mode: {gradcam_image.mode}")
+                    
+                    # Orthanc에서 환자 ID 가져오기
+                    try:
+                        patient_id = main_tags.get('PatientID', '')
+                        if not patient_id:
+                            # Study에서 환자 ID 가져오기
+                            study_id = instance_info.get('ParentStudy', '')
+                            if study_id:
+                                study_info = client.get_study_info(study_id)
+                                study_tags = study_info.get('MainDicomTags', {})
+                                patient_id = study_tags.get('PatientID', '')
+                    except Exception as e:
+                        logger.warning(f"⚠️ 환자 ID 가져오기 실패: {e}")
+                        patient_id = 'UNKNOWN'
+                    
+                    logger.info(f"📋 환자 ID: {patient_id}")
+                    
+                    # 기존 StudyInstanceUID 찾기 (같은 환자의 기존 Study에 속하도록)
+                    existing_study_uid = None
+                    if patient_id:
+                        try:
+                            existing_study_uid = client.get_existing_study_instance_uid(patient_id)
+                            if existing_study_uid:
+                                logger.info(f"✅ 기존 StudyInstanceUID 찾음: {existing_study_uid[:20]}...")
+                            else:
+                                logger.info(f"ℹ️ 기존 Study 없음, 새로 생성")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 기존 StudyInstanceUID 찾기 실패: {e}")
+                    
+                    # 히트맵 이미지를 DICOM으로 변환
+                    logger.info("🔥 히트맵 DICOM 변환 시작")
+                    gradcam_dicom = pil_image_to_dicom(
+                        gradcam_image,
+                        patient_id=patient_id,
+                        patient_name=patient_id,
+                        series_description=f"Heatmap Image - {view_name}",
+                        modality="MG",
+                        orthanc_client=client,
+                        study_instance_uid=existing_study_uid
+                    )
+                    logger.info(f"✅ 히트맵 DICOM 변환 완료. size: {len(gradcam_dicom)} bytes")
+                    
+                    # Orthanc에 업로드
+                    logger.info("🔥 히트맵 Orthanc 업로드 시작")
+                    gradcam_result = client.upload_dicom(gradcam_dicom)
+                    logger.info(f"✅ 히트맵 이미지 Orthanc 저장 완료: {gradcam_result}")
+                    
+                    # 결과에 Orthanc 인스턴스 ID 추가
+                    if isinstance(gradcam_result, dict) and 'ID' in gradcam_result:
+                        result_item['heatmap_orthanc_instance_id'] = gradcam_result['ID']
+                        result_item['heatmap_orthanc_url'] = f"{client.base_url}/instances/{gradcam_result['ID']}/preview"
+                        logger.info(f"✅ 히트맵 Orthanc 인스턴스 ID 저장: {gradcam_result['ID']}")
+                    
+                except Exception as heatmap_error:
+                    logger.error(f"❌ 히트맵 이미지 Orthanc 저장 실패: {str(heatmap_error)}", exc_info=True)
+                    import traceback
+                    logger.error(f"상세 에러: {traceback.format_exc()}")
+                    # 히트맵 저장 실패해도 분석 결과는 반환
             
             results.append(result_item)
             
