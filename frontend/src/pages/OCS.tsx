@@ -1008,11 +1008,10 @@ function OrderCard({
           setShowAnalysisDialog(open);
           if (open) {
             // 다이얼로그가 열릴 때 Orthanc 이미지 가져오기
-            // patient_number 또는 patient_id 사용 (둘 다 시도)
-            const patientId = order.patient_number || order.patient_id || order.patient?.patient_id || order.patient?.patient_number;
+            // patient_number 사용 (Order 인터페이스에 patient_number 필드 있음)
+            const patientId = order.patient_number;
             console.log("🔍 OCS 다이얼로그 열림 - 환자 ID:", {
               patient_number: order.patient_number,
-              patient_id: order.patient_id,
               patient: order.patient,
               final_patient_id: patientId
             });
