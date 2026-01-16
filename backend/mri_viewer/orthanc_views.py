@@ -236,6 +236,9 @@ def orthanc_patient_detail(request, patient_id):
                     # Modality 정보 (Series 또는 Instance에서 가져오기)
                     modality = series_tags.get('Modality', instance_tags.get('Modality', ''))
                     
+                    # 세그멘테이션 파일인지 확인 (SEG 모달리티)
+                    is_segmentation = modality == 'SEG'
+                    
                     # 유방촬영술을 위한 추가 태그 수집
                     view_position = instance_tags.get('ViewPosition', '')  # CC, MLO 등
                     image_laterality = instance_tags.get('ImageLaterality', '')  # L, R
@@ -280,6 +283,7 @@ def orthanc_patient_detail(request, patient_id):
                         'instance_number': str(instance_number),
                         'preview_url': f'/api/mri/orthanc/instances/{instance_id}/preview/',
                         'modality': modality,
+                        'is_segmentation': is_segmentation,  # SEG 파일 여부
                         'view_position': view_position,
                         'image_laterality': image_laterality,
                         'mammography_view': mammography_view,

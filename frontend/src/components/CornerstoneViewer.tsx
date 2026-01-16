@@ -51,6 +51,8 @@ interface CornerstoneViewerProps {
   onIndexChange: (index: number) => void;
   showMeasurementTools?: boolean; // 측정 도구 표시 여부
   viewportId?: string; // 고유 viewport ID (4분할 뷰 등에서 사용)
+  segmentationFrames?: Array<{index: number; mask_base64: string}>; // 세그멘테이션 프레임
+  showSegmentation?: boolean; // 세그멘테이션 오버레이 표시 여부
 }
 
 export default function CornerstoneViewer({
@@ -59,6 +61,8 @@ export default function CornerstoneViewer({
   onIndexChange,
   showMeasurementTools = true, // 기본값 true
   viewportId, // 외부에서 전달받은 고유 ID
+  segmentationFrames = [], // 세그멘테이션 프레임
+  showSegmentation = false, // 세그멘테이션 오버레이 표시 여부
 }: CornerstoneViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);

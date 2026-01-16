@@ -52,7 +52,8 @@ interface OrthancImage {
   series_description: string;
   instance_number: string;
   preview_url: string;
-  modality?: string;  // MG, MR, 등
+  modality?: string;  // MG, MR, SEG 등
+  is_segmentation?: boolean;  // SEG 파일 여부
   view_position?: string;  // CC, MLO
   image_laterality?: string;  // L, R
   mammography_view?: string;  // LCC, RCC, LMLO, RMLO
@@ -118,6 +119,8 @@ export default function MRIViewer() {
   const [currentSeries, setCurrentSeries] = useState(0);
   const [sliceImage, setSliceImage] = useState<string | null>(null);
   const [showSegmentation, setShowSegmentation] = useState(false);
+  const [segmentationInstanceId, setSegmentationInstanceId] = useState<string | null>(null);
+  const [segmentationFrames, setSegmentationFrames] = useState<Array<{index: number; mask_base64: string}>>([]);
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [axis, setAxis] = useState<"axial" | "sagittal" | "coronal">("axial");
@@ -157,6 +160,13 @@ export default function MRIViewer() {
       fetchSliceImage();
     }
   }, [selectedPatient, currentSlice, currentSeries, axis, showSegmentation, patientDetail]);
+
+  // 세그멘테이션 프레임 로드
+  useEffect(() => {
+    if (segmentationInstanceId && showSegmentation) {
+      fetchSegmentationFrames();
+    }
+  }, [segmentationInstanceId, showSegmentation]);
 
   const fetchPatients = async () => {
     setLoading(true);
@@ -262,6 +272,15 @@ export default function MRIViewer() {
       if (data.success && data.images && Array.isArray(data.images)) {
         console.log(`[fetchOrthancImages] 이미지 개수: ${data.images.length}`);
         console.log(`[fetchOrthancImages] 첫 번째 이미지 샘플:`, data.images[0]);
+        
+        // 세그멘테이션 파일 찾기 (SEG 모달리티)
+        const segImage = data.images.find((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
+        if (segImage) {
+          console.log(`[fetchOrthancImages] 세그멘테이션 파일 발견:`, segImage.instance_id);
+          setSegmentationInstanceId(segImage.instance_id);
+        } else {
+          setSegmentationInstanceId(null);
+        }
         
         if (data.images.length > 0) {
         setAllOrthancImages(data.images); // 모든 이미지 저장
@@ -517,6 +536,10 @@ export default function MRIViewer() {
         });
         // 세그멘테이션 결과 표시
         setShowSegmentation(true);
+        // 세그멘테이션 Instance ID 저장
+        if (data.seg_instance_id) {
+          setSegmentationInstanceId(data.seg_instance_id);
+        }
         // Orthanc 이미지 새로고침
         if (selectedPatient) {
           fetchOrthancImages(selectedPatient);
@@ -932,6 +955,8 @@ export default function MRIViewer() {
                     currentIndex={selectedImage}
                     onIndexChange={setSelectedImage}
                     showMeasurementTools={!isRadiologyTech}
+                    segmentationFrames={segmentationFrames}
+                    showSegmentation={showSegmentation}
                   />
                 </div>
               ) : (
@@ -958,25 +983,42 @@ export default function MRIViewer() {
 
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-8">
                       {showOrthancImages && orthancImages.length > 0 ? (
-                        <motion.img
-                          key={`orthanc-${selectedImage}`}
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.2 }}
-                          src={orthancImages[selectedImage]?.preview_url}
-                          className="max-w-full max-h-full object-contain pointer-events-auto"
-                          loading="eager"
-                          decoding="async"
-                          onLoadStart={() => {
-                            setImageLoading(true);
-                          }}
-                          onLoad={() => {
-                            setImageLoading(false);
-                          }}
-                          onError={() => {
-                            setImageLoading(false);
-                          }}
-                        />
+                        <div className="relative max-w-full max-h-full">
+                          <motion.img
+                            key={`orthanc-${selectedImage}`}
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                            src={orthancImages[selectedImage]?.preview_url}
+                            className="max-w-full max-h-full object-contain pointer-events-auto"
+                            loading="eager"
+                            decoding="async"
+                            onLoadStart={() => {
+                              setImageLoading(true);
+                            }}
+                            onLoad={() => {
+                              setImageLoading(false);
+                            }}
+                            onError={() => {
+                              setImageLoading(false);
+                            }}
+                          />
+                          {/* 세그멘테이션 오버레이 */}
+                          {showSegmentation && segmentationFrames.length > 0 && selectedImage < segmentationFrames.length && (
+                            <motion.img
+                              key={`seg-overlay-${selectedImage}`}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 0.5 }}
+                              transition={{ duration: 0.3 }}
+                              src={`data:image/png;base64,${segmentationFrames[selectedImage]?.mask_base64}`}
+                              className="absolute inset-0 max-w-full max-h-full object-contain pointer-events-none mix-blend-screen"
+                              style={{ 
+                                filter: 'hue-rotate(300deg) saturate(2) brightness(1.2)', // 빨간색/마젠타 오버레이
+                                opacity: 0.6
+                              }}
+                            />
+                          )}
+                        </div>
                       ) : showOrthancImages && orthancImages.length === 0 && allOrthancImages.length > 0 ? (
                         // 필터링 결과 이미지가 없는 경우
                         <div className="text-white/70 flex flex-col items-center gap-6 bg-black/30 backdrop-blur-sm rounded-3xl p-12 border border-white/10 max-w-md">
