@@ -592,15 +592,21 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
         ds.PhotometricInterpretation = "RGB"
         ds.PlanarConfiguration = 0  # 0 = interleaved (RGBRGBRGB...)
         # 픽셀 데이터를 interleaved 형식으로 변환 (R, G, B 순서)
-        # (H, W, 3) -> (H*W*3) 형태로 변환
-        pixel_data = img_array.reshape(-1).tobytes()
+        # (H, W, 3) -> (H*W, 3) -> (H*W*3) 형태로 변환
+        # 각 픽셀의 R, G, B 값이 연속적으로 배치되도록
+        h, w = img_array.shape[:2]
+        pixel_data = img_array.reshape(h * w, 3).astype(np.uint16)
+        # uint16 배열을 바이트로 변환 (little-endian)
+        pixel_data = pixel_data.tobytes()
+        logger.info(f"✅ RGB 컬러 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
     else:
         ds.SamplesPerPixel = 1
         ds.PhotometricInterpretation = "MONOCHROME2"
         # 그레이스케일 이미지
         if len(img_array.shape) == 3:
             img_array = img_array[:, :, 0]
-        pixel_data = img_array.tobytes()
+        pixel_data = img_array.astype(np.uint16).tobytes()
+        logger.info(f"✅ 그레이스케일 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
     
     # 픽셀 데이터
     ds.PixelData = pixel_data
