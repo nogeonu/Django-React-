@@ -41,6 +41,7 @@ class OrderSerializer(serializers.ModelSerializer):
     """주문 Serializer"""
     patient_name = serializers.CharField(source='patient.name', read_only=True)
     patient_number = serializers.CharField(source='patient.patient_id', read_only=True)
+    patient_id = serializers.CharField(source='patient.patient_id', read_only=True)  # Orthanc 매칭을 위해 추가
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     doctor_username = serializers.CharField(source='doctor.username', read_only=True)
     
@@ -55,7 +56,7 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'order_type', 'patient', 'patient_name', 'patient_number',
+            'id', 'order_type', 'patient', 'patient_name', 'patient_number', 'patient_id',
             'doctor', 'doctor_name', 'doctor_username',
             'status', 'priority', 'order_data', 'target_department',
             'due_time', 'notes', 'validation_passed', 'validation_notes',
@@ -232,6 +233,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     """주문 목록 Serializer (간소화)"""
     patient_name = serializers.CharField(source='patient.name', read_only=True)
     patient_number = serializers.CharField(source='patient.patient_id', read_only=True)
+    patient_id = serializers.CharField(source='patient.patient_id', read_only=True)  # Orthanc 매칭을 위해 추가
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     
     # 영상 분석 결과 (영상촬영 주문인 경우)
@@ -240,7 +242,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'order_type', 'patient_name', 'patient_number',
+            'id', 'order_type', 'patient_name', 'patient_number', 'patient_id',
             'doctor_name', 'status', 'priority', 'target_department',
             'order_data', 'validation_passed', 'validation_notes',  # order_data 추가
             'created_at', 'due_time', 'completed_at',

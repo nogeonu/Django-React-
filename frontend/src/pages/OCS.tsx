@@ -60,6 +60,7 @@ interface Order {
   patient: string;
   patient_name: string;
   patient_number?: string;  // optional로 변경 (API에서 제공하지 않을 수도 있음)
+  patient_id?: string;  // Orthanc 매칭용 (DB의 patient_id와 동일)
   doctor: number;
   doctor_name: string;
   status: "pending" | "sent" | "processing" | "completed" | "cancelled";
@@ -1017,14 +1018,18 @@ function OrderCard({
             console.log("📋 OrderCard - order 객체:", order);
             console.log("📋 OrderCard - order keys:", Object.keys(order));
             
-            const patientId = order.patient_number;
+            // patient_id를 우선 사용 (Orthanc의 PatientID와 일치)
+            // 없으면 patient_number 사용 (하위 호환성)
+            const patientId = order.patient_id || order.patient_number;
             console.log("🔍 OCS 다이얼로그 열림 - 환자 ID:", {
+              patient_id: order.patient_id,
               patient_number: order.patient_number,
               patient_name: order.patient_name,
               patient: order.patient,
               order_id: order.id,
               order_type: order.order_type,
-              final_patient_id: patientId
+              final_patient_id: patientId,
+              note: "Orthanc의 PatientID는 DB의 patient_id와 일치해야 함"
             });
             if (patientId) {
               fetchOrthancImages(patientId);
