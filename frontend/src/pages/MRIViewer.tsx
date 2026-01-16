@@ -234,6 +234,21 @@ export default function MRIViewer() {
     }
   };
 
+  const fetchSegmentationFrames = async () => {
+    if (!segmentationInstanceId) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/segmentation/instances/${segmentationInstanceId}/frames/`);
+      const data = await response.json();
+      if (data.success && data.frames) {
+        setSegmentationFrames(data.frames);
+        console.log(`[fetchSegmentationFrames] ${data.frames.length}개 프레임 로드 완료`);
+      }
+    } catch (error) {
+      console.error("Failed to fetch segmentation frames:", error);
+    }
+  };
+
   const handleWheel = (e: React.WheelEvent) => {
     if (!patientDetail) return;
     // Don't prevent default if we want to allow page scroll, but here we want to scroll slices
