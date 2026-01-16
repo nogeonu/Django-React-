@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,12 +97,20 @@ const API_BASE_URL = "/api/mri";
 export default function MRIViewer() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const params = useParams<{ patientId?: string }>();
+  const [searchParams] = useSearchParams();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
 
   // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
   const pageTitle = isRadiologyTech ? '영상 업로드' : '영상 판독';
 
-  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>('유방촬영술 영상');
+  // URL 파라미터에서 imageType 읽기
+  const urlImageType = searchParams.get('imageType');
+  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '병리 영상' || urlImageType === '유방촬영술 영상') 
+    ? urlImageType as '유방촬영술 영상' | '병리 영상' | 'MRI 영상'
+    : '유방촬영술 영상';
+
+  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>(initialImageType);
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -125,7 +133,12 @@ export default function MRIViewer() {
 
   useEffect(() => {
     fetchPatients();
-  }, []);
+    
+    // URL에서 patient_id 읽기
+    if (params.patientId) {
+      setSelectedPatient(params.patientId);
+    }
+  }, [params.patientId]);
 
   useEffect(() => {
     if (selectedPatient) {
