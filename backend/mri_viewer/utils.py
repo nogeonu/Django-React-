@@ -492,23 +492,43 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
     """
     import numpy as np
     
-    # PIL Image를 numpy 배열로 변환
-    if pil_image.mode == 'RGB':
-        # RGB를 그레이스케일로 변환
-        img_array = np.array(pil_image.convert('L'))
-    elif pil_image.mode == 'RGBA':
-        # RGBA를 그레이스케일로 변환
-        img_array = np.array(pil_image.convert('L'))
-    else:
-        img_array = np.array(pil_image)
+    # PIL Image를 numpy 배열로 변환 (컬러 이미지 유지)
+    is_color = pil_image.mode in ('RGB', 'RGBA')
     
-    # uint16으로 변환 (DICOM은 16비트 지원)
-    if img_array.dtype != np.uint16:
-        # 0-65535 범위로 스케일링
-        if img_array.max() > 0:
-            img_array = (img_array.astype(np.float32) / img_array.max() * 65535).astype(np.uint16)
-        else:
-            img_array = img_array.astype(np.uint16)
+    if pil_image.mode == 'RGBA':
+        # RGBA를 RGB로 변환 (알파 채널 제거)
+        pil_image = pil_image.convert('RGB')
+        img_array = np.array(pil_image)
+    elif pil_image.mode == 'RGB':
+        # RGB 이미지는 그대로 유지
+        img_array = np.array(pil_image)
+    else:
+        # 그레이스케일 이미지
+        img_array = np.array(pil_image)
+        if len(img_array.shape) == 2:
+            # 2D 그레이스케일을 3D로 확장 (H, W) -> (H, W, 1)
+            img_array = img_array[:, :, np.newaxis]
+    
+    # 컬러 이미지인 경우 (H, W, 3) 형태
+    if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+        # RGB 이미지를 uint16으로 변환 (각 채널별로)
+        if img_array.dtype != np.uint16:
+            # 0-65535 범위로 스케일링 (각 채널별)
+            if img_array.max() > 0:
+                img_array = (img_array.astype(np.float32) / 255.0 * 65535).astype(np.uint16)
+            else:
+                img_array = img_array.astype(np.uint16)
+    else:
+        # 그레이스케일 이미지 처리
+        if len(img_array.shape) == 3:
+            img_array = img_array[:, :, 0]  # 첫 번째 채널만 사용
+        
+        # uint16으로 변환
+        if img_array.dtype != np.uint16:
+            if img_array.max() > 0:
+                img_array = (img_array.astype(np.float32) / img_array.max() * 65535).astype(np.uint16)
+            else:
+                img_array = img_array.astype(np.uint16)
     
     # 환자 정보 설정
     if patient_id is None:
@@ -565,11 +585,25 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
     ds.BitsStored = 16
     ds.HighBit = 15
     ds.PixelRepresentation = 0  # Unsigned
-    ds.SamplesPerPixel = 1
-    ds.PhotometricInterpretation = "MONOCHROME2"
+    
+    # 컬러 이미지인 경우 RGB 설정
+    if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+        ds.SamplesPerPixel = 3
+        ds.PhotometricInterpretation = "RGB"
+        ds.PlanarConfiguration = 0  # 0 = interleaved (RGBRGBRGB...)
+        # 픽셀 데이터를 interleaved 형식으로 변환 (R, G, B 순서)
+        # (H, W, 3) -> (H*W*3) 형태로 변환
+        pixel_data = img_array.reshape(-1).tobytes()
+    else:
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        # 그레이스케일 이미지
+        if len(img_array.shape) == 3:
+            img_array = img_array[:, :, 0]
+        pixel_data = img_array.tobytes()
     
     # 픽셀 데이터
-    ds.PixelData = img_array.tobytes()
+    ds.PixelData = pixel_data
     
     # 파일로 저장 (메모리)
     buffer = BytesIO()
