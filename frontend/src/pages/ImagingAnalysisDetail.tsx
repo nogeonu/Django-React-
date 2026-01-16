@@ -1,6 +1,6 @@
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, FileText, User, AlertTriangle, ZoomIn } from 'lucide-react';
+import { ArrowLeft, FileText, User, AlertTriangle, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ export default function ImagingAnalysisDetail() {
   const orderId = searchParams.get('order');
   const navigate = useNavigate();
   const [imageZoom, setImageZoom] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // 영상 분석 결과 조회
   const { data: analysis, isLoading: isLoadingAnalysis } = useQuery({
@@ -166,36 +167,120 @@ export default function ImagingAnalysisDetail() {
           <CardContent className="p-0">
             <div className="relative bg-slate-950 min-h-[500px] flex items-center justify-center">
               {(() => {
-                // analysis_result에서 이미지 URL 추출
-                const imageUrl = analysis.analysis_result?.heatmap_image_url 
+                // 여러 이미지 URL 배열 추출 (여러 장 지원)
+                const imageUrls: string[] = analysis.analysis_result?.heatmap_image_urls || [];
+                // 하위 호환성: 단일 이미지 URL이 있으면 배열로 변환
+                const singleImageUrl = analysis.analysis_result?.heatmap_image_url 
                   || analysis.analysis_result?.tumor_detection_image_url 
                   || analysis.analysis_result?.visualization_url
                   || analysis.analysis_result?.image_url;
                 
-                if (imageUrl) {
+                const allImageUrls = imageUrls.length > 0 ? imageUrls : (singleImageUrl ? [singleImageUrl] : []);
+                const hasMultipleImages = allImageUrls.length > 1;
+                const currentImageUrl = allImageUrls[currentImageIndex];
+                
+                // 이미지 인덱스 범위 체크
+                if (currentImageIndex >= allImageUrls.length && allImageUrls.length > 0) {
+                  setCurrentImageIndex(0);
+                }
+                
+                if (currentImageUrl) {
                   return (
                     <div className="relative w-full h-full">
+                      {/* 이전/다음 버튼 (여러 이미지일 때만 표시) */}
+                      {hasMultipleImages && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white border-white/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((prev) => 
+                                prev > 0 ? prev - 1 : allImageUrls.length - 1
+                              );
+                            }}
+                            disabled={allImageUrls.length <= 1}
+                          >
+                            <ChevronLeft className="h-6 w-6" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white border-white/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((prev) => 
+                                prev < allImageUrls.length - 1 ? prev + 1 : 0
+                              );
+                            }}
+                            disabled={allImageUrls.length <= 1}
+                          >
+                            <ChevronRight className="h-6 w-6" />
+                          </Button>
+                          {/* 이미지 카운터 */}
+                          <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm z-10">
+                            {currentImageIndex + 1} / {allImageUrls.length}
+                          </div>
+                        </>
+                      )}
+                      
                       <img 
-                        src={imageUrl} 
-                        alt="종양 탐지 영상" 
-                        className="w-full h-auto max-h-[600px] object-contain cursor-pointer"
+                        src={currentImageUrl} 
+                        alt={`종양 탐지 영상 ${hasMultipleImages ? `(${currentImageIndex + 1}/${allImageUrls.length})` : ''}`}
+                        className="w-full h-auto max-h-[600px] object-contain cursor-pointer transition-opacity duration-300"
                         onClick={() => setImageZoom(!imageZoom)}
                       />
+                      
                       {imageZoom && (
                         <div 
                           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
                           onClick={() => setImageZoom(false)}
                         >
                           <img 
-                            src={imageUrl} 
-                            alt="종양 탐지 영상 (확대)" 
+                            src={currentImageUrl} 
+                            alt={`종양 탐지 영상 (확대) ${hasMultipleImages ? `(${currentImageIndex + 1}/${allImageUrls.length})` : ''}`}
                             className="max-w-full max-h-full object-contain"
                           />
+                          {hasMultipleImages && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentImageIndex((prev) => 
+                                    prev > 0 ? prev - 1 : allImageUrls.length - 1
+                                  );
+                                }}
+                              >
+                                <ChevronLeft className="h-8 w-8" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentImageIndex((prev) => 
+                                    prev < allImageUrls.length - 1 ? prev + 1 : 0
+                                  );
+                                }}
+                              >
+                                <ChevronRight className="h-8 w-8" />
+                              </Button>
+                              <div className="absolute top-4 right-4 bg-black/70 text-white px-4 py-2 rounded-lg text-lg">
+                                {currentImageIndex + 1} / {allImageUrls.length}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
+                      
                       <div className="absolute bottom-4 left-4 flex items-center gap-2 text-white/70 text-sm">
                         <ZoomIn className="w-4 h-4" />
-                        <span>AI 분석 영역 (클릭하여 확대)</span>
+                        <span>AI 분석 영역 (클릭하여 확대){hasMultipleImages ? ` - ${currentImageIndex + 1}번째 이미지` : ''}</span>
                       </div>
                     </div>
                   );
