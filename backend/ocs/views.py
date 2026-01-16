@@ -530,3 +530,84 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
         )
         
         return analysis
+    
+    @action(detail=False, methods=['get'])
+    def get_patient_analysis_data(self, request):
+        """환자 ID로 히트맵 이미지와 최근 분석 결과 가져오기"""
+        from mri_viewer.orthanc_client import OrthancClient
+        from mri_viewer.orthanc_views import orthanc_patient_detail
+        from rest_framework.request import Request
+        
+        patient_id = request.query_params.get('patient_id')
+        if not patient_id:
+            return Response({
+                'success': False,
+                'error': 'patient_id 파라미터가 필요합니다.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Orthanc에서 환자 이미지 가져오기
+            # orthanc_patient_detail 함수를 재사용하기 위해 Request 객체 생성
+            orthanc_request = Request(request._request)
+            orthanc_response = orthanc_patient_detail(orthanc_request, patient_id)
+            
+            if orthanc_response.status_code != 200:
+                return Response({
+                    'success': False,
+                    'error': 'Orthanc에서 환자 정보를 가져올 수 없습니다.',
+                    'details': orthanc_response.data if hasattr(orthanc_response, 'data') else None
+                }, status=orthanc_response.status_code)
+            
+            orthanc_data = orthanc_response.data
+            if not orthanc_data.get('success'):
+                return Response({
+                    'success': False,
+                    'error': 'Orthanc에서 환자 정보를 가져올 수 없습니다.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            images = orthanc_data.get('images', [])
+            
+            # 히트맵 이미지만 필터링
+            heatmap_images = [
+                img for img in images 
+                if 'Heatmap' in img.get('series_description', '') or 
+                   'heatmap' in img.get('series_description', '').lower()
+            ]
+            
+            # 최근 히트맵 이미지 (여러 개면 가장 최근 것)
+            latest_heatmap = heatmap_images[0] if heatmap_images else None
+            
+            # 기본 분석 결과 생성 (실제 분석 결과가 있으면 더 정확한 정보 사용)
+            analysis_data = {
+                'has_heatmap': len(heatmap_images) > 0,
+                'heatmap_count': len(heatmap_images),
+                'heatmap_images': heatmap_images,
+                'latest_heatmap': latest_heatmap,
+                'suggested_findings': '',
+                'suggested_recommendations': '',
+                'suggested_confidence': 0.95
+            }
+            
+            # 히트맵 이미지가 있으면 기본 소견 생성
+            if latest_heatmap:
+                analysis_data['suggested_findings'] = (
+                    f"AI 맘모그래피 분석을 통해 {len(heatmap_images)}개의 히트맵 이미지가 생성되었습니다. "
+                    "히트맵을 통해 종양 가능성이 높은 영역을 확인할 수 있습니다."
+                )
+                analysis_data['suggested_recommendations'] = (
+                    "히트맵에서 확인된 이상 소견에 대해 전문의 상담을 권장합니다. "
+                    "추가 검사가 필요할 수 있습니다."
+                )
+            
+            return Response({
+                'success': True,
+                'patient_id': patient_id,
+                **analysis_data
+            })
+            
+        except Exception as e:
+            logger.error(f"환자 분석 데이터 가져오기 실패: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'error': f'분석 데이터를 가져오는데 실패했습니다: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

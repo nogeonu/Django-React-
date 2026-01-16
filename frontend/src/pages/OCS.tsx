@@ -49,6 +49,7 @@ import {
   getPendingOrdersApi,
   searchPatientsApi,
   createImagingAnalysisApi,
+  getPatientAnalysisDataApi,
 } from "@/lib/api";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -589,7 +590,7 @@ function OrderCard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Orthanc 이미지 가져오기
+  // Orthanc 이미지 가져오기 및 분석 결과 자동 로드
   const fetchOrthancImages = async (patientId: string) => {
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
@@ -600,6 +601,42 @@ function OrderCard({
           img.series_description === "Heatmap Image" || img.series_description?.includes("Heatmap")
         );
         setOrthancImages(heatmapImages);
+        
+        // 분석 데이터 가져오기 (자동 폼 채우기)
+        try {
+          const analysisData = await getPatientAnalysisDataApi(patientId);
+          if (analysisData.success && analysisData.has_heatmap) {
+            // 히트맵 이미지가 있으면 자동으로 첫 번째 히트맵 선택
+            if (analysisData.latest_heatmap && heatmapImages.length > 0) {
+              const latestHeatmap = heatmapImages.find(
+                (img: any) => img.instance_id === analysisData.latest_heatmap.instance_id
+              ) || heatmapImages[0];
+              
+              // 자동으로 히트맵 이미지 선택
+              handleOrthancImageSelect(latestHeatmap.instance_id, latestHeatmap.preview_url);
+            }
+            
+            // 분석 결과 자동 채우기
+            if (analysisData.suggested_findings) {
+              setFindings(analysisData.suggested_findings);
+            }
+            if (analysisData.suggested_recommendations) {
+              setRecommendations(analysisData.suggested_recommendations);
+            }
+            if (analysisData.suggested_confidence) {
+              setConfidenceScore(analysisData.suggested_confidence);
+            }
+            
+            toast({
+              title: "분석 데이터 자동 로드",
+              description: `${analysisData.heatmap_count}개의 히트맵 이미지를 찾았고 분석 결과를 자동으로 채웠습니다.`,
+            });
+          }
+        } catch (analysisError) {
+          console.warn("분석 데이터 자동 로드 실패 (무시):", analysisError);
+          // 분석 데이터 로드 실패해도 이미지는 표시
+        }
+        
         return heatmapImages;
       }
       return [];

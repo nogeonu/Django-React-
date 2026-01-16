@@ -237,6 +237,11 @@ export const getImagingAnalysisByIdApi = async (id: string) => {
   return res.data;
 };
 
+export const getPatientAnalysisDataApi = async (patientId: string) => {
+  const res = await apiClient.get(`/api/ocs/imaging-analysis/get_patient_analysis_data/?patient_id=${encodeURIComponent(patientId)}`);
+  return res.data;
+};
+
 export const createImagingAnalysisApi = async (data: Record<string, unknown> | FormData) => {
   // FormData인 경우 (이미지 파일 포함)
   if (data instanceof FormData) {
