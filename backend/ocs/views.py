@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg
 from django.utils import timezone
@@ -469,6 +470,7 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
     """영상 분석 결과 ViewSet"""
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]  # 이미지 업로드를 위해 추가
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'analyzed_by']
     ordering_fields = ['created_at']
@@ -513,6 +515,9 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
         if user_department != "영상의학과":
             raise PermissionDenied("영상의학과만 영상 분석 결과를 생성할 수 있습니다.")
         
+        # heatmap 이미지 파일 가져오기 (request.FILES에서)
+        heatmap_image_file = self.request.FILES.get('heatmap_image', None)
+        
         # 분석 결과 생성 및 알림
         analysis = create_imaging_analysis_result(
             order=order,
@@ -520,7 +525,8 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
             analysis_result=serializer.validated_data.get('analysis_result', {}),
             findings=serializer.validated_data.get('findings', ''),
             recommendations=serializer.validated_data.get('recommendations', ''),
-            confidence_score=serializer.validated_data.get('confidence_score')
+            confidence_score=serializer.validated_data.get('confidence_score'),
+            heatmap_image_file=heatmap_image_file
         )
         
         return analysis

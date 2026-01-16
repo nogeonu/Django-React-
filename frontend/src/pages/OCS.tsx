@@ -581,20 +581,42 @@ function OrderCard({
   const [findings, setFindings] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [confidenceScore, setConfidenceScore] = useState(0.95);
+  const [heatmapImage, setHeatmapImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setHeatmapImage(file);
+      // 이미지 미리보기 생성
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleCreateAnalysis = async () => {
     if (!onCreateAnalysis) return;
     
     try {
-      await onCreateAnalysis({
-        order: order.id,
-        findings,
-        recommendations,
-        confidence_score: confidenceScore,
-        analysis_result: {},
-      });
+      // FormData 생성 (이미지 파일 전송을 위해)
+      const formData = new FormData();
+      formData.append('order', order.id);
+      formData.append('findings', findings);
+      formData.append('recommendations', recommendations);
+      formData.append('confidence_score', confidenceScore.toString());
+      formData.append('analysis_result', JSON.stringify({}));
+      
+      // heatmap 이미지 파일 추가
+      if (heatmapImage) {
+        formData.append('heatmap_image', heatmapImage);
+      }
+      
+      await onCreateAnalysis(formData);
       toast({
         title: "분석 결과 생성 완료",
         description: "의사에게 알림이 전송되었습니다.",
@@ -603,6 +625,8 @@ function OrderCard({
       setShowAnalysisDialog(false);
       setFindings("");
       setRecommendations("");
+      setHeatmapImage(null);
+      setImagePreview(null);
     } catch (error: any) {
       toast({
         title: "분석 결과 생성 실패",
@@ -868,6 +892,27 @@ function OrderCard({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div>
+                <Label>종양 탐지 이미지 (Heatmap)</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="mt-1"
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img 
+                      src={imagePreview} 
+                      alt="Heatmap 미리보기" 
+                      className="max-w-full max-h-64 object-contain border rounded-lg"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      * 종양 탐지된 이미지(heatmap)를 업로드하세요.
+                    </p>
+                  </div>
+                )}
+              </div>
               <div>
                 <Label>소견</Label>
                 <Textarea

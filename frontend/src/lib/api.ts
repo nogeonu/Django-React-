@@ -237,7 +237,17 @@ export const getImagingAnalysisByIdApi = async (id: string) => {
   return res.data;
 };
 
-export const createImagingAnalysisApi = async (data: Record<string, unknown>) => {
+export const createImagingAnalysisApi = async (data: Record<string, unknown> | FormData) => {
+  // FormData인 경우 (이미지 파일 포함)
+  if (data instanceof FormData) {
+    const res = await apiClient.post('/api/ocs/imaging-analysis/', data, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  }
+  // 일반 객체인 경우
   const res = await apiClient.post('/api/ocs/imaging-analysis/', data);
   return res.data;
 };

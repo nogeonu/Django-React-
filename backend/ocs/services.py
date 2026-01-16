@@ -3,10 +3,13 @@ OCS 서비스 로직
 """
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
 from .models import Order, DrugInteractionCheck, AllergyCheck, OrderStatusHistory, Notification, ImagingAnalysisResult
 from patients.models import Patient
 from eventeye.doctor_utils import get_department
 import logging
+import os
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +296,53 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
             logger.info(f"Notification sent to {target_dept_kr} for order {order.id}")
 
 
-def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None):
-    """영상 분석 결과 생성 및 의사에게 알림"""
+def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None, heatmap_image_file=None):
+    """영상 분석 결과 생성 및 의사에게 알림
+    
+    Args:
+        order: 주문 객체
+        analyzed_by: 분석자 (User)
+        analysis_result: 분석 결과 (dict/JSON)
+        findings: 소견
+        recommendations: 권고사항
+        confidence_score: 신뢰도
+        heatmap_image_file: heatmap 이미지 파일 (UploadedFile, optional)
+    """
+    # heatmap 이미지 저장
+    heatmap_image_url = None
+    if heatmap_image_file:
+        try:
+            # 저장 디렉토리 생성: media/imaging_analysis/{order_id}/
+            save_dir = os.path.join(settings.MEDIA_ROOT, 'imaging_analysis', str(order.id))
+            os.makedirs(save_dir, exist_ok=True)
+            
+            # 파일명 생성: heatmap_{timestamp}_{original_filename}
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            original_filename = heatmap_image_file.name
+            file_ext = os.path.splitext(original_filename)[1] or '.png'
+            filename = f'heatmap_{timestamp}{file_ext}'
+            
+            # 파일 저장
+            file_path = os.path.join(save_dir, filename)
+            with open(file_path, 'wb') as f:
+                for chunk in heatmap_image_file.chunks():
+                    f.write(chunk)
+            
+            # URL 생성
+            relative_path = os.path.join('imaging_analysis', str(order.id), filename)
+            heatmap_image_url = f"{settings.MEDIA_URL}{relative_path}".replace('\\', '/')
+            
+            # analysis_result에 이미지 URL 추가
+            if not isinstance(analysis_result, dict):
+                analysis_result = {}
+            analysis_result['heatmap_image_url'] = heatmap_image_url
+            analysis_result['heatmap_image_path'] = relative_path
+            
+            logger.info(f"Heatmap image saved: {file_path}, URL: {heatmap_image_url}")
+        except Exception as e:
+            logger.error(f"Failed to save heatmap image: {str(e)}", exc_info=True)
+            # 이미지 저장 실패해도 분석 결과는 저장
+    
     # 분석 결과 저장
     analysis, created = ImagingAnalysisResult.objects.update_or_create(
         order=order,
