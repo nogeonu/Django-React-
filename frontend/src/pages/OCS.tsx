@@ -590,6 +590,31 @@ function OrderCard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Orthanc 이미지 선택 시 파일로 변환
+  const handleOrthancImageSelect = async (instanceId: string, previewUrl: string) => {
+    try {
+      // 미리보기 URL에서 이미지 가져오기
+      const response = await fetch(previewUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `heatmap_${instanceId}.png`, { type: 'image/png' });
+      setHeatmapImage(file);
+      setSelectedOrthancImage(instanceId);
+      setImagePreview(previewUrl);
+      setShowOrthancSelector(false);
+      toast({
+        title: "이미지 선택 완료",
+        description: "Orthanc에서 히트맵 이미지를 선택했습니다.",
+      });
+    } catch (error) {
+      console.error("이미지 로드 실패:", error);
+      toast({
+        title: "오류",
+        description: "이미지를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Orthanc 이미지 가져오기 및 분석 결과 자동 로드
   const fetchOrthancImages = async (patientId: string) => {
     try {
@@ -613,7 +638,7 @@ function OrderCard({
               ) || heatmapImages[0];
               
               // 자동으로 히트맵 이미지 선택
-              handleOrthancImageSelect(latestHeatmap.instance_id, latestHeatmap.preview_url);
+              await handleOrthancImageSelect(latestHeatmap.instance_id, latestHeatmap.preview_url);
             }
             
             // 분석 결과 자동 채우기
@@ -643,31 +668,6 @@ function OrderCard({
     } catch (error) {
       console.error("Orthanc 이미지 로드 실패:", error);
       return [];
-    }
-  };
-
-  // Orthanc 이미지 선택 시 파일로 변환
-  const handleOrthancImageSelect = async (instanceId: string, previewUrl: string) => {
-    try {
-      // 미리보기 URL에서 이미지 가져오기
-      const response = await fetch(previewUrl);
-      const blob = await response.blob();
-      const file = new File([blob], `heatmap_${instanceId}.png`, { type: 'image/png' });
-      setHeatmapImage(file);
-      setSelectedOrthancImage(instanceId);
-      setImagePreview(previewUrl);
-      setShowOrthancSelector(false);
-      toast({
-        title: "이미지 선택 완료",
-        description: "Orthanc에서 히트맵 이미지를 선택했습니다.",
-      });
-    } catch (error) {
-      console.error("이미지 로드 실패:", error);
-      toast({
-        title: "오류",
-        description: "이미지를 불러오는데 실패했습니다.",
-        variant: "destructive",
-      });
     }
   };
 
