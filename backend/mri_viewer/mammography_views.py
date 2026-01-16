@@ -115,6 +115,34 @@ def mammography_ai_analysis(request):
             raise Exception(f"Mosec 응답 처리 실패: {str(e)}")
         
         # 3. 결과 매핑 (뷰 정보는 DICOM 태그에서 추출)
+        # 첫 번째 인스턴스에서 PatientID 가져오기 (모든 인스턴스는 같은 환자)
+        common_patient_id = None
+        if instance_ids and len(instance_ids) > 0:
+            try:
+                first_instance_info = client.get_instance_info(instance_ids[0])
+                first_tags = first_instance_info.get('MainDicomTags', {})
+                common_patient_id = first_tags.get('PatientID', '')
+                
+                # PatientID가 없으면 Study에서 가져오기
+                if not common_patient_id:
+                    study_id = first_instance_info.get('ParentStudy', '')
+                    if study_id:
+                        study_info = client.get_study_info(study_id)
+                        study_tags = study_info.get('MainDicomTags', {})
+                        common_patient_id = study_tags.get('PatientID', '')
+                
+                # 여전히 없으면 Orthanc Patient ID에서 가져오기
+                if not common_patient_id:
+                    orthanc_patient_id = first_instance_info.get('ParentPatient', '')
+                    if orthanc_patient_id:
+                        patient_info = client.get_patient_info(orthanc_patient_id)
+                        patient_tags = patient_info.get('MainDicomTags', {})
+                        common_patient_id = patient_tags.get('PatientID', '')
+                
+                logger.info(f"📋 공통 PatientID (첫 번째 인스턴스에서): '{common_patient_id}'")
+            except Exception as e:
+                logger.warning(f"⚠️ 공통 PatientID 가져오기 실패: {e}")
+        
         results = []
         
         for idx, (instance_id, mosec_result) in enumerate(zip(instance_ids, mosec_results)):
@@ -184,39 +212,47 @@ def mammography_ai_analysis(request):
                     gradcam_image = Image.open(BytesIO(gradcam_bytes))
                     logger.info(f"✅ PIL Image 변환 완료. size: {gradcam_image.size}, mode: {gradcam_image.mode}")
                     
-                    # Orthanc에서 환자 ID 가져오기 (정확한 매칭을 위해)
-                    try:
-                        # 먼저 인스턴스의 PatientID 확인
-                        patient_id = main_tags.get('PatientID', '')
-                        logger.info(f"📋 인스턴스에서 가져온 PatientID: '{patient_id}'")
-                        
-                        if not patient_id or patient_id == '':
-                            # Study에서 환자 ID 가져오기
-                            study_id = instance_info.get('ParentStudy', '')
-                            logger.info(f"📋 Study ID: {study_id}")
-                            if study_id:
-                                study_info = client.get_study_info(study_id)
-                                study_tags = study_info.get('MainDicomTags', {})
-                                patient_id = study_tags.get('PatientID', '')
-                                logger.info(f"📋 Study에서 가져온 PatientID: '{patient_id}'")
-                        
-                        # PatientID가 여전히 없으면 Orthanc 내부 Patient ID 사용
-                        if not patient_id or patient_id == '':
-                            orthanc_patient_id = instance_info.get('ParentPatient', '')
-                            if orthanc_patient_id:
-                                patient_info = client.get_patient_info(orthanc_patient_id)
-                                patient_tags = patient_info.get('MainDicomTags', {})
-                                patient_id = patient_tags.get('PatientID', '')
-                                logger.info(f"📋 Orthanc Patient에서 가져온 PatientID: '{patient_id}'")
-                        
-                        if not patient_id or patient_id == '':
-                            logger.error(f"❌ PatientID를 찾을 수 없습니다. instance_id: {instance_id}")
-                            patient_id = 'UNKNOWN'
-                    except Exception as e:
-                        logger.error(f"❌ 환자 ID 가져오기 실패: {e}", exc_info=True)
-                        patient_id = 'UNKNOWN'
+                    # Orthanc에서 환자 ID 가져오기 (공통 PatientID 우선 사용)
+                    patient_id = common_patient_id
                     
-                    logger.info(f"📋 최종 사용할 환자 ID: '{patient_id}'")
+                    # 공통 PatientID가 없으면 개별 인스턴스에서 가져오기 시도
+                    if not patient_id or patient_id == '':
+                        try:
+                            # 먼저 인스턴스의 PatientID 확인
+                            patient_id = main_tags.get('PatientID', '')
+                            logger.info(f"📋 인스턴스 {instance_id}에서 가져온 PatientID: '{patient_id}'")
+                            
+                            if not patient_id or patient_id == '':
+                                # Study에서 환자 ID 가져오기
+                                study_id = instance_info.get('ParentStudy', '')
+                                logger.info(f"📋 Study ID: {study_id}")
+                                if study_id:
+                                    study_info = client.get_study_info(study_id)
+                                    study_tags = study_info.get('MainDicomTags', {})
+                                    patient_id = study_tags.get('PatientID', '')
+                                    logger.info(f"📋 Study에서 가져온 PatientID: '{patient_id}'")
+                            
+                            # PatientID가 여전히 없으면 Orthanc 내부 Patient ID 사용
+                            if not patient_id or patient_id == '':
+                                orthanc_patient_id = instance_info.get('ParentPatient', '')
+                                if orthanc_patient_id:
+                                    patient_info = client.get_patient_info(orthanc_patient_id)
+                                    patient_tags = patient_info.get('MainDicomTags', {})
+                                    patient_id = patient_tags.get('PatientID', '')
+                                    logger.info(f"📋 Orthanc Patient에서 가져온 PatientID: '{patient_id}'")
+                            
+                            if not patient_id or patient_id == '':
+                                logger.error(f"❌ PatientID를 찾을 수 없습니다. instance_id: {instance_id}")
+                                logger.error(f"❌ instance_info 구조: {list(instance_info.keys())}")
+                                logger.error(f"❌ main_tags 내용: {main_tags}")
+                                patient_id = 'UNKNOWN'
+                        except Exception as e:
+                            logger.error(f"❌ 환자 ID 가져오기 실패: {e}", exc_info=True)
+                            import traceback
+                            logger.error(f"상세 에러: {traceback.format_exc()}")
+                            patient_id = 'UNKNOWN'
+                    
+                    logger.info(f"📋 최종 사용할 환자 ID: '{patient_id}' (instance_id: {instance_id})")
                     
                     # 기존 StudyInstanceUID 찾기 (같은 환자의 기존 Study에 속하도록)
                     existing_study_uid = None
