@@ -292,6 +292,17 @@ export default function OCS() {
   });
 
   const orders = ordersData?.results || ordersData || [];
+  
+  // 디버깅: 첫 번째 주문의 patient_number 확인
+  if (orders.length > 0 && orders[0]) {
+    console.log("📋 첫 번째 주문 데이터:", {
+      id: orders[0].id,
+      patient_name: orders[0].patient_name,
+      patient_number: orders[0].patient_number,
+      patient: orders[0].patient,
+      keys: Object.keys(orders[0])
+    });
+  }
 
   const filteredOrders = orders.filter((order: Order) => {
     if (searchTerm) {
@@ -1002,10 +1013,17 @@ function OrderCard({
           if (open) {
             // 다이얼로그가 열릴 때 Orthanc 이미지 가져오기
             // patient_number 사용 (Order 인터페이스에 patient_number 필드 있음)
+            // order 객체 전체 확인
+            console.log("📋 OrderCard - order 객체:", order);
+            console.log("📋 OrderCard - order keys:", Object.keys(order));
+            
             const patientId = order.patient_number;
             console.log("🔍 OCS 다이얼로그 열림 - 환자 ID:", {
               patient_number: order.patient_number,
+              patient_name: order.patient_name,
               patient: order.patient,
+              order_id: order.id,
+              order_type: order.order_type,
               final_patient_id: patientId
             });
             if (patientId) {
