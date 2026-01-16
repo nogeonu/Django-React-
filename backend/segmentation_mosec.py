@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Mosec 기반 MRI 세그멘테이션 서버
-Sliding Window Inference를 사용하여 96×96×96 모델로 전체 볼륨 처리
-- 모델 학습 크기: [4, 96, 96, 96] (4 channels, 96 depth, 96 height, 96 width)
+Sliding Window Inference를 사용하여 128×128×128 모델로 전체 볼륨 처리
+- 모델 학습 크기: [4, 128, 128, 128] (4 channels, 128 depth, 128 height, 128 width)
 - 실제 처리: [4, D, H, W] (D는 전체 슬라이스 수, 예: 134)
-- Sliding Window: roi_size=(96, 96, 96), overlap=0.75
+- Sliding Window: roi_size=(128, 128, 128), overlap=0.5
 """
 import os
 import io
@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 환경 변수
-MODEL_PATH = '/home/shrjsdn908/models/mri_models/Phase1_Segmentation_best.pth'
+MODEL_PATH = '/home/shrjsdn908/models/mri_models/best_model.pth'  # 128×128×128 모델
 ORTHANC_URL = 'http://localhost:8042'
 ORTHANC_USER = 'admin'
 ORTHANC_PASSWORD = 'admin123'
@@ -85,7 +85,7 @@ def create_4d_input_from_sequences(sequences_3d, target_spatial=None, target_dep
 
 def create_mock_4d_input(slice_2d):
     """단일 2D 슬라이스를 4D MRI 입력으로 변환 (fallback)"""
-    mock_3d = np.stack([slice_2d] * 96, axis=0)  # [96, H, W]
+    mock_3d = np.stack([slice_2d] * 128, axis=0)  # [128, H, W]
     return create_4d_input_from_sequences([mock_3d] * 4)
 
 
@@ -361,7 +361,7 @@ class SegmentationWorker(Worker):
                     spatial_dims=3,
                     in_channels=4,
                     out_channels=1,
-                    feature_size=24,
+                    feature_size=24,  # 128×128×128 모델과 동일한 feature_size
                     use_checkpoint=False,
                 )
                 
@@ -431,12 +431,12 @@ class SegmentationWorker(Worker):
             logger.info(f"📊 Input shape: {input_tensor.shape}")
             
             # Sliding Window Inference로 전체 볼륨 처리
-            # 모델은 96×96×96 패치로 학습되었지만, sliding window로 더 큰 볼륨 처리 가능
+            # 모델은 128×128×128 패치로 학습되었지만, sliding window로 더 큰 볼륨 처리 가능
             with torch.no_grad():
-                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(96, 96, 96), overlap=0.5")
+                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(128, 128, 128), overlap=0.5")
                 output = sliding_window_inference(
                     inputs=input_tensor,              # [1, 4, D, H, W] (D는 전체 슬라이스 수)
-                    roi_size=(96, 96, 96),            # 모델이 학습한 패치 크기
+                    roi_size=(128, 128, 128),        # 모델이 학습한 패치 크기 (128×128×128)
                     sw_batch_size=1,
                     predictor=self.model,
                     overlap=0.5  # 50% overlap (메모리 절약)
