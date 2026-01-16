@@ -713,14 +713,18 @@ export default function CornerstoneViewer({
         {showSegmentation && segmentationFrames.length > 0 && currentIndex < segmentationFrames.length && (
           <div 
             className="absolute inset-0 pointer-events-none z-10"
-            style={{ mixBlendMode: 'screen', opacity: 0.6 }}
+            style={{ 
+              mixBlendMode: 'screen',
+              opacity: 0.7,
+            }}
           >
             <img
               src={`data:image/png;base64,${segmentationFrames[currentIndex]?.mask_base64}`}
               alt="Segmentation overlay"
               className="w-full h-full object-contain"
               style={{ 
-                filter: 'hue-rotate(300deg) saturate(2) brightness(1.2)', // 빨간색/마젠타 오버레이
+                filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
+                // 마젠타/빨간색으로 강제 변환
               }}
             />
           </div>

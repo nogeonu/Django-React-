@@ -1023,13 +1023,15 @@ export default function MRIViewer() {
                             <motion.img
                               key={`seg-overlay-${selectedImage}`}
                               initial={{ opacity: 0 }}
-                              animate={{ opacity: 0.5 }}
+                              animate={{ opacity: 0.7 }}
                               transition={{ duration: 0.3 }}
                               src={`data:image/png;base64,${segmentationFrames[selectedImage]?.mask_base64}`}
-                              className="absolute inset-0 max-w-full max-h-full object-contain pointer-events-none mix-blend-screen"
+                              className="absolute inset-0 max-w-full max-h-full object-contain pointer-events-none"
                               style={{ 
-                                filter: 'hue-rotate(300deg) saturate(2) brightness(1.2)', // 빨간색/마젠타 오버레이
-                                opacity: 0.6
+                                mixBlendMode: 'screen',
+                                filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
+                                // 마젠타/빨간색으로 강제 변환
+                                opacity: 0.7
                               }}
                             />
                           )}
