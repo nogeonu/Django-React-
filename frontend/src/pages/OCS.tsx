@@ -730,10 +730,14 @@ function OrderCard({
   const handleCreateAnalysis = async () => {
     if (!onCreateAnalysis) return;
     
-    if (heatmapImages.length === 0) {
+    // 유방촬영술일 때만 히트맵 이미지 필수
+    const imagingType = order.order_data?.imaging_type || '';
+    const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+    
+    if (isMammography && heatmapImages.length === 0) {
       toast({
         title: "히트맵 이미지 필요",
-        description: "최소 1장의 히트맵 이미지를 선택해주세요.",
+        description: "유방촬영술 분석 결과 입력 시 최소 1장의 히트맵 이미지를 선택해주세요.",
         variant: "destructive",
       });
       return;
@@ -748,17 +752,22 @@ function OrderCard({
       formData.append('confidence_score', confidenceScore.toString());
       formData.append('analysis_result', JSON.stringify({}));
       
-      // 여러 heatmap 이미지 파일 추가
-      heatmapImages.forEach((file, index) => {
-        formData.append('heatmap_image', file);
-        // 여러 파일을 구분하기 위해 index 추가 (백엔드에서 처리 가능하도록)
-        formData.append(`heatmap_image_${index}`, file);
-      });
+      // 유방촬영술일 때만 heatmap 이미지 파일 추가
+      if (isMammography && heatmapImages.length > 0) {
+        heatmapImages.forEach((file, index) => {
+          formData.append('heatmap_image', file);
+          // 여러 파일을 구분하기 위해 index 추가 (백엔드에서 처리 가능하도록)
+          formData.append(`heatmap_image_${index}`, file);
+        });
+      }
       
       await onCreateAnalysis(formData);
+      const imageCount = isMammography ? heatmapImages.length : 0;
       toast({
         title: "분석 결과 생성 완료",
-        description: `${heatmapImages.length}장의 히트맵 이미지와 함께 의사에게 알림이 전송되었습니다.`,
+        description: imageCount > 0 
+          ? `${imageCount}장의 히트맵 이미지와 함께 의사에게 알림이 전송되었습니다.`
+          : "의사에게 알림이 전송되었습니다.",
       });
       queryClient.invalidateQueries({ queryKey: ["ocs-orders"] });
       setShowAnalysisDialog(false);
@@ -1026,33 +1035,29 @@ function OrderCard({
         <Dialog open={showAnalysisDialog} onOpenChange={(open) => {
           setShowAnalysisDialog(open);
           if (open) {
-            // 다이얼로그가 열릴 때 Orthanc 이미지 가져오기
-            // patient_number 사용 (Order 인터페이스에 patient_number 필드 있음)
-            // order 객체 전체 확인
-            console.log("📋 OrderCard - order 객체:", order);
-            console.log("📋 OrderCard - order keys:", Object.keys(order));
+            // 유방촬영술일 때만 Orthanc 히트맵 이미지 가져오기
+            const imagingType = order.order_data?.imaging_type || '';
+            const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
             
-            // patient_id를 우선 사용 (Orthanc의 PatientID와 일치)
-            // 없으면 patient_number 사용 (하위 호환성)
-            const patientId = order.patient_id || order.patient_number;
-            console.log("🔍 OCS 다이얼로그 열림 - 환자 ID:", {
+            console.log("🔍 OCS 다이얼로그 열림:", {
+              imaging_type: imagingType,
+              is_mammography: isMammography,
               patient_id: order.patient_id,
               patient_number: order.patient_number,
-              patient_name: order.patient_name,
-              patient: order.patient,
-              order_id: order.id,
-              order_type: order.order_type,
-              final_patient_id: patientId,
-              note: "Orthanc의 PatientID는 DB의 patient_id와 일치해야 함"
             });
-            if (patientId) {
-              fetchOrthancImages(patientId);
-            } else {
-              toast({
-                title: "환자 ID 없음",
-                description: "환자 ID를 찾을 수 없습니다.",
-                variant: "destructive",
-              });
+            
+            // 유방촬영술일 때만 Orthanc에서 히트맵 이미지 가져오기
+            if (isMammography) {
+              const patientId = order.patient_id || order.patient_number;
+              if (patientId) {
+                fetchOrthancImages(patientId);
+              } else {
+                toast({
+                  title: "환자 ID 없음",
+                  description: "환자 ID를 찾을 수 없습니다.",
+                  variant: "destructive",
+                });
+              }
             }
           } else {
             // 다이얼로그가 닫힐 때 상태 초기화
@@ -1070,21 +1075,37 @@ function OrderCard({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <Label>종양 탐지 이미지 (Heatmap)</Label>
-                <div className="space-y-2">
-                  {/* Orthanc에서 선택 버튼 - 항상 표시 */}
-                  <div className="mb-2">
+              {/* 히트맵 이미지 선택 (유방촬영술일 때만 표시) */}
+              {(() => {
+                const imagingType = order.order_data?.imaging_type || '';
+                const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+                
+                if (!isMammography) {
+                  // 유방촬영술이 아니면 히트맵 선택 UI 표시하지 않음
+                  return null;
+                }
+                
+                return (
+                  <div>
+                    <Label>종양 탐지 이미지 (Heatmap)</Label>
+                    <div className="space-y-2">
+                      {/* Orthanc에서 선택 버튼 */}
+                      <div className="mb-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         setShowOrthancSelector(!showOrthancSelector);
-                        // 선택자를 열 때 히트맵 이미지가 없으면 다시 로드 시도
-                        if (!showOrthancSelector && orthancImages.length === 0 && order.patient_number && !isLoadingOrthancImages) {
-                          console.log("🔄 히트맵 이미지 다시 로드 시도");
-                          fetchOrthancImages(order.patient_number);
+                        // 선택자를 열 때 히트맵 이미지가 없으면 다시 로드 시도 (유방촬영술일 때만)
+                        const imagingType = order.order_data?.imaging_type || '';
+                        const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+                        if (!showOrthancSelector && isMammography && orthancImages.length === 0) {
+                          const patientId = order.patient_id || order.patient_number;
+                          if (patientId && !isLoadingOrthancImages) {
+                            console.log("🔄 히트맵 이미지 다시 로드 시도");
+                            fetchOrthancImages(patientId);
+                          }
                         }
                       }}
                       disabled={isLoadingOrthancImages}
@@ -1123,13 +1144,13 @@ function OrderCard({
                                 return (
                                   <div
                                     key={img.instance_id}
-                                    className={`border-2 rounded-lg p-2 cursor-pointer hover:bg-accent transition-all ${
+                                    className={`relative border-2 rounded-lg p-2 cursor-pointer hover:bg-accent transition-all ${
                                       isSelected ? 'border-primary bg-primary/10' : 'border-gray-200'
                                     }`}
                                     onClick={() => handleOrthancImageToggle(img.instance_id, img.preview_url)}
                                   >
                                     {isSelected && (
-                                      <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-1">
+                                      <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-1 z-10">
                                         <CheckCircle className="h-4 w-4" />
                                       </div>
                                     )}
@@ -1200,8 +1221,11 @@ function OrderCard({
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               <div>
                 <Label>소견</Label>
                 <Textarea
