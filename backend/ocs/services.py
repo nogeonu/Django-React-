@@ -296,7 +296,7 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
             logger.info(f"Notification sent to {target_dept_kr} for order {order.id}")
 
 
-def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None, heatmap_image_file=None):
+def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None, heatmap_image_file=None, heatmap_image_files=None):
     """영상 분석 결과 생성 및 의사에게 알림
     
     Args:
@@ -306,41 +306,64 @@ def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings
         findings: 소견
         recommendations: 권고사항
         confidence_score: 신뢰도
-        heatmap_image_file: heatmap 이미지 파일 (UploadedFile, optional)
+        heatmap_image_file: heatmap 이미지 파일 (UploadedFile, optional, 하위 호환성)
+        heatmap_image_files: heatmap 이미지 파일 리스트 (여러 장 지원)
     """
-    # heatmap 이미지 저장
-    heatmap_image_url = None
-    if heatmap_image_file:
+    # 여러 파일이 제공되면 우선 사용, 없으면 단일 파일 사용
+    files_to_save = []
+    if heatmap_image_files and len(heatmap_image_files) > 0:
+        files_to_save = heatmap_image_files
+    elif heatmap_image_file:
+        files_to_save = [heatmap_image_file]
+    
+    # heatmap 이미지 저장 (여러 장 지원)
+    heatmap_image_urls = []
+    if files_to_save:
         try:
             # 저장 디렉토리 생성: media/imaging_analysis/{order_id}/
             save_dir = os.path.join(settings.MEDIA_ROOT, 'imaging_analysis', str(order.id))
             os.makedirs(save_dir, exist_ok=True)
             
-            # 파일명 생성: heatmap_{timestamp}_{original_filename}
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            original_filename = heatmap_image_file.name
-            file_ext = os.path.splitext(original_filename)[1] or '.png'
-            filename = f'heatmap_{timestamp}{file_ext}'
             
-            # 파일 저장
-            file_path = os.path.join(save_dir, filename)
-            with open(file_path, 'wb') as f:
-                for chunk in heatmap_image_file.chunks():
-                    f.write(chunk)
+            for idx, file in enumerate(files_to_save):
+                try:
+                    # 파일명 생성: heatmap_{timestamp}_{index}_{original_filename}
+                    original_filename = file.name
+                    file_ext = os.path.splitext(original_filename)[1] or '.png'
+                    filename = f'heatmap_{timestamp}_{idx+1}{file_ext}'
+                    
+                    # 파일 저장
+                    file_path = os.path.join(save_dir, filename)
+                    with open(file_path, 'wb') as f:
+                        for chunk in file.chunks():
+                            f.write(chunk)
+                    
+                    # URL 생성
+                    relative_path = os.path.join('imaging_analysis', str(order.id), filename)
+                    image_url = f"{settings.MEDIA_URL}{relative_path}".replace('\\', '/')
+                    heatmap_image_urls.append(image_url)
+                    
+                    logger.info(f"Heatmap image {idx+1}/{len(files_to_save)} saved: {file_path}, URL: {image_url}")
+                except Exception as e:
+                    logger.error(f"Failed to save heatmap image {idx+1}: {str(e)}", exc_info=True)
+                    # 개별 파일 저장 실패해도 계속 진행
             
-            # URL 생성
-            relative_path = os.path.join('imaging_analysis', str(order.id), filename)
-            heatmap_image_url = f"{settings.MEDIA_URL}{relative_path}".replace('\\', '/')
-            
-            # analysis_result에 이미지 URL 추가
+            # analysis_result에 이미지 URL들 추가
             if not isinstance(analysis_result, dict):
                 analysis_result = {}
-            analysis_result['heatmap_image_url'] = heatmap_image_url
-            analysis_result['heatmap_image_path'] = relative_path
             
-            logger.info(f"Heatmap image saved: {file_path}, URL: {heatmap_image_url}")
+            if len(heatmap_image_urls) > 0:
+                # 첫 번째 이미지를 메인 이미지로 (하위 호환성)
+                analysis_result['heatmap_image_url'] = heatmap_image_urls[0]
+                analysis_result['heatmap_image_path'] = os.path.join('imaging_analysis', str(order.id), f'heatmap_{timestamp}_1.png')
+                # 여러 이미지 URL 리스트
+                analysis_result['heatmap_image_urls'] = heatmap_image_urls
+                analysis_result['heatmap_image_count'] = len(heatmap_image_urls)
+            
+            logger.info(f"Total {len(heatmap_image_urls)} heatmap images saved for order {order.id}")
         except Exception as e:
-            logger.error(f"Failed to save heatmap image: {str(e)}", exc_info=True)
+            logger.error(f"Failed to save heatmap images: {str(e)}", exc_info=True)
             # 이미지 저장 실패해도 분석 결과는 저장
     
     # 분석 결과 저장

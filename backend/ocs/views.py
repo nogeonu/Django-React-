@@ -515,10 +515,33 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
         if user_department != "영상의학과":
             raise PermissionDenied("영상의학과만 영상 분석 결과를 생성할 수 있습니다.")
         
-        # heatmap 이미지 파일 가져오기 (request.FILES에서)
-        heatmap_image_file = self.request.FILES.get('heatmap_image', None)
+        # heatmap 이미지 파일 가져오기 (여러 장 지원)
+        # FormData에서 'heatmap_image' 키로 여러 파일이 전달될 수 있음
+        heatmap_image_files = []
+        if 'heatmap_image' in self.request.FILES:
+            # getlist를 사용하여 같은 키의 모든 파일 가져오기
+            files = self.request.FILES.getlist('heatmap_image')
+            # 여러 파일 필터링 (heatmap_image_0, heatmap_image_1 등도 허용)
+            for key in self.request.FILES.keys():
+                if key.startswith('heatmap_image'):
+                    files_from_key = self.request.FILES.getlist(key)
+                    heatmap_image_files.extend(files_from_key)
+            # 중복 제거 (같은 파일이 여러 번 포함될 수 있음)
+            seen = set()
+            unique_files = []
+            for file in heatmap_image_files:
+                file_id = (file.name, file.size)
+                if file_id not in seen:
+                    seen.add(file_id)
+                    unique_files.append(file)
+            heatmap_image_files = unique_files
         
-        # 분석 결과 생성 및 알림
+        # 첫 번째 파일을 메인 히트맵으로 사용 (하위 호환성)
+        heatmap_image_file = heatmap_image_files[0] if heatmap_image_files else None
+        
+        logger.info(f"히트맵 이미지 파일 개수: {len(heatmap_image_files)}")
+        
+        # 분석 결과 생성 및 알림 (여러 파일 지원)
         analysis = create_imaging_analysis_result(
             order=order,
             analyzed_by=user,
@@ -526,7 +549,8 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
             findings=serializer.validated_data.get('findings', ''),
             recommendations=serializer.validated_data.get('recommendations', ''),
             confidence_score=serializer.validated_data.get('confidence_score'),
-            heatmap_image_file=heatmap_image_file
+            heatmap_image_file=heatmap_image_file,
+            heatmap_image_files=heatmap_image_files  # 여러 파일 전달
         )
         
         return analysis

@@ -594,38 +594,62 @@ function OrderCard({
   const [findings, setFindings] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [confidenceScore, setConfidenceScore] = useState(0.95);
-  const [heatmapImage, setHeatmapImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [heatmapImages, setHeatmapImages] = useState<File[]>([]);  // 여러 이미지 지원
+  const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map());  // instanceId -> previewUrl
   const [orthancImages, setOrthancImages] = useState<any[]>([]);
-  const [selectedOrthancImage, setSelectedOrthancImage] = useState<string | null>(null);
+  const [selectedOrthancImages, setSelectedOrthancImages] = useState<Set<string>>(new Set());  // 여러 선택 지원
   const [showOrthancSelector, setShowOrthancSelector] = useState(false);
   const [isLoadingOrthancImages, setIsLoadingOrthancImages] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Orthanc 이미지 선택 시 파일로 변환
-  const handleOrthancImageSelect = async (instanceId: string, previewUrl: string) => {
-    try {
-      // 미리보기 URL에서 이미지 가져오기
-      const response = await fetch(previewUrl);
-      const blob = await response.blob();
-      const file = new File([blob], `heatmap_${instanceId}.png`, { type: 'image/png' });
-      setHeatmapImage(file);
-      setSelectedOrthancImage(instanceId);
-      setImagePreview(previewUrl);
-      setShowOrthancSelector(false);
-      toast({
-        title: "이미지 선택 완료",
-        description: "Orthanc에서 히트맵 이미지를 선택했습니다.",
+  // Orthanc 이미지 선택/해제 (여러 장 지원)
+  const handleOrthancImageToggle = async (instanceId: string, previewUrl: string) => {
+    const newSelected = new Set(selectedOrthancImages);
+    const newPreviews = new Map(imagePreviews);
+    const newFiles: File[] = [];
+    
+    if (newSelected.has(instanceId)) {
+      // 이미 선택된 이미지면 해제
+      newSelected.delete(instanceId);
+      newPreviews.delete(instanceId);
+      // 기존 파일에서 제거
+      heatmapImages.forEach(file => {
+        if (!file.name.includes(instanceId)) {
+          newFiles.push(file);
+        }
       });
-    } catch (error) {
-      console.error("이미지 로드 실패:", error);
       toast({
-        title: "오류",
-        description: "이미지를 불러오는데 실패했습니다.",
-        variant: "destructive",
+        title: "이미지 해제",
+        description: "히트맵 이미지 선택을 해제했습니다.",
       });
+    } else {
+      // 새로 선택
+      try {
+        const response = await fetch(previewUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `heatmap_${instanceId}.png`, { type: 'image/png' });
+        newSelected.add(instanceId);
+        newPreviews.set(instanceId, previewUrl);
+        newFiles.push(...heatmapImages, file);
+        toast({
+          title: "이미지 선택",
+          description: "히트맵 이미지를 선택했습니다. (여러 장 선택 가능)",
+        });
+      } catch (error) {
+        console.error("이미지 로드 실패:", error);
+        toast({
+          title: "오류",
+          description: "이미지를 불러오는데 실패했습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    
+    setSelectedOrthancImages(newSelected);
+    setImagePreviews(newPreviews);
+    setHeatmapImages(newFiles);
   };
 
   // Orthanc 이미지 가져오기 및 분석 결과 자동 로드
@@ -656,15 +680,7 @@ function OrderCard({
         try {
           const analysisData = await getPatientAnalysisDataApi(patientId);
           if (analysisData.success && analysisData.has_heatmap) {
-            // 히트맵 이미지가 있으면 자동으로 첫 번째 히트맵 선택
-            if (analysisData.latest_heatmap && heatmapImages.length > 0) {
-              const latestHeatmap = heatmapImages.find(
-                (img: any) => img.instance_id === analysisData.latest_heatmap.instance_id
-              ) || heatmapImages[0];
-              
-              // 자동으로 히트맵 이미지 선택
-              await handleOrthancImageSelect(latestHeatmap.instance_id, latestHeatmap.preview_url);
-            }
+            // 자동 선택 기능 제거 (사용자가 직접 여러 장 선택하도록)
             
             // 분석 결과 자동 채우기
             if (analysisData.suggested_findings) {
@@ -711,22 +727,17 @@ function OrderCard({
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setHeatmapImage(file);
-      setSelectedOrthancImage(null);
-      // 이미지 미리보기 생성
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleCreateAnalysis = async () => {
     if (!onCreateAnalysis) return;
+    
+    if (heatmapImages.length === 0) {
+      toast({
+        title: "히트맵 이미지 필요",
+        description: "최소 1장의 히트맵 이미지를 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       // FormData 생성 (이미지 파일 전송을 위해)
@@ -737,22 +748,25 @@ function OrderCard({
       formData.append('confidence_score', confidenceScore.toString());
       formData.append('analysis_result', JSON.stringify({}));
       
-      // heatmap 이미지 파일 추가
-      if (heatmapImage) {
-        formData.append('heatmap_image', heatmapImage);
-      }
+      // 여러 heatmap 이미지 파일 추가
+      heatmapImages.forEach((file, index) => {
+        formData.append('heatmap_image', file);
+        // 여러 파일을 구분하기 위해 index 추가 (백엔드에서 처리 가능하도록)
+        formData.append(`heatmap_image_${index}`, file);
+      });
       
       await onCreateAnalysis(formData);
       toast({
         title: "분석 결과 생성 완료",
-        description: "의사에게 알림이 전송되었습니다.",
+        description: `${heatmapImages.length}장의 히트맵 이미지와 함께 의사에게 알림이 전송되었습니다.`,
       });
       queryClient.invalidateQueries({ queryKey: ["ocs-orders"] });
       setShowAnalysisDialog(false);
       setFindings("");
       setRecommendations("");
-      setHeatmapImage(null);
-      setImagePreview(null);
+      setHeatmapImages([]);
+      setImagePreviews(new Map());
+      setSelectedOrthancImages(new Set());
     } catch (error: any) {
       toast({
         title: "분석 결과 생성 실패",
@@ -1043,7 +1057,9 @@ function OrderCard({
           } else {
             // 다이얼로그가 닫힐 때 상태 초기화
             setOrthancImages([]);
-            setSelectedOrthancImage(null);
+            setSelectedOrthancImages(new Set());
+            setHeatmapImages([]);
+            setImagePreviews(new Map());
           }
         }}>
           <DialogContent className="max-w-2xl">
@@ -1094,27 +1110,40 @@ function OrderCard({
                         ) : orthancImages.length > 0 ? (
                           <>
                             <p className="text-xs text-muted-foreground mb-2">
-                              Orthanc에 저장된 히트맵 이미지를 선택하세요 ({orthancImages.length}개):
+                              Orthanc에 저장된 히트맵 이미지를 선택하세요 ({orthancImages.length}개, 여러 장 선택 가능):
                             </p>
+                            {selectedOrthancImages.size > 0 && (
+                              <p className="text-xs text-primary mb-2 font-medium">
+                                선택됨: {selectedOrthancImages.size}장
+                              </p>
+                            )}
                             <div className="grid grid-cols-2 gap-2">
-                              {orthancImages.map((img: any) => (
-                                <div
-                                  key={img.instance_id}
-                                  className={`border rounded-lg p-2 cursor-pointer hover:bg-accent ${
-                                    selectedOrthancImage === img.instance_id ? 'border-primary' : ''
-                                  }`}
-                                  onClick={() => handleOrthancImageSelect(img.instance_id, img.preview_url)}
-                                >
-                                  <img
-                                    src={img.preview_url}
-                                    alt={`Instance ${img.instance_id}`}
-                                    className="w-full h-32 object-contain"
-                                  />
-                                  <p className="text-xs text-center mt-1">
-                                    {img.series_description || 'Heatmap'}
-                                  </p>
-                                </div>
-                              ))}
+                              {orthancImages.map((img: any) => {
+                                const isSelected = selectedOrthancImages.has(img.instance_id);
+                                return (
+                                  <div
+                                    key={img.instance_id}
+                                    className={`border-2 rounded-lg p-2 cursor-pointer hover:bg-accent transition-all ${
+                                      isSelected ? 'border-primary bg-primary/10' : 'border-gray-200'
+                                    }`}
+                                    onClick={() => handleOrthancImageToggle(img.instance_id, img.preview_url)}
+                                  >
+                                    {isSelected && (
+                                      <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-1">
+                                        <CheckCircle className="h-4 w-4" />
+                                      </div>
+                                    )}
+                                    <img
+                                      src={img.preview_url}
+                                      alt={`Instance ${img.instance_id}`}
+                                      className="w-full h-32 object-contain"
+                                    />
+                                    <p className="text-xs text-center mt-1">
+                                      {img.series_description || 'Heatmap'}
+                                    </p>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </>
                         ) : (
@@ -1133,26 +1162,42 @@ function OrderCard({
                       </div>
                     )}
                   </div>
-                  {/* 파일 업로드 */}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">또는 파일로 업로드:</p>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="mt-1"
-                    />
-                  </div>
-                  {imagePreview && (
+                  {/* 선택된 이미지 미리보기 */}
+                  {selectedOrthancImages.size > 0 && (
                     <div className="mt-2">
-                      <img 
-                        src={imagePreview} 
-                        alt="Heatmap 미리보기" 
-                        className="max-w-full max-h-64 object-contain border rounded-lg"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {selectedOrthancImage ? "Orthanc에서 선택된 이미지" : "* 종양 탐지된 이미지(heatmap)를 업로드하세요."}
+                      <p className="text-xs text-muted-foreground mb-2">
+                        선택된 히트맵 이미지 ({selectedOrthancImages.size}장):
                       </p>
+                      <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                        {Array.from(selectedOrthancImages).map((instanceId) => {
+                          const previewUrl = imagePreviews.get(instanceId);
+                          const imgInfo = orthancImages.find((img: any) => img.instance_id === instanceId);
+                          return (
+                            <div key={instanceId} className="relative border rounded-lg p-1">
+                              <img
+                                src={previewUrl}
+                                alt={`Selected ${instanceId}`}
+                                className="w-full h-24 object-contain"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-0 right-0 h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOrthancImageToggle(instanceId, previewUrl || '');
+                                }}
+                              >
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                              <p className="text-xs text-center mt-1 truncate">
+                                {imgInfo?.series_description || 'Heatmap'}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
