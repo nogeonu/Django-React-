@@ -239,3 +239,30 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(patient_identifier=patient_id).order_by('start_time')
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def today_appointments_count(self, request):
+        """오늘 예약 수를 진료과별로 반환"""
+        from django.utils import timezone
+        from eventeye.doctor_utils import get_department
+        
+        today = timezone.now().date()
+        
+        # 기본 쿼리셋 (부서별 필터링 적용)
+        queryset = self.get_queryset().filter(
+            start_time__date=today,
+            status='scheduled'  # 예약됨 상태만
+        )
+        
+        # 현재 사용자의 진료과 정보
+        user_department = None
+        if request.user.is_authenticated:
+            user_department = get_department(request.user.id)
+        
+        count = queryset.count()
+        
+        return Response({
+            'today_count': count,
+            'department': user_department,
+            'date': today.isoformat(),
+        })

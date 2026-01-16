@@ -36,6 +36,22 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
         refetchInterval: 30000,
     });
 
+    const { data: todayAppointments } = useQuery({
+        queryKey: ["today-appointments-count"],
+        queryFn: async () => {
+            try {
+                const response = await apiRequest("GET", "/api/patients/appointments/today_appointments_count/");
+                return response;
+            } catch (err) {
+                console.error("Layout - 오늘 예약 수 조회 오류:", err);
+                return {
+                    today_count: 0,
+                };
+            }
+        },
+        refetchInterval: 30000,
+    });
+
     const isDashboard = location.pathname === '/medical_staff' || location.pathname === '/admin_staff';
 
     const getRoleBadgeColor = (role: string) => {
@@ -130,7 +146,7 @@ export default function MedicalLayout({ children, isSidebarOpen, setIsSidebarOpe
                                 </h1>
 
                                 <p className="text-blue-100/80 mb-4 font-medium">
-                                    오늘 <span className="text-white border-b border-white font-bold">{dashboardStats?.waiting_count || 0}명의 환자</span>가 진료 예정입니다.
+                                    오늘 <span className="text-white border-b border-white font-bold">{todayAppointments?.today_count || 0}개의 예약</span>이 있습니다.
                                 </p>
 
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
