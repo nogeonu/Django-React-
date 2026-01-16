@@ -431,26 +431,36 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                         # 마스크 저장 실패해도 분석 결과는 저장
                 
                 # Classification인 경우 heatmap 이미지를 Orthanc에 저장
+                logger.info(f"Classification 분석 완료. heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
+                logger.info(f"analysis_data keys: {list(analysis_data.keys())}")
+                
                 if analysis_type == 'classification' and analysis_data.get('heatmap_image'):
                     try:
+                        logger.info(f"히트맵 이미지 Orthanc 저장 시작. patient_id: {medical_image.patient_id}")
                         # heatmap 이미지 데이터 가져오기 (base64)
                         heatmap_data = analysis_data.get('heatmap_image')
+                        logger.info(f"heatmap_data type: {type(heatmap_data)}, length: {len(heatmap_data) if isinstance(heatmap_data, str) else 'N/A'}")
                         
                         # base64 디코딩
                         if isinstance(heatmap_data, str):
                             if heatmap_data.startswith('data:image'):
                                 heatmap_data = heatmap_data.split(',')[1]
                             heatmap_bytes = base64.b64decode(heatmap_data)
+                            logger.info(f"Base64 디코딩 완료. bytes length: {len(heatmap_bytes)}")
                         else:
                             heatmap_bytes = heatmap_data
                         
                         # PIL Image로 변환
                         heatmap_image = Image.open(BytesIO(heatmap_bytes))
+                        logger.info(f"PIL Image 변환 완료. size: {heatmap_image.size}, mode: {heatmap_image.mode}")
                         
                         # 원본 이미지도 Orthanc에 저장
                         original_image_path = medical_image.image_file.path if hasattr(medical_image.image_file, 'path') else None
+                        logger.info(f"원본 이미지 경로: {original_image_path}, 존재 여부: {os.path.exists(original_image_path) if original_image_path else False}")
+                        
                         if original_image_path and os.path.exists(original_image_path):
                             try:
+                                logger.info("원본 이미지 Orthanc 저장 시작")
                                 original_image = Image.open(original_image_path)
                                 original_dicom = pil_image_to_dicom(
                                     original_image,
@@ -459,13 +469,17 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                                     series_description="Original Mammography",
                                     modality="MG"
                                 )
+                                logger.info(f"원본 DICOM 변환 완료. size: {len(original_dicom)} bytes")
                                 orthanc_client = OrthancClient()
                                 original_result = orthanc_client.upload_dicom(original_dicom)
                                 logger.info(f"원본 맘모그래피 이미지 Orthanc 저장 완료: {original_result}")
                             except Exception as orig_error:
                                 logger.error(f"원본 이미지 Orthanc 저장 실패: {str(orig_error)}", exc_info=True)
+                        else:
+                            logger.warning(f"원본 이미지 경로가 없거나 파일이 존재하지 않습니다: {original_image_path}")
                         
                         # heatmap 이미지를 DICOM으로 변환
+                        logger.info("히트맵 DICOM 변환 시작")
                         heatmap_dicom = pil_image_to_dicom(
                             heatmap_image,
                             patient_id=str(medical_image.patient_id),
@@ -473,9 +487,12 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                             series_description="Heatmap Image",
                             modality="MG"
                         )
+                        logger.info(f"히트맵 DICOM 변환 완료. size: {len(heatmap_dicom)} bytes")
                         
                         # Orthanc에 업로드
+                        logger.info("Orthanc 클라이언트 생성 및 업로드 시작")
                         orthanc_client = OrthancClient()
+                        logger.info(f"Orthanc URL: {orthanc_client.base_url}")
                         heatmap_result = orthanc_client.upload_dicom(heatmap_dicom)
                         logger.info(f"히트맵 이미지 Orthanc 저장 완료: {heatmap_result}")
                         
@@ -724,21 +741,28 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
                 analysis_data = result.get('data', {})
                 
                 # heatmap 이미지를 Orthanc에 저장
+                logger.info(f"종양 분석 완료. heatmap_image 존재 여부: {bool(analysis_data.get('heatmap_image'))}")
+                logger.info(f"analysis_data keys: {list(analysis_data.keys())}")
+                
                 if analysis_data.get('heatmap_image'):
                     try:
+                        logger.info(f"히트맵 이미지 Orthanc 저장 시작. patient_id: {medical_image.patient_id}")
                         # heatmap 이미지 데이터 가져오기 (base64)
                         heatmap_data = analysis_data.get('heatmap_image')
+                        logger.info(f"heatmap_data type: {type(heatmap_data)}, length: {len(heatmap_data) if isinstance(heatmap_data, str) else 'N/A'}")
                         
                         # base64 디코딩
                         if isinstance(heatmap_data, str):
                             if heatmap_data.startswith('data:image'):
                                 heatmap_data = heatmap_data.split(',')[1]
                             heatmap_bytes = base64.b64decode(heatmap_data)
+                            logger.info(f"Base64 디코딩 완료. bytes length: {len(heatmap_bytes)}")
                         else:
                             heatmap_bytes = heatmap_data
                         
                         # PIL Image로 변환
                         heatmap_image = Image.open(BytesIO(heatmap_bytes))
+                        logger.info(f"PIL Image 변환 완료. size: {heatmap_image.size}, mode: {heatmap_image.mode}")
                         
                         # 원본 이미지도 Orthanc에 저장
                         original_image_path = medical_image.image_file.path if hasattr(medical_image.image_file, 'path') else None
