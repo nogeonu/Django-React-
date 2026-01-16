@@ -619,14 +619,25 @@ function OrderCard({
   // Orthanc 이미지 가져오기 및 분석 결과 자동 로드
   const fetchOrthancImages = async (patientId: string) => {
     setIsLoadingOrthancImages(true);
+    console.log("🔍 fetchOrthancImages 호출 - patientId:", patientId);
     try {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`);
       const data = await response.json();
+      console.log("📦 Orthanc API 응답:", {
+        success: data.success,
+        images_count: data.images?.length || 0,
+        error: data.error
+      });
       if (data.success && data.images) {
+        console.log(`✅ Orthanc에서 ${data.images.length}개의 이미지 발견`);
         // Heatmap 이미지만 필터링 (SeriesDescription이 "Heatmap Image"인 것)
-        const heatmapImages = data.images.filter((img: any) => 
-          img.series_description === "Heatmap Image" || img.series_description?.includes("Heatmap")
-        );
+        const heatmapImages = data.images.filter((img: any) => {
+          const desc = img.series_description || '';
+          const isHeatmap = desc.includes("Heatmap") || desc.includes("heatmap");
+          console.log(`  - 이미지: ${desc} (히트맵: ${isHeatmap})`);
+          return isHeatmap;
+        });
+        console.log(`🔥 히트맵 이미지 ${heatmapImages.length}개 필터링됨`);
         setOrthancImages(heatmapImages);
         
         // 분석 데이터 가져오기 (자동 폼 채우기)
@@ -997,8 +1008,22 @@ function OrderCard({
           setShowAnalysisDialog(open);
           if (open) {
             // 다이얼로그가 열릴 때 Orthanc 이미지 가져오기
-            if (order.patient_number) {
-              fetchOrthancImages(order.patient_number);
+            // patient_number 또는 patient_id 사용 (둘 다 시도)
+            const patientId = order.patient_number || order.patient_id || order.patient?.patient_id || order.patient?.patient_number;
+            console.log("🔍 OCS 다이얼로그 열림 - 환자 ID:", {
+              patient_number: order.patient_number,
+              patient_id: order.patient_id,
+              patient: order.patient,
+              final_patient_id: patientId
+            });
+            if (patientId) {
+              fetchOrthancImages(patientId);
+            } else {
+              toast({
+                title: "환자 ID 없음",
+                description: "환자 ID를 찾을 수 없습니다.",
+                variant: "destructive",
+              });
             }
           } else {
             // 다이얼로그가 닫힐 때 상태 초기화
