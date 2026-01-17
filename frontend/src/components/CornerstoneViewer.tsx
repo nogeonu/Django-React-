@@ -70,6 +70,7 @@ export default function CornerstoneViewer({
   const [activeTool, setActiveTool] = useState<string>('WindowLevel');
   const [windowLevel, setWindowLevel] = useState(WINDOW_LEVEL_PRESETS.DEFAULT);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 고유한 ID 생성 (컴포넌트마다 다른 ID 사용)
   // viewportId가 제공되면 사용, 아니면 랜덤 생성
   const uniqueId = viewportId || `${Date.now()}_${Math.random()}`;
@@ -507,6 +508,138 @@ export default function CornerstoneViewer({
     }
   }, [windowLevel]);
 
+  // 세그멘테이션 오버레이 렌더링 (조원 코드와 동일: 마젠타 윤곽선 + 반투명 보라색 채움)
+  useEffect(() => {
+    if (!showSegmentation || !segmentationFrames.length || !overlayCanvasRef.current) return;
+
+    const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
+    if (!frame || !frame.mask_base64) return;
+
+    const canvas = overlayCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Canvas 크기를 뷰포트에 맞게 설정
+    const container = canvas.parentElement;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+
+    // Canvas 초기화 (투명하게)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 마스크 이미지 로드
+    const maskImg = new Image();
+    maskImg.onload = () => {
+      // 마스크 이미지 크기 계산 (object-contain 방식)
+      const scale = Math.min(canvas.width / maskImg.width, canvas.height / maskImg.height);
+      const x = (canvas.width - maskImg.width * scale) / 2;
+      const y = (canvas.height - maskImg.height * scale) / 2;
+      const w = maskImg.width * scale;
+      const h = maskImg.height * scale;
+
+      // 임시 Canvas에 마스크 이미지 그리기
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = maskImg.width;
+      tempCanvas.height = maskImg.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return;
+
+      tempCtx.drawImage(maskImg, 0, 0);
+      const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      const data = imageData.data;
+
+      // 조원 코드 방식: 반투명 보라색 채움 (alpha=0.4, cmap='Purples')
+      // 마스크 영역에 보라색 채우기
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = data[i];
+        if (gray > 128) { // 마스크 영역 (임계값 이상)
+          // 보라색 (Purples) - RGBA
+          data[i] = 128;     // R
+          data[i + 1] = 0;   // G
+          data[i + 2] = 128; // B
+          data[i + 3] = Math.floor(255 * 0.4); // A (alpha=0.4)
+        } else {
+          data[i + 3] = 0; // 투명
+        }
+      }
+
+      // 변환된 이미지 데이터를 메인 Canvas에 그리기
+      const scaledImageData = ctx.createImageData(w, h);
+      // 이미지 데이터를 스케일링하여 복사 (간단한 nearest neighbor)
+      const scaleX = maskImg.width / w;
+      const scaleY = maskImg.height / h;
+      for (let dy = 0; dy < h; dy++) {
+        for (let dx = 0; dx < w; dx++) {
+          const sx = Math.floor(dx * scaleX);
+          const sy = Math.floor(dy * scaleY);
+          const srcIdx = (sy * maskImg.width + sx) * 4;
+          const dstIdx = (dy * w + dx) * 4;
+          
+          if (srcIdx < data.length && data[srcIdx + 3] > 0) {
+            scaledImageData.data[dstIdx] = data[srcIdx];
+            scaledImageData.data[dstIdx + 1] = data[srcIdx + 1];
+            scaledImageData.data[dstIdx + 2] = data[srcIdx + 2];
+            scaledImageData.data[dstIdx + 3] = data[srcIdx + 3];
+          }
+        }
+      }
+      ctx.putImageData(scaledImageData, x, y);
+
+      // 조원 코드 방식: 마젠타 윤곽선 그리기 (color='#FF00FF', linewidths=1.0, alpha=0.9)
+      // 윤곽선 추출: 마스크 경계 찾기
+      ctx.strokeStyle = '#FF00FF'; // 마젠타
+      ctx.lineWidth = 1.0;
+      ctx.globalAlpha = 0.9;
+
+      // 간단한 윤곽선: 마스크 경계 픽셀만 그리기
+      const contourData = ctx.createImageData(w, h);
+      for (let dy = 0; dy < h; dy++) {
+        for (let dx = 0; dx < w; dx++) {
+          const sx = Math.floor(dx * scaleX);
+          const sy = Math.floor(dy * scaleY);
+          const srcIdx = (sy * maskImg.width + sx) * 4;
+          const pixelIdx = (dy * w + dx) * 4;
+          
+          if (srcIdx < data.length) {
+            const isMask = data[srcIdx] > 128;
+            // 경계 픽셀인지 확인 (마스크와 비마스크가 인접)
+            let isBoundary = false;
+            if (isMask) {
+              for (let ny = -1; ny <= 1; ny++) {
+                for (let nx = -1; nx <= 1; nx++) {
+                  if (nx === 0 && ny === 0) continue;
+                  const nsx = sx + nx;
+                  const nsy = sy + ny;
+                  if (nsx >= 0 && nsx < maskImg.width && nsy >= 0 && nsy < maskImg.height) {
+                    const nIdx = (nsy * maskImg.width + nsx) * 4;
+                    if (nIdx < data.length && data[nIdx] <= 128) {
+                      isBoundary = true;
+                      break;
+                    }
+                  }
+                }
+                if (isBoundary) break;
+              }
+            }
+
+            if (isBoundary) {
+              contourData.data[pixelIdx] = 255;     // R
+              contourData.data[pixelIdx + 1] = 0;   // G
+              contourData.data[pixelIdx + 2] = 255; // B
+              contourData.data[pixelIdx + 3] = Math.floor(255 * 0.9); // A (alpha=0.9)
+            }
+          }
+        }
+      }
+      ctx.putImageData(contourData, x, y);
+      ctx.globalAlpha = 1.0;
+    };
+    maskImg.src = `data:image/png;base64,${frame.mask_base64}`;
+  }, [showSegmentation, segmentationFrames, currentIndex]);
+
   // 도구 설정
   const setupTools = (viewportId: string) => {
     try {
@@ -709,37 +842,13 @@ export default function CornerstoneViewer({
           style={{ minHeight: '400px' }}
         />
         
-        {/* 세그멘테이션 오버레이 레이어 - CSS mask를 사용하여 마스크 영역에만 보라색 적용 */}
-        {showSegmentation && segmentationFrames.length > 0 && (() => {
-          // currentIndex에 해당하는 프레임 찾기
-          const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
-          
-          if (!frame || !frame.mask_base64) {
-            console.log(`[CornerstoneViewer] 세그멘테이션 프레임 없음: currentIndex=${currentIndex}, frames.length=${segmentationFrames.length}`);
-            return null;
-          }
-          
-          console.log(`[CornerstoneViewer] 세그멘테이션 오버레이 표시: currentIndex=${currentIndex}, frame.index=${frame.index}`);
-          
-          // CSS mask를 사용하여 마스크 영역에만 보라색 오버레이 적용
-          // 조원 코드: 반투명 보라색 채움 (alpha=0.4, cmap='Purples')
-          return (
-            <div 
-              className="absolute inset-0 pointer-events-none z-10 w-full h-full"
-              style={{
-                backgroundColor: 'rgba(128, 0, 128, 0.4)', // 반투명 보라색 (Purples, alpha=0.4)
-                WebkitMaskImage: `url(data:image/png;base64,${frame.mask_base64})`,
-                WebkitMaskSize: 'contain',
-                WebkitMaskRepeat: 'no-repeat',
-                WebkitMaskPosition: 'center',
-                maskImage: `url(data:image/png;base64,${frame.mask_base64})`,
-                maskSize: 'contain',
-                maskRepeat: 'no-repeat',
-                maskPosition: 'center',
-              }}
-            />
-          );
-        })()}
+        {/* 세그멘테이션 오버레이 레이어 - Canvas를 사용하여 조원 코드와 동일하게: 마젠타 윤곽선 + 반투명 보라색 채움 */}
+        {showSegmentation && segmentationFrames.length > 0 && (
+          <canvas
+            ref={overlayCanvasRef}
+            className="absolute inset-0 pointer-events-none z-10 w-full h-full"
+          />
+        )}
 
         {/* 로딩 스켈레톤 */}
         {isImageLoading && (
