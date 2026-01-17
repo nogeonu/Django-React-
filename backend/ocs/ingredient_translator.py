@@ -102,34 +102,44 @@ def korean_to_english_ingredients(korean_names: List[str], cursor=None) -> Set[s
                 english_names.add(eng_from_dict.lower())
                 print(f"[Dict] {kor_name} → {eng_from_dict}")
             
-            # 1. HIRA 매핑에서 한글→영문 검색
-            cursor.execute("""
-                SELECT DISTINCT gnl_nm FROM hira_drug_ingredient_map
-                WHERE gnl_nm_cd LIKE %s OR gnl_nm LIKE %s
-                LIMIT 10
-            """, (f"%{kor_name}%", f"%{kor_name}%"))
+            # 1. HIRA 매핑에서 한글→영문 검색 (테이블 존재 시에만)
+            try:
+                cursor.execute("SHOW TABLES LIKE 'hira_drug_ingredient_map'")
+                if cursor.fetchone():
+                    cursor.execute("""
+                        SELECT DISTINCT gnl_nm FROM hira_drug_ingredient_map
+                        WHERE gnl_nm_cd LIKE %s OR gnl_nm LIKE %s
+                        LIMIT 10
+                    """, (f"%{kor_name}%", f"%{kor_name}%"))
+                    
+                    results = cursor.fetchall()
+                    for row in results:
+                        eng_name = row.get('gnl_nm')
+                        if eng_name and eng_name.strip():
+                            # 영문만 추출
+                            eng_only = re.sub(r'\([^)]*\)', '', eng_name).strip()
+                            if eng_only:
+                                english_names.add(eng_only.lower())
+            except Exception as e:
+                print(f"⚠️ hira_drug_ingredient_map 조회 실패: {e}")
             
-            results = cursor.fetchall()
-            for row in results:
-                eng_name = row.get('gnl_nm')
-                if eng_name and eng_name.strip():
-                    # 영문만 추출
-                    eng_only = re.sub(r'\([^)]*\)', '', eng_name).strip()
-                    if eng_only:
-                        english_names.add(eng_only.lower())
-            
-            # 2. HIRA 성분 효능 테이블에서도 검색
-            cursor.execute("""
-                SELECT DISTINCT gnl_nm FROM hira_ingredient_effects
-                WHERE gnl_nm LIKE %s
-                LIMIT 10
-            """, (f"%{kor_name}%",))
-            
-            results2 = cursor.fetchall()
-            for row in results2:
-                eng_name = row.get('gnl_nm')
-                if eng_name and eng_name.strip():
-                    english_names.add(eng_name.strip().lower())
+            # 2. HIRA 성분 효능 테이블에서도 검색 (테이블 존재 시에만)
+            try:
+                cursor.execute("SHOW TABLES LIKE 'hira_ingredient_effects'")
+                if cursor.fetchone():
+                    cursor.execute("""
+                        SELECT DISTINCT gnl_nm FROM hira_ingredient_effects
+                        WHERE gnl_nm LIKE %s
+                        LIMIT 10
+                    """, (f"%{kor_name}%",))
+                    
+                    results2 = cursor.fetchall()
+                    for row in results2:
+                        eng_name = row.get('gnl_nm')
+                        if eng_name and eng_name.strip():
+                            english_names.add(eng_name.strip().lower())
+            except Exception as e:
+                print(f"⚠️ hira_ingredient_effects 조회 실패: {e}")
     
     finally:
         if close_conn:

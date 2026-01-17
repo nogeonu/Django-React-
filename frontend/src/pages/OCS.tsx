@@ -1339,6 +1339,22 @@ function CreateOrderForm({
   const [interactionResult, setInteractionResult] = useState<DrugInteractionResult | null>(null);
   const [isCheckingInteractions, setIsCheckingInteractions] = useState(false);
 
+  // 자동완성: 입력 시 자동 검색 (debounce)
+  useEffect(() => {
+    if (!drugQuery.trim()) {
+      setShowDrugResults(false);
+      setSearchResults([]);
+      return;
+    }
+
+    // 500ms 후 자동 검색
+    const timeoutId = setTimeout(() => {
+      handleDrugSearch();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [drugQuery]);
+
   // 약물 검색 핸들러
   const handleDrugSearch = async (e?: React.FormEvent<HTMLFormElement>) => {
     if (e) {
@@ -1587,9 +1603,11 @@ function CreateOrderForm({
                 placeholder="약물명 / 성분명 검색 (Enter)..."
                 value={drugQuery}
                 onChange={(e) => {
-                  setDrugQuery(e.target.value);
-                  if (!e.target.value.trim()) {
+                  const value = e.target.value;
+                  setDrugQuery(value);
+                  if (!value.trim()) {
                     setShowDrugResults(false);
+                    setSearchResults([]);
                   } else {
                     setShowDrugResults(true);
                   }
