@@ -140,17 +140,18 @@ jobs:
             echo "   캐시 위치: ~/.cache/huggingface/hub/models--bioptimus--H-optimus-0"
             
             # FastAPI 약물 검색 서비스 설정 (CDSS_Final_Package/backend 파일 필요)
+            # 조원의 CDSS_Final_Package 구조 참고: backend/ocs/ 위치 권장, 포트 8002
             echo "💊 FastAPI 약물 검색 서비스 설정 중..."
             DRUG_API_DIR="$APP_DIR/backend/drug_api"
             
             # drug_api 디렉토리가 없으면 생성
             mkdir -p "$DRUG_API_DIR" || true
             
+            # FastAPI 서비스 설정은 선택적 (파일이 없어도 배포는 계속 진행)
             if [ -d "$DRUG_API_DIR" ] && [ -f "$DRUG_API_DIR/main.py" ]; then
-                set -e  # 이 블록 내에서는 오류 발생 시 중단
                 echo "✅ FastAPI 서비스 디렉토리 발견: $DRUG_API_DIR"
                 
-                # .env 파일 생성 (DB 설정)
+                # .env 파일 생성 (DB 설정) - 조원의 README.md 참고: hospital_db 사용
                 if [ ! -f "$DRUG_API_DIR/.env" ]; then
                     echo "📝 .env 파일 생성 중..."
                     mkdir -p "$DRUG_API_DIR" || true
@@ -163,28 +164,27 @@ jobs:
                     echo "✅ .env 파일 생성 완료"
                 fi
                 
-                # FastAPI 의존성 설치
+                # FastAPI 의존성 설치 - 조원의 requirements.txt 사용
                 echo "📦 FastAPI 패키지 설치 중..."
                 if [ -f "$DRUG_API_DIR/requirements.txt" ]; then
                     echo "   requirements.txt 파일 발견, 설치 중..."
                     pip install -r "$DRUG_API_DIR/requirements.txt" || {
                         echo "⚠️ requirements.txt 설치 실패, 기본 패키지 설치 시도..."
                         pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
-                            echo "⚠️ FastAPI 패키지 설치 실패, 계속 진행..."
+                            echo "⚠️ FastAPI 패키지 설치 실패"
                         }
                     }
                 else
                     echo "   requirements.txt 없음, 기본 패키지 설치 중..."
                     pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
-                        echo "⚠️ FastAPI 패키지 설치 실패, 계속 진행..."
+                        echo "⚠️ FastAPI 패키지 설치 실패"
                     }
                 fi
                 
-                # systemd 서비스 설정
+                # systemd 서비스 설정 - 조원의 가이드: uvicorn main:app --port 8002
                 echo "⚙️ systemd 서비스 설정 중..."
                 sudo mkdir -p /etc/systemd/system || true
                 
-                # systemd 서비스 파일 생성 (조원의 CDSS_Final_Package 구조 참고)
                 printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$DRUG_API_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
                     echo "⚠️ systemd 서비스 파일 생성 실패"
                 }
@@ -192,20 +192,14 @@ jobs:
                 sudo systemctl daemon-reload || echo "⚠️ systemd daemon-reload 실패"
                 sudo systemctl enable drug-api-service || echo "⚠️ drug-api-service enable 실패"
                 sudo systemctl restart drug-api-service 2>/dev/null || sudo systemctl start drug-api-service 2>/dev/null || {
-                    echo "⚠️ drug-api-service 시작 실패 (서비스가 없거나 설정 오류일 수 있음)"
-                    echo "   수동으로 확인: sudo systemctl status drug-api-service"
+                    echo "⚠️ drug-api-service 시작 실패"
                 }
                 echo "✅ FastAPI 약물 검색 서비스 설정 완료"
-                set +e  # 다시 오류 무시 모드로 전환
             else
-                echo "⚠️ FastAPI 서비스 디렉토리가 없습니다: $DRUG_API_DIR"
-                echo "   디렉토리 존재 여부: $([ -d "$DRUG_API_DIR" ] && echo '예' || echo '아니오')"
-                echo "   main.py 존재 여부: $([ -f "$DRUG_API_DIR/main.py" ] && echo '예' || echo '아니오')"
+                echo "⚠️ FastAPI 서비스 디렉토리 또는 main.py가 없습니다: $DRUG_API_DIR"
                 echo "   CDSS_Final_Package/backend 파일들을 $DRUG_API_DIR에 복사해주세요."
-                echo "   이 오류는 무시하고 계속 진행합니다..."
+                echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
             fi
-            
-            set -e  # 나머지 스크립트는 오류 발생 시 중단
             
             # Mosec AI 서비스 재시작
             echo "🔄 Mosec AI 서비스 재시작 중..."
