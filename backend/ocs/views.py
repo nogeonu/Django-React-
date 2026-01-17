@@ -652,7 +652,7 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
 # 약물 검색 및 상호작용 검사 API
 class DrugSearchView(APIView):
     """약물 검색 API (외부 FastAPI 서버 프록시)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # 약물 검색은 공개 API로 변경
     authentication_classes = [SessionAuthentication]
     
     def get(self, request):
@@ -721,7 +721,7 @@ class DrugSearchView(APIView):
 
 class DrugInteractionCheckView(APIView):
     """약물 상호작용 검사 API (외부 FastAPI 서버 프록시)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # 약물 상호작용 검사도 공개 API로 변경
     authentication_classes = [SessionAuthentication]
     
     def post(self, request):
