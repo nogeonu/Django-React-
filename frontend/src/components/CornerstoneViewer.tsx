@@ -709,7 +709,7 @@ export default function CornerstoneViewer({
           style={{ minHeight: '400px' }}
         />
         
-        {/* 세그멘테이션 오버레이 레이어 */}
+        {/* 세그멘테이션 오버레이 레이어 - 조원 코드와 동일한 방식: 반투명 보라색 채움 + 마젠타 윤곽선 */}
         {showSegmentation && segmentationFrames.length > 0 && (() => {
           // currentIndex에 해당하는 프레임 찾기
           const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
@@ -721,27 +721,32 @@ export default function CornerstoneViewer({
           
           console.log(`[CornerstoneViewer] 세그멘테이션 오버레이 표시: currentIndex=${currentIndex}, frame.index=${frame.index}`);
           
+          // 이진 마스크(검은색=0, 흰색=255)를 마젠타/보라색 오버레이로 변환
+          // 조원 코드: 반투명 보라색 채움(alpha=0.4) + 마젠타 윤곽선(color='#FF00FF', alpha=0.9)
           return (
             <div 
               className="absolute inset-0 pointer-events-none z-10"
               style={{ 
-                mixBlendMode: 'screen',
-                opacity: 0.7,
+                mixBlendMode: 'normal',
               }}
             >
+              {/* 반투명 보라색 채움 - 마스크 영역에만 색상 적용 */}
               <img
                 src={`data:image/png;base64,${frame.mask_base64}`}
                 alt="Segmentation overlay"
                 className="w-full h-full object-contain"
                 style={{ 
-                  filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
-                  // 마젠타/빨간색으로 강제 변환
+                  position: 'absolute',
+                  inset: 0,
+                  // 그레이스케일 마스크를 보라색으로 변환
+                  // 검은색(0)은 투명, 흰색(255)은 보라색
+                  filter: 'brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(270deg)',
+                  opacity: 0.4,  // 반투명 (조원: alpha=0.4, cmap='Purples')
+                  // 마스크가 아닌 부분(검은색)은 투명하게 처리
+                  mixBlendMode: 'multiply',
                 }}
                 onError={(e) => {
-                  console.error('[CornerstoneViewer] 세그멘테이션 이미지 로드 실패:', e);
-                }}
-                onLoad={() => {
-                  console.log('[CornerstoneViewer] 세그멘테이션 이미지 로드 성공');
+                  console.error('[CornerstoneViewer] 세그멘테이션 오버레이 이미지 로드 실패:', e);
                 }}
               />
             </div>
