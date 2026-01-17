@@ -1340,8 +1340,9 @@ function CreateOrderForm({
   const [isCheckingInteractions, setIsCheckingInteractions] = useState(false);
 
   // 약물 검색 핸들러
-  const handleDrugSearch = async (e: React.FormEvent) => {
+  const handleDrugSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!drugQuery.trim()) {
       setShowDrugResults(false);
       return;
@@ -1566,7 +1567,9 @@ function CreateOrderForm({
           {/* 약물 검색 입력 필드 */}
           <div className="relative">
             <form 
-              onSubmit={handleDrugSearch} 
+              onSubmit={handleDrugSearch}
+              action="#"
+              method="get"
               className="flex gap-2"
               onBlur={(e) => {
                 // 드롭다운 외부 클릭 시 닫기 (약간의 딜레이로 클릭 이벤트 처리)
@@ -1597,13 +1600,22 @@ function CreateOrderForm({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
+                    e.stopPropagation();
                     handleDrugSearch(e as any);
                   }
                 }}
                 className="flex-1"
                 autoComplete="off"
               />
-              <Button type="submit" disabled={isSearching}>
+              <Button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDrugSearch();
+                }}
+                disabled={isSearching}
+              >
                 {isSearching ? "검색 중..." : "검색"}
               </Button>
             </form>
