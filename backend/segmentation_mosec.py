@@ -188,16 +188,17 @@ def create_dicom_seg(original_dicom, mask_array, seg_series_uid, instance_number
     return ds
 
 
-def create_dicom_seg_multiframe(original_dicom, mask_array_3d, seg_series_uid, start_instance_number, original_series_id):
+def create_dicom_seg_multiframe(original_dicom, mask_array_3d, seg_series_uid, start_instance_number, original_series_id, original_dicom_slices=None):
     """
-    3D 세그멘테이션 마스크를 Multi-frame DICOM SEG로 변환
+    3D 세그멘테이션 마스크를 Multi-frame DICOM SEG로 변환 (공간 정보 포함)
     
     Args:
-        original_dicom: 원본 DICOM 파일
-        mask_array_3d: (96, H, W) 형태의 3D 마스크
+        original_dicom: 원본 DICOM 파일 (대표 슬라이스)
+        mask_array_3d: (D, H, W) 형태의 3D 마스크
         seg_series_uid: 세그멘테이션 시리즈 UID
         start_instance_number: 시작 Instance 번호
         original_series_id: 원본 시리즈 ID
+        original_dicom_slices: 원본 DICOM 슬라이스 리스트 (공간 정보용, optional)
     """
     num_frames = mask_array_3d.shape[0]
     
@@ -244,7 +245,7 @@ def create_dicom_seg_multiframe(original_dicom, mask_array_3d, seg_series_uid, s
     ds.HighBit = 7
     ds.PixelRepresentation = 0
     
-    # 96개 프레임을 하나의 PixelData로 결합
+    # 프레임을 하나의 PixelData로 결합
     pixel_data_list = []
     for i in range(num_frames):
         frame_data = (mask_array_3d[i] * 255).astype(np.uint8)
@@ -252,12 +253,112 @@ def create_dicom_seg_multiframe(original_dicom, mask_array_3d, seg_series_uid, s
     
     ds.PixelData = b''.join(pixel_data_list)
     
+    # 공간 정보 추가 (DICOM SEG 표준에 따라) - 마스크가 원본 이미지와 정렬되도록
+    # SharedFunctionalGroupsSequence: 모든 프레임에 공통인 정보
+    shared_fg = Dataset()
+    
+    # PlaneOrientationSequence: ImageOrientationPatient
+    if hasattr(original_dicom, 'ImageOrientationPatient') and original_dicom.ImageOrientationPatient:
+        plane_orientation = Dataset()
+        plane_orientation.ImageOrientationPatient = list(original_dicom.ImageOrientationPatient)
+        shared_fg.PlaneOrientationSequence = [plane_orientation]
+    elif original_dicom_slices and len(original_dicom_slices) > 0:
+        # 첫 번째 슬라이스에서 가져오기
+        first_slice = original_dicom_slices[0]
+        if hasattr(first_slice, 'ImageOrientationPatient') and first_slice.ImageOrientationPatient:
+            plane_orientation = Dataset()
+            plane_orientation.ImageOrientationPatient = list(first_slice.ImageOrientationPatient)
+            shared_fg.PlaneOrientationSequence = [plane_orientation]
+    
+    # PixelMeasuresSequence: PixelSpacing, SliceThickness
+    pixel_measures = Dataset()
+    if hasattr(original_dicom, 'PixelSpacing') and original_dicom.PixelSpacing:
+        pixel_measures.PixelSpacing = list(original_dicom.PixelSpacing)
+    elif original_dicom_slices and len(original_dicom_slices) > 0:
+        first_slice = original_dicom_slices[0]
+        if hasattr(first_slice, 'PixelSpacing') and first_slice.PixelSpacing:
+            pixel_measures.PixelSpacing = list(first_slice.PixelSpacing)
+    else:
+        pixel_measures.PixelSpacing = [1.0, 1.0]  # 기본값
+    
+    if hasattr(original_dicom, 'SliceThickness') and original_dicom.SliceThickness:
+        pixel_measures.SliceThickness = float(original_dicom.SliceThickness)
+    elif original_dicom_slices and len(original_dicom_slices) > 1:
+        # ImagePositionPatient 차이로 계산
+        try:
+            pos1 = np.array([float(x) for x in original_dicom_slices[0].ImagePositionPatient])
+            pos2 = np.array([float(x) for x in original_dicom_slices[1].ImagePositionPatient])
+            slice_thickness = float(np.linalg.norm(pos2 - pos1))
+            if slice_thickness > 0:
+                pixel_measures.SliceThickness = slice_thickness
+        except:
+            pixel_measures.SliceThickness = 1.0
+    else:
+        pixel_measures.SliceThickness = 1.0
+    
+    shared_fg.PixelMeasuresSequence = [pixel_measures]
+    ds.SharedFunctionalGroupsSequence = [shared_fg]
+    
+    # PerFrameFunctionalGroupsSequence: 각 프레임의 ImagePositionPatient
+    per_frame_fg_list = []
+    for i in range(num_frames):
+        frame_fg = Dataset()
+        
+        # PlanePositionSequence: ImagePositionPatient
+        plane_position = Dataset()
+        if original_dicom_slices and i < len(original_dicom_slices):
+            # 원본 슬라이스의 ImagePositionPatient 사용
+            dicom_slice = original_dicom_slices[i]
+            if hasattr(dicom_slice, 'ImagePositionPatient') and dicom_slice.ImagePositionPatient:
+                plane_position.ImagePositionPatient = list(dicom_slice.ImagePositionPatient)
+            else:
+                # 기본값 계산
+                if i == 0 and hasattr(original_dicom, 'ImagePositionPatient') and original_dicom.ImagePositionPatient:
+                    base_pos = np.array([float(x) for x in original_dicom.ImagePositionPatient])
+                elif original_dicom_slices and len(original_dicom_slices) > 0:
+                    first_slice = original_dicom_slices[0]
+                    if hasattr(first_slice, 'ImagePositionPatient') and first_slice.ImagePositionPatient:
+                        base_pos = np.array([float(x) for x in first_slice.ImagePositionPatient])
+                    else:
+                        base_pos = np.array([0.0, 0.0, 0.0])
+                else:
+                    base_pos = np.array([0.0, 0.0, 0.0])
+                
+                # SliceThickness를 사용하여 위치 계산
+                slice_thickness = pixel_measures.SliceThickness
+                # ImageOrientationPatient의 normal vector 계산
+                if hasattr(shared_fg, 'PlaneOrientationSequence') and shared_fg.PlaneOrientationSequence:
+                    orientation = np.array(shared_fg.PlaneOrientationSequence[0].ImageOrientationPatient).reshape(2, 3)
+                    row_vec = orientation[0]
+                    col_vec = orientation[1]
+                    normal_vec = np.cross(row_vec, col_vec)
+                    normal_vec = normal_vec / np.linalg.norm(normal_vec)
+                    plane_position.ImagePositionPatient = list(base_pos + normal_vec * slice_thickness * i)
+                else:
+                    # Z축 방향으로 가정
+                    plane_position.ImagePositionPatient = list(base_pos + np.array([0.0, 0.0, slice_thickness * i]))
+        else:
+            # 원본 슬라이스 정보가 없으면 기본값
+            if hasattr(original_dicom, 'ImagePositionPatient') and original_dicom.ImagePositionPatient:
+                base_pos = np.array([float(x) for x in original_dicom.ImagePositionPatient])
+                slice_thickness = pixel_measures.SliceThickness
+                # Z축 방향으로 가정
+                plane_position.ImagePositionPatient = list(base_pos + np.array([0.0, 0.0, slice_thickness * i]))
+            else:
+                plane_position.ImagePositionPatient = [0.0, 0.0, float(i)]
+        
+        frame_fg.PlanePositionSequence = [plane_position]
+        per_frame_fg_list.append(frame_fg)
+    
+    ds.PerFrameFunctionalGroupsSequence = per_frame_fg_list
+    
     # 기타 정보
     ds.ContentDate = datetime.now().strftime('%Y%m%d')
     ds.ContentTime = datetime.now().strftime('%H%M%S')
     ds.ImageType = ['DERIVED', 'SECONDARY', 'AI_SEGMENTATION']
     
     logger.info(f"✅ DICOM SEG 파일 생성 완료: {ds.SOPInstanceUID} (Series: {seg_series_uid}, Instance: {start_instance_number}, Frames: {num_frames})")
+    logger.info(f"✅ 공간 정보 포함: ImageOrientationPatient={hasattr(shared_fg, 'PlaneOrientationSequence')}, ImagePositionPatient={len(per_frame_fg_list)}개 프레임")
     return ds
 
 
@@ -314,8 +415,12 @@ class SegmentationWorker(Worker):
                 logger.info(f"📊 총 {len(json_data['orthanc_instance_ids'])}개 시퀀스, 각 {total_slices}개 슬라이스 (전체 처리)")
                 
                 sequences_3d = []
+                original_dicom_slices = []  # 원본 DICOM 슬라이스 정보 저장 (공간 정보용)
+                
                 for seq_idx, seq_instances in enumerate(json_data["orthanc_instance_ids"]):
                     slices_data = []
+                    seq_dicom_slices = []  # 이 시퀀스의 DICOM 정보
+                    
                     for slice_idx, instance_id in enumerate(seq_instances):
                         # Orthanc API로 DICOM 파일 다운로드
                         response = requests.get(
@@ -328,14 +433,25 @@ class SegmentationWorker(Worker):
                         # Base64 인코딩
                         slices_data.append(base64.b64encode(response.content).decode('utf-8'))
                         
+                        # 원본 DICOM 정보 저장 (첫 번째 시퀀스만, 공간 정보용)
+                        if seq_idx == 0:
+                            import pydicom
+                            import io
+                            dicom_bytes = response.content
+                            dicom_ds = pydicom.dcmread(io.BytesIO(dicom_bytes), force=True)
+                            seq_dicom_slices.append(dicom_ds)
+                        
                         if (slice_idx + 1) % 20 == 0:
                             logger.info(f"  시퀀스 {seq_idx+1}: {slice_idx+1}/{len(seq_instances)} 슬라이스 다운로드 완료")
                     
                     sequences_3d.append(slices_data)
+                    if seq_idx == 0:
+                        original_dicom_slices = seq_dicom_slices
                     logger.info(f"✅ 시퀀스 {seq_idx+1}/4 다운로드 완료: {len(slices_data)}개 슬라이스")
                 
                 return {
                     "sequences_3d": sequences_3d,
+                    "original_dicom_slices": original_dicom_slices,  # 원본 DICOM 슬라이스 정보 추가
                     "seg_series_uid": json_data.get("seg_series_uid"),
                     "original_series_id": json_data.get("original_series_id"),
                     "start_instance_number": json_data.get("start_instance_number", 1),
@@ -397,6 +513,18 @@ class SegmentationWorker(Worker):
                 logger.info(f"📊 4-channel 3D DCE-MRI 입력 감지 ({total_slices} slices per sequence) - Sliding Window 사용")
                 sequences_3d = []
                 original_dicom = None
+                original_dicom_slices = data.get('original_dicom_slices', None)  # deserialize에서 전달받은 원본 DICOM 슬라이스
+                
+                # original_dicom_slices가 없으면 첫 번째 시퀀스에서 추출
+                if original_dicom_slices is None:
+                    original_dicom_slices = []
+                    if len(data["sequences_3d"]) > 0:
+                        for slice_idx, slice_b64 in enumerate(data["sequences_3d"][0]):
+                            slice_bytes = base64.b64decode(slice_b64)
+                            import pydicom
+                            import io
+                            dicom_ds = pydicom.dcmread(io.BytesIO(slice_bytes), force=True)
+                            original_dicom_slices.append(dicom_ds)
                 
                 for seq_idx, seq_slices_b64 in enumerate(data["sequences_3d"]):
                     slices_2d = []
@@ -610,7 +738,9 @@ class SegmentationWorker(Worker):
                 start_instance_number = data.get('start_instance_number', 1)
                 original_series_id = data.get('original_series_id', 'unknown')
                 
-                dicom_seg = create_dicom_seg_multiframe(original_dicom, mask_resized_3d, seg_series_uid, start_instance_number, original_series_id)
+                # 원본 DICOM 슬라이스 정보 전달 (공간 정보용)
+                original_dicom_slices = data.get('original_dicom_slices', None)
+                dicom_seg = create_dicom_seg_multiframe(original_dicom, mask_resized_3d, seg_series_uid, start_instance_number, original_series_id, original_dicom_slices)
                 seg_instance_id = upload_to_orthanc(dicom_seg)
                 logger.info(f"✅ 세그멘테이션 결과 Orthanc 저장 완료: {seg_instance_id} ({successful_slices} frames)")
             except Exception as e:
