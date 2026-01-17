@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Mosec 기반 MRI 세그멘테이션 서버
-Sliding Window Inference를 사용하여 128×128×128 모델로 전체 볼륨 처리
+조원 코드와 동일한 전처리 적용:
+- Spacing: 1.5mm isotropic으로 리샘플링 (MONAI Spacingd)
+- Orientation: RAS로 변환 (MONAI Orientationd)
+- Sliding Window: roi_size=(128, 128, 128), overlap=0.25
 - 모델 학습 크기: [4, 128, 128, 128] (4 channels, 128 depth, 128 height, 128 width)
-- 실제 처리: [4, D, H, W] (D는 전체 슬라이스 수, 예: 134)
-- Sliding Window: roi_size=(128, 128, 128), overlap=0.5
 """
 import os
 import io
@@ -412,14 +413,93 @@ class SegmentationWorker(Worker):
                 
                 logger.info(f"✅ 3D 볼륨 로드 완료: 4 sequences × {len(seq_slices_b64)} slices")
                 
-                # 4D 입력 생성: [4, D, H, W] (원본 크기 유지)
+                # 4D 입력 생성: [4, D, H, W] (원본 크기)
                 # 팀원 파일(inference_preprocess.py)과 동일: 4개 시퀀스 사용
                 volume_4d = create_4d_input_from_sequences(sequences_3d)
-                logger.info(f"✅ 4채널 3D 입력 생성 완료: {volume_4d.shape}")
+                logger.info(f"✅ 4채널 3D 입력 생성 완료 (원본): {volume_4d.shape}")
                 
-                # 팀원 파일의 전처리 적용 (Spacing, Orientation은 DICOM에서 이미 처리됨)
-                # NormalizeIntensityd는 이미 dicom_to_numpy에서 적용
-                # 추가 정규화: channel-wise normalization (팀원 파일과 동일)
+                # 조원 코드와 동일한 전처리 적용
+                # 1. DICOM에서 spacing 정보 추출
+                pixel_spacing = None
+                slice_thickness = None
+                if original_dicom is not None:
+                    # PixelSpacing 추출 (in-plane spacing)
+                    if hasattr(original_dicom, 'PixelSpacing') and original_dicom.PixelSpacing:
+                        pixel_spacing = [float(x) for x in original_dicom.PixelSpacing]
+                    # SliceThickness 추출
+                    if hasattr(original_dicom, 'SliceThickness') and original_dicom.SliceThickness:
+                        slice_thickness = float(original_dicom.SliceThickness)
+                    # ImagePositionPatient로 slice 간격 계산 (더 정확)
+                    if hasattr(original_dicom, 'ImagePositionPatient') and original_dicom.ImagePositionPatient:
+                        # 첫 번째와 두 번째 슬라이스의 ImagePositionPatient 차이로 계산
+                        if len(data["sequences_3d"][0]) > 1:
+                            try:
+                                first_slice_bytes = base64.b64decode(data["sequences_3d"][0][0])
+                                first_dicom = pydicom.dcmread(io.BytesIO(first_slice_bytes))
+                                second_slice_bytes = base64.b64decode(data["sequences_3d"][0][1])
+                                second_dicom = pydicom.dcmread(io.BytesIO(second_slice_bytes))
+                                
+                                if (hasattr(first_dicom, 'ImagePositionPatient') and 
+                                    hasattr(second_dicom, 'ImagePositionPatient')):
+                                    pos1 = np.array([float(x) for x in first_dicom.ImagePositionPatient])
+                                    pos2 = np.array([float(x) for x in second_dicom.ImagePositionPatient])
+                                    slice_spacing = np.linalg.norm(pos2 - pos1)
+                                    if slice_spacing > 0:
+                                        slice_thickness = slice_spacing
+                            except:
+                                pass
+                
+                # 기본값 설정 (정보가 없을 경우)
+                if pixel_spacing is None:
+                    pixel_spacing = [1.0, 1.0]  # 기본값
+                if slice_thickness is None:
+                    slice_thickness = 1.0  # 기본값
+                
+                # 원본 spacing 정보
+                original_spacing = [pixel_spacing[0], pixel_spacing[1], slice_thickness]
+                logger.info(f"📊 원본 DICOM spacing: {original_spacing} mm")
+                
+                # 2. MONAI transforms를 사용하여 조원 코드와 동일한 전처리 적용
+                # 조원 코드: Spacingd(pixdim=(1.5, 1.5, 1.5)), Orientationd(axcodes="RAS")
+                target_spacing = (1.5, 1.5, 1.5)  # 조원 코드와 동일
+                
+                # numpy 배열을 torch tensor로 변환 (MONAI transforms 사용)
+                volume_tensor = torch.from_numpy(volume_4d).float()
+                
+                # EnsureChannelFirstd: 이미 [4, D, H, W] 형태이므로 스킵
+                # Orientationd: RAS로 변환
+                orientation_transform = Orientationd(keys=["image"], axcodes="RAS")
+                # Spacingd: 1.5mm로 리샘플링
+                spacing_transform = Spacingd(keys=["image"], pixdim=target_spacing, mode="bilinear")
+                
+                # 메타데이터 생성 (MONAI transforms가 필요로 함)
+                data_dict = {
+                    "image": volume_tensor,
+                    "image_meta_dict": {
+                        "spacing": original_spacing,
+                        "original_spacing": original_spacing,
+                    }
+                }
+                
+                # Orientation 변환 적용
+                try:
+                    data_dict = orientation_transform(data_dict)
+                    logger.info("✅ Orientation 변환 완료: RAS")
+                except Exception as e:
+                    logger.warning(f"⚠️ Orientation 변환 실패 (계속 진행): {e}")
+                
+                # Spacing 리샘플링 적용
+                try:
+                    data_dict = spacing_transform(data_dict)
+                    volume_4d = data_dict["image"].numpy()
+                    logger.info(f"✅ Spacing 리샘플링 완료: {original_spacing} → {target_spacing}")
+                    logger.info(f"✅ 리샘플링 후 shape: {volume_4d.shape}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Spacing 리샘플링 실패 (원본 유지): {e}")
+                    # 실패 시 원본 유지
+                
+                # 3. Channel-wise normalization (조원 코드와 동일)
+                # NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
                 for c in range(volume_4d.shape[0]):
                     channel_data = volume_4d[c]
                     nonzero_mask = channel_data > 0
@@ -449,13 +529,13 @@ class SegmentationWorker(Worker):
             # Sliding Window Inference로 전체 볼륨 처리
             # 모델은 128×128×128 패치로 학습되었지만, sliding window로 더 큰 볼륨 처리 가능
             with torch.no_grad():
-                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(128, 128, 128), overlap=0.5")
+                logger.info(f"🔄 Sliding Window Inference 시작: roi_size=(128, 128, 128), overlap=0.25")
                 output = sliding_window_inference(
                     inputs=input_tensor,              # [1, 4, D, H, W] (D는 전체 슬라이스 수)
                     roi_size=(128, 128, 128),        # 모델이 학습한 패치 크기 (128×128×128)
                     sw_batch_size=1,
                     predictor=self.model,
-                    overlap=0.5  # 50% overlap (메모리 절약)
+                    overlap=0.25  # 25% overlap (조원 코드와 동일)
                 )
                 # output: [1, 1, D, H, W] (out_channels=1이므로)
                 pred_prob = torch.sigmoid(output).squeeze(0).squeeze(0).cpu().numpy()  # [D, H, W]
