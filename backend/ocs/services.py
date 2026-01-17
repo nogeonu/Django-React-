@@ -265,6 +265,28 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
     
     logger.info(f"Order {order.id} status changed: {old_status} → {new_status} by {changed_by}")
     
+    # 주문 생성 시 (pending 상태)에도 대상 부서에 알림 생성
+    if new_status == 'pending' and old_status != 'pending':
+        # 주문 생성 시 대상 부서에 알림
+        target_dept_map = {
+            'pharmacy': '약국',
+            'lab': '검사실',
+            'radiology': '방사선과',
+            'admin': '원무과'
+        }
+        target_dept_kr = target_dept_map.get(order.target_department, order.target_department)
+        
+        if target_dept_kr in ['방사선과', '검사실', '약국', '원무과']:
+            notify_department_users(
+                department_name=target_dept_kr,
+                notification_type='order_created',
+                title=f'새 주문 생성: {order.patient.name}',
+                message=f'{order.patient.name}님의 {order.get_order_type_display()} 주문이 생성되었습니다.',
+                related_order=order,
+                exclude_user=changed_by
+            )
+            logger.info(f"Notification sent to {target_dept_kr} for new order {order.id}")
+    
     # 알림 생성
     if new_status == 'completed' and order.order_type == 'imaging':
         # 영상 촬영 완료 → 영상의학과에 알림
@@ -307,11 +329,12 @@ def update_order_status(order, new_status, changed_by=None, notes=''):
         target_dept_map = {
             'pharmacy': '약국',
             'lab': '검사실',
-            'radiology': '방사선과'
+            'radiology': '방사선과',
+            'admin': '원무과'
         }
         target_dept_kr = target_dept_map.get(order.target_department, order.target_department)
         
-        if target_dept_kr in ['방사선과', '검사실', '약국']:
+        if target_dept_kr in ['방사선과', '검사실', '약국', '원무과']:
             notify_department_users(
                 department_name=target_dept_kr,
                 notification_type='order_sent',
