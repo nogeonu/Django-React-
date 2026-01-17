@@ -43,6 +43,17 @@ jobs:
           remote_key: ${{ secrets.SSH_KEY }}
           remote_port: ${{ secrets.SSH_PORT }}
       
+      - name: Copy CDSS_Final_Package backend files to ocs directory
+        uses: burnett01/rsync-deployments@5.2
+        with:
+          switches: -avz --exclude ".git" --exclude "__pycache__" --exclude "*.pyc" --exclude ".DS_Store"
+          path: ../CDSS_Final_Package/backend/
+          remote_path: ${{ secrets.APP_DIR }}/backend/ocs/
+          remote_host: ${{ secrets.SSH_HOST }}
+          remote_user: ${{ secrets.SSH_USER }}
+          remote_key: ${{ secrets.SSH_KEY }}
+          remote_port: ${{ secrets.SSH_PORT }}
+
       - name: Setup ocs directory (조원의 CDSS_Final_Package 배포 위치)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -57,13 +68,13 @@ jobs:
             # 조원의 CDSS_Final_Package README.md 권장 위치: backend/ocs/
             mkdir -p "$OCS_DIR" || true
             
-            # ocs 디렉토리가 비어있거나 없으면 경고만 출력
-            if [ -z "$(ls -A $OCS_DIR 2>/dev/null)" ]; then
-              echo "⚠️ ocs 디렉토리가 비어있습니다."
-              echo "   CDSS_Final_Package/backend 파일들을 $OCS_DIR에 수동으로 복사해야 합니다."
-              echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
+            # ocs 디렉토리 확인
+            if [ -f "$OCS_DIR/main.py" ]; then
+              echo "✅ FastAPI main.py 파일 확인 완료: $OCS_DIR/main.py"
+              ls -la "$OCS_DIR" | head -10
             else
-              echo "✅ ocs 디렉토리 확인 완료"
+              echo "⚠️ FastAPI main.py 파일이 없습니다: $OCS_DIR"
+              echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
             fi
 
       - name: Install dependencies and restart services
@@ -175,7 +186,7 @@ jobs:
                     echo "⚙️ systemd 서비스 설정 중..."
                     sudo mkdir -p /etc/systemd/system || true
                     
-                    printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$OCS_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
+                    printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn ocs.main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$OCS_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
                         echo "⚠️ systemd 서비스 파일 생성 실패"
                     }
                     
