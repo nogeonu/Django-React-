@@ -43,33 +43,7 @@ jobs:
           remote_key: ${{ secrets.SSH_KEY }}
           remote_port: ${{ secrets.SSH_PORT }}
       
-      - name: Copy CDSS_Final_Package backend files to ocs directory
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            APP_DIR="${{ secrets.APP_DIR }}"
-            OCS_DIR="$APP_DIR/backend/ocs"
-            mkdir -p "$OCS_DIR" || true
-            
-            # CDSS_Final_Package가 같은 레포지토리에 있는 경우를 대비해 여러 경로 확인
-            if [ -d "$APP_DIR/../CDSS_Final_Package/backend" ]; then
-              echo "📦 CDSS_Final_Package/backend 파일 복사 중..."
-              cp -r "$APP_DIR/../CDSS_Final_Package/backend/"* "$OCS_DIR/" || true
-              echo "✅ 파일 복사 완료"
-            elif [ -d "$APP_DIR/CDSS_Final_Package/backend" ]; then
-              echo "📦 CDSS_Final_Package/backend 파일 복사 중..."
-              cp -r "$APP_DIR/CDSS_Final_Package/backend/"* "$OCS_DIR/" || true
-              echo "✅ 파일 복사 완료"
-            else
-              echo "⚠️ CDSS_Final_Package/backend 디렉토리를 찾을 수 없습니다."
-              echo "   수동으로 파일을 복사해야 합니다."
-            fi
-
-      - name: Setup ocs directory (조원의 CDSS_Final_Package 배포 위치)
+      - name: Verify ocs directory (CDSS_Final_Package backend files)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
