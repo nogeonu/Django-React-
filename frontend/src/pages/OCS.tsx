@@ -1340,9 +1340,11 @@ function CreateOrderForm({
   const [isCheckingInteractions, setIsCheckingInteractions] = useState(false);
 
   // 약물 검색 핸들러
-  const handleDrugSearch = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDrugSearch = async (e?: React.FormEvent<HTMLFormElement>) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!drugQuery.trim()) {
       setShowDrugResults(false);
       return;
