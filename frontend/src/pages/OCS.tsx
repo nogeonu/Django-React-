@@ -699,6 +699,7 @@ function OrderCard({
   onStartProcessing?: () => void;
   onComplete: () => void;
   onCancel: (reason: string) => void;
+  onDownloadPdf?: () => void;
   isSending: boolean;
   isCompleting: boolean;
   onCreateAnalysis?: (data: any) => Promise<any>;
