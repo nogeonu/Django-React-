@@ -688,6 +688,7 @@ function OrderCard({
   onStartProcessing,
   onComplete,
   onCancel,
+  onDownloadPdf,
   isSending,
   isCompleting,
   onCreateAnalysis,
@@ -1571,7 +1572,7 @@ function CreateOrderForm({
   // 약물 상호작용 자동 검사 (debounce 적용, 주문 생성 시에는 체크하지 않음)
   useEffect(() => {
     // 주문 생성 중이면 상호작용 체크 스킵 (빠른 생성)
-    if (createOrderMutation.isPending) {
+    if (createOrderMutation?.isPending) {
       return;
     }
     
@@ -1590,7 +1591,7 @@ function CreateOrderForm({
     } else {
       setInteractionResult(null);
     }
-  }, [medications, orderType, createOrderMutation.isPending]);
+  }, [medications, orderType, createOrderMutation?.isPending]);
 
   const checkInteractions = async (itemSeqs: string[]) => {
     if (itemSeqs.length < 2) return;
