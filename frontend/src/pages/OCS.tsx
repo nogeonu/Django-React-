@@ -609,16 +609,17 @@ export default function OCS() {
 
       {/* PDF 미리보기 다이얼로그 */}
       <Dialog open={showPdfPreview} onOpenChange={handleClosePdfPreview}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh] flex flex-col p-4">
+          <DialogHeader className="pb-2">
             <DialogTitle>처방전 미리보기</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {pdfUrl && (
               <iframe
                 src={pdfUrl}
-                className="w-full flex-1 border rounded-lg"
+                className="w-full flex-1 border rounded-lg min-h-0"
                 title="처방전 PDF 미리보기"
+                style={{ height: 'calc(98vh - 180px)' }}
               />
             )}
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
