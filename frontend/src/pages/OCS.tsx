@@ -257,6 +257,57 @@ export default function OCS() {
     },
   });
 
+  // PDF 미리보기 상태
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+
+  // PDF 미리보기 닫기
+  const handleClosePdfPreview = () => {
+    setShowPdfPreview(false);
+    if (pdfUrl) {
+      window.URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
+    setPdfBlob(null);
+    setCurrentOrderId(null);
+  };
+
+  // PDF 다운로드
+  const handleDownloadPdf = () => {
+    if (!pdfBlob || !currentOrderId) return;
+    
+    const orders = queryClient.getQueryData<any[]>(["ocs-orders", viewMode, searchTerm, statusFilter, typeFilter]);
+    const order = orders?.find((o: any) => o.id === currentOrderId);
+    
+    const url = window.URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `prescription_${order?.patient_number || order?.patient_id || 'unknown'}_${currentOrderId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast({
+      title: "PDF 다운로드",
+      description: "처방전 PDF가 다운로드되었습니다.",
+    });
+  };
+
+  // PDF 프린트
+  const handlePrintPdf = () => {
+    if (!pdfUrl) return;
+    
+    const printWindow = window.open(pdfUrl, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
+  };
+
   // 주문 처리 시작
   const startProcessingMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -264,29 +315,20 @@ export default function OCS() {
       const orders = queryClient.getQueryData<any[]>(["ocs-orders", viewMode, searchTerm, statusFilter, typeFilter]);
       const order = orders?.find((o: any) => o.id === orderId);
       
-      // 처방전 주문이고 원무과로 전달된 경우 PDF 다운로드
+      // 처방전 주문이고 원무과로 전달된 경우 PDF 미리보기
       if (order?.order_type === 'prescription' && order?.target_department === 'admin') {
         try {
           const blob = await downloadPrescriptionPdfApi(orderId);
-          // Blob을 다운로드 링크로 변환
           const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `prescription_${order.patient_number || order.patient_id}_${orderId}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
-          toast({
-            title: "처방전 PDF 다운로드",
-            description: "처방전 PDF가 다운로드되었습니다.",
-          });
+          setPdfBlob(blob);
+          setPdfUrl(url);
+          setCurrentOrderId(orderId);
+          setShowPdfPreview(true);
         } catch (error: any) {
           console.error("PDF 다운로드 오류:", error);
           toast({
-            title: "PDF 다운로드 실패",
-            description: error.response?.data?.error || "처방전 PDF 다운로드에 실패했습니다.",
+            title: "PDF 로드 실패",
+            description: error.response?.data?.error || "처방전 PDF를 불러오는데 실패했습니다.",
             variant: "destructive",
           });
         }
@@ -564,6 +606,41 @@ export default function OCS() {
           </div>
         </CardContent>
       </Card>
+
+      {/* PDF 미리보기 다이얼로그 */}
+      <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>처방전 미리보기</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {pdfUrl && (
+              <iframe
+                src={pdfUrl}
+                className="w-full flex-1 border rounded-lg"
+                title="처방전 PDF 미리보기"
+              />
+            )}
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={handlePrintPdf}
+                disabled={!pdfUrl}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                프린트
+              </Button>
+              <Button
+                onClick={handleDownloadPdf}
+                disabled={!pdfBlob}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                다운로드
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 주문 목록 */}
       <div className="space-y-4">
@@ -1461,12 +1538,17 @@ function CreateOrderForm({
     setMedications(medications.filter((m) => m.item_seq !== itemSeq));
   };
 
-  // 약물 상호작용 자동 검사
+  // 약물 상호작용 자동 검사 (debounce 적용)
   useEffect(() => {
     if (orderType === "prescription" && medications.length >= 2) {
       const validDrugs = medications.filter((m) => m.item_seq);
       if (validDrugs.length >= 2) {
-        checkInteractions(validDrugs.map((m) => m.item_seq!));
+        // Debounce: 약물 추가 후 1초 후에 체크
+        const timeoutId = setTimeout(() => {
+          checkInteractions(validDrugs.map((m) => m.item_seq!));
+        }, 1000);
+        
+        return () => clearTimeout(timeoutId);
       } else {
         setInteractionResult(null);
       }
