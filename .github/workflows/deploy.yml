@@ -104,6 +104,25 @@ jobs:
             echo "💡 H-optimus-0 모델은 이미 캐시에 저장되어 있습니다."
             echo "   캐시 위치: ~/.cache/huggingface/hub/models--bioptimus--H-optimus-0"
             
+            # FastAPI 약물 검색 서비스 설정 (CDSS_Final_Package/backend 파일 필요)
+            echo "💊 FastAPI 약물 검색 서비스 설정 중..."
+            DRUG_API_DIR="$APP_DIR/backend/drug_api"
+            if [ -d "$DRUG_API_DIR" ] && [ -f "$DRUG_API_DIR/main.py" ]; then
+                # FastAPI 의존성 설치
+                pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || echo "⚠️ FastAPI 패키지 설치 실패"
+                
+                # systemd 서비스 설정
+                printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$DRUG_API_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null
+                
+                sudo systemctl daemon-reload
+                sudo systemctl enable drug-api-service
+                sudo systemctl restart drug-api-service || sudo systemctl start drug-api-service || echo "⚠️ drug-api-service 시작 실패"
+                echo "✅ FastAPI 약물 검색 서비스 설정 완료"
+            else
+                echo "⚠️ FastAPI 서비스 디렉토리가 없습니다: $DRUG_API_DIR"
+                echo "   CDSS_Final_Package/backend 파일들을 $DRUG_API_DIR에 복사해주세요."
+            fi
+            
             # Mosec AI 서비스 재시작
             echo "🔄 Mosec AI 서비스 재시작 중..."
             sudo systemctl restart segmentation-mosec 2>/dev/null || echo "⚠️ segmentation-mosec 서비스 없음"
