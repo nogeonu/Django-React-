@@ -1564,9 +1564,20 @@ function CreateOrderForm({
           </div>
           
           {/* 약물 검색 입력 필드 */}
-          <form onSubmit={handleDrugSearch} className="relative">
-            <div className="flex gap-2">
+          <div className="relative">
+            <form 
+              onSubmit={handleDrugSearch} 
+              className="flex gap-2"
+              onBlur={(e) => {
+                // 드롭다운 외부 클릭 시 닫기 (약간의 딜레이로 클릭 이벤트 처리)
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setTimeout(() => setShowDrugResults(false), 200);
+                }
+              }}
+            >
               <Input
+                id="drug-search-input"
+                name="drug-search"
                 type="text"
                 placeholder="약물명 / 성분명 검색 (Enter)..."
                 value={drugQuery}
@@ -1574,18 +1585,38 @@ function CreateOrderForm({
                   setDrugQuery(e.target.value);
                   if (!e.target.value.trim()) {
                     setShowDrugResults(false);
+                  } else {
+                    setShowDrugResults(true);
+                  }
+                }}
+                onFocus={() => {
+                  if (drugQuery.trim() && searchResults.length > 0) {
+                    setShowDrugResults(true);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleDrugSearch(e as any);
                   }
                 }}
                 className="flex-1"
+                autoComplete="off"
               />
               <Button type="submit" disabled={isSearching}>
-                검색
+                {isSearching ? "검색 중..." : "검색"}
               </Button>
-            </div>
+            </form>
 
             {/* 검색 결과 드롭다운 */}
-            {showDrugResults && (
-              <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+            {showDrugResults && (drugQuery.trim() || searchResults.length > 0) && (
+              <div 
+                className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto"
+                onMouseDown={(e) => {
+                  // 드롭다운 내부 클릭 시 닫히지 않도록
+                  e.preventDefault();
+                }}
+              >
                 {isSearching && (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     검색 중...
@@ -1596,10 +1627,14 @@ function CreateOrderForm({
                     검색 결과가 없습니다.
                   </div>
                 )}
-                {searchResults.map((drug) => (
+                {!isSearching && searchResults.map((drug) => (
                   <div
                     key={drug.item_seq}
-                    onClick={() => addDrug(drug)}
+                    onClick={() => {
+                      addDrug(drug);
+                      setShowDrugResults(false);
+                      setDrugQuery("");
+                    }}
                     className="p-3 border-b cursor-pointer hover:bg-accent transition-colors"
                   >
                     <div className="font-semibold text-sm">{drug.name_kor}</div>
@@ -1610,7 +1645,7 @@ function CreateOrderForm({
                 ))}
               </div>
             )}
-          </form>
+          </div>
 
           {/* 선택된 약물 목록 */}
           <div className="space-y-2 mt-4">
