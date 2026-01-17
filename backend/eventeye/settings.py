@@ -20,7 +20,8 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-secret-key-here'
 DEBUG = config('DEBUG', default=True, cast=bool)
 
 # FastAPI 서버 URL (약물 검색 및 상호작용 검사)
-FASTAPI_BASE_URL = config('FASTAPI_BASE_URL', default='http://34.42.223.43:8002')
+# 서버 내부에서는 localhost로 접근 (포트 8002는 외부에서 접근 불가)
+FASTAPI_BASE_URL = config('FASTAPI_BASE_URL', default='http://127.0.0.1:8002')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.41.140', '34.42.223.43', '*']
 
