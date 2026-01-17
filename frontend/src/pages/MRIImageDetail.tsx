@@ -77,7 +77,6 @@ export default function MRIImageDetail() {
   const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
   const [segmentationStartIndex, setSegmentationStartIndex] = useState<{[seriesId: string]: number}>({});
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
-  const [segmentationInstanceIds, setSegmentationInstanceIds] = useState<{[seriesId: string]: string}>({});
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -116,23 +115,28 @@ export default function MRIImageDetail() {
         if (segImages.length > 0) {
           console.log(`[fetchOrthancImages] ${segImages.length}개 SEG 파일 발견, 세그멘테이션 프레임 자동 로드 시작`);
           
-          // 각 SEG 파일에 대해 세그멘테이션 프레임 로드
-          segImages.forEach(async (segImage: OrthancImage) => {
+          // 각 SEG 파일에 대해 세그멘테이션 프레임 로드 (Promise.all 사용)
+          Promise.all(segImages.map(async (segImage: OrthancImage) => {
             try {
               // SEG 파일의 series_id 찾기 (원본 시리즈 정보에서)
               const segSeriesId = segImage.series_id;
               
-              // 세그멘테이션 Instance ID 저장
-              setSegmentationInstanceIds(prev => ({
-                ...prev,
-                [segSeriesId]: segImage.instance_id
-              }));
-              
               // 세그멘테이션 프레임 로드
-              await loadSegmentationFrames(segSeriesId, segImage.instance_id);
+              const response = await fetch(`/api/mri/segmentation/instances/${segImage.instance_id}/frames/`);
+              const frameData = await response.json();
+
+              if (response.ok && frameData.success) {
+                setSegmentationFrames((prev: {[seriesId: string]: any[]}) => ({
+                  ...prev,
+                  [segSeriesId]: frameData.frames
+                }));
+                console.log(`✅ SEG 파일 ${segImage.instance_id} 프레임 로드 완료: ${frameData.num_frames}개`);
+              }
             } catch (error) {
               console.error(`SEG 파일 ${segImage.instance_id} 프레임 로드 실패:`, error);
             }
+          })).catch((error: any) => {
+            console.error('SEG 파일 프레임 로드 중 오류:', error);
           });
         }
         
