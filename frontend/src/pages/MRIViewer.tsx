@@ -162,11 +162,13 @@ export default function MRIViewer() {
   }, [selectedPatient, currentSlice, currentSeries, axis, showSegmentation, patientDetail]);
 
   // 세그멘테이션 프레임 로드
+  // SEG 파일이 발견되면 자동으로 프레임 로드 (AI 분석 전에도 병변탐지 가능하도록)
   useEffect(() => {
-    if (segmentationInstanceId && showSegmentation) {
+    if (segmentationInstanceId) {
+      // SEG 파일이 있으면 자동으로 프레임 로드 (showSegmentation 상태와 무관하게)
       fetchSegmentationFrames();
     }
-  }, [segmentationInstanceId, showSegmentation]);
+  }, [segmentationInstanceId]);
 
   const fetchPatients = async () => {
     setLoading(true);
