@@ -781,7 +781,7 @@ export default function MRIViewer() {
           </Card>
 
           {/* Imaging Controls */}
-          {patientDetail && (
+          {(patientDetail || (showOrthancImages && orthancImages.length > 0 && imageType === 'MRI 영상')) && (
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="bg-gray-50/50 border-b border-gray-100">
                 <CardTitle className="text-sm font-black text-gray-900 flex items-center gap-2 tracking-tight uppercase">
@@ -790,41 +790,48 @@ export default function MRIViewer() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MRI 시퀀스</Label>
-                  <Select value={currentSeries.toString()} onValueChange={(v) => setCurrentSeries(parseInt(v))}>
-                    <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-xs truncate">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-none shadow-xl">
-                      {(patientDetail.series || []).map((s) => (
-                        <SelectItem key={s.index} value={s.index.toString()} className="rounded-lg">
-                          {s.filename}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {patientDetail && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MRI 시퀀스</Label>
+                      <Select value={currentSeries.toString()} onValueChange={(v) => setCurrentSeries(parseInt(v))}>
+                        <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-xs truncate">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-none shadow-xl">
+                          {(patientDetail.series || []).map((s) => (
+                            <SelectItem key={s.index} value={s.index.toString()} className="rounded-lg">
+                              {s.filename}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">단면 방향 (Axis)</Label>
-                  <Tabs value={axis} onValueChange={(v) => setAxis(v as any)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 bg-gray-50 rounded-xl p-1 h-11">
-                      <TabsTrigger value="axial" className="rounded-lg font-bold text-[10px] uppercase">Axial</TabsTrigger>
-                      <TabsTrigger value="sagittal" className="rounded-lg font-bold text-[10px] uppercase">Sagittal</TabsTrigger>
-                      <TabsTrigger value="coronal" className="rounded-lg font-bold text-[10px] uppercase">Coronal</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">단면 방향 (Axis)</Label>
+                      <Tabs value={axis} onValueChange={(v) => setAxis(v as any)} className="w-full">
+                        <TabsList className="grid w-full grid-cols-3 bg-gray-50 rounded-xl p-1 h-11">
+                          <TabsTrigger value="axial" className="rounded-lg font-bold text-[10px] uppercase">Axial</TabsTrigger>
+                          <TabsTrigger value="sagittal" className="rounded-lg font-bold text-[10px] uppercase">Sagittal</TabsTrigger>
+                          <TabsTrigger value="coronal" className="rounded-lg font-bold text-[10px] uppercase">Coronal</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
-                    <div className="flex flex-col">
-                      <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI 병변 분할 (Segmentation)</Label>
-                      <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
+                  {/* AI 병변 분할 - MRI 영상일 때 항상 표시 (SEG 파일이 있으면 표시) */}
+                  {(imageType === 'MRI 영상' && (patientDetail || (showOrthancImages && (orthancImages.length > 0 || segmentationInstanceId)))) && (
+                    <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-50">
+                      <div className="flex flex-col">
+                        <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">AI 병변 분할 (Segmentation)</Label>
+                        <p className="text-[9px] font-medium text-emerald-600/70">자동 병변 탐지 활성화</p>
+                      </div>
+                      <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
                     </div>
-                    <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
-                  </div>
+                  )}
                   
                   {showOrthancImages && orthancImages.length > 0 && imageType === 'MRI 영상' && (
                     <Button
