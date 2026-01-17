@@ -1312,6 +1312,7 @@ function CreateOrderForm({
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
+  const { toast } = useToast();
   const [orderType, setOrderType] = useState<string>("prescription");
   const [priority, setPriority] = useState<string>("routine");
   const [targetDepartment, setTargetDepartment] = useState<string>("admin");
@@ -1351,11 +1352,34 @@ function CreateOrderForm({
     setShowDrugResults(true);
 
     try {
+      console.log("🔍 약물 검색 시작:", drugQuery.trim());
       const drugs = await searchDrugsApi(drugQuery.trim(), 15);
-      setSearchResults(drugs);
-    } catch (error) {
-      console.error("약물 검색 오류:", error);
+      console.log("✅ 약물 검색 성공:", drugs);
+      if (Array.isArray(drugs)) {
+        setSearchResults(drugs);
+      } else {
+        console.error("⚠️ 검색 결과가 배열이 아닙니다:", drugs);
+        setSearchResults([]);
+        toast({
+          title: "검색 오류",
+          description: "검색 결과 형식이 올바르지 않습니다.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("❌ 약물 검색 오류:", error);
+      console.error("에러 상세:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
       setSearchResults([]);
+      toast({
+        title: "약물 검색 실패",
+        description: error.response?.data?.error || error.response?.data?.details || error.message || "약물 검색에 실패했습니다.",
+        variant: "destructive",
+      });
     } finally {
       setIsSearching(false);
     }

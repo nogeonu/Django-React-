@@ -659,24 +659,61 @@ class DrugSearchView(APIView):
         query = request.query_params.get('q', '')
         limit = int(request.query_params.get('limit', 20))
         
+        logger.info(f"약물 검색 요청: query={query}, limit={limit}")
+        
         if not query:
+            logger.warning("약물 검색: 검색어가 없습니다")
             return Response(
                 {'error': '검색어(q)가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         try:
+            url = f"{DRUG_API_BASE_URL}/drugs/search"
+            params = {'q': query, 'limit': limit}
+            logger.info(f"FastAPI 서버로 요청 전송: {url}, params={params}")
+            
             response = requests.get(
-                f"{DRUG_API_BASE_URL}/drugs/search",
-                params={'q': query, 'limit': limit},
+                url,
+                params=params,
                 timeout=10
             )
+            
+            logger.info(f"FastAPI 응답 상태: {response.status_code}")
             response.raise_for_status()
-            return Response(response.json())
+            
+            data = response.json()
+            logger.info(f"약물 검색 성공: {len(data) if isinstance(data, list) else 'non-list'}개 결과")
+            return Response(data)
+            
+        except requests.exceptions.Timeout:
+            logger.error(f"약물 검색 타임아웃: {DRUG_API_BASE_URL}")
+            return Response(
+                {'error': '약물 검색 서버 응답 시간이 초과되었습니다.', 'details': 'FastAPI 서버가 응답하지 않습니다.'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"약물 검색 연결 오류: {DRUG_API_BASE_URL}, error={e}")
+            return Response(
+                {'error': '약물 검색 서버에 연결할 수 없습니다.', 'details': f'FastAPI 서버({DRUG_API_BASE_URL})에 연결할 수 없습니다.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"약물 검색 HTTP 오류: {e}, status={response.status_code if 'response' in locals() else 'N/A'}")
+            return Response(
+                {'error': '약물 검색 서버 오류', 'details': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
         except requests.exceptions.RequestException as e:
-            logger.error(f"Drug search API error: {e}")
+            logger.error(f"약물 검색 API 오류: {e}", exc_info=True)
             return Response(
                 {'error': '약물 검색에 실패했습니다.', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            logger.error(f"약물 검색 예상치 못한 오류: {e}", exc_info=True)
+            return Response(
+                {'error': '약물 검색 중 오류가 발생했습니다.', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
