@@ -258,6 +258,166 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(order)
         return Response(serializer.data)
     
+    @action(detail=True, methods=['get'])
+    def download_prescription_pdf(self, request, pk=None):
+        """처방전 PDF 다운로드 (원무과용)"""
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from django.http import HttpResponse
+        from datetime import datetime
+        
+        order = self.get_object()
+        
+        # 처방전 주문만 PDF 생성 가능
+        if order.order_type != 'prescription':
+            return Response(
+                {'error': '처방전 주문만 PDF로 다운로드할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # PDF 버퍼 생성
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        # 한글 폰트 설정 (기본 폰트 사용)
+        try:
+            # 한글 폰트가 있으면 사용, 없으면 기본 폰트
+            from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+            pdfmetrics.registerFont(UnicodeCIDFont('HYSMyeongJo-Medium'))
+            font_name = 'HYSMyeongJo-Medium'
+        except:
+            font_name = 'Helvetica'
+        
+        # 제목
+        p.setFont(font_name, 20)
+        p.drawString(50, height - 50, "처방전")
+        
+        # 병원 정보
+        p.setFont(font_name, 12)
+        p.drawString(50, height - 80, "건양대학교병원")
+        p.drawString(50, height - 100, "대전 서구 관저동")
+        
+        # 환자 정보
+        patient = order.patient
+        y_pos = height - 150
+        p.setFont(font_name, 12)
+        p.drawString(50, y_pos, "환자 정보")
+        y_pos -= 25
+        
+        p.setFont(font_name, 10)
+        p.drawString(70, y_pos, f"환자명: {patient.name}")
+        y_pos -= 20
+        p.drawString(70, y_pos, f"환자번호: {patient.patient_id}")
+        y_pos -= 20
+        if patient.birth_date:
+            birth_date_str = patient.birth_date.strftime('%Y년 %m월 %d일') if hasattr(patient.birth_date, 'strftime') else str(patient.birth_date)
+            p.drawString(70, y_pos, f"생년월일: {birth_date_str}")
+            y_pos -= 20
+        if patient.gender:
+            gender_str = "남성" if patient.gender == "M" else "여성" if patient.gender == "F" else patient.gender
+            p.drawString(70, y_pos, f"성별: {gender_str}")
+            y_pos -= 20
+        if patient.phone:
+            p.drawString(70, y_pos, f"연락처: {patient.phone}")
+            y_pos -= 20
+        
+        # 의사 정보
+        doctor = order.doctor
+        y_pos -= 20
+        p.setFont(font_name, 12)
+        p.drawString(50, y_pos, "처방 의사")
+        y_pos -= 25
+        p.setFont(font_name, 10)
+        doctor_name = doctor.get_full_name() if hasattr(doctor, 'get_full_name') else f"{doctor.first_name} {doctor.last_name}".strip() or doctor.username
+        p.drawString(70, y_pos, f"의사명: {doctor_name}")
+        y_pos -= 20
+        user_department = get_department(doctor.id)
+        if user_department:
+            p.drawString(70, y_pos, f"진료과: {user_department}")
+            y_pos -= 20
+        
+        # 처방일시
+        p.drawString(70, y_pos, f"처방일시: {order.created_at.strftime('%Y년 %m월 %d일 %H:%M')}")
+        y_pos -= 30
+        
+        # 약물 정보
+        p.setFont(font_name, 12)
+        p.drawString(50, y_pos, "처방 약물")
+        y_pos -= 30
+        
+        medications = order.order_data.get('medications', [])
+        if medications:
+            p.setFont(font_name, 9)
+            # 테이블 헤더
+            p.drawString(60, y_pos, "약물명")
+            p.drawString(200, y_pos, "용량")
+            p.drawString(260, y_pos, "용법")
+            p.drawString(320, y_pos, "기간")
+            y_pos -= 20
+            
+            # 구분선
+            p.line(50, y_pos, width - 50, y_pos)
+            y_pos -= 10
+            
+            for idx, med in enumerate(medications, 1):
+                if y_pos < 100:  # 페이지 하단 도달 시 새 페이지
+                    p.showPage()
+                    y_pos = height - 50
+                
+                med_name = med.get('name', '')
+                dosage = med.get('dosage', '')
+                frequency = med.get('frequency', '')
+                duration = med.get('duration', '')
+                
+                p.drawString(60, y_pos, f"{idx}. {med_name}")
+                p.drawString(200, y_pos, dosage or "-")
+                p.drawString(260, y_pos, frequency or "-")
+                p.drawString(320, y_pos, duration or "-")
+                y_pos -= 20
+        else:
+            p.setFont(font_name, 10)
+            p.drawString(70, y_pos, "처방 약물이 없습니다.")
+            y_pos -= 20
+        
+        # 메모
+        if order.notes:
+            y_pos -= 20
+            p.setFont(font_name, 12)
+            p.drawString(50, y_pos, "특이사항")
+            y_pos -= 25
+            p.setFont(font_name, 10)
+            # 메모가 길면 여러 줄로 나누기
+            notes_lines = order.notes.split('\n')
+            for line in notes_lines[:5]:  # 최대 5줄
+                if y_pos < 100:
+                    p.showPage()
+                    y_pos = height - 50
+                p.drawString(70, y_pos, line[:50])  # 최대 50자
+                y_pos -= 20
+        
+        # 하단 서명란
+        y_pos = 100
+        p.setFont(font_name, 10)
+        p.drawString(50, y_pos, "의사 서명: _________________")
+        y_pos -= 30
+        p.drawString(50, y_pos, f"발행일: {datetime.now().strftime('%Y년 %m월 %d일')}")
+        
+        # PDF 완성
+        p.showPage()
+        p.save()
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        filename = f"prescription_{order.patient.patient_id}_{order.id}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """주문 완료 처리"""

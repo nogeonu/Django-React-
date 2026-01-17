@@ -174,6 +174,13 @@ export const startProcessingOrderApi = async (id: string) => {
   return res.data;
 };
 
+export const downloadPrescriptionPdfApi = async (orderId: string): Promise<Blob> => {
+  const res = await apiClient.get(`/api/ocs/orders/${orderId}/download_prescription_pdf/`, {
+    responseType: 'blob', // PDF 파일 다운로드를 위해 blob으로 받기
+  });
+  return res.data;
+};
+
 export const completeOrderApi = async (id: string) => {
   const res = await apiClient.post(`/api/ocs/orders/${id}/complete/`);
   return res.data;

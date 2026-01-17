@@ -15,7 +15,7 @@ import {
   Scan,
   RefreshCw,
 } from "lucide-react";
-import { checkDrugInteractionsApi, searchDrugsApi, type Drug, type DrugInteractionResult } from "@/lib/api";
+import { checkDrugInteractionsApi, searchDrugsApi, downloadPrescriptionPdfApi, type Drug, type DrugInteractionResult } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -259,7 +259,42 @@ export default function OCS() {
 
   // 주문 처리 시작
   const startProcessingMutation = useMutation({
-    mutationFn: startProcessingOrderApi,
+    mutationFn: async (orderId: string) => {
+      // 먼저 주문 정보를 가져와서 처방전인지 확인
+      const orders = queryClient.getQueryData<any[]>(["ocs-orders", viewMode, searchTerm, statusFilter, typeFilter]);
+      const order = orders?.find((o: any) => o.id === orderId);
+      
+      // 처방전 주문이고 원무과로 전달된 경우 PDF 다운로드
+      if (order?.order_type === 'prescription' && order?.target_department === 'admin') {
+        try {
+          const blob = await downloadPrescriptionPdfApi(orderId);
+          // Blob을 다운로드 링크로 변환
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `prescription_${order.patient_number || order.patient_id}_${orderId}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          toast({
+            title: "처방전 PDF 다운로드",
+            description: "처방전 PDF가 다운로드되었습니다.",
+          });
+        } catch (error: any) {
+          console.error("PDF 다운로드 오류:", error);
+          toast({
+            title: "PDF 다운로드 실패",
+            description: error.response?.data?.error || "처방전 PDF 다운로드에 실패했습니다.",
+            variant: "destructive",
+          });
+        }
+      }
+      
+      // 처리 시작 API 호출
+      return startProcessingOrderApi(orderId);
+    },
     onSuccess: () => {
       toast({
         title: "처리 시작",
