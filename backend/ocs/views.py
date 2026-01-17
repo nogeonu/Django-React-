@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 # 외부 약물 검색 API 설정
 from django.conf import settings
-DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://34.42.223.43:8002')
+# Nginx 프록시를 통해 접근 (포트 8002 직접 접근 대신)
+DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://127.0.0.1:8002')
 
 
 class OrderViewSet(viewsets.ModelViewSet):
