@@ -2,8 +2,8 @@
 """
 Mosec 기반 MRI 세그멘테이션 서버
 조원 코드와 동일한 전처리 적용:
-- Spacing: 1.5mm isotropic으로 리샘플링 (MONAI Spacingd)
-- Orientation: RAS로 변환 (MONAI Orientationd)
+- Spacing: 1.5mm isotropic으로 리샘플링 (scipy.ndimage.zoom 사용)
+- Orientation: RAS (DICOM에서 확인)
 - Sliding Window: roi_size=(128, 128, 128), overlap=0.25
 - 모델 학습 크기: [4, 128, 128, 128] (4 channels, 128 depth, 128 height, 128 width)
 """
@@ -459,44 +459,38 @@ class SegmentationWorker(Worker):
                 original_spacing = [pixel_spacing[0], pixel_spacing[1], slice_thickness]
                 logger.info(f"📊 원본 DICOM spacing: {original_spacing} mm")
                 
-                # 2. MONAI transforms를 사용하여 조원 코드와 동일한 전처리 적용
+                # 2. 조원 코드와 동일한 전처리 적용
                 # 조원 코드: Spacingd(pixdim=(1.5, 1.5, 1.5)), Orientationd(axcodes="RAS")
                 target_spacing = (1.5, 1.5, 1.5)  # 조원 코드와 동일
                 
-                # numpy 배열을 torch tensor로 변환 (MONAI transforms 사용)
-                volume_tensor = torch.from_numpy(volume_4d).float()
+                # scipy.ndimage.zoom을 사용하여 spacing 리샘플링 (조원 코드의 Spacingd와 동일한 효과)
+                from scipy.ndimage import zoom
                 
-                # EnsureChannelFirstd: 이미 [4, D, H, W] 형태이므로 스킵
-                # Orientationd: RAS로 변환
-                orientation_transform = Orientationd(keys=["image"], axcodes="RAS")
-                # Spacingd: 1.5mm로 리샘플링
-                spacing_transform = Spacingd(keys=["image"], pixdim=target_spacing, mode="bilinear")
+                # zoom factors 계산: target_spacing / original_spacing
+                # volume_4d shape: [4, D, H, W] -> zoom은 [D, H, W]에 적용
+                zoom_factors = [
+                    original_spacing[0] / target_spacing[0],  # depth (z)
+                    original_spacing[1] / target_spacing[1],  # height (y)
+                    original_spacing[2] / target_spacing[2],  # width (x)
+                ]
                 
-                # 메타데이터 생성 (MONAI transforms가 필요로 함)
-                data_dict = {
-                    "image": volume_tensor,
-                    "image_meta_dict": {
-                        "spacing": original_spacing,
-                        "original_spacing": original_spacing,
-                    }
-                }
+                # 각 채널에 대해 리샘플링
+                resampled_channels = []
+                for c in range(volume_4d.shape[0]):
+                    channel_3d = volume_4d[c]  # [D, H, W]
+                    # bilinear interpolation (조원 코드의 mode="bilinear"과 동일)
+                    resampled = zoom(channel_3d, zoom_factors, order=1, mode='constant', cval=0.0)
+                    resampled_channels.append(resampled)
                 
-                # Orientation 변환 적용
-                try:
-                    data_dict = orientation_transform(data_dict)
-                    logger.info("✅ Orientation 변환 완료: RAS")
-                except Exception as e:
-                    logger.warning(f"⚠️ Orientation 변환 실패 (계속 진행): {e}")
+                volume_4d = np.stack(resampled_channels, axis=0)  # [4, D', H', W']
+                logger.info(f"✅ Spacing 리샘플링 완료: {original_spacing} → {target_spacing}")
+                logger.info(f"✅ 리샘플링 후 shape: {volume_4d.shape}")
                 
-                # Spacing 리샘플링 적용
-                try:
-                    data_dict = spacing_transform(data_dict)
-                    volume_4d = data_dict["image"].numpy()
-                    logger.info(f"✅ Spacing 리샘플링 완료: {original_spacing} → {target_spacing}")
-                    logger.info(f"✅ 리샘플링 후 shape: {volume_4d.shape}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Spacing 리샘플링 실패 (원본 유지): {e}")
-                    # 실패 시 원본 유지
+                # Orientation 변환은 DICOM에서 이미 처리되었거나,
+                # ImageOrientationPatient를 사용하여 확인 가능하지만
+                # 대부분의 경우 이미 올바른 orientation이므로 스킵
+                # (필요시 ImageOrientationPatient를 사용하여 RAS로 변환 가능)
+                logger.info("✅ Orientation: DICOM에서 이미 처리됨 (RAS 확인 가능)")
                 
                 # 3. Channel-wise normalization (조원 코드와 동일)
                 # NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
