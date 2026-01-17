@@ -42,6 +42,41 @@ jobs:
           remote_user: ${{ secrets.SSH_USER }}
           remote_key: ${{ secrets.SSH_KEY }}
           remote_port: ${{ secrets.SSH_PORT }}
+      
+      - name: Copy CDSS_Final_Package to drug_api
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "../CDSS_Final_Package/backend/*"
+          target: "${{ secrets.APP_DIR }}/backend/drug_api/"
+          strip_components: 3
+          rm: false
+        continue-on-error: true
+      
+      - name: Setup drug_api directory (fallback)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            APP_DIR="${{ secrets.APP_DIR }}"
+            DRUG_API_DIR="$APP_DIR/backend/drug_api"
+            
+            # drug_api 디렉토리가 비어있거나 없으면 경고만 출력
+            if [ ! -d "$DRUG_API_DIR" ] || [ -z "$(ls -A $DRUG_API_DIR 2>/dev/null)" ]; then
+              echo "⚠️ drug_api 디렉토리가 비어있습니다."
+              echo "   CDSS_Final_Package/backend 파일들을 수동으로 복사해야 합니다."
+              echo "   또는 GitHub 저장소에 CDSS_Final_Package를 포함시켜주세요."
+              echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
+            else
+              echo "✅ drug_api 디렉토리 확인 완료"
+            fi
 
       - name: Install dependencies and restart services
         uses: appleboy/ssh-action@v1.2.0
@@ -110,6 +145,20 @@ jobs:
             
             if [ -d "$DRUG_API_DIR" ] && [ -f "$DRUG_API_DIR/main.py" ]; then
                 echo "✅ FastAPI 서비스 디렉토리 발견: $DRUG_API_DIR"
+                
+                # .env 파일 생성 (DB 설정)
+                if [ ! -f "$DRUG_API_DIR/.env" ]; then
+                    echo "📝 .env 파일 생성 중..."
+                    cat > "$DRUG_API_DIR/.env" <<EOF
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=acorn
+DB_PASSWORD=acorn1234
+DB_NAME=hospital_db
+DB_POOL_SIZE=5
+EOF
+                    echo "✅ .env 파일 생성 완료"
+                fi
                 
                 # FastAPI 의존성 설치
                 echo "📦 FastAPI 패키지 설치 중..."
