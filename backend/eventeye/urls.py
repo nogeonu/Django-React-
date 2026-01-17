@@ -7,7 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from . import auth_views
 from . import github_views
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -44,7 +44,12 @@ schema_view = get_schema_view(
     permission_classes=[permissions.AllowAny],
 )
 
+def favicon_view(request):
+    """favicon.ico 요청 처리 - 204 No Content 반환"""
+    return HttpResponse(status=204)
+
 urlpatterns = [
+    path('favicon.ico', favicon_view, name='favicon'),
     path('', api_root, name='root'),
     path('admin/', admin.site.urls),
     path('api/', api_root, name='api-root'),
