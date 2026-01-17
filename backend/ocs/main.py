@@ -2434,16 +2434,27 @@ def check_drug_interactions(body: DrugInteractionCheck):
             for drug in drugs:
                 ingredients = []
                 
-                if drug['edi_code']:
-                    cur.execute(
-                        """
-                        SELECT DISTINCT gnl_nm_cd, gnl_nm
-                        FROM hira_drug_ingredient_map
-                        WHERE edi_code = %s
-                        """,
-                        (drug['edi_code'],)
-                    )
-                    ingredients = cur.fetchall()
+                # hira_drug_ingredient_map 테이블 존재 여부 확인
+                try:
+                    cur.execute("SHOW TABLES LIKE 'hira_drug_ingredient_map'")
+                    has_hira_table = cur.fetchone() is not None
+                except:
+                    has_hira_table = False
+                
+                if drug['edi_code'] and has_hira_table:
+                    try:
+                        cur.execute(
+                            """
+                            SELECT DISTINCT gnl_nm_cd, gnl_nm
+                            FROM hira_drug_ingredient_map
+                            WHERE edi_code = %s
+                            """,
+                            (drug['edi_code'],)
+                        )
+                        ingredients = cur.fetchall()
+                    except Exception as e:
+                        print(f"⚠️ hira_drug_ingredient_map 조회 실패: {e}")
+                        ingredients = []
                 
                 # HIRA 매핑이 없으면 약품명에서 성분 추출 시도
                 if not ingredients:
@@ -2514,23 +2525,32 @@ def check_drug_interactions(body: DrugInteractionCheck):
                 
                 # 4. 한글 성분명인 경우 영문명도 찾아 추가 (DB 활용 - Simvastatin 등 영문 전용 데이터 매칭용)
                 try:
-                    for cand in list(candidates):
-                        if re.search('[가-힣]', cand): # 한글이 포함된 경우
-                            # 해당 성분명이 포함된 약품을 찾아 영문 성분명(gnl_nm) 조회
-                            # 주의: 성분명만으로 정확히 찾기 위해 LIKE 패턴 조심
-                            cur.execute("""
-                                SELECT h.gnl_nm 
-                                FROM hira_drug_ingredient_map h
-                                JOIN drugs d ON h.edi_code = d.edi_code
-                                WHERE d.name_kor LIKE %s 
-                                  AND h.gnl_nm IS NOT NULL 
-                                  AND h.gnl_nm != ''
-                                LIMIT 1
-                            """, (f"%{cand}%",))
-                            row = cur.fetchone()
-                            if row and row['gnl_nm']:
-                                eng_name = clean_utils(row['gnl_nm'])
-                                if eng_name: candidates.add(eng_name)
+                    # hira_drug_ingredient_map 테이블 존재 여부 확인
+                    cur.execute("SHOW TABLES LIKE 'hira_drug_ingredient_map'")
+                    has_hira_table = cur.fetchone() is not None
+                    
+                    if has_hira_table:
+                        for cand in list(candidates):
+                            if re.search('[가-힣]', cand): # 한글이 포함된 경우
+                                # 해당 성분명이 포함된 약품을 찾아 영문 성분명(gnl_nm) 조회
+                                # 주의: 성분명만으로 정확히 찾기 위해 LIKE 패턴 조심
+                                try:
+                                    cur.execute("""
+                                        SELECT h.gnl_nm 
+                                        FROM hira_drug_ingredient_map h
+                                        JOIN drugs d ON h.edi_code = d.edi_code
+                                        WHERE d.name_kor LIKE %s 
+                                          AND h.gnl_nm IS NOT NULL 
+                                          AND h.gnl_nm != ''
+                                        LIMIT 1
+                                    """, (f"%{cand}%",))
+                                    row = cur.fetchone()
+                                    if row and row['gnl_nm']:
+                                        eng_name = clean_utils(row['gnl_nm'])
+                                        if eng_name: candidates.add(eng_name)
+                                except Exception as e:
+                                    # 개별 쿼리 실패해도 계속 진행
+                                    pass
                 except Exception as e:
                     # 영문 변환 실패해도 기존 후보로 계속 진행
                     pass
