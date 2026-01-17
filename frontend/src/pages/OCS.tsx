@@ -14,6 +14,8 @@ import {
   FlaskConical,
   Scan,
   RefreshCw,
+  Printer,
+  Download,
 } from "lucide-react";
 import { checkDrugInteractionsApi, searchDrugsApi, downloadPrescriptionPdfApi, type Drug, type DrugInteractionResult } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
