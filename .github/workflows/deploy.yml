@@ -85,7 +85,12 @@ jobs:
             python3 -m venv .venv || true
             source .venv/bin/activate || { echo "❌ 가상환경 활성화 실패"; exit 1; }
             pip install --upgrade pip || { echo "⚠️ pip 업그레이드 실패, 계속 진행..."; }
-            pip install -r requirements.txt || { echo "❌ 패키지 설치 실패"; exit 1; }
+            echo "📦 Python 패키지 설치 중 (requirements.txt)..."
+            if ! pip install -r requirements.txt; then
+              echo "❌ 패키지 설치 실패, 상세 오류:"
+              pip install -r requirements.txt 2>&1 | tail -30
+              exit 1
+            fi
             
             # DB 마이그레이션 및 정적 파일 수집
             echo "🗄️ DB 마이그레이션 중..."
