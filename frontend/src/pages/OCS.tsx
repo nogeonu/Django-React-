@@ -1130,10 +1130,24 @@ function OrderCard({
               (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과")) ||
               (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
             ) && (
-              <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
-                <CheckCircle className="mr-2 h-4 w-4" />
-                완료 처리
-              </Button>
+              <>
+                <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  완료 처리
+                </Button>
+                {/* 원무과 처방전 주문의 경우 PDF 다운로드 버튼 */}
+                {order.order_type === "prescription" && order.target_department === "admin" && user?.department === "원무과" && onDownloadPdf && (
+                  <Button 
+                    onClick={onDownloadPdf} 
+                    size="sm" 
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    처방전 보기
+                  </Button>
+                )}
+              </>
             )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "imaging" && 
