@@ -389,10 +389,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             p.setFont(font_name, 10)
             # 테이블 헤더 (굵게)
             p.setFont(font_name, 11)
+            # 약물명과 용량 사이 간격을 더 넓힘 (60 -> 60, 200 -> 280으로 변경)
             p.drawString(60, y_pos, "약물명")
-            p.drawString(200, y_pos, "용량")
-            p.drawString(260, y_pos, "용법")
-            p.drawString(320, y_pos, "기간")
+            p.drawString(280, y_pos, "용량")
+            p.drawString(340, y_pos, "용법")
+            p.drawString(400, y_pos, "기간")
             y_pos -= 25
             
             # 구분선
@@ -411,26 +412,49 @@ class OrderViewSet(viewsets.ModelViewSet):
                 frequency = med.get('frequency', '')
                 duration = med.get('duration', '')
                 
-                # 약물명이 길면 줄바꿈
-                med_name_lines = [med_name[i:i+25] for i in range(0, len(med_name), 25)]
+                # 약물명이 길면 줄바꿈 (약물명 영역은 60~270까지 사용)
+                med_name_max_width = 210  # 약물명 최대 너비 (약 270-60)
+                med_name_lines = []
+                current_line = ""
+                for char in med_name:
+                    test_line = current_line + char
+                    test_width = p.stringWidth(test_line, font_name, 10)
+                    if test_width > med_name_max_width and current_line:
+                        med_name_lines.append(current_line)
+                        current_line = char
+                    else:
+                        current_line = test_line
+                if current_line:
+                    med_name_lines.append(current_line)
+                
+                # 약물명이 없으면 기본값
+                if not med_name_lines:
+                    med_name_lines = [med_name]
+                
+                # 약물명 출력 (여러 줄 가능)
+                med_name_y = y_pos
                 for i, line in enumerate(med_name_lines):
                     if i == 0:
-                        p.drawString(60, y_pos, f"{idx}. {line}")
+                        p.drawString(60, med_name_y, f"{idx}. {line}")
                     else:
-                        p.drawString(80, y_pos, line)
+                        p.drawString(80, med_name_y, line)
                     if i < len(med_name_lines) - 1:
-                        y_pos -= 18
+                        med_name_y -= 18
                 
-                p.drawString(200, y_pos, dosage or "-")
-                p.drawString(260, y_pos, frequency or "-")
-                p.drawString(320, y_pos, duration or "-")
-                y_pos -= 25
+                # 용량, 용법, 기간은 약물명의 첫 번째 줄과 같은 높이에 출력
+                p.drawString(280, y_pos, str(dosage) if dosage else "-")
+                p.drawString(340, y_pos, str(frequency) if frequency else "-")
+                p.drawString(400, y_pos, str(duration) if duration else "-")
                 
-                # 약물 간 구분선
+                # 약물 간 구분선 (약물명의 마지막 줄 아래에)
                 if idx < len(medications):
                     p.setLineWidth(0.3)
-                    p.line(50, y_pos + 5, width - 50, y_pos + 5)
-                    y_pos -= 5
+                    y_pos = med_name_y - 10  # 약물명 마지막 줄에서 10만큼 아래로
+                    p.line(50, y_pos, width - 50, y_pos)
+                    y_pos -= 15  # 구분선 아래 여백
+                else:
+                    # 마지막 약물인 경우 y_pos만 조정
+                    y_pos = med_name_y - 10
         else:
             p.setFont(font_name, 11)
             p.drawString(70, y_pos, "처방 약물이 없습니다.")
