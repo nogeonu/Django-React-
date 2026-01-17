@@ -266,14 +266,16 @@ export default function OCS() {
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
 
   // PDF 미리보기 닫기
-  const handleClosePdfPreview = () => {
-    setShowPdfPreview(false);
-    if (pdfUrl) {
-      window.URL.revokeObjectURL(pdfUrl);
-      setPdfUrl(null);
+  const handleClosePdfPreview = (open: boolean) => {
+    if (!open) {
+      setShowPdfPreview(false);
+      if (pdfUrl) {
+        window.URL.revokeObjectURL(pdfUrl);
+        setPdfUrl(null);
+      }
+      setPdfBlob(null);
+      setCurrentOrderId(null);
     }
-    setPdfBlob(null);
-    setCurrentOrderId(null);
   };
 
   // PDF 다운로드
@@ -610,7 +612,7 @@ export default function OCS() {
       </Card>
 
       {/* PDF 미리보기 다이얼로그 */}
-      <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
+      <Dialog open={showPdfPreview} onOpenChange={handleClosePdfPreview}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>처방전 미리보기</DialogTitle>
