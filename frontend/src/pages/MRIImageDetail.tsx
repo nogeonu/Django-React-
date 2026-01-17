@@ -77,6 +77,7 @@ export default function MRIImageDetail() {
   const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
   const [segmentationStartIndex, setSegmentationStartIndex] = useState<{[seriesId: string]: number}>({});
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
+  const [hasSegmentationFile, setHasSegmentationFile] = useState(false);  // SEG 파일 존재 여부
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -94,6 +95,47 @@ export default function MRIImageDetail() {
     }
   }, [allOrthancImages, imageType]);
 
+  // SEG 파일 자동 감지 및 프레임 로드 (seriesGroups 생성 후 실행)
+  useEffect(() => {
+    if (seriesGroups.length > 0 && imageType === 'MRI 영상') {
+      const segImages = allOrthancImages.filter((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
+      if (segImages.length > 0) {
+        setHasSegmentationFile(true);  // SEG 파일이 있음을 표시
+        console.log(`[useEffect SEG] ${segImages.length}개 SEG 파일 발견, 세그멘테이션 프레임 자동 로드 시작`);
+        
+        // 각 SEG 파일에 대해 세그멘테이션 프레임 로드
+        Promise.all(segImages.map(async (segImage: OrthancImage) => {
+          try {
+            // 세그멘테이션 프레임 로드
+            const response = await fetch(`/api/mri/segmentation/instances/${segImage.instance_id}/frames/`);
+            const frameData = await response.json();
+
+            if (response.ok && frameData.success) {
+              // 모든 MR 시리즈에 프레임 매핑 (여러 시리즈에 동일한 세그멘테이션 결과 적용)
+              setSegmentationFrames((prev: {[seriesId: string]: any[]}) => {
+                const updated = {...prev};
+                seriesGroups.forEach((group: SeriesGroup) => {
+                  // MR 시리즈에만 매핑
+                  if (group.modality === 'MR') {
+                    updated[group.series_id] = frameData.frames;
+                  }
+                });
+                return updated;
+              });
+              console.log(`✅ SEG 파일 ${segImage.instance_id} 프레임 로드 완료: ${frameData.num_frames}개 (${seriesGroups.length}개 시리즈에 매핑)`);
+            }
+          } catch (error) {
+            console.error(`SEG 파일 ${segImage.instance_id} 프레임 로드 실패:`, error);
+          }
+        })).catch((error: any) => {
+          console.error('SEG 파일 프레임 로드 중 오류:', error);
+        });
+      } else {
+        setHasSegmentationFile(false);
+      }
+    }
+  }, [seriesGroups, allOrthancImages, imageType]);
+
   const fetchOrthancImages = async (patientId: string) => {
     setLoading(true);
     try {
@@ -110,35 +152,7 @@ export default function MRIImageDetail() {
       if (data.success && data.images && Array.isArray(data.images)) {
         setAllOrthancImages(data.images);
         
-        // SEG 파일 찾아서 세그멘테이션 프레임 자동 로드 (AI 분석 전에도 병변탐지 가능하도록)
-        const segImages = data.images.filter((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
-        if (segImages.length > 0) {
-          console.log(`[fetchOrthancImages] ${segImages.length}개 SEG 파일 발견, 세그멘테이션 프레임 자동 로드 시작`);
-          
-          // 각 SEG 파일에 대해 세그멘테이션 프레임 로드 (Promise.all 사용)
-          Promise.all(segImages.map(async (segImage: OrthancImage) => {
-            try {
-              // SEG 파일의 series_id 찾기 (원본 시리즈 정보에서)
-              const segSeriesId = segImage.series_id;
-              
-              // 세그멘테이션 프레임 로드
-              const response = await fetch(`/api/mri/segmentation/instances/${segImage.instance_id}/frames/`);
-              const frameData = await response.json();
-
-              if (response.ok && frameData.success) {
-                setSegmentationFrames((prev: {[seriesId: string]: any[]}) => ({
-                  ...prev,
-                  [segSeriesId]: frameData.frames
-                }));
-                console.log(`✅ SEG 파일 ${segImage.instance_id} 프레임 로드 완료: ${frameData.num_frames}개`);
-              }
-            } catch (error) {
-              console.error(`SEG 파일 ${segImage.instance_id} 프레임 로드 실패:`, error);
-            }
-          })).catch((error: any) => {
-            console.error('SEG 파일 프레임 로드 중 오류:', error);
-          });
-        }
+        // SEG 파일은 useEffect에서 자동으로 처리됨 (seriesGroups 생성 후)
         
         // 첫 번째 이미지 프리로드 (유방촬영술은 보통 4장 정도)
         if (imageType === '유방촬영술 영상') {
@@ -565,7 +579,8 @@ export default function MRIImageDetail() {
                seriesGroups.length > 0 && 
                selectedSeriesIndex !== -1 &&
                (seriesSegmentationResults[seriesGroups[selectedSeriesIndex]?.series_id] || 
-                segmentationFrames[seriesGroups[selectedSeriesIndex]?.series_id]) && (
+                segmentationFrames[seriesGroups[selectedSeriesIndex]?.series_id] ||
+                hasSegmentationFile) && (
                 <Button
                   onClick={() => setShowSegmentationOverlay(!showSegmentationOverlay)}
                   className={`font-bold px-6 py-2 rounded-xl flex items-center gap-2 shadow-lg ${
