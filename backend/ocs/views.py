@@ -223,8 +223,13 @@ class OrderViewSet(viewsets.ModelViewSet):
             update_order_status(order, 'sent', request.user, '방사선과로 전달')
             logger.info(f"Order {order.id} sent to radiology")
             
+        elif order.target_department == 'admin':
+            # 원무과로 전달
+            update_order_status(order, 'sent', request.user, '원무과로 전달')
+            logger.info(f"Order {order.id} sent to admin (원무과)")
+            
         elif order.target_department == 'pharmacy':
-            # 약국으로 전달
+            # 약국으로 전달 (하위 호환성 유지)
             update_order_status(order, 'sent', request.user, '약국으로 전달')
             logger.info(f"Order {order.id} sent to pharmacy")
         

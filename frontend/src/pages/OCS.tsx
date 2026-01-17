@@ -983,16 +983,26 @@ function OrderCard({
               </Button>
             )}
             {/* 부서 담당자: 전달된 주문 처리 시작 */}
+            {/* 원무과는 처방전 주문(admin)에 대해 처리 시작 가능 */}
             {order.status === "sent" && (
+              (order.target_department === "admin" && user?.department === "원무과") ||
+              (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과")) ||
+              (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
+            ) && (
               <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
                 <Clock className="mr-2 h-4 w-4" />
                 처리 시작
               </Button>
             )}
             {/* 부서 담당자: 처리 중인 주문 완료 처리 */}
+            {/* 원무과는 처방전 주문(admin)에 대해 완료 처리 가능 */}
             {/* 영상의학과는 영상 촬영 주문의 경우 완료 처리 버튼 숨김 (분석 결과 입력으로 대체) */}
             {order.status === "processing" && 
              !(order.order_type === "imaging" && user?.department === "영상의학과") && (
+              (order.target_department === "admin" && user?.department === "원무과") ||
+              (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과")) ||
+              (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
+            ) && (
               <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 완료 처리
@@ -1323,7 +1333,7 @@ function CreateOrderForm({
         return;
       }
       orderData = { medications: validMedications };
-      department = "pharmacy";
+      department = "admin";
     } else if (orderType === "lab_test") {
       const validTestItems = testItems.filter((t) => t.name.trim());
       if (validTestItems.length === 0) {
@@ -1400,7 +1410,7 @@ function CreateOrderForm({
         <Label>주문 유형</Label>
         <Select value={orderType} onValueChange={(value) => {
           setOrderType(value);
-          if (value === "prescription") setTargetDepartment("pharmacy");
+          if (value === "prescription") setTargetDepartment("admin");
           else if (value === "lab_test") setTargetDepartment("lab");
           else if (value === "imaging") setTargetDepartment("radiology");
         }}>
