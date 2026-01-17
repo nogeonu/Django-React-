@@ -129,68 +129,68 @@ jobs:
             
             # FastAPI 약물 검색 서비스 설정 (조원의 CDSS_Final_Package 구조 참고)
             # README.md 권장: backend/ocs/ 위치, 포트 8002, hospital_db 사용
-            echo "💊 FastAPI 약물 검색 서비스 설정 중..."
-            OCS_DIR="$APP_DIR/backend/ocs"
-            
-            # ocs 디렉토리가 없으면 생성
-            mkdir -p "$OCS_DIR" || true
-            
-            # FastAPI 서비스 설정은 선택적 (파일이 없어도 배포는 계속 진행)
-            # set +e로 오류 무시 모드 활성화
-            set +e
-            if [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/main.py" ]; then
-                echo "✅ FastAPI 서비스 디렉토리 발견: $OCS_DIR"
+            # 이 블록은 선택적이므로 오류가 발생해도 배포는 계속 진행
+            (
+                set +e  # 이 서브셸 내에서는 오류 무시
+                echo "💊 FastAPI 약물 검색 서비스 설정 중..."
+                OCS_DIR="$APP_DIR/backend/ocs"
                 
-                # .env 파일 생성 (DB 설정) - 조원의 README.md 참고: hospital_db 사용
-                if [ ! -f "$OCS_DIR/.env" ]; then
-                    echo "📝 .env 파일 생성 중..."
-                    mkdir -p "$OCS_DIR" || true
-                    echo "DB_HOST=localhost" > "$OCS_DIR/.env"
-                    echo "DB_PORT=3306" >> "$OCS_DIR/.env"
-                    echo "DB_USER=acorn" >> "$OCS_DIR/.env"
-                    echo "DB_PASSWORD=acorn1234" >> "$OCS_DIR/.env"
-                    echo "DB_NAME=hospital_db" >> "$OCS_DIR/.env"
-                    echo "DB_POOL_SIZE=5" >> "$OCS_DIR/.env"
-                    echo "✅ .env 파일 생성 완료"
-                fi
+                # ocs 디렉토리가 없으면 생성
+                mkdir -p "$OCS_DIR" || true
                 
-                # FastAPI 의존성 설치 - 조원의 requirements.txt 사용
-                echo "📦 FastAPI 패키지 설치 중..."
-                if [ -f "$OCS_DIR/requirements.txt" ]; then
-                    echo "   requirements.txt 파일 발견, 설치 중..."
-                    pip install -r "$OCS_DIR/requirements.txt" || {
-                        echo "⚠️ requirements.txt 설치 실패, 기본 패키지 설치 시도..."
+                if [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/main.py" ]; then
+                    echo "✅ FastAPI 서비스 디렉토리 발견: $OCS_DIR"
+                    
+                    # .env 파일 생성 (DB 설정) - 조원의 README.md 참고: hospital_db 사용
+                    if [ ! -f "$OCS_DIR/.env" ]; then
+                        echo "📝 .env 파일 생성 중..."
+                        mkdir -p "$OCS_DIR" || true
+                        echo "DB_HOST=localhost" > "$OCS_DIR/.env"
+                        echo "DB_PORT=3306" >> "$OCS_DIR/.env"
+                        echo "DB_USER=acorn" >> "$OCS_DIR/.env"
+                        echo "DB_PASSWORD=acorn1234" >> "$OCS_DIR/.env"
+                        echo "DB_NAME=hospital_db" >> "$OCS_DIR/.env"
+                        echo "DB_POOL_SIZE=5" >> "$OCS_DIR/.env"
+                        echo "✅ .env 파일 생성 완료"
+                    fi
+                    
+                    # FastAPI 의존성 설치 - 조원의 requirements.txt 사용
+                    echo "📦 FastAPI 패키지 설치 중..."
+                    if [ -f "$OCS_DIR/requirements.txt" ]; then
+                        echo "   requirements.txt 파일 발견, 설치 중..."
+                        pip install -r "$OCS_DIR/requirements.txt" || {
+                            echo "⚠️ requirements.txt 설치 실패, 기본 패키지 설치 시도..."
+                            pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
+                                echo "⚠️ FastAPI 패키지 설치 실패"
+                            }
+                        }
+                    else
+                        echo "   requirements.txt 없음, 기본 패키지 설치 중..."
                         pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
                             echo "⚠️ FastAPI 패키지 설치 실패"
                         }
+                    fi
+                    
+                    # systemd 서비스 설정 - 조원의 가이드: uvicorn main:app --port 8002
+                    echo "⚙️ systemd 서비스 설정 중..."
+                    sudo mkdir -p /etc/systemd/system || true
+                    
+                    printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$OCS_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
+                        echo "⚠️ systemd 서비스 파일 생성 실패"
                     }
+                    
+                    sudo systemctl daemon-reload || echo "⚠️ systemd daemon-reload 실패"
+                    sudo systemctl enable drug-api-service || echo "⚠️ drug-api-service enable 실패"
+                    sudo systemctl restart drug-api-service 2>/dev/null || sudo systemctl start drug-api-service 2>/dev/null || {
+                        echo "⚠️ drug-api-service 시작 실패"
+                    }
+                    echo "✅ FastAPI 약물 검색 서비스 설정 완료"
                 else
-                    echo "   requirements.txt 없음, 기본 패키지 설치 중..."
-                    pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
-                        echo "⚠️ FastAPI 패키지 설치 실패"
-                    }
+                    echo "⚠️ FastAPI 서비스 디렉토리 또는 main.py가 없습니다: $OCS_DIR"
+                    echo "   조원의 CDSS_Final_Package/backend 파일들을 $OCS_DIR에 복사해주세요."
+                    echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
                 fi
-                
-                # systemd 서비스 설정 - 조원의 가이드: uvicorn main:app --port 8002
-                echo "⚙️ systemd 서비스 설정 중..."
-                sudo mkdir -p /etc/systemd/system || true
-                
-                printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$OCS_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
-                    echo "⚠️ systemd 서비스 파일 생성 실패"
-                }
-                
-                sudo systemctl daemon-reload || echo "⚠️ systemd daemon-reload 실패"
-                sudo systemctl enable drug-api-service || echo "⚠️ drug-api-service enable 실패"
-                sudo systemctl restart drug-api-service 2>/dev/null || sudo systemctl start drug-api-service 2>/dev/null || {
-                    echo "⚠️ drug-api-service 시작 실패"
-                }
-                echo "✅ FastAPI 약물 검색 서비스 설정 완료"
-            else
-                echo "⚠️ FastAPI 서비스 디렉토리 또는 main.py가 없습니다: $OCS_DIR"
-                echo "   조원의 CDSS_Final_Package/backend 파일들을 $OCS_DIR에 복사해주세요."
-                echo "   배포는 계속 진행되지만 약물 검색 기능이 작동하지 않을 수 있습니다."
-            fi
-            set -e  # 다시 오류 체크 모드로 전환
+            ) || echo "⚠️ FastAPI 서비스 설정 중 오류 발생, 배포는 계속 진행합니다."
             
             # Mosec AI 서비스 재시작
             echo "🔄 Mosec AI 서비스 재시작 중..."
