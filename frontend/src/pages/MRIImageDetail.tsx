@@ -29,6 +29,7 @@ interface OrthancImage {
   instance_number: string;
   preview_url: string;
   modality?: string;
+  is_segmentation?: boolean;  // SEG 파일 여부
   view_position?: string;
   image_laterality?: string;
   mammography_view?: string;
@@ -76,6 +77,7 @@ export default function MRIImageDetail() {
   const [segmentationFrames, setSegmentationFrames] = useState<{[seriesId: string]: any[]}>({});
   const [segmentationStartIndex, setSegmentationStartIndex] = useState<{[seriesId: string]: number}>({});
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
+  const [segmentationInstanceIds, setSegmentationInstanceIds] = useState<{[seriesId: string]: string}>({});
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -108,6 +110,31 @@ export default function MRIImageDetail() {
       
       if (data.success && data.images && Array.isArray(data.images)) {
         setAllOrthancImages(data.images);
+        
+        // SEG 파일 찾아서 세그멘테이션 프레임 자동 로드 (AI 분석 전에도 병변탐지 가능하도록)
+        const segImages = data.images.filter((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
+        if (segImages.length > 0) {
+          console.log(`[fetchOrthancImages] ${segImages.length}개 SEG 파일 발견, 세그멘테이션 프레임 자동 로드 시작`);
+          
+          // 각 SEG 파일에 대해 세그멘테이션 프레임 로드
+          segImages.forEach(async (segImage: OrthancImage) => {
+            try {
+              // SEG 파일의 series_id 찾기 (원본 시리즈 정보에서)
+              const segSeriesId = segImage.series_id;
+              
+              // 세그멘테이션 Instance ID 저장
+              setSegmentationInstanceIds(prev => ({
+                ...prev,
+                [segSeriesId]: segImage.instance_id
+              }));
+              
+              // 세그멘테이션 프레임 로드
+              await loadSegmentationFrames(segSeriesId, segImage.instance_id);
+            } catch (error) {
+              console.error(`SEG 파일 ${segImage.instance_id} 프레임 로드 실패:`, error);
+            }
+          });
+        }
         
         // 첫 번째 이미지 프리로드 (유방촬영술은 보통 4장 정도)
         if (imageType === '유방촬영술 영상') {
@@ -529,11 +556,12 @@ export default function MRIImageDetail() {
                 )}
               </Button>
 
-              {/* 병변 탐지 토글 버튼 (세그멘테이션 결과가 있을 때만 표시) */}
+              {/* 병변 탐지 토글 버튼 (세그멘테이션 결과가 있거나 SEG 파일이 있을 때 표시) */}
               {imageType === 'MRI 영상' && 
                seriesGroups.length > 0 && 
                selectedSeriesIndex !== -1 &&
-               seriesSegmentationResults[seriesGroups[selectedSeriesIndex]?.series_id] && (
+               (seriesSegmentationResults[seriesGroups[selectedSeriesIndex]?.series_id] || 
+                segmentationFrames[seriesGroups[selectedSeriesIndex]?.series_id]) && (
                 <Button
                   onClick={() => setShowSegmentationOverlay(!showSegmentationOverlay)}
                   className={`font-bold px-6 py-2 rounded-xl flex items-center gap-2 shadow-lg ${
