@@ -28,7 +28,8 @@ from eventeye.doctor_utils import get_department
 logger = logging.getLogger(__name__)
 
 # 외부 약물 검색 API 설정
-DRUG_API_BASE_URL = "http://34.42.223.43:8002"
+from django.conf import settings
+DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://34.42.223.43:8002')
 
 
 class OrderViewSet(viewsets.ModelViewSet):
