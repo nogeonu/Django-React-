@@ -149,14 +149,12 @@ jobs:
                 # .env 파일 생성 (DB 설정)
                 if [ ! -f "$DRUG_API_DIR/.env" ]; then
                     echo "📝 .env 파일 생성 중..."
-                    cat > "$DRUG_API_DIR/.env" <<EOF
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=acorn
-DB_PASSWORD=acorn1234
-DB_NAME=hospital_db
-DB_POOL_SIZE=5
-EOF
+                    echo "DB_HOST=localhost" > "$DRUG_API_DIR/.env"
+                    echo "DB_PORT=3306" >> "$DRUG_API_DIR/.env"
+                    echo "DB_USER=acorn" >> "$DRUG_API_DIR/.env"
+                    echo "DB_PASSWORD=acorn1234" >> "$DRUG_API_DIR/.env"
+                    echo "DB_NAME=hospital_db" >> "$DRUG_API_DIR/.env"
+                    echo "DB_POOL_SIZE=5" >> "$DRUG_API_DIR/.env"
                     echo "✅ .env 파일 생성 완료"
                 fi
                 
