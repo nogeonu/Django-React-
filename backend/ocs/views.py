@@ -285,13 +285,25 @@ class OrderViewSet(viewsets.ModelViewSet):
         p = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
         
-        # 한글 폰트 설정 (기본 폰트 사용)
+        # 한글 폰트 설정
+        # reportlab의 기본 폰트는 한글을 지원하지 않으므로 UnicodeCIDFont 사용
         try:
-            # 한글 폰트가 있으면 사용, 없으면 기본 폰트
             from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-            pdfmetrics.registerFont(UnicodeCIDFont('HYSMyeongJo-Medium'))
-            font_name = 'HYSMyeongJo-Medium'
-        except:
+            # 한글 폰트 등록 (시스템에 따라 다를 수 있음)
+            try:
+                pdfmetrics.registerFont(UnicodeCIDFont('HYSMyeongJo-Medium'))
+                font_name = 'HYSMyeongJo-Medium'
+            except:
+                # 다른 한글 폰트 시도
+                try:
+                    pdfmetrics.registerFont(UnicodeCIDFont('HYGothic-Medium'))
+                    font_name = 'HYGothic-Medium'
+                except:
+                    # 마지막으로 기본 CID 폰트 사용
+                    pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))
+                    font_name = 'HeiseiMin-W3'
+        except Exception as e:
+            logger.warning(f"한글 폰트 등록 실패, 기본 폰트 사용: {e}")
             font_name = 'Helvetica'
         
         # 제목
@@ -327,46 +339,70 @@ class OrderViewSet(viewsets.ModelViewSet):
             p.drawString(70, y_pos, f"연락처: {patient.phone}")
             y_pos -= 20
         
-        # 의사 정보
+        # 의사 정보 박스
         doctor = order.doctor
-        y_pos -= 20
-        p.setFont(font_name, 12)
+        y_pos -= 30
+        p.setFont(font_name, 14)
         p.drawString(50, y_pos, "처방 의사")
-        y_pos -= 25
-        p.setFont(font_name, 10)
-        doctor_name = doctor.get_full_name() if hasattr(doctor, 'get_full_name') else f"{doctor.first_name} {doctor.last_name}".strip() or doctor.username
-        p.drawString(70, y_pos, f"의사명: {doctor_name}")
-        y_pos -= 20
-        user_department = get_department(doctor.id)
-        if user_department:
-            p.drawString(70, y_pos, f"진료과: {user_department}")
-            y_pos -= 20
-        
-        # 처방일시
-        p.drawString(70, y_pos, f"처방일시: {order.created_at.strftime('%Y년 %m월 %d일 %H:%M')}")
         y_pos -= 30
         
-        # 약물 정보
-        p.setFont(font_name, 12)
+        # 의사 정보 박스 그리기
+        box_y_start = y_pos + 10
+        box_y_end = y_pos - 60
+        p.setStrokeColor(colors.grey)
+        p.setLineWidth(1)
+        p.rect(50, box_y_end, width - 100, box_y_start - box_y_end)
+        
+        p.setFont(font_name, 11)
+        doctor_name = doctor.get_full_name() if hasattr(doctor, 'get_full_name') else f"{doctor.first_name} {doctor.last_name}".strip() or doctor.username
+        p.drawString(60, y_pos, f"의사명: {doctor_name}")
+        y_pos -= 22
+        user_department = get_department(doctor.id)
+        if user_department:
+            p.drawString(60, y_pos, f"진료과: {user_department}")
+            y_pos -= 22
+        
+        # 처방일시
+        p.drawString(60, y_pos, f"처방일시: {order.created_at.strftime('%Y년 %m월 %d일 %H:%M')}")
+        y_pos -= 40
+        
+        # 약물 정보 박스
+        p.setFont(font_name, 14)
         p.drawString(50, y_pos, "처방 약물")
         y_pos -= 30
         
         medications = order.order_data.get('medications', [])
         if medications:
-            p.setFont(font_name, 9)
-            # 테이블 헤더
+            # 약물 정보 박스 그리기
+            med_box_y_start = y_pos + 10
+            med_box_y_end = y_pos - (len(medications) * 25) - 30
+            if med_box_y_end < 150:  # 페이지 하단 도달 시 새 페이지
+                p.showPage()
+                y_pos = height - 50
+                med_box_y_start = y_pos + 10
+                med_box_y_end = y_pos - (len(medications) * 25) - 30
+            
+            p.setStrokeColor(colors.grey)
+            p.setLineWidth(1)
+            p.rect(50, med_box_y_end, width - 100, med_box_y_start - med_box_y_end)
+            
+            p.setFont(font_name, 10)
+            # 테이블 헤더 (굵게)
+            p.setFont(font_name, 11)
             p.drawString(60, y_pos, "약물명")
             p.drawString(200, y_pos, "용량")
             p.drawString(260, y_pos, "용법")
             p.drawString(320, y_pos, "기간")
-            y_pos -= 20
+            y_pos -= 25
             
             # 구분선
+            p.setLineWidth(0.5)
             p.line(50, y_pos, width - 50, y_pos)
-            y_pos -= 10
+            y_pos -= 15
             
+            p.setFont(font_name, 10)
             for idx, med in enumerate(medications, 1):
-                if y_pos < 100:  # 페이지 하단 도달 시 새 페이지
+                if y_pos < 120:  # 페이지 하단 도달 시 새 페이지
                     p.showPage()
                     y_pos = height - 50
                 
@@ -375,13 +411,28 @@ class OrderViewSet(viewsets.ModelViewSet):
                 frequency = med.get('frequency', '')
                 duration = med.get('duration', '')
                 
-                p.drawString(60, y_pos, f"{idx}. {med_name}")
+                # 약물명이 길면 줄바꿈
+                med_name_lines = [med_name[i:i+25] for i in range(0, len(med_name), 25)]
+                for i, line in enumerate(med_name_lines):
+                    if i == 0:
+                        p.drawString(60, y_pos, f"{idx}. {line}")
+                    else:
+                        p.drawString(80, y_pos, line)
+                    if i < len(med_name_lines) - 1:
+                        y_pos -= 18
+                
                 p.drawString(200, y_pos, dosage or "-")
                 p.drawString(260, y_pos, frequency or "-")
                 p.drawString(320, y_pos, duration or "-")
-                y_pos -= 20
+                y_pos -= 25
+                
+                # 약물 간 구분선
+                if idx < len(medications):
+                    p.setLineWidth(0.3)
+                    p.line(50, y_pos + 5, width - 50, y_pos + 5)
+                    y_pos -= 5
         else:
-            p.setFont(font_name, 10)
+            p.setFont(font_name, 11)
             p.drawString(70, y_pos, "처방 약물이 없습니다.")
             y_pos -= 20
         
@@ -402,11 +453,20 @@ class OrderViewSet(viewsets.ModelViewSet):
                 y_pos -= 20
         
         # 하단 서명란
-        y_pos = 100
-        p.setFont(font_name, 10)
+        y_pos = 120
+        p.setFont(font_name, 11)
         p.drawString(50, y_pos, "의사 서명: _________________")
         y_pos -= 30
-        p.drawString(50, y_pos, f"발행일: {datetime.now().strftime('%Y년 %m월 %d일')}")
+        
+        # 발행일 및 병원 인증 정보
+        issue_date = datetime.now().strftime('%Y년 %m월 %d일')
+        p.drawString(50, y_pos, f"발행일: {issue_date}")
+        
+        # 우측 하단에 병원 인증 정보
+        cert_text = "건양대학교병원 인증"
+        cert_width = p.stringWidth(cert_text, font_name, 9)
+        p.setFont(font_name, 9)
+        p.drawString(width - 50 - cert_width, y_pos, cert_text)
         
         # PDF 완성
         p.showPage()
