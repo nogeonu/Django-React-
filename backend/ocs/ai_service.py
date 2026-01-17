@@ -42,12 +42,28 @@ class DrugInteractionAI:
         AI가 사용 불가능하면 DB 내용을 기반으로 기본 응답을 반환합니다.
         """
         
-        # 1. 기본 응답 (Fallback)
+        # 1. 기본 응답 (Fallback) - DB 정보를 활용한 상세 메시지
+        # reason_from_db에서 핵심 정보 추출
+        summary = "병용 금기 (DUR 경고)"
+        if reason_from_db:
+            # contraindication에서 핵심 정보 추출 (예: "횡문근융해증", "세로토닌성증후군" 등)
+            if "|" in reason_from_db:
+                main_risk = reason_from_db.split("|")[0].strip()
+                if main_risk:
+                    summary = f"{drug_a_name}과 {drug_b_name}을 병용할 경우 {main_risk}의 위험이 증가합니다."
+            elif len(reason_from_db) > 10:
+                # 긴 설명이 있으면 요약
+                summary = f"{drug_a_name}과 {drug_b_name}을 병용할 경우 {reason_from_db[:100]}의 위험이 있습니다."
+            else:
+                summary = f"{drug_a_name}과 {drug_b_name}을 병용할 경우 {reason_from_db}의 위험이 있습니다."
+        else:
+            summary = f"{drug_a_name}과 {drug_b_name}을 병용할 경우 심각한 약물 상호작용이 발생할 수 있습니다."
+        
         base_response = {
             "analysis_type": "BASIC_DB",
-            "summary": "병용 금기 (DUR 경고)",
-            "mechanism": "상세 약리기전 정보 없음 (AI 미연동)",
-            "clinical_recommendation": "해당 약물의 동시 처방을 피하십시오.",
+            "summary": summary,
+            "mechanism": reason_from_db[:200] if reason_from_db else "상세 약리기전 정보 없음 (AI 미연동)",
+            "clinical_recommendation": "해당 약물의 동시 처방을 피하거나 전문의와 상담하십시오.",
             "raw_reason": reason_from_db
         }
 

@@ -1784,25 +1784,22 @@ function CreateOrderForm({
                         <div className="font-semibold text-sm mb-2">
                           {inter.warning_message.split('\n')[0]}
                         </div>
-                        {inter.warning_message.includes('AI 분석:') && (
+                        {inter.warning_message.includes('AI 분석:') ? (
                           <div className="text-xs text-gray-700 mb-2 whitespace-pre-wrap pl-2 border-l-2 border-red-400">
-                            {inter.warning_message.split('AI 분석:')[1]?.trim() || inter.warning_message}
+                            {inter.warning_message.split('AI 분석:')[1]?.trim()}
                           </div>
-                        )}
-                        {!inter.warning_message.includes('AI 분석:') && (
+                        ) : inter.ai_analysis && inter.ai_analysis.summary ? (
+                          <div className="text-xs text-gray-700 mb-2 whitespace-pre-wrap pl-2 border-l-2 border-red-400">
+                            {inter.ai_analysis.summary}
+                          </div>
+                        ) : (
                           <div className="text-xs text-gray-700 mb-2 whitespace-pre-wrap">
-                            {inter.warning_message.split('\n').slice(1).join('\n') || inter.warning_message}
+                            {inter.warning_message.split('\n').slice(1).join('\n') || inter.interaction_type || '병용금기 (DUR 경고)'}
                           </div>
                         )}
-                        {inter.ai_analysis && !inter.warning_message.includes('AI 분석:') && (
-                          <div className="text-xs text-gray-600 border-t pt-2 mt-2">
-                            <div className="font-medium mb-1">AI 분석:</div>
-                            <div className="whitespace-pre-wrap">{inter.ai_analysis.summary}</div>
-                            {inter.ai_analysis.recommendation && (
-                              <div className="mt-1">
-                                <span className="font-medium">권고:</span> {inter.ai_analysis.recommendation}
-                              </div>
-                            )}
+                        {inter.ai_analysis && inter.ai_analysis.recommendation && (
+                          <div className="text-xs text-gray-600 mt-2">
+                            <span className="font-medium">권고:</span> {inter.ai_analysis.recommendation}
                           </div>
                         )}
                       </div>

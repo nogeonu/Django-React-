@@ -2773,9 +2773,14 @@ def check_drug_interactions(body: DrugInteractionCheck):
                                         # AI 분석이 있으면 AI 분석 메시지 추가
                                         if ai_analysis and ai_analysis.get('summary'):
                                             base_msg = f"{base_msg}\nAI 분석: {ai_analysis['summary']}"
-                                        elif contraindication:
+                                        else:
                                             # AI 분석이 없으면 DB의 contraindication 사용
-                                            base_msg = f"{base_msg} {contraindication[:200]}"
+                                            if contraindication:
+                                                # contraindication에서 핵심 정보만 추출
+                                                contra_clean = contraindication.split('|')[0].strip() if '|' in contraindication else contraindication[:200]
+                                                base_msg = f"{base_msg} {contra_clean}"
+                                            else:
+                                                base_msg = f"{base_msg} {dur_type} (DUR 경고)"
 
                                         interaction_map[pair_key] = {
                                             "item_seq_a": item_a,
