@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
