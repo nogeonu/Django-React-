@@ -165,14 +165,26 @@ jobs:
                 
                 # FastAPI 의존성 설치
                 echo "📦 FastAPI 패키지 설치 중..."
-                pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
-                    echo "⚠️ FastAPI 패키지 설치 실패, 계속 진행..."
-                }
+                if [ -f "$DRUG_API_DIR/requirements.txt" ]; then
+                    echo "   requirements.txt 파일 발견, 설치 중..."
+                    pip install -r "$DRUG_API_DIR/requirements.txt" || {
+                        echo "⚠️ requirements.txt 설치 실패, 기본 패키지 설치 시도..."
+                        pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
+                            echo "⚠️ FastAPI 패키지 설치 실패, 계속 진행..."
+                        }
+                    }
+                else
+                    echo "   requirements.txt 없음, 기본 패키지 설치 중..."
+                    pip install fastapi uvicorn pymysql python-dotenv openai requests pydantic || {
+                        echo "⚠️ FastAPI 패키지 설치 실패, 계속 진행..."
+                    }
+                fi
                 
                 # systemd 서비스 설정
                 echo "⚙️ systemd 서비스 설정 중..."
                 sudo mkdir -p /etc/systemd/system || true
                 
+                # systemd 서비스 파일 생성 (조원의 CDSS_Final_Package 구조 참고)
                 printf '[Unit]\nDescription=FastAPI Drug Search and Interaction Service\nAfter=network.target mysql.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="PATH=%s/backend/.venv/bin"\nEnvironment="PYTHONPATH=%s/backend"\nExecStart=%s/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --workers 2\nRestart=always\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$DRUG_API_DIR" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/drug-api-service.service > /dev/null || {
                     echo "⚠️ systemd 서비스 파일 생성 실패"
                 }
