@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'literature',
     'mri_viewer',
     'ocs',
+    'chatbot',
 ]
 
 MIDDLEWARE = [
