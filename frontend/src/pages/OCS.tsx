@@ -668,6 +668,7 @@ export default function OCS() {
               onStartProcessing={() => startProcessingMutation.mutate(order.id)}
               onComplete={() => completeOrderMutation.mutate(order.id)}
               onCancel={(reason) => cancelOrderMutation.mutate({ id: order.id, reason })}
+              onDownloadPdf={() => handleOpenPdfPreview(order.id)}
               isSending={sendOrderMutation.isPending}
               isCompleting={completeOrderMutation.isPending}
               onCreateAnalysis={createImagingAnalysisApi}
@@ -1607,6 +1608,16 @@ function CreateOrderForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 약물 상호작용 체크 중이면 대기
+    if (isCheckingInteractions) {
+      toast({
+        title: "약물 상호작용 검사 중",
+        description: "약물 상호작용 검사가 완료될 때까지 기다려주세요.",
+        variant: "default",
+      });
+      return;
+    }
 
     let orderData: any = {};
     let department = targetDepartment;
