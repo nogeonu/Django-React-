@@ -510,21 +510,56 @@ export default function CornerstoneViewer({
 
   // 세그멘테이션 오버레이 렌더링 (조원 코드와 동일: 마젠타 윤곽선 + 반투명 보라색 채움)
   useEffect(() => {
-    if (!showSegmentation || !segmentationFrames.length || !overlayCanvasRef.current) return;
+    if (!showSegmentation) {
+      console.log('[CornerstoneViewer] showSegmentation이 false');
+      return;
+    }
+    
+    if (!segmentationFrames.length) {
+      console.log('[CornerstoneViewer] segmentationFrames가 비어있음');
+      return;
+    }
+    
+    if (!overlayCanvasRef.current) {
+      console.log('[CornerstoneViewer] overlayCanvasRef가 없음');
+      return;
+    }
 
     const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
-    if (!frame || !frame.mask_base64) return;
+    if (!frame || !frame.mask_base64) {
+      console.log(`[CornerstoneViewer] 프레임을 찾을 수 없음: currentIndex=${currentIndex}, frames.length=${segmentationFrames.length}`);
+      return;
+    }
+
+    console.log(`[CornerstoneViewer] 세그멘테이션 오버레이 렌더링 시작: currentIndex=${currentIndex}, frame.index=${frame.index}`);
 
     const canvas = overlayCanvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('[CornerstoneViewer] Canvas context를 가져올 수 없음');
+      return;
+    }
 
     // Canvas 크기를 뷰포트에 맞게 설정
     const container = canvas.parentElement;
     if (container) {
       const rect = container.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      if (rect.width > 0 && rect.height > 0) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        console.log(`[CornerstoneViewer] Canvas 크기 설정: ${rect.width}×${rect.height}`);
+      } else {
+        console.warn(`[CornerstoneViewer] Container 크기가 0: ${rect.width}×${rect.height}`);
+        // fallback: viewportRef를 사용
+        if (viewportRef.current) {
+          const viewportRect = viewportRef.current.getBoundingClientRect();
+          if (viewportRect.width > 0 && viewportRect.height > 0) {
+            canvas.width = viewportRect.width;
+            canvas.height = viewportRect.height;
+            console.log(`[CornerstoneViewer] Canvas 크기 설정 (viewportRef): ${viewportRect.width}×${viewportRect.height}`);
+          }
+        }
+      }
     }
 
     // Canvas 초기화 (투명하게)
@@ -533,6 +568,7 @@ export default function CornerstoneViewer({
     // 마스크 이미지 로드
     const maskImg = new Image();
     maskImg.onload = () => {
+      console.log(`[CornerstoneViewer] 마스크 이미지 로드 완료: ${maskImg.width}×${maskImg.height}`);
       // 마스크 이미지 크기 계산 (object-contain 방식)
       const scale = Math.min(canvas.width / maskImg.width, canvas.height / maskImg.height);
       const x = (canvas.width - maskImg.width * scale) / 2;
@@ -636,6 +672,10 @@ export default function CornerstoneViewer({
       }
       ctx.putImageData(contourData, x, y);
       ctx.globalAlpha = 1.0;
+      console.log('[CornerstoneViewer] 세그멘테이션 오버레이 렌더링 완료');
+    };
+    maskImg.onerror = (e) => {
+      console.error('[CornerstoneViewer] 마스크 이미지 로드 실패:', e);
     };
     maskImg.src = `data:image/png;base64,${frame.mask_base64}`;
   }, [showSegmentation, segmentationFrames, currentIndex]);
