@@ -190,8 +190,9 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         
         # 주문 유형별 검증
         if order_type == 'prescription':
-            if target_department != 'pharmacy':
-                raise serializers.ValidationError("처방전은 약국으로 전달되어야 합니다.")
+            # 처방전은 원무과(admin) 또는 약국(pharmacy)으로 전달 가능
+            if target_department not in ['admin', 'pharmacy']:
+                raise serializers.ValidationError("처방전은 원무과 또는 약국으로 전달되어야 합니다.")
             medications = order_data.get('medications', [])
             if not medications or len(medications) == 0:
                 raise serializers.ValidationError("처방전에는 약물 정보가 필요합니다.")
