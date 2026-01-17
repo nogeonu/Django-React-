@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -15,6 +15,8 @@ import {
   Scan,
   RefreshCw,
 } from "lucide-react";
+import DrugSearchModal from "@/components/DrugSearchModal";
+import { checkDrugInteractionsApi, type Drug, type DrugInteractionResult } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1313,12 +1315,83 @@ function CreateOrderForm({
 }) {
   const [orderType, setOrderType] = useState<string>("prescription");
   const [priority, setPriority] = useState<string>("routine");
-  const [targetDepartment, setTargetDepartment] = useState<string>("pharmacy");
-  const [medications, setMedications] = useState([{ name: "", dosage: "", frequency: "", duration: "" }]);
+  const [targetDepartment, setTargetDepartment] = useState<string>("admin");
+  const [medications, setMedications] = useState<Array<{ 
+    name: string; 
+    dosage: string; 
+    frequency: string; 
+    duration: string;
+    item_seq?: string;
+    drug?: Drug;
+  }>>([{ name: "", dosage: "", frequency: "", duration: "" }]);
   const [testItems, setTestItems] = useState([{ name: "", priority: "routine" }]);
   const [imagingData, setImagingData] = useState({ imaging_type: "", body_part: "", contrast: false });
   const [notes, setNotes] = useState("");
   const [dueTime, setDueTime] = useState("");
+  
+  // 약물 검색 모달 상태
+  const [isDrugSearchOpen, setIsDrugSearchOpen] = useState(false);
+  const [currentMedIndex, setCurrentMedIndex] = useState<number | null>(null);
+  
+  // 약물 상호작용 검사 상태
+  const [interactionResult, setInteractionResult] = useState<DrugInteractionResult | null>(null);
+  const [isCheckingInteractions, setIsCheckingInteractions] = useState(false);
+
+  // 약물 상호작용 자동 검사
+  useEffect(() => {
+    if (orderType === "prescription" && medications.length >= 2) {
+      const validDrugs = medications.filter((m) => m.item_seq);
+      if (validDrugs.length >= 2) {
+        checkInteractions(validDrugs.map((m) => m.item_seq!));
+      } else {
+        setInteractionResult(null);
+      }
+    } else {
+      setInteractionResult(null);
+    }
+  }, [medications, orderType]);
+
+  const checkInteractions = async (itemSeqs: string[]) => {
+    if (itemSeqs.length < 2) return;
+    
+    setIsCheckingInteractions(true);
+    try {
+      const result = await checkDrugInteractionsApi(itemSeqs);
+      setInteractionResult(result);
+    } catch (error) {
+      console.error("약물 상호작용 검사 오류:", error);
+      setInteractionResult(null);
+    } finally {
+      setIsCheckingInteractions(false);
+    }
+  };
+
+  const handleDrugSelect = (drug: Drug) => {
+    if (currentMedIndex !== null) {
+      const newMeds = [...medications];
+      newMeds[currentMedIndex] = {
+        ...newMeds[currentMedIndex],
+        name: drug.name_kor,
+        item_seq: drug.item_seq,
+        drug: drug,
+      };
+      setMedications(newMeds);
+      setCurrentMedIndex(null);
+    } else {
+      // 새 약물 추가
+      setMedications([
+        ...medications,
+        {
+          name: drug.name_kor,
+          dosage: "",
+          frequency: "",
+          duration: "",
+          item_seq: drug.item_seq,
+          drug: drug,
+        },
+      ]);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1332,7 +1405,16 @@ function CreateOrderForm({
         alert("최소 하나의 약물 정보를 입력해주세요.");
         return;
       }
-      orderData = { medications: validMedications };
+      // 약물 정보에 item_seq 포함
+      orderData = { 
+        medications: validMedications.map((m) => ({
+          name: m.name,
+          dosage: m.dosage,
+          frequency: m.frequency,
+          duration: m.duration,
+          item_seq: m.item_seq, // 약물 검색에서 선택한 경우 item_seq 포함
+        }))
+      };
       department = "admin";
     } else if (orderType === "lab_test") {
       const validTestItems = testItems.filter((t) => t.name.trim());
@@ -1429,56 +1511,188 @@ function CreateOrderForm({
       {/* 주문 내용 */}
       {orderType === "prescription" && (
         <div className="space-y-2">
-          <Label>약물 정보</Label>
+          <div className="flex items-center justify-between">
+            <Label>약물 정보</Label>
+            {medications.filter((m) => m.item_seq).length > 0 && (
+              <span className="text-sm text-muted-foreground">
+                {medications.filter((m) => m.item_seq).length}개 선택됨
+              </span>
+            )}
+          </div>
+          
           {medications.map((med, idx) => (
-            <div key={idx} className="grid grid-cols-4 gap-2">
-              <Input
-                placeholder="약물명"
-                value={med.name}
-                onChange={(e) => {
-                  const newMeds = [...medications];
-                  newMeds[idx].name = e.target.value;
-                  setMedications(newMeds);
-                }}
-              />
-              <Input
-                placeholder="용량"
-                value={med.dosage}
-                onChange={(e) => {
-                  const newMeds = [...medications];
-                  newMeds[idx].dosage = e.target.value;
-                  setMedications(newMeds);
-                }}
-              />
-              <Input
-                placeholder="용법"
-                value={med.frequency}
-                onChange={(e) => {
-                  const newMeds = [...medications];
-                  newMeds[idx].frequency = e.target.value;
-                  setMedications(newMeds);
-                }}
-              />
-              <Input
-                placeholder="기간"
-                value={med.duration}
-                onChange={(e) => {
-                  const newMeds = [...medications];
-                  newMeds[idx].duration = e.target.value;
-                  setMedications(newMeds);
-                }}
-              />
+            <div key={idx} className="space-y-2">
+              <div className="grid grid-cols-4 gap-2">
+                <div className="relative">
+                  <Input
+                    placeholder="약물명"
+                    value={med.name}
+                    readOnly
+                    className="pr-8"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-2"
+                    onClick={() => {
+                      setCurrentMedIndex(idx);
+                      setIsDrugSearchOpen(true);
+                    }}
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input
+                  placeholder="용량"
+                  value={med.dosage}
+                  onChange={(e) => {
+                    const newMeds = [...medications];
+                    newMeds[idx].dosage = e.target.value;
+                    setMedications(newMeds);
+                  }}
+                />
+                <Input
+                  placeholder="용법"
+                  value={med.frequency}
+                  onChange={(e) => {
+                    const newMeds = [...medications];
+                    newMeds[idx].frequency = e.target.value;
+                    setMedications(newMeds);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="기간"
+                    value={med.duration}
+                    onChange={(e) => {
+                      const newMeds = [...medications];
+                      newMeds[idx].duration = e.target.value;
+                      setMedications(newMeds);
+                    }}
+                    className="flex-1"
+                  />
+                  {medications.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const newMeds = medications.filter((_, i) => i !== idx);
+                        setMedications(newMeds);
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMedications([...medications, { name: "", dosage: "", frequency: "", duration: "" }])}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            약물 추가
-          </Button>
+          
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCurrentMedIndex(null);
+                setIsDrugSearchOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              약물 검색 및 추가
+            </Button>
+            {medications.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMedications([...medications, { name: "", dosage: "", frequency: "", duration: "" }])}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                빈 약물 추가
+              </Button>
+            )}
+          </div>
+          
+          {/* 약물 상호작용 경고 */}
+          {medications.filter((m) => m.item_seq).length >= 2 && (
+            <div className="mt-4">
+              {isCheckingInteractions ? (
+                <div className="p-3 bg-gray-50 rounded-lg text-center text-sm text-muted-foreground">
+                  💊 약물 상호작용 분석 중...
+                </div>
+              ) : interactionResult && (interactionResult.has_critical || interactionResult.has_warnings) ? (
+                <div
+                  className={`p-4 rounded-lg border-2 ${
+                    interactionResult.has_critical
+                      ? "bg-red-50 border-red-200"
+                      : "bg-yellow-50 border-yellow-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle
+                      className={`h-5 w-5 ${
+                        interactionResult.has_critical ? "text-red-600" : "text-yellow-600"
+                      }`}
+                    />
+                    <h4
+                      className={`font-bold text-sm ${
+                        interactionResult.has_critical ? "text-red-800" : "text-yellow-800"
+                      }`}
+                    >
+                      {interactionResult.has_critical
+                        ? `치명적인 병용금기 ${interactionResult.total_interactions}건 발견!`
+                        : `병용금기 ${interactionResult.total_interactions}건 발견!`}
+                    </h4>
+                  </div>
+                  <div className="space-y-2">
+                    {interactionResult.interactions.map((inter, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded border-l-4 ${
+                          inter.severity === "CRITICAL"
+                            ? "bg-red-100 border-red-500"
+                            : "bg-yellow-100 border-yellow-500"
+                        }`}
+                      >
+                        <div className="font-semibold text-sm mb-1">
+                          {inter.drug_name_a} + {inter.drug_name_b}
+                        </div>
+                        <div className="text-xs text-gray-700 mb-2">{inter.warning_message}</div>
+                        {inter.ai_analysis && (
+                          <div className="text-xs text-gray-600 border-t pt-2 mt-2">
+                            <div className="font-medium mb-1">AI 분석:</div>
+                            <div className="whitespace-pre-wrap">{inter.ai_analysis.summary}</div>
+                            {inter.ai_analysis.recommendation && (
+                              <div className="mt-1">
+                                <span className="font-medium">권고:</span> {inter.ai_analysis.recommendation}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : interactionResult && !interactionResult.has_warnings ? (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-center text-sm text-green-800">
+                  ✅ 약물 상호작용 검사 완료 - 문제 없음
+                </div>
+              ) : null}
+            </div>
+          )}
+          
+          {/* 약물 검색 모달 */}
+          <DrugSearchModal
+            isOpen={isDrugSearchOpen}
+            onClose={() => {
+              setIsDrugSearchOpen(false);
+              setCurrentMedIndex(null);
+            }}
+            onSelect={handleDrugSelect}
+          />
         </div>
       )}
 

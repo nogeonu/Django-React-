@@ -2,16 +2,19 @@
 OCS ViewSet 및 API 엔드포인트
 """
 from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg
 from django.utils import timezone
 from datetime import timedelta
+import requests
+import logging
 
 from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult
 from .serializers import (
@@ -21,9 +24,11 @@ from .serializers import (
 )
 from .services import validate_order, update_order_status, check_drug_interactions, check_allergies, create_imaging_analysis_result
 from eventeye.doctor_utils import get_department
-import logging
 
 logger = logging.getLogger(__name__)
+
+# 외부 약물 검색 API 설정
+DRUG_API_BASE_URL = "http://34.42.223.43:8002"
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -640,3 +645,67 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': f'분석 데이터를 가져오는데 실패했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 약물 검색 및 상호작용 검사 API
+class DrugSearchView(APIView):
+    """약물 검색 API (외부 FastAPI 서버 프록시)"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]
+    
+    def get(self, request):
+        """약물 검색"""
+        query = request.query_params.get('q', '')
+        limit = int(request.query_params.get('limit', 20))
+        
+        if not query:
+            return Response(
+                {'error': '검색어(q)가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            response = requests.get(
+                f"{DRUG_API_BASE_URL}/drugs/search",
+                params={'q': query, 'limit': limit},
+                timeout=10
+            )
+            response.raise_for_status()
+            return Response(response.json())
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Drug search API error: {e}")
+            return Response(
+                {'error': '약물 검색에 실패했습니다.', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DrugInteractionCheckView(APIView):
+    """약물 상호작용 검사 API (외부 FastAPI 서버 프록시)"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]
+    
+    def post(self, request):
+        """약물 상호작용 검사"""
+        item_seqs = request.data.get('item_seqs', [])
+        
+        if not item_seqs or len(item_seqs) < 2:
+            return Response(
+                {'error': '최소 2개 이상의 약품이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            response = requests.post(
+                f"{DRUG_API_BASE_URL}/drugs/check-interactions",
+                json={'item_seqs': item_seqs},
+                timeout=15
+            )
+            response.raise_for_status()
+            return Response(response.json())
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Drug interaction check API error: {e}")
+            return Response(
+                {'error': '약물 상호작용 검사에 실패했습니다.', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

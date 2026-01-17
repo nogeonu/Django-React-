@@ -257,4 +257,55 @@ export const createImagingAnalysisApi = async (data: Record<string, unknown> | F
   return res.data;
 };
 
+// 약물 검색 및 상호작용 검사 API
+export interface Drug {
+  item_seq: string;
+  name_kor: string;
+  company_name?: string | null;
+  rx_otc?: string | null;
+  edi_code?: string | null;
+  atc_code?: string | null;
+  is_anticancer?: boolean | null;
+}
+
+export interface DrugInteractionWarning {
+  item_seq_a: string;
+  drug_name_a: string;
+  item_seq_b: string;
+  drug_name_b: string;
+  interaction_type: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "INFO" | string;
+  warning_message: string;
+  prohbt_content?: string | null;
+  ai_analysis?: {
+    confidence: number;
+    summary: string;
+    mechanism: string;
+    recommendation: string;
+  } | null;
+}
+
+export interface DrugInteractionResult {
+  checked_drugs: Drug[];
+  interactions: DrugInteractionWarning[];
+  has_critical: boolean;
+  has_warnings: boolean;
+  total_interactions: number;
+  summary: string;
+}
+
+export const searchDrugsApi = async (query: string, limit: number = 20): Promise<Drug[]> => {
+  const res = await apiClient.get('/api/ocs/drugs/search/', {
+    params: { q: query, limit },
+  });
+  return res.data;
+};
+
+export const checkDrugInteractionsApi = async (itemSeqs: string[]): Promise<DrugInteractionResult> => {
+  const res = await apiClient.post('/api/ocs/drugs/check-interactions/', {
+    item_seqs: itemSeqs,
+  });
+  return res.data;
+};
+
 export default apiClient;

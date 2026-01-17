@@ -9,7 +9,9 @@ from .views import (
     DrugInteractionCheckViewSet,
     AllergyCheckViewSet,
     NotificationViewSet,
-    ImagingAnalysisResultViewSet
+    ImagingAnalysisResultViewSet,
+    DrugSearchView,
+    DrugInteractionCheckView,
 )
 
 router = DefaultRouter()
@@ -22,4 +24,7 @@ router.register(r'imaging-analysis', ImagingAnalysisResultViewSet, basename='ima
 
 urlpatterns = [
     path('', include(router.urls)),
+    # 약물 검색 및 상호작용 검사 API
+    path('drugs/search/', DrugSearchView.as_view(), name='drug-search'),
+    path('drugs/check-interactions/', DrugInteractionCheckView.as_view(), name='drug-interaction-check'),
 ]

@@ -9,29 +9,17 @@ from patients.models import Patient
 from eventeye.doctor_utils import get_department
 import logging
 import os
+import requests
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-
-# 약물 상호작용 데이터 (임시: 하드코딩)
-# TODO: 실제 운영 환경에서는 DB 모델(Drug, DrugInteraction) 또는 외부 API 사용 필요
-# 참고: ocs/drug_api_integration.md 파일 참조
-DRUG_INTERACTIONS = {
-    'warfarin': {
-        'aspirin': {'severity': 'severe', 'description': '출혈 위험 증가'},
-        'ibuprofen': {'severity': 'moderate', 'description': '출혈 위험 증가'},
-    },
-    'digoxin': {
-        'furosemide': {'severity': 'moderate', 'description': '디곡신 독성 위험'},
-    },
-    # 더 많은 상호작용 데이터 추가 가능
-    # 실제 운영 시에는 Drug, DrugInteraction 모델 사용 권장
-}
+# 외부 약물 검색 API 설정
+DRUG_API_BASE_URL = getattr(settings, 'DRUG_API_BASE_URL', 'http://34.42.223.43:8002')
 
 
 def check_drug_interactions(order):
-    """약물 상호작용 체크"""
+    """약물 상호작용 체크 (외부 FastAPI 서버 사용)"""
     if order.order_type != 'prescription':
         return None
     
@@ -39,51 +27,90 @@ def check_drug_interactions(order):
     if not medications:
         return None
     
-    # 약물명 추출
-    drug_names = [med.get('name', '').lower() for med in medications if med.get('name')]
-    
-    interactions = []
+    # item_seq 추출 (약물 검색에서 선택한 경우)
+    item_seqs = []
     checked_drugs = []
     
-    for i, drug1 in enumerate(drug_names):
-        checked_drugs.append(drug1)
-        for drug2 in drug_names[i+1:]:
-            # 양방향 체크
-            if drug1 in DRUG_INTERACTIONS and drug2 in DRUG_INTERACTIONS[drug1]:
-                interaction = DRUG_INTERACTIONS[drug1][drug2]
-                interactions.append({
-                    'drug1': drug1,
-                    'drug2': drug2,
-                    'severity': interaction['severity'],
-                    'description': interaction['description']
-                })
-            elif drug2 in DRUG_INTERACTIONS and drug1 in DRUG_INTERACTIONS[drug2]:
-                interaction = DRUG_INTERACTIONS[drug2][drug1]
-                interactions.append({
-                    'drug1': drug2,
-                    'drug2': drug1,
-                    'severity': interaction['severity'],
-                    'description': interaction['description']
-                })
-    
-    if interactions:
-        # 가장 심각한 상호작용의 심각도 결정
-        severities = [inter['severity'] for inter in interactions]
-        if 'severe' in severities:
-            severity = 'severe'
-        elif 'moderate' in severities:
-            severity = 'moderate'
-        else:
-            severity = 'mild'
+    for med in medications:
+        item_seq = med.get('item_seq')
+        drug_name = med.get('name', '')
         
-        return DrugInteractionCheck.objects.create(
-            order=order,
-            checked_drugs=checked_drugs,
-            interactions=interactions,
-            severity=severity
-        )
+        if item_seq:
+            item_seqs.append(str(item_seq))
+        checked_drugs.append({
+            'name': drug_name,
+            'item_seq': item_seq,
+        })
     
-    return None
+    # item_seq가 2개 미만이면 상호작용 검사 불가 (하드코딩된 방식으로 대체)
+    if len(item_seqs) < 2:
+        logger.warning(f"약물 상호작용 검사: item_seq가 부족함 ({len(item_seqs)}개). 약물명 기반 검사 시도.")
+        # item_seq가 없으면 약물명만으로 검사할 수 없으므로 None 반환
+        return None
+    
+    # 외부 FastAPI 서버를 통한 약물 상호작용 검사
+    try:
+        response = requests.post(
+            f"{DRUG_API_BASE_URL}/drugs/check-interactions",
+            json={'item_seqs': item_seqs},
+            timeout=15
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        interactions_data = result.get('interactions', [])
+        
+        if interactions_data:
+            # DrugInteractionCheck 형식으로 변환
+            interactions = []
+            severities = []
+            
+            for inter in interactions_data:
+                severity_map = {
+                    'CRITICAL': 'severe',
+                    'HIGH': 'moderate',
+                    'MEDIUM': 'moderate',
+                    'INFO': 'mild',
+                }
+                severity = severity_map.get(inter.get('severity', 'MEDIUM'), 'moderate')
+                severities.append(severity)
+                
+                interactions.append({
+                    'drug1': inter.get('drug_name_a', ''),
+                    'drug2': inter.get('drug_name_b', ''),
+                    'item_seq_a': inter.get('item_seq_a', ''),
+                    'item_seq_b': inter.get('item_seq_b', ''),
+                    'severity': severity,
+                    'description': inter.get('warning_message', ''),
+                    'interaction_type': inter.get('interaction_type', ''),
+                    'ai_analysis': inter.get('ai_analysis'),
+                })
+            
+            # 가장 심각한 상호작용의 심각도 결정
+            if 'severe' in severities:
+                overall_severity = 'severe'
+            elif 'moderate' in severities:
+                overall_severity = 'moderate'
+            else:
+                overall_severity = 'mild'
+            
+            return DrugInteractionCheck.objects.create(
+                order=order,
+                checked_drugs=checked_drugs,
+                interactions=interactions,
+                severity=overall_severity
+            )
+        
+        logger.info(f"약물 상호작용 검사 완료: 상호작용 없음 (order: {order.id})")
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"약물 상호작용 검사 API 오류: {e}")
+        # API 오류 시에도 주문은 생성되도록 None 반환 (경고만 로그)
+        return None
+    except Exception as e:
+        logger.error(f"약물 상호작용 검사 오류: {e}", exc_info=True)
+        return None
 
 
 def check_allergies(order):
