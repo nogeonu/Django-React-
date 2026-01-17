@@ -312,33 +312,29 @@ export default function OCS() {
     }
   };
 
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = async (orderId: string) => {
+    try {
+      const blob = await downloadPrescriptionPdfApi(orderId);
+      const url = window.URL.createObjectURL(blob);
+      setPdfBlob(blob);
+      setPdfUrl(url);
+      setCurrentOrderId(orderId);
+      setShowPdfPreview(true);
+    } catch (error: any) {
+      console.error("PDF 다운로드 오류:", error);
+      toast({
+        title: "PDF 로드 실패",
+        description: error.response?.data?.error || "처방전 PDF를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // 주문 처리 시작
   const startProcessingMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      // 먼저 주문 정보를 가져와서 처방전인지 확인
-      const orders = queryClient.getQueryData<any[]>(["ocs-orders", viewMode, searchTerm, statusFilter, typeFilter]);
-      const order = orders?.find((o: any) => o.id === orderId);
-      
-      // 처방전 주문이고 원무과로 전달된 경우 PDF 미리보기
-      if (order?.order_type === 'prescription' && order?.target_department === 'admin') {
-        try {
-          const blob = await downloadPrescriptionPdfApi(orderId);
-          const url = window.URL.createObjectURL(blob);
-          setPdfBlob(blob);
-          setPdfUrl(url);
-          setCurrentOrderId(orderId);
-          setShowPdfPreview(true);
-        } catch (error: any) {
-          console.error("PDF 다운로드 오류:", error);
-          toast({
-            title: "PDF 로드 실패",
-            description: error.response?.data?.error || "처방전 PDF를 불러오는데 실패했습니다.",
-            variant: "destructive",
-          });
-        }
-      }
-      
-      // 처리 시작 API 호출
+      // 처리 시작 API 호출만 수행 (PDF 미리보기는 별도 버튼으로)
       return startProcessingOrderApi(orderId);
     },
     onSuccess: () => {
@@ -1106,10 +1102,24 @@ function OrderCard({
               (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과")) ||
               (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
             ) && (
-              <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
-                <Clock className="mr-2 h-4 w-4" />
-                처리 시작
-              </Button>
+              <>
+                <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
+                  <Clock className="mr-2 h-4 w-4" />
+                  처리 시작
+                </Button>
+                {/* 원무과 처방전 주문의 경우 PDF 다운로드 버튼 */}
+                {order.order_type === "prescription" && order.target_department === "admin" && user?.department === "원무과" && onDownloadPdf && (
+                  <Button 
+                    onClick={onDownloadPdf} 
+                    size="sm" 
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    처방전 보기
+                  </Button>
+                )}
+              </>
             )}
             {/* 부서 담당자: 처리 중인 주문 완료 처리 */}
             {/* 원무과는 처방전 주문(admin)에 대해 완료 처리 가능 */}
@@ -1542,15 +1552,20 @@ function CreateOrderForm({
     setMedications(medications.filter((m) => m.item_seq !== itemSeq));
   };
 
-  // 약물 상호작용 자동 검사 (debounce 적용)
+  // 약물 상호작용 자동 검사 (debounce 적용, 주문 생성 시에는 체크하지 않음)
   useEffect(() => {
+    // 주문 생성 중이면 상호작용 체크 스킵 (빠른 생성)
+    if (createOrderMutation.isPending) {
+      return;
+    }
+    
     if (orderType === "prescription" && medications.length >= 2) {
       const validDrugs = medications.filter((m) => m.item_seq);
       if (validDrugs.length >= 2) {
-        // Debounce: 약물 추가 후 1초 후에 체크
+        // Debounce: 약물 추가 후 1.5초 후에 체크 (더 긴 대기 시간)
         const timeoutId = setTimeout(() => {
           checkInteractions(validDrugs.map((m) => m.item_seq!));
-        }, 1000);
+        }, 1500);
         
         return () => clearTimeout(timeoutId);
       } else {
@@ -1559,7 +1574,7 @@ function CreateOrderForm({
     } else {
       setInteractionResult(null);
     }
-  }, [medications, orderType]);
+  }, [medications, orderType, createOrderMutation.isPending]);
 
   const checkInteractions = async (itemSeqs: string[]) => {
     if (itemSeqs.length < 2) return;
