@@ -100,14 +100,22 @@ jobs:
             # 프론트엔드: 의존성 설치 및 빌드
             echo "📦 프론트엔드 빌드 중..."
             cd "$APP_DIR/frontend" || { echo "❌ frontend 디렉토리 없음"; exit 1; }
-            npm ci || { echo "❌ npm 의존성 설치 실패"; exit 1; }
+            if ! npm ci; then
+              echo "❌ npm 의존성 설치 실패, 상세 오류:"
+              npm ci 2>&1 | tail -30
+              exit 1
+            fi
             export NODE_OPTIONS="--max-old-space-size=1536"
             # dist 디렉토리 준비 (.DS_Store 파일 제거)
             find . -name ".DS_Store" -type f -delete || true
             mkdir -p dist
             sudo rm -rf dist/* || true
             chmod -R 755 dist || true
-            npm run build || { echo "❌ 프론트엔드 빌드 실패"; exit 1; }
+            if ! npm run build; then
+              echo "❌ 프론트엔드 빌드 실패, 상세 오류:"
+              npm run build 2>&1 | tail -50
+              exit 1
+            fi
             # 빌드 후 권한 설정
             chmod -R 755 dist
             sudo chown -R www-data:www-data dist || true
