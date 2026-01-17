@@ -1658,6 +1658,8 @@ function CreateOrderForm({
                   <div className="font-semibold text-sm">{med.name}</div>
                   <div className="grid grid-cols-3 gap-2">
                     <Input
+                      id={`med-dosage-${idx}`}
+                      name={`med-dosage-${idx}`}
                       placeholder="용량"
                       value={med.dosage}
                       onChange={(e) => {
@@ -1668,6 +1670,8 @@ function CreateOrderForm({
                       className="text-sm"
                     />
                     <Input
+                      id={`med-frequency-${idx}`}
+                      name={`med-frequency-${idx}`}
                       placeholder="용법"
                       value={med.frequency}
                       onChange={(e) => {
@@ -1678,6 +1682,8 @@ function CreateOrderForm({
                       className="text-sm"
                     />
                     <Input
+                      id={`med-duration-${idx}`}
+                      name={`med-duration-${idx}`}
                       placeholder="기간"
                       value={med.duration}
                       onChange={(e) => {
