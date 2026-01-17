@@ -143,12 +143,16 @@ jobs:
             echo "💊 FastAPI 약물 검색 서비스 설정 중..."
             DRUG_API_DIR="$APP_DIR/backend/drug_api"
             
+            # drug_api 디렉토리가 없으면 생성
+            mkdir -p "$DRUG_API_DIR" || true
+            
             if [ -d "$DRUG_API_DIR" ] && [ -f "$DRUG_API_DIR/main.py" ]; then
                 echo "✅ FastAPI 서비스 디렉토리 발견: $DRUG_API_DIR"
                 
                 # .env 파일 생성 (DB 설정)
                 if [ ! -f "$DRUG_API_DIR/.env" ]; then
                     echo "📝 .env 파일 생성 중..."
+                    mkdir -p "$DRUG_API_DIR" || true
                     echo "DB_HOST=localhost" > "$DRUG_API_DIR/.env"
                     echo "DB_PORT=3306" >> "$DRUG_API_DIR/.env"
                     echo "DB_USER=acorn" >> "$DRUG_API_DIR/.env"
@@ -181,6 +185,8 @@ jobs:
                 echo "✅ FastAPI 약물 검색 서비스 설정 완료"
             else
                 echo "⚠️ FastAPI 서비스 디렉토리가 없습니다: $DRUG_API_DIR"
+                echo "   디렉토리 존재 여부: $([ -d "$DRUG_API_DIR" ] && echo '예' || echo '아니오')"
+                echo "   main.py 존재 여부: $([ -f "$DRUG_API_DIR/main.py" ] && echo '예' || echo '아니오')"
                 echo "   CDSS_Final_Package/backend 파일들을 $DRUG_API_DIR에 복사해주세요."
                 echo "   이 오류는 무시하고 계속 진행합니다..."
             fi
