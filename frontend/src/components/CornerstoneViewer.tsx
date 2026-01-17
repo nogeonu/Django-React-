@@ -587,18 +587,18 @@ export default function CornerstoneViewer({
       const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
       const data = imageData.data;
 
-      // 조원 코드 방식: 반투명 보라색 채움 (alpha=0.4, cmap='Purples')
-      // 마스크 영역에 보라색 채우기
+      // 마스크를 그레이스케일 그대로 사용하되, 반투명하게 오버레이
+      // 마스크 영역은 그레이스케일 값 그대로 유지, alpha만 적용
       for (let i = 0; i < data.length; i += 4) {
-        const gray = data[i];
-        if (gray > 128) { // 마스크 영역 (임계값 이상)
-          // 보라색 (Purples) - RGBA
-          data[i] = 128;     // R
-          data[i + 1] = 0;   // G
-          data[i + 2] = 128; // B
-          data[i + 3] = Math.floor(255 * 0.4); // A (alpha=0.4)
+        const gray = data[i]; // 그레이스케일 값 (0-255)
+        if (gray > 0) { // 마스크 영역
+          // 그레이스케일 값 그대로 유지 (R=G=B=gray)
+          data[i] = gray;     // R
+          data[i + 1] = gray; // G
+          data[i + 2] = gray; // B
+          data[i + 3] = Math.floor(gray * 0.5); // A (마스크 값에 비례한 투명도)
         } else {
-          data[i + 3] = 0; // 투명
+          data[i + 3] = 0; // 마스크가 아닌 부분은 완전히 투명
         }
       }
 
@@ -623,55 +623,6 @@ export default function CornerstoneViewer({
         }
       }
       ctx.putImageData(scaledImageData, x, y);
-
-      // 조원 코드 방식: 마젠타 윤곽선 그리기 (color='#FF00FF', linewidths=1.0, alpha=0.9)
-      // 윤곽선 추출: 마스크 경계 찾기
-      ctx.strokeStyle = '#FF00FF'; // 마젠타
-      ctx.lineWidth = 1.0;
-      ctx.globalAlpha = 0.9;
-
-      // 간단한 윤곽선: 마스크 경계 픽셀만 그리기
-      const contourData = ctx.createImageData(w, h);
-      for (let dy = 0; dy < h; dy++) {
-        for (let dx = 0; dx < w; dx++) {
-          const sx = Math.floor(dx * scaleX);
-          const sy = Math.floor(dy * scaleY);
-          const srcIdx = (sy * maskImg.width + sx) * 4;
-          const pixelIdx = (dy * w + dx) * 4;
-          
-          if (srcIdx < data.length) {
-            const isMask = data[srcIdx] > 128;
-            // 경계 픽셀인지 확인 (마스크와 비마스크가 인접)
-            let isBoundary = false;
-            if (isMask) {
-              for (let ny = -1; ny <= 1; ny++) {
-                for (let nx = -1; nx <= 1; nx++) {
-                  if (nx === 0 && ny === 0) continue;
-                  const nsx = sx + nx;
-                  const nsy = sy + ny;
-                  if (nsx >= 0 && nsx < maskImg.width && nsy >= 0 && nsy < maskImg.height) {
-                    const nIdx = (nsy * maskImg.width + nsx) * 4;
-                    if (nIdx < data.length && data[nIdx] <= 128) {
-                      isBoundary = true;
-                      break;
-                    }
-                  }
-                }
-                if (isBoundary) break;
-              }
-            }
-
-            if (isBoundary) {
-              contourData.data[pixelIdx] = 255;     // R
-              contourData.data[pixelIdx + 1] = 0;   // G
-              contourData.data[pixelIdx + 2] = 255; // B
-              contourData.data[pixelIdx + 3] = Math.floor(255 * 0.9); // A (alpha=0.9)
-            }
-          }
-        }
-      }
-      ctx.putImageData(contourData, x, y);
-      ctx.globalAlpha = 1.0;
       console.log('[CornerstoneViewer] 세그멘테이션 오버레이 렌더링 완료');
     };
     maskImg.onerror = (e) => {
