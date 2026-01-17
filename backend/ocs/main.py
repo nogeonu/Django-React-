@@ -2753,12 +2753,29 @@ def check_drug_interactions(body: DrugInteractionCheck):
                                         # But here we stick with the first one or logic to prioritize
                                         pass
                                     else:
-                                        # Clean and Format
-                                        base_msg = f"{result['dur_ing_kor_name']} ↔ {result['coadmin_dur_ing_kor_name']}: {contraindication[:200]}"
+                                        # Clean and Format - 조원 형식: 약물명 + AI 분석
+                                        # 약물명 형식: "코다론정(아미오다론염산염) + 삼진드론정(드로네다론염산염):"
+                                        drug_a_display = clean_drug_name(drug_a['name_kor'])
+                                        drug_b_display = clean_drug_name(drug_b['name_kor'])
                                         
-                                        # USER REQUEST: Show ONLY AI Analysis if available (Replace DB text)
+                                        # 성분명이 있으면 괄호에 표시
+                                        ing_a = result.get('dur_ing_kor_name', '')
+                                        ing_b = result.get('coadmin_dur_ing_kor_name', '')
+                                        
+                                        if ing_a and ing_a not in drug_a_display:
+                                            drug_a_display = f"{drug_a_display}({ing_a})"
+                                        if ing_b and ing_b not in drug_b_display:
+                                            drug_b_display = f"{drug_b_display}({ing_b})"
+                                        
+                                        # 기본 메시지: 약물명 + 상세 설명
+                                        base_msg = f"{drug_a_display} + {drug_b_display}:"
+                                        
+                                        # AI 분석이 있으면 AI 분석 메시지 추가
                                         if ai_analysis and ai_analysis.get('summary'):
-                                            base_msg = f"└ AI 분석: {ai_analysis['summary']}"
+                                            base_msg = f"{base_msg}\nAI 분석: {ai_analysis['summary']}"
+                                        elif contraindication:
+                                            # AI 분석이 없으면 DB의 contraindication 사용
+                                            base_msg = f"{base_msg} {contraindication[:200]}"
 
                                         interaction_map[pair_key] = {
                                             "item_seq_a": item_a,

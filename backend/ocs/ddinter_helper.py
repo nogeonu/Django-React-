@@ -83,7 +83,19 @@ def check_ddinter_interactions(cursor, drug_a, drug_b, item_a, item_b, ai_servic
                 print(f"AI analysis failed for DDInter: {e}")
                 ai_analysis = None
         
-        # 상호작용 객체 반환
+        # 상호작용 객체 반환 - 조원 형식: 약물명 + AI 분석
+        drug_a_display = drug_a['name_kor']
+        drug_b_display = drug_b['name_kor']
+        
+        # 기본 메시지: 약물명
+        base_msg = f"{drug_a_display} + {drug_b_display}:"
+        
+        # AI 분석이 있으면 AI 분석 메시지 추가
+        if ai_analysis and ai_analysis.get('summary'):
+            base_msg = f"{base_msg}\nAI 분석: {ai_analysis['summary']}"
+        else:
+            base_msg = f"{base_msg} {level} level (International DDI DB)"
+        
         return {
             "item_seq_a": item_a,
             "drug_name_a": drug_a['name_kor'],
@@ -91,7 +103,7 @@ def check_ddinter_interactions(cursor, drug_a, drug_b, item_a, item_b, ai_servic
             "drug_name_b": drug_b['name_kor'],
             "interaction_type": f"DDInter ({level})",
             "severity": severity,
-            "warning_message": f"{found_interaction['drug_a']} ↔ {found_interaction['drug_b']}: {level} level (International DDI DB)",
+            "warning_message": base_msg,
             "prohbt_content": f"DDInter 국제 약물상호작용 데이터베이스에서 {level} 등급으로 분류된 상호작용입니다.",
             "ai_analysis": ai_analysis
         }
