@@ -609,7 +609,7 @@ export default function OCS() {
 
       {/* PDF 미리보기 다이얼로그 */}
       <Dialog open={showPdfPreview} onOpenChange={handleClosePdfPreview}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>처방전 미리보기</DialogTitle>
           </DialogHeader>
