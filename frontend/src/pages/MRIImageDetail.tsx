@@ -728,56 +728,36 @@ export default function MRIImageDetail() {
               <CardContent className={`p-0 h-full ${isFullscreen ? 'h-screen' : ''}`}>
                 {currentImages.length > 0 ? (
                   <div className="relative h-full">
-                    <CornerstoneViewer
-                      key={`viewer-${seriesGroups[selectedSeriesIndex]?.series_id}-${currentImages.length}`}
-                      instanceIds={currentImages.map(img => img.instance_id)}
-                      currentIndex={selectedImageIndex}
-                      onIndexChange={setSelectedImageIndex}
-                      showMeasurementTools={true}
-                    />
-                    
-                    {/* Segmentation Overlay */}
                     {(() => {
-                      if (!showSegmentationOverlay || !seriesGroups[selectedSeriesIndex]) return null;
+                      // 현재 시리즈의 세그멘테이션 프레임 가져오기
+                      const currentSeriesId = seriesGroups[selectedSeriesIndex]?.series_id;
+                      const frames = currentSeriesId ? segmentationFrames[currentSeriesId] : undefined;
                       
-                      const currentSeriesId = seriesGroups[selectedSeriesIndex].series_id;
-                      const frames = segmentationFrames[currentSeriesId];
-                      const startIdx = segmentationStartIndex[currentSeriesId];
+                      // 프레임 인덱스 매핑 (슬라이스 인덱스 → 프레임 인덱스)
+                      // SEG 파일의 프레임은 보통 0부터 시작하므로, 슬라이스 인덱스와 직접 매핑
+                      let mappedFrames: Array<{index: number; mask_base64: string}> | undefined = undefined;
                       
-                      if (!frames || startIdx === undefined) return null;
-                      
-                      // 슬라이스 인덱스를 프레임 인덱스로 변환
-                      const frameIndex = selectedImageIndex - startIdx;
-                      
-                      // 범위 체크
-                      if (frameIndex < 0 || frameIndex >= frames.length) {
-                        return (
-                          <div className="absolute top-4 left-4 bg-yellow-600/80 text-white px-3 py-1 rounded-lg text-xs">
-                            세그멘테이션 범위 밖 (슬라이스 {startIdx}~{startIdx + frames.length - 1}만 분석됨)
-                          </div>
-                        );
+                      if (frames && frames.length > 0) {
+                        // 프레임을 슬라이스 인덱스에 맞게 매핑
+                        mappedFrames = frames.map((frame: any, idx: number) => ({
+                          index: idx,  // 슬라이스 인덱스와 동일하게 매핑
+                          mask_base64: frame.mask_base64 || frame.mask || ''
+                        }));
+                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 매핑: seriesId=${currentSeriesId}, frames=${frames.length}, mapped=${mappedFrames.length}, showSegmentation=${showSegmentationOverlay}`);
+                      } else {
+                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 없음: seriesId=${currentSeriesId}, frames=${frames ? 'undefined' : 'null'}`);
                       }
                       
-                      const frame = frames[frameIndex];
-                      if (!frame) return null;
-                      
                       return (
-                        <div className="absolute inset-0 pointer-events-none">
-                          <div className="absolute top-4 left-4 bg-green-600/80 text-white px-3 py-1 rounded-lg text-xs z-10">
-                            슬라이스 {selectedImageIndex} → 프레임 {frameIndex}
-                          </div>
-                          <img
-                            src={`data:image/png;base64,${frame.mask_base64}`}
-                            alt="Segmentation Overlay"
-                            className="w-full h-full object-contain"
-                            style={{
-                              opacity: overlayOpacity,
-                              mixBlendMode: 'screen',
-                              filter: 'hue-rotate(120deg) saturate(2)',
-                              transform: 'scaleX(-1)',  // 좌우 반전 (필요시)
-                            }}
-                          />
-                        </div>
+                        <CornerstoneViewer
+                          key={`viewer-${currentSeriesId}-${currentImages.length}-${showSegmentationOverlay}`}
+                          instanceIds={currentImages.map(img => img.instance_id)}
+                          currentIndex={selectedImageIndex}
+                          onIndexChange={setSelectedImageIndex}
+                          showMeasurementTools={true}
+                          showSegmentation={showSegmentationOverlay && !!mappedFrames}
+                          segmentationFrames={mappedFrames || []}
+                        />
                       );
                     })()}
                     

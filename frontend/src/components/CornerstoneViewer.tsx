@@ -710,25 +710,43 @@ export default function CornerstoneViewer({
         />
         
         {/* 세그멘테이션 오버레이 레이어 */}
-        {showSegmentation && segmentationFrames.length > 0 && currentIndex < segmentationFrames.length && (
-          <div 
-            className="absolute inset-0 pointer-events-none z-10"
-            style={{ 
-              mixBlendMode: 'screen',
-              opacity: 0.7,
-            }}
-          >
-            <img
-              src={`data:image/png;base64,${segmentationFrames[currentIndex]?.mask_base64}`}
-              alt="Segmentation overlay"
-              className="w-full h-full object-contain"
+        {showSegmentation && segmentationFrames.length > 0 && (() => {
+          // currentIndex에 해당하는 프레임 찾기
+          const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
+          
+          if (!frame || !frame.mask_base64) {
+            console.log(`[CornerstoneViewer] 세그멘테이션 프레임 없음: currentIndex=${currentIndex}, frames.length=${segmentationFrames.length}`);
+            return null;
+          }
+          
+          console.log(`[CornerstoneViewer] 세그멘테이션 오버레이 표시: currentIndex=${currentIndex}, frame.index=${frame.index}`);
+          
+          return (
+            <div 
+              className="absolute inset-0 pointer-events-none z-10"
               style={{ 
-                filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
-                // 마젠타/빨간색으로 강제 변환
+                mixBlendMode: 'screen',
+                opacity: 0.7,
               }}
-            />
-          </div>
-        )}
+            >
+              <img
+                src={`data:image/png;base64,${frame.mask_base64}`}
+                alt="Segmentation overlay"
+                className="w-full h-full object-contain"
+                style={{ 
+                  filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
+                  // 마젠타/빨간색으로 강제 변환
+                }}
+                onError={(e) => {
+                  console.error('[CornerstoneViewer] 세그멘테이션 이미지 로드 실패:', e);
+                }}
+                onLoad={() => {
+                  console.log('[CornerstoneViewer] 세그멘테이션 이미지 로드 성공');
+                }}
+              />
+            </div>
+          );
+        })()}
 
         {/* 로딩 스켈레톤 */}
         {isImageLoading && (
