@@ -42,7 +42,7 @@ jobs:
           remote_user: ${{ secrets.SSH_USER }}
           remote_key: ${{ secrets.SSH_KEY }}
           remote_port: ${{ secrets.SSH_PORT }}
-      
+
       - name: Verify ocs directory (CDSS_Final_Package backend files)
         uses: appleboy/ssh-action@v1.2.0
         with:

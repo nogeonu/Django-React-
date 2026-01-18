@@ -86,21 +86,21 @@ def check_drug_interactions(order):
                     'ai_analysis': inter.get('ai_analysis'),
                 })
             
-            # 가장 심각한 상호작용의 심각도 결정
-            if 'severe' in severities:
+        # 가장 심각한 상호작용의 심각도 결정
+        if 'severe' in severities:
                 overall_severity = 'severe'
-            elif 'moderate' in severities:
+        elif 'moderate' in severities:
                 overall_severity = 'moderate'
-            else:
+        else:
                 overall_severity = 'mild'
-            
-            return DrugInteractionCheck.objects.create(
-                order=order,
-                checked_drugs=checked_drugs,
-                interactions=interactions,
-                severity=overall_severity
-            )
         
+        return DrugInteractionCheck.objects.create(
+            order=order,
+            checked_drugs=checked_drugs,
+            interactions=interactions,
+                severity=overall_severity
+        )
+    
         logger.info(f"약물 상호작용 검사 완료: 상호작용 없음 (order: {order.id})")
         return None
         
@@ -110,7 +110,7 @@ def check_drug_interactions(order):
         return None
     except Exception as e:
         logger.error(f"약물 상호작용 검사 오류: {e}", exc_info=True)
-        return None
+    return None
 
 
 def check_allergies(order):
