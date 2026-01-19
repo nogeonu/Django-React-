@@ -743,9 +743,10 @@ export default function MRIImageDetail() {
                           index: idx,  // 슬라이스 인덱스와 동일하게 매핑
                           mask_base64: frame.mask_base64 || frame.mask || ''
                         }));
-                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 매핑: seriesId=${currentSeriesId}, frames=${frames.length}, mapped=${mappedFrames.length}, showSegmentation=${showSegmentationOverlay}`);
+                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 매핑: seriesId=${currentSeriesId}, frames=${frames.length}, mapped=${mappedFrames.length}, showSegmentation=${showSegmentationOverlay}, selectedImageIndex=${selectedImageIndex}`);
+                        console.log(`[MRIImageDetail] mappedFrames 샘플:`, mappedFrames.slice(0, 3).map((f: any) => ({ index: f.index, hasMask: !!f.mask_base64 })));
                       } else {
-                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 없음: seriesId=${currentSeriesId}, frames=${frames ? 'undefined' : 'null'}`);
+                        console.log(`[MRIImageDetail] 세그멘테이션 프레임 없음: seriesId=${currentSeriesId}, frames=${frames ? 'undefined' : 'null'}, segmentationFrames keys:`, Object.keys(segmentationFrames));
                       }
                       
                       return (

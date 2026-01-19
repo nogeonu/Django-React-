@@ -510,8 +510,17 @@ export default function CornerstoneViewer({
 
   // 세그멘테이션 오버레이 렌더링 (조원 코드와 동일: 마젠타 윤곽선 + 반투명 보라색 채움)
   useEffect(() => {
+    console.log(`[CornerstoneViewer] 오버레이 렌더링 체크: showSegmentation=${showSegmentation}, frames.length=${segmentationFrames.length}, currentIndex=${currentIndex}, overlayCanvasRef.current=${!!overlayCanvasRef.current}`);
+    
     if (!showSegmentation) {
-      console.log('[CornerstoneViewer] showSegmentation이 false');
+      console.log('[CornerstoneViewer] showSegmentation이 false - 오버레이 숨김');
+      // Canvas 초기화
+      if (overlayCanvasRef.current) {
+        const ctx = overlayCanvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+        }
+      }
       return;
     }
     
@@ -521,13 +530,21 @@ export default function CornerstoneViewer({
     }
     
     if (!overlayCanvasRef.current) {
-      console.log('[CornerstoneViewer] overlayCanvasRef가 없음');
-      return;
+      console.log('[CornerstoneViewer] overlayCanvasRef가 없음 - 잠시 후 재시도');
+      // DOM이 아직 준비되지 않았을 수 있으므로 약간의 지연 후 재시도
+      const timeout = setTimeout(() => {
+        if (overlayCanvasRef.current) {
+          console.log('[CornerstoneViewer] 재시도: overlayCanvasRef가 준비됨');
+        }
+      }, 100);
+      return () => clearTimeout(timeout);
     }
 
     const frame = segmentationFrames.find((f: any) => f.index === currentIndex) || segmentationFrames[currentIndex];
     if (!frame || !frame.mask_base64) {
       console.log(`[CornerstoneViewer] 프레임을 찾을 수 없음: currentIndex=${currentIndex}, frames.length=${segmentationFrames.length}`);
+      console.log(`[CornerstoneViewer] segmentationFrames 인덱스들:`, segmentationFrames.map((f: any) => f.index).slice(0, 10));
+      console.log(`[CornerstoneViewer] segmentationFrames 샘플:`, segmentationFrames.slice(0, 3).map((f: any) => ({ index: f.index, hasMask: !!f.mask_base64 })));
       return;
     }
 
@@ -626,9 +643,15 @@ export default function CornerstoneViewer({
       console.log('[CornerstoneViewer] 세그멘테이션 오버레이 렌더링 완료');
     };
     maskImg.onerror = (e) => {
-      console.error('[CornerstoneViewer] 마스크 이미지 로드 실패:', e);
+      console.error('[CornerstoneViewer] 마스크 이미지 로드 실패:', e, 'frame:', frame);
     };
     maskImg.src = `data:image/png;base64,${frame.mask_base64}`;
+    
+    // Cleanup function
+    return () => {
+      maskImg.onerror = null;
+      maskImg.onload = null;
+    };
   }, [showSegmentation, segmentationFrames, currentIndex]);
 
   // 도구 설정
