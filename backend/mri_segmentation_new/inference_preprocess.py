@@ -17,20 +17,14 @@ def get_inference_transforms():
     Must match the training preprocessing exactly.
     """
     return Compose([
-        LoadImaged(
-            keys=["image"], 
-            image_only=False,
-            reader="PydicomReader",  # 원본 DICOM 크기 유지
-            ensure_channel_first=False  # EnsureChannelFirstd에서 처리
-        ),
+        LoadImaged(keys=["image"], image_only=False),
         EnsureChannelFirstd(keys=["image"]),
         Orientationd(keys=["image"], axcodes="RAS"),
-        # Spacingd disabled to keep original DICOM spacing/dimensions
-        # Spacingd(
-        #     keys=["image"],
-        #     pixdim=config.SPACING,
-        #     mode="bilinear"
-        # ),
+        Spacingd(
+            keys=["image"],
+            pixdim=config.SPACING,  # (1.5, 1.5, 1.5) - 모델 명세서대로
+            mode="bilinear"
+        ),
         # Select first 4 sequences (matching training)
         # This assumes input has shape [C, H, W, D] where C >= 4
         NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),

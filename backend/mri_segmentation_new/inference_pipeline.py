@@ -125,7 +125,7 @@ class SegmentationInferencePipeline:
                 preprocessed_data=preprocessed,
                 threshold=self.threshold,
                 apply_morphology=True,
-                restore_original_spacing=False  # Keep in preprocessed spacing to match DICOM
+                restore_original_spacing=True  # 모델 명세서: 원본 크기로 복원
             )
         
         # Calculate statistics
