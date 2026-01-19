@@ -19,12 +19,8 @@ from pathlib import Path
 from .orthanc_client import OrthancClient
 import sys
 
-# 새로운 MAMA_MIA 세그멘테이션 모듈 import
-sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
-from inference_pipeline import SegmentationInferencePipeline
-from inference_postprocess import save_as_dicom_seg
-# DICOM → NIfTI 변환 (4채널 볼륨 생성용)
-from dicom_nifti_converter import dicom_series_to_nifti
+# 새로운 MAMA_MIA 세그멘테이션 모듈 import (지연 로드로 변경)
+# Django 시작 시 import 오류 방지를 위해 함수 내부에서 import
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +38,13 @@ if not MODEL_PATH.exists():
 _pipeline = None
 
 def get_pipeline():
-    """추론 파이프라인 싱글톤"""
+    """추론 파이프라인 싱글톤 (지연 로드)"""
     global _pipeline
     if _pipeline is None:
+        # 지연 import로 Django 시작 시 오류 방지
+        sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
+        from inference_pipeline import SegmentationInferencePipeline
+        
         logger.info(f"Loading segmentation model from: {MODEL_PATH}")
         _pipeline = SegmentationInferencePipeline(
             model_path=str(MODEL_PATH),
@@ -201,6 +201,10 @@ def segment_series(request, series_id):
             
             # 1. DICOM → 4채널 NIfTI 변환 (새로운 파이프라인 입력 형식)
             logger.info("🔄 DICOM → 4채널 NIfTI 변환 중...")
+            # 지연 import
+            sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
+            from dicom_nifti_converter import dicom_series_to_nifti
+            
             with tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False) as tmp_nifti:
                 nifti_path = tmp_nifti.name
             
@@ -271,6 +275,10 @@ def segment_series(request, series_id):
                     seg_dicom_path = tmp_seg_dicom.name
                 
                 try:
+                    # 지연 import
+                    sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
+                    from inference_postprocess import save_as_dicom_seg
+                    
                     # 새로운 save_as_dicom_seg 함수 사용
                     save_as_dicom_seg(
                         mask=seg_mask,
