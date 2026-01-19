@@ -143,9 +143,13 @@ def nifti_to_dicom_seg(
     """
     try:
         from pydicom.uid import generate_uid
-        from pydicomseg import write_segmentation
+        from pydicom_seg import write_segmentation
     except ImportError:
-        raise ImportError("pydicom-seg 모듈이 설치되지 않았습니다. pip install pydicom-seg==0.4.1")
+        try:
+            # 대체 import 시도
+            from pydicomseg import write_segmentation
+        except ImportError:
+            raise ImportError("pydicom-seg 모듈이 설치되지 않았습니다. pip install pydicom-seg==0.4.1")
     
     # NIfTI 마스크 로드
     nifti_img = nib.load(nifti_mask_path)
