@@ -283,17 +283,35 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     
     # Transpose [H, W, D] -> [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
+    print(f"  After transpose: {mask_frames.shape}")
     
-    # CRITICAL: Ensure mask has same number of frames as source images
+    # CRITICAL: Ensure mask matches source images in ALL dimensions
+    needs_resize = False
+    zoom_factors = [1.0, 1.0, 1.0]
+    
+    # Check depth (number of frames)
     if mask_frames.shape[0] != len(source_images):
         print(f"  Warning: Mask has {mask_frames.shape[0]} frames but {len(source_images)} source images")
-        print(f"  Resizing mask to match source image count...")
-        
+        zoom_factors[0] = len(source_images) / mask_frames.shape[0]
+        needs_resize = True
+    
+    # Check height (rows)
+    if mask_frames.shape[1] != first_rows:
+        print(f"  Warning: Mask height {mask_frames.shape[1]} != source height {first_rows}")
+        zoom_factors[1] = first_rows / mask_frames.shape[1]
+        needs_resize = True
+    
+    # Check width (columns)
+    if mask_frames.shape[2] != first_cols:
+        print(f"  Warning: Mask width {mask_frames.shape[2]} != source width {first_cols}")
+        zoom_factors[2] = first_cols / mask_frames.shape[2]
+        needs_resize = True
+    
+    # Apply resizing if needed
+    if needs_resize:
+        print(f"  Resizing mask with zoom factors: {zoom_factors}")
         from scipy.ndimage import zoom
-        # Calculate zoom factor for depth dimension only
-        zoom_factor = len(source_images) / mask_frames.shape[0]
-        # Zoom only the first dimension (depth), keep others at 1.0
-        mask_frames_resized = zoom(mask_frames.astype(float), (zoom_factor, 1.0, 1.0), order=0)
+        mask_frames_resized = zoom(mask_frames.astype(float), zoom_factors, order=0)
         mask_frames = mask_frames_resized.astype(mask.dtype)
         print(f"  Resized mask shape: {mask_frames.shape}")
     
