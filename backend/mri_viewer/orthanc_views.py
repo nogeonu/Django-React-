@@ -304,13 +304,24 @@ def orthanc_patient_detail(request, patient_id):
                 # 정렬된 이미지들을 전체 리스트에 추가
                 images.extend(series_images)
         
+        # PatientName과 PatientID 추출
+        main_dicom_tags = patient_info.get('MainDicomTags', {})
+        patient_name = main_dicom_tags.get('PatientName', 'N/A')
+        patient_id_from_dicom = main_dicom_tags.get('PatientID', patient_id)
+        
+        # SEG 파일 존재 여부 확인
+        has_seg = any(img.get('is_segmentation', False) for img in images)
+        
         logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id} (sorted by z-axis)")
         response = Response({
             'success': True,
             'patient': patient_info,
             'images': images,
             'image_count': len(images),
-            'orthanc_patient_id': orthanc_patient_id  # 디버깅용
+            'orthanc_patient_id': orthanc_patient_id,  # 디버깅용
+            'patient_name': patient_name,  # Orthanc에서 가져온 PatientName
+            'patient_id': patient_id_from_dicom,  # Orthanc에서 가져온 PatientID
+            'has_seg': has_seg  # SEG 파일 존재 여부
         })
         # 캐싱 헤더 추가 (10분간 캐시)
         response['Cache-Control'] = 'public, max-age=600'

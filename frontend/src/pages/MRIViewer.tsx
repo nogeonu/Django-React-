@@ -290,6 +290,16 @@ export default function MRIViewer() {
         console.log(`[fetchOrthancImages] 이미지 개수: ${data.images.length}`);
         console.log(`[fetchOrthancImages] 첫 번째 이미지 샘플:`, data.images[0]);
         
+        // Orthanc API에서 반환하는 patient_name과 patient_id 사용
+        if (data.patient_name) {
+          console.log(`[fetchOrthancImages] Orthanc PatientName: ${data.patient_name}`);
+          sessionStorage.setItem('orthanc_patient_name', data.patient_name);
+        }
+        if (data.patient_id) {
+          console.log(`[fetchOrthancImages] Orthanc PatientID: ${data.patient_id}`);
+          sessionStorage.setItem('orthanc_patient_id', data.patient_id);
+        }
+        
         // 세그멘테이션 파일 찾기 (SEG 모달리티)
         const segImage = data.images.find((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
         if (segImage) {
