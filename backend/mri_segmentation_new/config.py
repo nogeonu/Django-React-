@@ -194,9 +194,16 @@ INFERENCE_CONFIG = {
 # Device Configuration
 # ============================================================================
 import torch
-DEVICE = "cuda" # or "cpu"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # GPU 사용 가능 여부 자동 확인
 RANDOM_SEED = 42  # Seed for reproducibility
 print(f"Using device: {DEVICE}")
-if DEVICE == "cuda":
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+if DEVICE == "cuda" and torch.cuda.is_available():
+    try:
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    except Exception as e:
+        print(f"GPU 정보를 가져올 수 없습니다: {e}")
+        DEVICE = "cpu"  # GPU 오류 시 CPU로 fallback
+        print(f"CPU 모드로 전환합니다.")
+else:
+    print("CPU 모드로 실행합니다.")
