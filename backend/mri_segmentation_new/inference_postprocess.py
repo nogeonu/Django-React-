@@ -225,6 +225,11 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Generate consistent UIDs once for the whole series if missing
     fallback_for_uid = UID()
     fallback_study_uid = UID()
+    fallback_series_uid = UID()
+    
+    # Check if we need to use fallback UIDs
+    first_ds = source_images[0]
+    use_fallback_series = 'SeriesInstanceUID' not in first_ds
     
     for ds in source_images:
         if 'AccessionNumber' not in ds:
@@ -235,6 +240,16 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
             ds.FrameOfReferenceUID = fallback_for_uid
         if 'StudyInstanceUID' not in ds:
             ds.StudyInstanceUID = fallback_study_uid
+        # CRITICAL: All images must have the SAME SeriesInstanceUID
+        if use_fallback_series or 'SeriesInstanceUID' not in ds:
+            ds.SeriesInstanceUID = fallback_series_uid
+            
+    # Validate that all images have the same dimensions (required by highdicom)
+    first_rows = source_images[0].Rows
+    first_cols = source_images[0].Columns
+    for idx, ds in enumerate(source_images):
+        if ds.Rows != first_rows or ds.Columns != first_cols:
+            print(f"Warning: Image {idx} has different dimensions ({ds.Rows}x{ds.Columns}) vs first image ({first_rows}x{first_cols})")
             
     # Sort by ImagePositionPatient (Z-axis) to ensure correct order matches mask
     # We sort by Instance Number as a robust proxy for Z-ordering in standard series
