@@ -38,17 +38,47 @@ def normalize_department(dept: str) -> str:
 
 def get_doctor_id(user_id: int) -> Optional[str]:
     """Fetch doctor_id for a given auth_user primary key."""
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT doctor_id FROM auth_user WHERE id = %s", [user_id])
-        row = cursor.fetchone()
-        return row[0] if row else None
+    try:
+        with connection.cursor() as cursor:
+            # 컬럼 존재 여부 확인
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM information_schema.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'auth_user' 
+                  AND COLUMN_NAME = 'doctor_id'
+            """)
+            if cursor.fetchone()[0] == 0:
+                return None
+            
+            cursor.execute("SELECT doctor_id FROM auth_user WHERE id = %s", [user_id])
+            row = cursor.fetchone()
+            return row[0] if row and row[0] else None
+    except Exception as e:
+        print(f"Error getting doctor_id for user {user_id}: {e}")
+        return None
 
 
 def get_department(user_id: int) -> Optional[str]:
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT department FROM auth_user WHERE id = %s", [user_id])
-        row = cursor.fetchone()
-        return row[0] if row else None
+    try:
+        with connection.cursor() as cursor:
+            # 컬럼 존재 여부 확인
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM information_schema.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'auth_user' 
+                  AND COLUMN_NAME = 'department'
+            """)
+            if cursor.fetchone()[0] == 0:
+                return None
+            
+            cursor.execute("SELECT department FROM auth_user WHERE id = %s", [user_id])
+            row = cursor.fetchone()
+            return row[0] if row and row[0] else None
+    except Exception as e:
+        print(f"Error getting department for user {user_id}: {e}")
+        return None
 
 
 def set_department(user_id: int, department: str) -> None:
