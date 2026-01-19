@@ -48,13 +48,20 @@ def me(request):
         except Exception as e:
             print(f"Warning: Failed to get department for user {user.id}: {e}")
         
+        # role 안전하게 가져오기
+        try:
+            role = get_role_from_user(user)
+        except Exception as e:
+            print(f"Warning: Failed to get role for user {user.id}: {e}")
+            role = "admin_staff"  # 기본값
+        
         return JsonResponse({
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "first_name": getattr(user, 'first_name', ''),
             "last_name": getattr(user, 'last_name', ''),
-            "role": get_role_from_user(user),
+            "role": role,
             "doctor_id": doctor_id,
             "department": department,
         })
@@ -84,7 +91,12 @@ def login(request):
         return JsonResponse({"detail": "Invalid credentials"}, status=401)
 
     try:
-        actual_role = get_role_from_user(user)
+        # role 안전하게 가져오기
+        try:
+            actual_role = get_role_from_user(user)
+        except Exception as e:
+            print(f"Warning: Failed to get role for user {user.id}: {e}")
+            actual_role = "admin_staff"  # 기본값
         
         # doctor_id와 department 안전하게 가져오기
         doctor_id = None

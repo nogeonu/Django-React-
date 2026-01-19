@@ -224,9 +224,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         
         # 부서별 필터링: 원무과가 아니면 자신의 부서 예약만
         if self.request.user.is_authenticated:
-            user_department = get_department(self.request.user.id)
-            if user_department and user_department != "원무과":
-                queryset = queryset.filter(doctor_department=user_department)
+            try:
+                user_department = get_department(self.request.user.id)
+                if user_department and user_department != "원무과":
+                    queryset = queryset.filter(doctor_department=user_department)
+            except Exception as e:
+                logger.warning(f"예약 조회 - 부서 정보 가져오기 실패 (user_id: {self.request.user.id}): {e}")
+                # 오류 발생 시 필터링 없이 전체 조회
         
         # 추가 필터링
         patient_id = self.request.query_params.get('patient_id')
@@ -267,23 +271,33 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         from eventeye.doctor_utils import get_department
         
-        today = timezone.now().date()
-        
-        # 기본 쿼리셋 (부서별 필터링 적용)
-        queryset = self.get_queryset().filter(
-            start_time__date=today,
-            status='scheduled'  # 예약됨 상태만
-        )
-        
-        # 현재 사용자의 진료과 정보
-        user_department = None
-        if request.user.is_authenticated:
-            user_department = get_department(request.user.id)
-        
-        count = queryset.count()
-        
-        return Response({
-            'today_count': count,
-            'department': user_department,
-            'date': today.isoformat(),
-        })
+        try:
+            today = timezone.now().date()
+            
+            # 기본 쿼리셋 (부서별 필터링 적용)
+            queryset = self.get_queryset().filter(
+                start_time__date=today,
+                status='scheduled'  # 예약됨 상태만
+            )
+            
+            # 현재 사용자의 진료과 정보
+            user_department = None
+            if request.user.is_authenticated:
+                try:
+                    user_department = get_department(request.user.id)
+                except Exception as e:
+                    logger.warning(f"오늘 예약 수 조회 - 부서 정보 가져오기 실패 (user_id: {request.user.id}): {e}")
+            
+            count = queryset.count()
+            
+            return Response({
+                'today_count': count,
+                'department': user_department,
+                'date': today.isoformat(),
+            })
+        except Exception as e:
+            logger.error(f"오늘 예약 수 조회 오류: {type(e).__name__}: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "예약 수 조회 중 오류가 발생했습니다."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
