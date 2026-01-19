@@ -227,6 +227,11 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
             ds.AccessionNumber = ''
         if 'ReferringPhysicianName' not in ds:
             ds.ReferringPhysicianName = ''
+        if 'FrameOfReferenceUID' not in ds:
+            # Generate a consistent UID if missing (common in anonymized datasets)
+            ds.FrameOfReferenceUID = UID()
+        if 'StudyInstanceUID' not in ds:
+            ds.StudyInstanceUID = UID()
             
     # Sort by ImagePositionPatient (Z-axis) to ensure correct order matches mask
     # We sort by Instance Number as a robust proxy for Z-ordering in standard series
