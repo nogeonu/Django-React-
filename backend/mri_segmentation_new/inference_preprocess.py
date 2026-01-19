@@ -20,11 +20,12 @@ def get_inference_transforms():
         LoadImaged(keys=["image"], image_only=False),
         EnsureChannelFirstd(keys=["image"]),
         Orientationd(keys=["image"], axcodes="RAS"),
-        Spacingd(
-            keys=["image"],
-            pixdim=config.SPACING,
-            mode="bilinear"
-        ),
+        # Spacingd disabled to keep original DICOM spacing/dimensions
+        # Spacingd(
+        #     keys=["image"],
+        #     pixdim=config.SPACING,
+        #     mode="bilinear"
+        # ),
         # Select first 4 sequences (matching training)
         # This assumes input has shape [C, H, W, D] where C >= 4
         NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
