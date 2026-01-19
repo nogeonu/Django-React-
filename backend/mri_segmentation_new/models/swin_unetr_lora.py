@@ -125,7 +125,7 @@ class SwinUNETRLoRA(nn.Module):
 def create_segmentation_model(
     pretrained: bool = False,
     use_lora: bool = True,
-    device: str = "cuda"
+    device: str = config.DEVICE
 ) -> SwinUNETRLoRA:
     """
     Create segmentation model

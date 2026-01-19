@@ -214,35 +214,15 @@ def segment_series(request, series_id):
                 
                 logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_instances)}개 슬라이스 저장 완료")
             
-            # 2. MAMA-MIA 모델 로드 및 추론
-            logger.info("� MAMA-MIA 파이프라인 로드 및 추론 준비...")
+            # 2. MAMA-MIA 모델 로드 (싱글톤 사용)
+            logger.info("🔄 MAMA-MIA 파이프라인 로드 중...")
+            pipeline = get_pipeline()
             
-            # 지연 import 및 경로 설정
-            pipeline_path = Path(__file__).parent.parent / "mri_segmentation_new"
-            if str(pipeline_path) not in sys.path:
-                sys.path.insert(0, str(pipeline_path))
-            
-            from inference_pipeline import SegmentationInferencePipeline
-            
-            # 모델 경로 재확인 (v2: checkpoints 폴더 고려)
-            model_path = pipeline_path / "checkpoints" / "best_model.pth"
-            if not model_path.exists():
-                model_path = pipeline_path / "best_model.pth"
-            
-            if not model_path.exists():
-                logger.error(f"❌ 모델 파일을 찾을 수 없습니다: {model_path}")
+            if pipeline is None:
                 return Response({
                     "success": False,
-                    "error": "세그멘테이션 모델 파일을 찾을 수 없습니다. (/mri_segmentation_new/checkpoints/best_model.pth)"
+                    "error": "세그멘테이션 모델을 로드할 수 없습니다."
                 }, status=500)
-            
-            # 파이프라인 초기화 (CPU 모드 기본, 필요시 USE_GPU 환경변수 사용)
-            device = "cuda" if os.getenv('USE_GPU', 'false').lower() == 'true' else "cpu"
-            pipeline = SegmentationInferencePipeline(
-                model_path=str(model_path),
-                device=device,
-                threshold=0.5
-            )
             
             # 3. 추론 실행 (DICOM SEG 출력)
             logger.info("🔄 세그멘테이션 추론 중 (이 작업은 CPU에서 약 10~20초 소요될 수 있습니다)...")

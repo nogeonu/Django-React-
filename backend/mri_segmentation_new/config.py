@@ -194,9 +194,14 @@ INFERENCE_CONFIG = {
 # Device Configuration
 # ============================================================================
 import torch
-DEVICE = "cuda" # or "cpu"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 RANDOM_SEED = 42  # Seed for reproducibility
 print(f"Using device: {DEVICE}")
 if DEVICE == "cuda":
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    try:
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    except Exception as e:
+        print(f"Could not get GPU info even though cuda is available: {e}")
+        DEVICE = "cpu"
+

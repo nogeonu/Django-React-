@@ -30,6 +30,7 @@ import {
   Circle,
   MousePointer2,
   Sun,
+  Layers,
 } from 'lucide-react';
 import { initCornerstone, createImageId, WINDOW_LEVEL_PRESETS } from '@/lib/cornerstone';
 
@@ -51,8 +52,9 @@ interface CornerstoneViewerProps {
   onIndexChange: (index: number) => void;
   showMeasurementTools?: boolean; // 측정 도구 표시 여부
   viewportId?: string; // 고유 viewport ID (4분할 뷰 등에서 사용)
-  segmentationFrames?: Array<{index: number; mask_base64: string}>; // 세그멘테이션 프레임
+  segmentationFrames?: Array<{ index: number; mask_base64: string }>; // 세그멘테이션 프레임
   showSegmentation?: boolean; // 세그멘테이션 오버레이 표시 여부
+  onToggleSegmentation?: (enabled: boolean) => void; // 세그멘테이션 토글 콜백
 }
 
 export default function CornerstoneViewer({
@@ -63,6 +65,7 @@ export default function CornerstoneViewer({
   viewportId, // 외부에서 전달받은 고유 ID
   segmentationFrames = [], // 세그멘테이션 프레임
   showSegmentation = false, // 세그멘테이션 오버레이 표시 여부
+  onToggleSegmentation, // 세그멘테이션 토글 콜백
 }: CornerstoneViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -83,7 +86,7 @@ export default function CornerstoneViewer({
     const initialize = async () => {
       try {
         await initCornerstone();
-        
+
         // 측정 도구 등록
         addTool(LengthTool);
         addTool(ProbeTool);
@@ -116,7 +119,7 @@ export default function CornerstoneViewer({
       if (!isSmallDataset) {
         setIsImageLoading(true);
       }
-      
+
       try {
         const element = viewportRef.current!;
         const renderingEngineId = renderingEngineIdRef.current;
@@ -146,23 +149,23 @@ export default function CornerstoneViewer({
             renderingEngine.enableElement(viewportInput);
             viewport = renderingEngine.getViewport(viewportId);
           }
-          } catch (e) {
+        } catch (e) {
           // 뷰포트가 없으면 새로 생성
           viewport = null;
         }
 
         // 뷰포트가 없을 때만 새로 생성
         if (!viewport) {
-        const viewportInput = {
-          viewportId,
-          type: Enums.ViewportType.STACK,
-          element,
-          defaultOptions: {
-            background: [0, 0, 0] as Types.Point3,
-          },
-        };
+          const viewportInput = {
+            viewportId,
+            type: Enums.ViewportType.STACK,
+            element,
+            defaultOptions: {
+              background: [0, 0, 0] as Types.Point3,
+            },
+          };
 
-        renderingEngine.enableElement(viewportInput);
+          renderingEngine.enableElement(viewportInput);
           viewport = renderingEngine.getViewport(viewportId);
         }
 
@@ -186,14 +189,14 @@ export default function CornerstoneViewer({
             setIsImageLoading(false);
           } else {
             // 큰 데이터셋은 기존 방식 유지
-          // @ts-ignore - Stack viewport specific method
+            // @ts-ignore - Stack viewport specific method
             await viewport.setStack(imageIds, currentIndex).catch((err: any) => {
               console.warn('Failed to load some images, but continuing:', err);
             });
-          // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
-          viewport.render();
+            // 첫 렌더링 (DICOM의 기본 Window/Level 사용)
+            viewport.render();
           }
-          
+
           // DICOM 메타데이터에서 Window/Level 가져오기
           if (isSmallDataset) {
             // 작은 데이터셋: 비동기로 Window/Level 설정 (로딩 블로킹 없음)
@@ -227,32 +230,32 @@ export default function CornerstoneViewer({
             }, 100);
           } else {
             // 큰 데이터셋: 기존 방식 (동기 처리)
-          try {
-            // @ts-ignore
-            const image = viewport.getImageData();
-            if (image) {
-              const dicomWindowWidth = image.windowWidth?.[0];
-              const dicomWindowCenter = image.windowCenter?.[0];
-              
-              if (dicomWindowWidth && dicomWindowCenter) {
-                console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
-                setWindowLevel({
-                  windowWidth: dicomWindowWidth,
-                  windowCenter: dicomWindowCenter,
-                });
-                
-                // @ts-ignore
-                viewport.setProperties({
-                  voiRange: {
-                    lower: dicomWindowCenter - dicomWindowWidth / 2,
-                    upper: dicomWindowCenter + dicomWindowWidth / 2,
-                  },
-                });
-                viewport.render();
+            try {
+              // @ts-ignore
+              const image = viewport.getImageData();
+              if (image) {
+                const dicomWindowWidth = image.windowWidth?.[0];
+                const dicomWindowCenter = image.windowCenter?.[0];
+
+                if (dicomWindowWidth && dicomWindowCenter) {
+                  console.log(`Using DICOM Window/Level: W=${dicomWindowWidth}, C=${dicomWindowCenter}`);
+                  setWindowLevel({
+                    windowWidth: dicomWindowWidth,
+                    windowCenter: dicomWindowCenter,
+                  });
+
+                  // @ts-ignore
+                  viewport.setProperties({
+                    voiRange: {
+                      lower: dicomWindowCenter - dicomWindowWidth / 2,
+                      upper: dicomWindowCenter + dicomWindowWidth / 2,
+                    },
+                  });
+                  viewport.render();
+                }
               }
-            }
-          } catch (e) {
-            console.warn('Could not read DICOM Window/Level, using defaults', e);
+            } catch (e) {
+              console.warn('Could not read DICOM Window/Level, using defaults', e);
             }
           }
         }
@@ -307,7 +310,7 @@ export default function CornerstoneViewer({
           // 이 렌더링 엔진에 다른 뷰포트가 없으면 완전히 destroy
           if (viewportIds.length === 0 || (viewportIds.length === 1 && viewportIds[0] === viewportId)) {
             console.log(`Destroying rendering engine: ${renderingEngineId}`);
-          renderingEngineRef.current.destroy();
+            renderingEngineRef.current.destroy();
             renderingEngineCache.delete(renderingEngineId);
           }
         } catch (e) {
@@ -315,7 +318,7 @@ export default function CornerstoneViewer({
         }
       }
 
-        renderingEngineRef.current = null;
+      renderingEngineRef.current = null;
     };
   }, [isInitialized, instanceIds]); // 원래대로 복구
 
@@ -511,7 +514,7 @@ export default function CornerstoneViewer({
   // 세그멘테이션 오버레이 렌더링 (조원 코드와 동일: 마젠타 윤곽선 + 반투명 보라색 채움)
   useEffect(() => {
     console.log(`[CornerstoneViewer] 오버레이 렌더링 체크: showSegmentation=${showSegmentation}, frames.length=${segmentationFrames.length}, currentIndex=${currentIndex}, overlayCanvasRef.current=${!!overlayCanvasRef.current}`);
-    
+
     if (!showSegmentation) {
       console.log('[CornerstoneViewer] showSegmentation이 false - 오버레이 숨김');
       // Canvas 초기화
@@ -523,12 +526,12 @@ export default function CornerstoneViewer({
       }
       return;
     }
-    
+
     if (!segmentationFrames.length) {
       console.log('[CornerstoneViewer] segmentationFrames가 비어있음');
       return;
     }
-    
+
     if (!overlayCanvasRef.current) {
       console.log('[CornerstoneViewer] overlayCanvasRef가 없음 - 잠시 후 재시도');
       // DOM이 아직 준비되지 않았을 수 있으므로 약간의 지연 후 재시도
@@ -609,15 +612,16 @@ export default function CornerstoneViewer({
       for (let i = 0; i < data.length; i += 4) {
         const gray = data[i]; // 그레이스케일 값 (0-255)
         if (gray > 0) { // 마스크 영역
-          // 그레이스케일 값 그대로 유지 (R=G=B=gray)
-          data[i] = gray;     // R
-          data[i + 1] = gray; // G
-          data[i + 2] = gray; // B
-          data[i + 3] = Math.floor(gray * 0.5); // A (마스크 값에 비례한 투명도)
+          // Magenta (#FF00FF) 색상 적용
+          data[i] = 255;     // Red
+          data[i + 1] = 0;   // Green
+          data[i + 2] = 255; // Blue
+          data[i + 3] = Math.floor(gray * 0.4); // A (40% 투명도)
         } else {
           data[i + 3] = 0; // 마스크가 아닌 부분은 완전히 투명
         }
       }
+
 
       // 변환된 이미지 데이터를 메인 Canvas에 그리기
       const scaledImageData = ctx.createImageData(w, h);
@@ -630,7 +634,7 @@ export default function CornerstoneViewer({
           const sy = Math.floor(dy * scaleY);
           const srcIdx = (sy * maskImg.width + sx) * 4;
           const dstIdx = (dy * w + dx) * 4;
-          
+
           if (srcIdx < data.length && data[srcIdx + 3] > 0) {
             scaledImageData.data[dstIdx] = data[srcIdx];
             scaledImageData.data[dstIdx + 1] = data[srcIdx + 1];
@@ -646,7 +650,7 @@ export default function CornerstoneViewer({
       console.error('[CornerstoneViewer] 마스크 이미지 로드 실패:', e, 'frame:', frame);
     };
     maskImg.src = `data:image/png;base64,${frame.mask_base64}`;
-    
+
     // Cleanup function
     return () => {
       maskImg.onerror = null;
@@ -675,15 +679,15 @@ export default function CornerstoneViewer({
 
         // 도구 추가 (이미 추가된 경우 무시됨)
         try {
-        toolGroup.addTool(WindowLevelTool.toolName);
-        toolGroup.addTool(PanTool.toolName);
-        toolGroup.addTool(ZoomTool.toolName);
-        toolGroup.addTool(LengthTool.toolName);
-        toolGroup.addTool(ProbeTool.toolName);
-        toolGroup.addTool(RectangleROITool.toolName);
-        toolGroup.addTool(EllipticalROITool.toolName);
-        toolGroup.addTool(BidirectionalTool.toolName);
-        toolGroup.addTool(AngleTool.toolName);
+          toolGroup.addTool(WindowLevelTool.toolName);
+          toolGroup.addTool(PanTool.toolName);
+          toolGroup.addTool(ZoomTool.toolName);
+          toolGroup.addTool(LengthTool.toolName);
+          toolGroup.addTool(ProbeTool.toolName);
+          toolGroup.addTool(RectangleROITool.toolName);
+          toolGroup.addTool(EllipticalROITool.toolName);
+          toolGroup.addTool(BidirectionalTool.toolName);
+          toolGroup.addTool(AngleTool.toolName);
         } catch (e) {
           // 도구가 이미 추가되어 있으면 무시
         }
@@ -750,9 +754,9 @@ export default function CornerstoneViewer({
             variant={activeTool === WindowLevelTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(WindowLevelTool.toolName)}
             className={`h-9 transition-all ${activeTool === WindowLevelTool.toolName
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-            }`}
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
           >
             <Sun className="w-4 h-4 mr-1" />
             윈도우/레벨
@@ -763,9 +767,9 @@ export default function CornerstoneViewer({
             variant={activeTool === LengthTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(LengthTool.toolName)}
             className={`h-9 transition-all ${activeTool === LengthTool.toolName
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-            }`}
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
           >
             <Ruler className="w-4 h-4 mr-1" />
             거리 측정
@@ -775,9 +779,9 @@ export default function CornerstoneViewer({
             variant={activeTool === RectangleROITool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(RectangleROITool.toolName)}
             className={`h-9 transition-all ${activeTool === RectangleROITool.toolName
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-            }`}
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
           >
             <Square className="w-4 h-4 mr-1" />
             사각형 ROI
@@ -787,21 +791,35 @@ export default function CornerstoneViewer({
             variant={activeTool === EllipticalROITool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(EllipticalROITool.toolName)}
             className={`h-9 transition-all ${activeTool === EllipticalROITool.toolName
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-            }`}
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
           >
             <Circle className="w-4 h-4 mr-1" />
             타원 ROI
+          </Button>
+          <div className="w-px h-6 bg-gray-600" />
+          <Button
+            size="sm"
+            variant={showSegmentation ? 'default' : 'outline'}
+            onClick={() => onToggleSegmentation?.(!showSegmentation)}
+            className={`h-9 transition-all ${showSegmentation
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
+            disabled={segmentationFrames.length === 0}
+          >
+            <Layers className="w-4 h-4 mr-1" />
+            병변탐지 {showSegmentation ? 'ON' : 'OFF'}
           </Button>
           <Button
             size="sm"
             variant={activeTool === ProbeTool.toolName ? 'default' : 'outline'}
             onClick={() => handleToolChange(ProbeTool.toolName)}
             className={`h-9 transition-all ${activeTool === ProbeTool.toolName
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
-            }`}
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600'
+              }`}
           >
             <MousePointer2 className="w-4 h-4 mr-1" />
             픽셀 값
@@ -810,7 +828,7 @@ export default function CornerstoneViewer({
       )}
 
       {/* 뷰포트 */}
-      <div 
+      <div
         className="flex-1 relative"
         onWheel={(e) => {
           if (instanceIds.length === 0 || !renderingEngineRef.current) return;
@@ -855,7 +873,7 @@ export default function CornerstoneViewer({
           className="w-full h-full relative"
           style={{ minHeight: '400px' }}
         />
-        
+
         {/* 세그멘테이션 오버레이 레이어 - Canvas를 사용하여 조원 코드와 동일하게: 마젠타 윤곽선 + 반투명 보라색 채움 */}
         {showSegmentation && segmentationFrames.length > 0 && (
           <canvas

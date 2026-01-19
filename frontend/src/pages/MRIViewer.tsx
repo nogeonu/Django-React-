@@ -107,7 +107,7 @@ export default function MRIViewer() {
 
   // URL 파라미터에서 imageType 읽기
   const urlImageType = searchParams.get('imageType');
-  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '병리 영상' || urlImageType === '유방촬영술 영상') 
+  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '병리 영상' || urlImageType === '유방촬영술 영상')
     ? urlImageType as '유방촬영술 영상' | '병리 영상' | 'MRI 영상'
     : '유방촬영술 영상';
 
@@ -120,7 +120,7 @@ export default function MRIViewer() {
   const [sliceImage, setSliceImage] = useState<string | null>(null);
   const [showSegmentation, setShowSegmentation] = useState(false);
   const [segmentationInstanceId, setSegmentationInstanceId] = useState<string | null>(null);
-  const [segmentationFrames, setSegmentationFrames] = useState<Array<{index: number; mask_base64: string}>>([]);
+  const [segmentationFrames, setSegmentationFrames] = useState<Array<{ index: number; mask_base64: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [axis, setAxis] = useState<"axial" | "sagittal" | "coronal">("axial");
@@ -132,11 +132,11 @@ export default function MRIViewer() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  
+
 
   useEffect(() => {
     fetchPatients();
-    
+
     // URL에서 patient_id 읽기
     if (params.patientId) {
       setSelectedPatient(params.patientId);
@@ -276,20 +276,20 @@ export default function MRIViewer() {
       const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
         cache: 'no-cache', // 캐시 비활성화 (최신 데이터 확인)
       });
-      
+
       console.log(`[fetchOrthancImages] 응답 상태: ${response.status} ${response.statusText}`);
       const data = await response.json();
       console.log(`[fetchOrthancImages] 응답 데이터:`, data);
-      
+
       if (!response.ok) {
         console.error(`[fetchOrthancImages] API 오류:`, data);
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
-      
+
       if (data.success && data.images && Array.isArray(data.images)) {
         console.log(`[fetchOrthancImages] 이미지 개수: ${data.images.length}`);
         console.log(`[fetchOrthancImages] 첫 번째 이미지 샘플:`, data.images[0]);
-        
+
         // Orthanc API에서 반환하는 patient_name과 patient_id 사용
         if (data.patient_name) {
           console.log(`[fetchOrthancImages] Orthanc PatientName: ${data.patient_name}`);
@@ -299,7 +299,7 @@ export default function MRIViewer() {
           console.log(`[fetchOrthancImages] Orthanc PatientID: ${data.patient_id}`);
           sessionStorage.setItem('orthanc_patient_id', data.patient_id);
         }
-        
+
         // 세그멘테이션 파일 찾기 (SEG 모달리티)
         const segImage = data.images.find((img: OrthancImage) => img.is_segmentation || img.modality === 'SEG');
         if (segImage) {
@@ -308,15 +308,15 @@ export default function MRIViewer() {
         } else {
           setSegmentationInstanceId(null);
         }
-        
+
         if (data.images.length > 0) {
-        setAllOrthancImages(data.images); // 모든 이미지 저장
-        // 필터링은 useEffect에서 자동으로 처리됨
-        
-        // 이미지 프리로딩 (첫 3개 이미지만 먼저 로드)
+          setAllOrthancImages(data.images); // 모든 이미지 저장
+          // 필터링은 useEffect에서 자동으로 처리됨
+
+          // 이미지 프리로딩 (첫 3개 이미지만 먼저 로드)
           const previewUrlsToPreload = data.images.slice(0, Math.min(3, data.images.length))
             .map((img: OrthancImage) => img.preview_url);
-          
+
           // 백그라운드에서 프리로드 (사용자 경험 개선)
           previewUrlsToPreload.forEach((url: string) => {
             const img = new Image();
@@ -357,7 +357,7 @@ export default function MRIViewer() {
   // imageType에 따라 이미지 필터링
   const filterImagesByType = () => {
     console.log(`[filterImagesByType] 전체 이미지 개수: ${allOrthancImages.length}, 선택된 영상 유형: ${imageType || '(없음)'}`);
-    
+
     if (allOrthancImages.length === 0) {
       console.log(`[filterImagesByType] 이미지가 없음 - 빈 배열 설정`);
       setOrthancImages([]);
@@ -378,32 +378,32 @@ export default function MRIViewer() {
       filtered = allOrthancImages;
       console.log(`[filterImagesByType] 영상 유형 미선택 - 전체 이미지 표시: ${filtered.length}개`);
     } else {
-    switch (imageType) {
-      case '유방촬영술 영상':
-        // MG (Mammography) 모달리티만
-        filtered = allOrthancImages.filter(img => img.modality === 'MG');
+      switch (imageType) {
+        case '유방촬영술 영상':
+          // MG (Mammography) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'MG');
           console.log(`[filterImagesByType] 유방촬영술 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
-        break;
-      case 'MRI 영상':
-        // MR (Magnetic Resonance) 모달리티만
-        filtered = allOrthancImages.filter(img => img.modality === 'MR');
+          break;
+        case 'MRI 영상':
+          // MR (Magnetic Resonance) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'MR');
           console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
-        break;
-      case '병리 영상':
-        // 병리 영상: SM (Slide Microscopy) 모달리티만
-        filtered = allOrthancImages.filter(img => img.modality === 'SM');
-        console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
-        console.log(`[filterImagesByType] 병리 영상 모달리티:`, filtered.map(img => img.modality));
-        break;
-      default:
-        filtered = allOrthancImages;
+          break;
+        case '병리 영상':
+          // 병리 영상: SM (Slide Microscopy) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'SM');
+          console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
+          console.log(`[filterImagesByType] 병리 영상 모달리티:`, filtered.map(img => img.modality));
+          break;
+        default:
+          filtered = allOrthancImages;
           console.log(`[filterImagesByType] 알 수 없는 영상 유형 "${imageType}" - 전체 이미지 표시: ${filtered.length}개`);
       }
     }
 
     setOrthancImages(filtered);
     // 필터링 결과와 관계없이 뷰어는 항상 표시 (이미지가 없으면 "이미지 없음" 메시지 표시)
-      setShowOrthancImages(true);
+    setShowOrthancImages(true);
     if (filtered.length > 0) {
       setSelectedImage(0);
       console.log(`[filterImagesByType] 이미지 표시 설정 완료: ${filtered.length}개`);
@@ -433,10 +433,10 @@ export default function MRIViewer() {
     setIsDragging(false);
 
     if (!selectedPatient) {
-      toast({ 
-        title: "오류", 
-        description: "먼저 환자를 선택해주세요.", 
-        variant: "destructive" 
+      toast({
+        title: "오류",
+        description: "먼저 환자를 선택해주세요.",
+        variant: "destructive"
       });
       return;
     }
@@ -450,10 +450,10 @@ export default function MRIViewer() {
         const file = item.getAsFile();
         if (file) {
           // DICOM 또는 NIfTI 파일만 허용
-          if (file.name.endsWith('.dicom') || 
-              file.name.endsWith('.dcm') || 
-              file.name.endsWith('.nii') || 
-              file.name.endsWith('.nii.gz')) {
+          if (file.name.endsWith('.dicom') ||
+            file.name.endsWith('.dcm') ||
+            file.name.endsWith('.nii') ||
+            file.name.endsWith('.nii.gz')) {
             files.push(file);
           }
         }
@@ -461,10 +461,10 @@ export default function MRIViewer() {
     }
 
     if (files.length === 0) {
-      toast({ 
-        title: "오류", 
-        description: "DICOM 또는 NIfTI 파일을 드롭해주세요.", 
-        variant: "destructive" 
+      toast({
+        title: "오류",
+        description: "DICOM 또는 NIfTI 파일을 드롭해주세요.",
+        variant: "destructive"
       });
       return;
     }
@@ -475,14 +475,14 @@ export default function MRIViewer() {
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
     if (!selectedPatient) {
-      toast({ 
-        title: "오류", 
-        description: "먼저 환자를 선택해주세요.", 
-        variant: "destructive" 
+      toast({
+        title: "오류",
+        description: "먼저 환자를 선택해주세요.",
+        variant: "destructive"
       });
       return;
     }
-    
+
     const fileArray = Array.from(files);
     await uploadFiles(fileArray);
   };
@@ -589,21 +589,21 @@ export default function MRIViewer() {
   const uploadFiles = async (files: File[]) => {
     if (!selectedPatient) return;
     if (!imageType) {
-      toast({ 
-        title: "오류", 
-        description: "먼저 영상 유형을 선택해주세요.", 
-        variant: "destructive" 
+      toast({
+        title: "오류",
+        description: "먼저 영상 유형을 선택해주세요.",
+        variant: "destructive"
       });
       return;
     }
     setUploading(true);
     let successCount = 0;
     let errorMessages: string[] = [];
-    
+
     // 선택된 환자의 이름 찾기
     const selectedPatientInfo = systemPatients.find(p => p.patient_id === selectedPatient);
     const patientName = selectedPatientInfo?.name || selectedPatient;
-    
+
     try {
       for (let i = 0; i < files.length; i++) {
         try {
@@ -612,17 +612,17 @@ export default function MRIViewer() {
           formData.append('patient_id', selectedPatient);
           formData.append('patient_name', patientName); // 환자 이름 추가
           formData.append('image_type', imageType); // 영상 유형 전달
-          
+
           // 병리 이미지는 별도 엔드포인트 사용
-          const uploadUrl = imageType === '병리 영상' 
-            ? '/api/mri/pathology/upload/' 
+          const uploadUrl = imageType === '병리 영상'
+            ? '/api/mri/pathology/upload/'
             : '/api/mri/orthanc/upload/';
-          
-          const response = await fetch(uploadUrl, { 
-            method: 'POST', 
-            body: formData 
+
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData
           });
-          
+
           let data;
           try {
             data = await response.json();
@@ -632,13 +632,13 @@ export default function MRIViewer() {
             console.error(`❌ 파일 ${i + 1} 응답 파싱 실패:`, text);
             continue;
           }
-          
+
           if (response.ok && data.success) {
             successCount++;
             console.log(`✅ 파일 ${i + 1} 업로드 성공:`, files[i].name);
           } else {
             const errorMsg = data.error || data.message || data.error_type || `파일 ${i + 1} 업로드 실패`;
-            const fullErrorMsg = data.traceback 
+            const fullErrorMsg = data.traceback
               ? `${errorMsg}\n\n상세 오류:\n${data.traceback.split('\n').slice(0, 5).join('\n')}`
               : errorMsg;
             errorMessages.push(`${files[i].name}: ${fullErrorMsg}`);
@@ -655,28 +655,28 @@ export default function MRIViewer() {
           console.error(`❌ 파일 ${i + 1} 업로드 예외:`, fileError);
         }
       }
-      
+
       if (successCount > 0) {
-        toast({ 
-          title: "업로드 완료", 
-          description: `${successCount}개 파일이 저장되었습니다.${errorMessages.length > 0 ? ` (${errorMessages.length}개 실패)` : ''}` 
+        toast({
+          title: "업로드 완료",
+          description: `${successCount}개 파일이 저장되었습니다.${errorMessages.length > 0 ? ` (${errorMessages.length}개 실패)` : ''}`
         });
         if (selectedPatient) fetchOrthancImages(selectedPatient);
       } else {
-        toast({ 
-          title: "업로드 실패", 
-          description: errorMessages.length > 0 
+        toast({
+          title: "업로드 실패",
+          description: errorMessages.length > 0
             ? errorMessages.slice(0, 3).join(', ') + (errorMessages.length > 3 ? '...' : '')
             : "모든 파일 업로드에 실패했습니다.",
-          variant: "destructive" 
+          variant: "destructive"
         });
       }
     } catch (error) {
       console.error('업로드 중 예외 발생:', error);
-      toast({ 
-        title: "오류", 
-        description: error instanceof Error ? error.message : "업로드 중 문제가 발생했습니다.", 
-        variant: "destructive" 
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "업로드 중 문제가 발생했습니다.",
+        variant: "destructive"
       });
     } finally {
       setUploading(false);
@@ -842,7 +842,7 @@ export default function MRIViewer() {
                       <Switch checked={showSegmentation} onCheckedChange={setShowSegmentation} className="data-[state=checked]:bg-emerald-500" />
                     </div>
                   )}
-                  
+
                   {showOrthancImages && orthancImages.length > 0 && imageType === 'MRI 영상' && (
                     <Button
                       onClick={handleRunSegmentation}
@@ -873,22 +873,20 @@ export default function MRIViewer() {
                 <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
                   DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
                 </p>
-                
+
                 {/* 드래그 앤 드롭 영역 */}
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-200 ${
-                    isDragging 
-                      ? 'border-blue-400 bg-blue-500/10 scale-[1.02]' 
+                  className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-200 ${isDragging
+                      ? 'border-blue-400 bg-blue-500/10 scale-[1.02]'
                       : 'border-gray-700 hover:border-gray-600'
-                  }`}
+                    }`}
                 >
                   <div className="text-center space-y-3">
-                    <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                      isDragging ? 'bg-blue-500' : 'bg-gray-800'
-                    }`}>
+                    <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isDragging ? 'bg-blue-500' : 'bg-gray-800'
+                      }`}>
                       <Upload className={`w-6 h-6 ${isDragging ? 'text-white' : 'text-gray-400'}`} />
                     </div>
                     <div>
@@ -991,6 +989,7 @@ export default function MRIViewer() {
                     showMeasurementTools={!isRadiologyTech}
                     segmentationFrames={segmentationFrames}
                     showSegmentation={showSegmentation}
+                    onToggleSegmentation={setShowSegmentation}
                   />
                 </div>
               ) : (
@@ -1046,7 +1045,7 @@ export default function MRIViewer() {
                               transition={{ duration: 0.3 }}
                               src={`data:image/png;base64,${segmentationFrames[selectedImage]?.mask_base64}`}
                               className="absolute inset-0 max-w-full max-h-full object-contain pointer-events-none"
-                              style={{ 
+                              style={{
                                 mixBlendMode: 'screen',
                                 filter: 'brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2878%) hue-rotate(300deg) brightness(104%) contrast(97%)',
                                 // 마젠타/빨간색으로 강제 변환

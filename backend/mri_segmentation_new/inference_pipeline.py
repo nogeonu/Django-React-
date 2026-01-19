@@ -19,7 +19,7 @@ class SegmentationInferencePipeline:
     def __init__(
         self, 
         model_path,
-        device="cuda",
+        device=config.DEVICE,
         threshold=0.5,
         use_ema=False
     ):
