@@ -1712,24 +1712,24 @@ def search_drugs(
             try:
                 cur.execute("SHOW TABLES LIKE 'symptoms'")
                 if cur.fetchone(): # symptoms 테이블이 존재하는 경우에만 쿼리 실행
-            sql_symptom = """
-            SELECT DISTINCT d.item_seq,
-                   d.name_kor,
-                   d.company_name,
-                   d.rx_otc,
-                   d.edi_code,
-                   d.atc_code,
-                   d.is_anticancer
-            FROM symptoms s
-            JOIN symptom_diagnosis_weights sdw ON sdw.symptom_id = s.id
-            JOIN order_sets os ON os.diagnosis_id = sdw.diagnosis_id
-            JOIN order_set_items osi ON osi.order_set_id = os.id
-            JOIN drugs d ON d.item_seq = osi.item_seq
-            WHERE s.name LIKE %s
-            LIMIT %s
-            """
-            cur.execute(sql_symptom, (f"%{q}%", limit))
-            symptom_rows = cur.fetchall()
+                    sql_symptom = """
+                    SELECT DISTINCT d.item_seq,
+                           d.name_kor,
+                           d.company_name,
+                           d.rx_otc,
+                           d.edi_code,
+                           d.atc_code,
+                           d.is_anticancer
+                    FROM symptoms s
+                    JOIN symptom_diagnosis_weights sdw ON sdw.symptom_id = s.id
+                    JOIN order_sets os ON os.diagnosis_id = sdw.diagnosis_id
+                    JOIN order_set_items osi ON osi.order_set_id = os.id
+                    JOIN drugs d ON d.item_seq = osi.item_seq
+                    WHERE s.name LIKE %s
+                    LIMIT %s
+                    """
+                    cur.execute(sql_symptom, (f"%{q}%", limit))
+                    symptom_rows = cur.fetchall()
                 else:
                     print("⚠️ 'symptoms' 테이블이 존재하지 않아 증상 검색을 건너뜁니다.")
             except Exception as e:
@@ -1743,23 +1743,23 @@ def search_drugs(
             try:
                 cur.execute("SHOW TABLES LIKE 'diagnoses'")
                 if cur.fetchone(): # diagnoses 테이블이 존재하는 경우에만 쿼리 실행
-            sql_diagnosis = """
-            SELECT DISTINCT d.item_seq,
-                   d.name_kor,
-                   d.company_name,
-                   d.rx_otc,
-                   d.edi_code,
-                   d.atc_code,
-                   d.is_anticancer
-            FROM diagnoses diag
-            JOIN order_sets os ON os.diagnosis_id = diag.id
-            JOIN order_set_items osi ON osi.order_set_id = os.id
-            JOIN drugs d ON d.item_seq = osi.item_seq
-            WHERE diag.name LIKE %s
-            LIMIT %s
-            """
-            cur.execute(sql_diagnosis, (f"%{q}%", limit))
-            diagnosis_rows = cur.fetchall()
+                    sql_diagnosis = """
+                    SELECT DISTINCT d.item_seq,
+                           d.name_kor,
+                           d.company_name,
+                           d.rx_otc,
+                           d.edi_code,
+                           d.atc_code,
+                           d.is_anticancer
+                    FROM diagnoses diag
+                    JOIN order_sets os ON os.diagnosis_id = diag.id
+                    JOIN order_set_items osi ON osi.order_set_id = os.id
+                    JOIN drugs d ON d.item_seq = osi.item_seq
+                    WHERE diag.name LIKE %s
+                    LIMIT %s
+                    """
+                    cur.execute(sql_diagnosis, (f"%{q}%", limit))
+                    diagnosis_rows = cur.fetchall()
                 else:
                     print("⚠️ 'diagnoses' 테이블이 존재하지 않아 진단명 검색을 건너뜁니다.")
             except Exception as e:
@@ -1773,22 +1773,22 @@ def search_drugs(
             try:
                 cur.execute("SHOW TABLES LIKE 'order_sets'")
                 if cur.fetchone(): # order_sets 테이블이 존재하는 경우에만 쿼리 실행
-            sql_orderset = """
-            SELECT DISTINCT d.item_seq,
-                   d.name_kor,
-                   d.company_name,
-                   d.rx_otc,
-                   d.edi_code,
-                   d.atc_code,
-                   d.is_anticancer
-            FROM order_sets os
-            JOIN order_set_items osi ON osi.order_set_id = os.id
-            JOIN drugs d ON d.item_seq = osi.item_seq
-            WHERE os.name LIKE %s
-            LIMIT %s
-            """
-            cur.execute(sql_orderset, (f"%{q}%", limit))
-            orderset_rows = cur.fetchall()
+                    sql_orderset = """
+                    SELECT DISTINCT d.item_seq,
+                           d.name_kor,
+                           d.company_name,
+                           d.rx_otc,
+                           d.edi_code,
+                           d.atc_code,
+                           d.is_anticancer
+                    FROM order_sets os
+                    JOIN order_set_items osi ON osi.order_set_id = os.id
+                    JOIN drugs d ON d.item_seq = osi.item_seq
+                    WHERE os.name LIKE %s
+                    LIMIT %s
+                    """
+                    cur.execute(sql_orderset, (f"%{q}%", limit))
+                    orderset_rows = cur.fetchall()
                 else:
                     print("⚠️ 'order_sets' 테이블이 존재하지 않아 오더셋 검색을 건너뜁니다.")
             except Exception as e:
