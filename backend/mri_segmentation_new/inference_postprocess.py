@@ -231,7 +231,7 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     first_ds = source_images[0]
     use_fallback_series = 'SeriesInstanceUID' not in first_ds
     
-    for ds in source_images:
+    for idx, ds in enumerate(source_images):
         if 'AccessionNumber' not in ds:
             ds.AccessionNumber = ''
         if 'ReferringPhysicianName' not in ds:
@@ -243,6 +243,19 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         # CRITICAL: All images must have the SAME SeriesInstanceUID
         if use_fallback_series or 'SeriesInstanceUID' not in ds:
             ds.SeriesInstanceUID = fallback_series_uid
+        # PixelSpacing is required for spatial measurements
+        if 'PixelSpacing' not in ds:
+            ds.PixelSpacing = [1.0, 1.0]  # Default 1mm spacing
+        # ImageOrientationPatient: standard axial orientation
+        if 'ImageOrientationPatient' not in ds:
+            ds.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+        # ImagePositionPatient: use slice index if missing
+        if 'ImagePositionPatient' not in ds:
+            slice_thickness = float(getattr(ds, 'SliceThickness', 1.0))
+            ds.ImagePositionPatient = [0, 0, idx * slice_thickness]
+        # SliceLocation for ordering
+        if 'SliceLocation' not in ds:
+            ds.SliceLocation = idx * float(getattr(ds, 'SliceThickness', 1.0))
             
     # Validate that all images have the same dimensions (required by highdicom)
     first_rows = source_images[0].Rows
