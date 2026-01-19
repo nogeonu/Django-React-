@@ -222,16 +222,19 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     source_images = [pydicom.dcmread(str(f)) for f in dicom_files]
     
     # 1.1 Meta-data Safety Check: Ensure mandatory tags for highdicom
+    # Generate consistent UIDs once for the whole series if missing
+    fallback_for_uid = UID()
+    fallback_study_uid = UID()
+    
     for ds in source_images:
         if 'AccessionNumber' not in ds:
             ds.AccessionNumber = ''
         if 'ReferringPhysicianName' not in ds:
             ds.ReferringPhysicianName = ''
         if 'FrameOfReferenceUID' not in ds:
-            # Generate a consistent UID if missing (common in anonymized datasets)
-            ds.FrameOfReferenceUID = UID()
+            ds.FrameOfReferenceUID = fallback_for_uid
         if 'StudyInstanceUID' not in ds:
-            ds.StudyInstanceUID = UID()
+            ds.StudyInstanceUID = fallback_study_uid
             
     # Sort by ImagePositionPatient (Z-axis) to ensure correct order matches mask
     # We sort by Instance Number as a robust proxy for Z-ordering in standard series
