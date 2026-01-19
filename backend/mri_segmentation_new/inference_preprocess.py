@@ -17,7 +17,12 @@ def get_inference_transforms():
     Must match the training preprocessing exactly.
     """
     return Compose([
-        LoadImaged(keys=["image"], image_only=False),
+        LoadImaged(
+            keys=["image"], 
+            image_only=False,
+            reader="PydicomReader",  # 원본 DICOM 크기 유지
+            ensure_channel_first=False  # EnsureChannelFirstd에서 처리
+        ),
         EnsureChannelFirstd(keys=["image"]),
         Orientationd(keys=["image"], axcodes="RAS"),
         # Spacingd disabled to keep original DICOM spacing/dimensions
