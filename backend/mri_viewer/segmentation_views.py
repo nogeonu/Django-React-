@@ -1,5 +1,6 @@
 """
-MRI 세그멘테이션 API Views
+MRI 세그멘테이션 API Views (새로운 파이프라인 사용)
+조원 코드 기반으로 재구성
 """
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -11,127 +12,49 @@ import os
 import base64
 import numpy as np
 import pydicom
+import tempfile
+from pathlib import Path
 from .orthanc_client import OrthancClient
+import sys
+
+# 새로운 세그멘테이션 모듈 import
+sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
+from dicom_nifti_converter import dicom_series_to_nifti, nifti_to_dicom_seg
+from inference_pipeline import SegmentationInferencePipeline
 
 logger = logging.getLogger(__name__)
-
-# 세그멘테이션 API 서버 URL (Mosec)
-SEGMENTATION_API_URL = "http://localhost:5006"
 
 # Orthanc 설정
 ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://34.42.223.43:8042')
 ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
+# 모델 경로
+MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation_new" / "checkpoints" / "best_model.pth"
+if not MODEL_PATH.exists():
+    MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation_new" / "best_model.pth"
 
-@api_view(['POST'])
-def mri_segmentation(request, instance_id):
-    """
-    MRI 세그멘테이션 실행 및 Orthanc에 저장
-    
-    POST /api/mri/segmentation/instances/<instance_id>/segment/
-    Body (optional): {
-        "sequence_instance_ids": [id1, id2, id3, id4]  // 4-channel DCE-MRI
-    }
-    """
-    try:
-        # Request body에서 4개 시퀀스 ID 가져오기 (없으면 단일 이미지 모드)
-        sequence_ids = request.data.get('sequence_instance_ids', [instance_id])
-        
-        logger.info(f"🔍 MRI 세그멘테이션 시작: {len(sequence_ids)}개 시퀀스")
-        logger.info(f"   Instance IDs: {sequence_ids}")
-        
-        # 1. Orthanc에서 DICOM 이미지들 가져오기
-        client = OrthancClient()
-        
-        if len(sequence_ids) == 4:
-            # 4-channel DCE-MRI: 4개 시퀀스를 모두 가져와서 전송
-            dicom_data_list = []
-            for seq_id in sequence_ids:
-                dicom_data = client.get_instance_file(seq_id)
-                dicom_data_list.append(dicom_data)
-            
-            # JSON으로 4개 시퀀스 전송
-            import json
-            payload = json.dumps({
-                'sequences': [base64.b64encode(d).decode('utf-8') for d in dicom_data_list]
-            })
-            
-            logger.info(f"📡 4-channel 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
-            
-            seg_response = requests.post(
-                f"{SEGMENTATION_API_URL}/inference",
-                data=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=600
-            )
-        else:
-            # 단일 이미지 모드 (기존 방식)
-            dicom_data = client.get_instance_file(instance_id)
-            
-            logger.info(f"📡 단일 이미지 세그멘테이션 API 호출: {SEGMENTATION_API_URL}/inference")
-            
-            seg_response = requests.post(
-                f"{SEGMENTATION_API_URL}/inference",
-                data=dicom_data,
-                headers={'Content-Type': 'application/octet-stream'},
-                timeout=600
-            )
-        
-        seg_response.raise_for_status()
-        seg_result = seg_response.json()
-        
-        if not seg_result.get('success'):
-            raise Exception(seg_result.get('error', '세그멘테이션 실패'))
-        
-        # 3. 결과 반환 (마스크는 base64로 인코딩되어 있음)
-        response_data = {
-            'success': True,
-            'instance_id': instance_id,
-            'segmentation_mask_base64': seg_result.get('segmentation_mask_base64', ''),
-            'tumor_pixel_count': seg_result.get('tumor_pixel_count', 0),
-            'total_pixel_count': seg_result.get('total_pixel_count', 0),
-            'tumor_ratio_percent': seg_result.get('tumor_ratio_percent', 0.0),
-            'image_size': seg_result.get('image_size', []),
-            'seg_instance_id': seg_result.get('seg_instance_id'),  # Orthanc에 저장된 세그멘테이션 Instance ID
-            'saved_to_orthanc': seg_result.get('saved_to_orthanc', False),
-        }
-        
-        logger.info(f"✅ 세그멘테이션 완료: 종양 비율 {response_data['tumor_ratio_percent']:.2f}%")
-        if response_data['saved_to_orthanc']:
-            logger.info(f"💾 Orthanc 저장 완료: {response_data['seg_instance_id']}")
-        return Response(response_data)
-        
-    except requests.exceptions.Timeout:
-        logger.error("⏱️ 세그멘테이션 API 타임아웃")
-        return Response({
-            'success': False,
-            'instance_id': instance_id,
-            'error': '세그멘테이션 API 타임아웃 (600초 초과)'
-        }, status=status.HTTP_504_GATEWAY_TIMEOUT)
-        
-    except requests.exceptions.ConnectionError:
-        logger.error("🔌 세그멘테이션 API 연결 실패")
-        return Response({
-            'success': False,
-            'instance_id': instance_id,
-            'error': '세그멘테이션 API 서버에 연결할 수 없습니다'
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        
-    except Exception as e:
-        logger.error(f"❌ 세그멘테이션 실패: {str(e)}", exc_info=True)
-        return Response({
-            'success': False,
-            'instance_id': instance_id,
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# 전역 추론 파이프라인 (한 번만 로드)
+_pipeline = None
+
+def get_pipeline():
+    """추론 파이프라인 싱글톤"""
+    global _pipeline
+    if _pipeline is None:
+        logger.info(f"Loading segmentation model from: {MODEL_PATH}")
+        _pipeline = SegmentationInferencePipeline(
+            model_path=str(MODEL_PATH),
+            device="cuda" if os.getenv('USE_GPU', 'false').lower() == 'true' else "cpu",
+            threshold=0.5
+        )
+        logger.info("Model loaded successfully!")
+    return _pipeline
 
 
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
-    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 전체 슬라이스)
-    Sliding Window Inference를 사용하여 96×96×96 모델로 전체 볼륨 처리
+    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 새로운 파이프라인)
     
     POST /api/mri/segmentation/series/<series_id>/segment/
     Body (required): {
@@ -139,7 +62,7 @@ def segment_series(request, series_id):
     }
     """
     try:
-        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
+        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작 (새 파이프라인): series_id={series_id}")
         
         client = OrthancClient()
         
@@ -154,77 +77,183 @@ def segment_series(request, series_id):
                          "Seq0, Seq1, Seq2, SeqLast 시리즈가 모두 선택되어야 합니다."
             }, status=400)
         
-        # 현재 시리즈 정보 가져오기 (UI에서 선택된 메인 시리즈)
-        main_series_info = client.get(f"/series/{series_id}")
-        main_instances = main_series_info.get("Instances", [])
-        total_slices = len(main_instances)
+        # 각 시퀀스의 모든 슬라이스 DICOM 파일 다운로드
+        logger.info("📥 Orthanc에서 4개 시퀀스의 DICOM 파일 다운로드 중...")
+        dicom_sequences = []  # [[seq1_slice1, seq1_slice2, ...], [seq2_slice1, ...], ...]
         
-        if total_slices < 1:
-            return Response({
-                "success": False,
-                "error": f"슬라이스가 없습니다 (현재 {total_slices}개)"
-            }, status=400)
-        
-        # 세그멘테이션을 위한 고유 Series UID 생성
-        from pydicom.uid import generate_uid
-        seg_series_uid = generate_uid()
-        
-        logger.info(f"🚀 세그멘테이션 Series UID: {seg_series_uid}")
-        logger.info(f"📍 전체 슬라이스 처리: 0~{total_slices-1}번 ({total_slices}개) - Sliding Window 사용")
-        
-        # 4개 시퀀스에서 전체 슬라이스의 Instance ID 수집
-        orthanc_instance_ids = []  # [4][total_slices] 형태 (각 요소는 Orthanc Instance ID)
-        
-        for seq_idx, current_seq_series_id in enumerate(sequence_series_ids):
-            seq_info = client.get(f"/series/{current_seq_series_id}")
+        for seq_idx, seq_series_id in enumerate(sequence_series_ids):
+            seq_info = client.get(f"/series/{seq_series_id}")
             seq_instances = seq_info.get("Instances", [])
             
-            if len(seq_instances) != total_slices:
-                logger.warning(f"⚠️ 시퀀스 {seq_idx+1}의 슬라이스 수가 다릅니다: {len(seq_instances)} vs {total_slices}")
+            if len(seq_instances) == 0:
+                return Response({
+                    "success": False,
+                    "error": f"시퀀스 {seq_idx+1}에 슬라이스가 없습니다."
+                }, status=400)
             
-            # 전체 슬라이스 선택 (96개 제한 제거)
-            selected_instances = seq_instances  # 전체 슬라이스
-            orthanc_instance_ids.append(selected_instances)  # Instance ID 목록만 저장
+            # 각 인스턴스의 DICOM 파일 다운로드
+            seq_dicom_files = []
+            for instance_id in seq_instances:
+                dicom_bytes = client.get_instance_file(instance_id)
+                seq_dicom_files.append(dicom_bytes)
             
-            logger.info(f"✅ 시퀀스 {seq_idx+1}/4 Instance ID 수집 완료: {len(selected_instances)}개")
+            dicom_sequences.append(seq_dicom_files)
+            logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_dicom_files)}개 슬라이스 다운로드 완료")
         
-        # Mosec에 Orthanc Instance ID 목록만 전송 (작은 payload, 몇 KB)
-        logger.info(f"📡 Mosec으로 Orthanc Instance ID 전송 중...")
+        # 1. DICOM → NIfTI 변환
+        logger.info("🔄 DICOM → NIfTI 변환 중...")
+        with tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False) as tmp_nifti:
+            nifti_path = tmp_nifti.name
         
-        payload = {
-            "orthanc_instance_ids": orthanc_instance_ids,  # [4][96] Instance ID 목록
-            "orthanc_url": ORTHANC_URL,
-            "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
-            "seg_series_uid": seg_series_uid,
-            "original_series_id": series_id,
-            "start_instance_number": 1,  # 전체 슬라이스 처리
-            "total_slices": total_slices  # 전체 슬라이스 수 전달
-        }
+        try:
+            nifti_path, metadata = dicom_series_to_nifti(
+                dicom_sequences=dicom_sequences,
+                output_path=nifti_path
+            )
+            logger.info(f"✅ NIfTI 변환 완료: {nifti_path}, Shape: {metadata['shape']}")
+        except Exception as e:
+            logger.error(f"❌ DICOM → NIfTI 변환 실패: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "error": f"DICOM → NIfTI 변환 실패: {str(e)}"
+            }, status=500)
         
-        logger.info(f"📦 Payload 크기: {len(orthanc_instance_ids)}개 시퀀스")
-        logger.info(f"📦 첫 번째 시퀀스 Instance ID 샘플: {orthanc_instance_ids[0][:3] if orthanc_instance_ids else 'None'}")
+        # 2. 세그멘테이션 추론
+        logger.info("🧠 세그멘테이션 추론 시작...")
+        pipeline = get_pipeline()
         
-        seg_response = requests.post(
-            f"{SEGMENTATION_API_URL}/inference",
-            json=payload,
-            timeout=2400  # 40분 (CPU 추론 시간 고려: Orthanc 다운로드 + 세그멘테이션 + 업로드)
-        )
+        with tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False) as tmp_seg:
+            seg_nifti_path = tmp_seg.name
         
-        seg_response.raise_for_status()
-        result = seg_response.json()
+        try:
+            result = pipeline.predict(
+                image_path=nifti_path,
+                output_path=seg_nifti_path
+            )
+            logger.info(f"✅ 세그멘테이션 완료: Tumor detected={result['tumor_detected']}, Volume={result['tumor_volume_voxels']} voxels")
+        except Exception as e:
+            logger.error(f"❌ 세그멘테이션 추론 실패: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "error": f"세그멘테이션 추론 실패: {str(e)}"
+            }, status=500)
+        finally:
+            # 임시 NIfTI 파일 정리
+            try:
+                os.unlink(nifti_path)
+            except:
+                pass
         
-        logger.info(f"✅ 세그멘테이션 완료!")
+        # 3. NIfTI → DICOM SEG 변환
+        logger.info("🔄 NIfTI → DICOM SEG 변환 중...")
+        
+        # 참조 DICOM 파일들을 임시 파일로 저장
+        reference_dicom_paths = []
+        try:
+            for slice_bytes in dicom_sequences[0]:  # 첫 번째 시퀀스 사용
+                tmp_dicom = tempfile.NamedTemporaryFile(suffix='.dcm', delete=False)
+                tmp_dicom.write(slice_bytes)
+                tmp_dicom.close()
+                reference_dicom_paths.append(tmp_dicom.name)
+            
+            with tempfile.NamedTemporaryFile(suffix='.dcm', delete=False) as tmp_seg_dicom:
+                seg_dicom_path = tmp_seg_dicom.name
+            
+            try:
+                seg_dicom_path = nifti_to_dicom_seg(
+                    nifti_mask_path=seg_nifti_path,
+                    reference_dicom_paths=reference_dicom_paths,
+                    output_path=seg_dicom_path
+                )
+                logger.info(f"✅ DICOM SEG 변환 완료: {seg_dicom_path}")
+            except Exception as e:
+                logger.error(f"❌ NIfTI → DICOM SEG 변환 실패: {e}", exc_info=True)
+                # pydicom-seg가 없을 수 있으므로 fallback 사용
+                logger.warning("pydicom-seg 변환 실패, utils.py의 nifti_to_dicom_slices 사용")
+                from .utils import nifti_to_dicom_slices
+                from io import BytesIO
+                import nibabel as nib
+                
+                # NIfTI를 DICOM 슬라이스로 변환
+                nifti_img = nib.load(seg_nifti_path)
+                seg_volume = nifti_img.get_fdata()
+                
+                # 첫 번째 시퀀스의 첫 번째 DICOM에서 환자 정보 추출
+                first_dicom = pydicom.dcmread(io.BytesIO(dicom_sequences[0][0]))
+                patient_id = str(first_dicom.get('PatientID', ''))
+                patient_name = str(first_dicom.get('PatientName', ''))
+                
+                # NIfTI를 DICOM 슬라이스로 변환
+                nifti_bytesio = BytesIO()
+                nib.save(nifti_img, nifti_bytesio)
+                nifti_bytesio.seek(0)
+                
+                dicom_slices = nifti_to_dicom_slices(
+                    nifti_bytesio,
+                    patient_id=patient_id,
+                    patient_name=patient_name,
+                    image_type='MRI 영상',
+                    orthanc_client=client
+                )
+                
+                # DICOM 슬라이스를 Orthanc에 업로드
+                seg_instance_id = None
+                for dicom_slice in dicom_slices:
+                    upload_result = client.upload_dicom(dicom_slice)
+                    if seg_instance_id is None:
+                        seg_instance_id = upload_result.get('ID')
+                
+                logger.info(f"✅ DICOM 슬라이스로 변환 및 업로드 완료: {seg_instance_id}")
+                
+                return Response({
+                    'success': True,
+                    'series_id': series_id,
+                    'total_slices': len(dicom_sequences[0]),
+                    'tumor_detected': result['tumor_detected'],
+                    'tumor_volume_voxels': result['tumor_volume_voxels'],
+                    'seg_instance_id': seg_instance_id,
+                    'saved_to_orthanc': True
+                })
+        finally:
+            # 임시 파일 정리
+            try:
+                os.unlink(seg_nifti_path)
+                for path in reference_dicom_paths:
+                    os.unlink(path)
+            except:
+                pass
+        
+        # 4. DICOM SEG를 Orthanc에 업로드
+        logger.info("📤 DICOM SEG를 Orthanc에 업로드 중...")
+        try:
+            with open(seg_dicom_path, 'rb') as f:
+                seg_dicom_bytes = f.read()
+            
+            upload_result = client.upload_dicom(seg_dicom_bytes)
+            seg_instance_id = upload_result.get('ID')
+            
+            logger.info(f"✅ Orthanc 업로드 완료: {seg_instance_id}")
+        except Exception as e:
+            logger.error(f"❌ Orthanc 업로드 실패: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "error": f"Orthanc 업로드 실패: {str(e)}"
+            }, status=500)
+        finally:
+            # 임시 DICOM SEG 파일 정리
+            try:
+                os.unlink(seg_dicom_path)
+            except:
+                pass
         
         return Response({
             'success': True,
             'series_id': series_id,
-            'total_slices': total_slices,  # 전체 슬라이스 수
-            'successful_slices': result.get('successful_slices', total_slices),  # 세그멘테이션 성공한 슬라이스 수
-            'start_slice_index': 0,  # 시작 슬라이스 인덱스 (전체 처리)
-            'end_slice_index': total_slices - 1,  # 끝 슬라이스 인덱스
-            'seg_instance_id': result.get('seg_instance_id'),
-            'tumor_ratio_percent': result.get('tumor_ratio_percent', 0),
-            'saved_to_orthanc': result.get('saved_to_orthanc', False)
+            'total_slices': len(dicom_sequences[0]),
+            'tumor_detected': result['tumor_detected'],
+            'tumor_volume_voxels': result['tumor_volume_voxels'],
+            'seg_instance_id': seg_instance_id,
+            'saved_to_orthanc': True
         })
         
     except Exception as e:
@@ -237,69 +266,22 @@ def segment_series(request, series_id):
 
 
 @api_view(['GET'])
-def segmentation_health(request):
-    """
-    세그멘테이션 API 서버 상태 확인
-    
-    GET /api/mri/segmentation/health/
-    """
-    try:
-        response = requests.get(f"{SEGMENTATION_API_URL}/", timeout=5)
-        response.raise_for_status()
-        
-        # Mosec은 "MOSEC service" 텍스트만 반환
-        if "MOSEC" in response.text:
-            return Response({
-                'success': True,
-                'status': 'healthy',
-                'service': 'Mosec Segmentation',
-                'orthanc_url': ORTHANC_URL
-            })
-        else:
-            return Response({
-                'success': False,
-                'status': 'unknown',
-                'response': response.text
-            })
-    except Exception as e:
-        return Response({
-            'success': False,
-            'status': 'unavailable',
-            'error': str(e)
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-
-@api_view(['GET'])
 def get_segmentation_frames(request, seg_instance_id):
     """
     DICOM SEG 파일에서 모든 프레임을 추출하여 반환
     
     GET /api/mri/segmentation/instances/<seg_instance_id>/frames/
-    
-    Returns:
-        {
-            "success": true,
-            "num_frames": 96,
-            "frames": [
-                {"index": 0, "mask_base64": "..."},
-                {"index": 1, "mask_base64": "..."},
-                ...
-            ]
-        }
     """
     try:
         logger.info(f"🔍 DICOM SEG 프레임 추출 시작: {seg_instance_id}")
         
+        client = OrthancClient()
+        
         # Orthanc에서 DICOM SEG 파일 다운로드
-        response = requests.get(
-            f"{ORTHANC_URL}/instances/{seg_instance_id}/file",
-            auth=(ORTHANC_USER, ORTHANC_PASSWORD),
-            timeout=30
-        )
-        response.raise_for_status()
+        seg_dicom_bytes = client.get_instance_file(seg_instance_id)
         
         # DICOM 파일 파싱
-        dicom_data = io.BytesIO(response.content)
+        dicom_data = io.BytesIO(seg_dicom_bytes)
         ds = pydicom.dcmread(dicom_data, force=True)
         
         # NumberOfFrames 확인
@@ -321,40 +303,31 @@ def get_segmentation_frames(request, seg_instance_id):
         for i in range(num_frames):
             start_idx = i * frame_size
             end_idx = start_idx + frame_size
-            frame_data = pixel_array[start_idx:end_idx]
+            frame_data = pixel_array[start_idx:end_idx].reshape(rows, cols)
             
-            # 2D 배열로 reshape
-            frame_2d = frame_data.reshape(rows, cols)
-            
-            # PNG로 인코딩 (더 효율적)
+            # PNG로 인코딩
             from PIL import Image
-            img = Image.fromarray(frame_2d, mode='L')
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='PNG')
-            img_base64 = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+            img = Image.fromarray(frame_data, mode='L')
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            mask_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
             frames.append({
                 "index": i,
-                "mask_base64": img_base64
+                "mask_base64": mask_base64
             })
-            
-            if (i + 1) % 20 == 0:
-                logger.info(f"  {i + 1}/{num_frames} 프레임 처리 완료")
         
-        logger.info(f"✅ {num_frames}개 프레임 추출 완료")
+        logger.info(f"✅ {len(frames)}개 프레임 추출 완료")
         
         return Response({
-            'success': True,
-            'num_frames': num_frames,
-            'rows': rows,
-            'cols': cols,
-            'frames': frames
+            "success": True,
+            "num_frames": len(frames),
+            "frames": frames
         })
         
     except Exception as e:
         logger.error(f"❌ 프레임 추출 실패: {str(e)}", exc_info=True)
         return Response({
-            'success': False,
-            'error': str(e)
+            "success": False,
+            "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

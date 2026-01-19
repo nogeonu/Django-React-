@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+*.pth
+*.pt
+.env
+.venv
+venv/
+*.log
+.git/
+.gitignore
+README.md
+DEPLOYMENT.md
+CHECKLIST.md
