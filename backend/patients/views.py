@@ -96,40 +96,61 @@ class PatientLoginView(APIView):
     authentication_classes: list = []
 
     def post(self, request):
-        account_id = request.data.get("account_id", "").strip()
-        password = request.data.get("password", "")
-
-        if not account_id or not password:
-            return Response(
-                {"detail": "계정 ID와 비밀번호를 모두 입력해주세요."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
-            user = PatientUser.objects.get(account_id=account_id)
-        except PatientUser.DoesNotExist:
-            return Response(
-                {"detail": "계정 ID 또는 비밀번호가 올바르지 않습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            account_id = request.data.get("account_id", "").strip()
+            password = request.data.get("password", "")
 
-        if not user.check_password(password):
-            return Response(
-                {"detail": "계정 ID 또는 비밀번호가 올바르지 않습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            if not account_id or not password:
+                return Response(
+                    {"detail": "계정 ID와 비밀번호를 모두 입력해주세요."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        return Response(
-            {
-                "message": "로그인에 성공했습니다.",
-                "account_id": user.account_id,
-                "patient_id": user.patient_id,
-                "name": user.name,
-                "email": user.email,
-                "phone": user.phone,
-            },
-            status=status.HTTP_200_OK,
-        )
+            try:
+                user = PatientUser.objects.get(account_id=account_id)
+            except PatientUser.DoesNotExist:
+                return Response(
+                    {"detail": "계정 ID 또는 비밀번호가 올바르지 않습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except Exception as e:
+                logger.error(f"환자 로그인 - 사용자 조회 오류: {type(e).__name__}: {str(e)}", exc_info=True)
+                return Response(
+                    {"detail": "로그인 처리 중 오류가 발생했습니다."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            try:
+                if not user.check_password(password):
+                    return Response(
+                        {"detail": "계정 ID 또는 비밀번호가 올바르지 않습니다."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except Exception as e:
+                logger.error(f"환자 로그인 - 비밀번호 확인 오류: {type(e).__name__}: {str(e)}", exc_info=True)
+                return Response(
+                    {"detail": "로그인 처리 중 오류가 발생했습니다."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # 안전하게 필드 접근
+            return Response(
+                {
+                    "message": "로그인에 성공했습니다.",
+                    "account_id": getattr(user, 'account_id', ''),
+                    "patient_id": getattr(user, 'patient_id', None),
+                    "name": getattr(user, 'name', ''),
+                    "email": getattr(user, 'email', ''),
+                    "phone": getattr(user, 'phone', ''),
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.error(f"환자 로그인 - 예상치 못한 오류: {type(e).__name__}: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "로그인 처리 중 오류가 발생했습니다."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class PatientProfileView(APIView):
