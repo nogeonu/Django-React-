@@ -310,19 +310,24 @@ def get_segmentation_frames(request, seg_instance_id):
         
         logger.info(f"📊 DICOM SEG 정보: {num_frames} frames, {rows}×{cols}")
         
-        # PixelData 추출
-        if not hasattr(ds, 'PixelData'):
-            raise Exception("PixelData가 없습니다")
-        
-        pixel_array = np.frombuffer(ds.PixelData, dtype=np.uint8)
-        frame_size = rows * cols
+        # PixelData 추출 - pydicom 사용 (1-bit 압축 자동 처리)
+        try:
+            pixel_array = ds.pixel_array  # pydicom이 자동으로 언팩
+            if pixel_array.ndim == 2:
+                pixel_array = pixel_array[np.newaxis, ...]
+            logger.info(f"   Pixel array shape: {pixel_array.shape}")
+        except:
+            # Fallback
+            pixel_data = np.frombuffer(ds.PixelData, dtype=np.uint8)
+            if ds.BitsAllocated == 1:
+                pixel_array = np.unpackbits(pixel_data).reshape(num_frames, rows, cols)
+            else:
+                pixel_array = pixel_data.reshape(num_frames, rows, cols)
         
         # 각 프레임을 base64로 인코딩
         frames = []
         for i in range(num_frames):
-            start_idx = i * frame_size
-            end_idx = start_idx + frame_size
-            frame_data = pixel_array[start_idx:end_idx].reshape(rows, cols)
+            frame_data = (pixel_array[i] > 0).astype(np.uint8) * 255
             
             # PNG로 인코딩
             from PIL import Image
