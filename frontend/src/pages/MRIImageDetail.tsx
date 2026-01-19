@@ -549,7 +549,7 @@ export default function MRIImageDetail() {
               </Badge>
               {currentImages.length > 0 && (
               <Badge className="bg-gray-800 text-gray-300 border border-gray-700 px-4 py-2 rounded-xl">
-                  {selectedImageIndex + 1} / {currentImages.length}
+                  슬라이스: {(selectedImageIndex ?? 0) + 1} / {currentImages.length || 0}
               </Badge>
               )}
 
