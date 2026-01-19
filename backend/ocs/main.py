@@ -17,7 +17,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from drug_dictionary import get_english_name # 사전 기반 성분 변환
 
-load_dotenv()
+# .env 파일 경로 명시적으로 지정 (현재 파일 기준 상대 경로)
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
+# 상위 디렉토리의 .env도 확인
+if not os.path.exists(env_path):
+    parent_env = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    load_dotenv(parent_env)
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 3306))
