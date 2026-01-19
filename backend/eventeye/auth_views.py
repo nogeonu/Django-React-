@@ -34,42 +34,16 @@ def me(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Unauthorized"}, status=401)
     user = request.user
-    try:
-        # doctor_id와 department 안전하게 가져오기
-        doctor_id = None
-        department = None
-        try:
-            doctor_id = get_doctor_id(user.id)
-        except Exception as e:
-            print(f"Warning: Failed to get doctor_id for user {user.id}: {e}")
-        
-        try:
-            department = get_department(user.id)
-        except Exception as e:
-            print(f"Warning: Failed to get department for user {user.id}: {e}")
-        
-        # role 안전하게 가져오기
-        try:
-            role = get_role_from_user(user)
-        except Exception as e:
-            print(f"Warning: Failed to get role for user {user.id}: {e}")
-            role = "admin_staff"  # 기본값
-        
-        return JsonResponse({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": getattr(user, 'first_name', ''),
-            "last_name": getattr(user, 'last_name', ''),
-            "role": role,
-            "doctor_id": doctor_id,
-            "department": department,
-        })
-    except Exception as e:
-        import traceback
-        print(f"Me endpoint error: {e}")
-        print(traceback.format_exc())
-        return JsonResponse({"detail": f"Failed to get user info: {str(e)}"}, status=500)
+    return JsonResponse({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": getattr(user, 'first_name', ''),
+        "last_name": getattr(user, 'last_name', ''),
+        "role": get_role_from_user(user),
+        "doctor_id": get_doctor_id(user.id),
+        "department": get_department(user.id),
+    })
 
 
 @csrf_exempt
@@ -90,43 +64,19 @@ def login(request):
     if user is None:
         return JsonResponse({"detail": "Invalid credentials"}, status=401)
 
-    try:
-        # role 안전하게 가져오기
-        try:
-            actual_role = get_role_from_user(user)
-        except Exception as e:
-            print(f"Warning: Failed to get role for user {user.id}: {e}")
-            actual_role = "admin_staff"  # 기본값
-        
-        # doctor_id와 department 안전하게 가져오기
-        doctor_id = None
-        department = None
-        try:
-            doctor_id = get_doctor_id(user.id)
-        except Exception as e:
-            print(f"Warning: Failed to get doctor_id for user {user.id}: {e}")
-        
-        try:
-            department = get_department(user.id)
-        except Exception as e:
-            print(f"Warning: Failed to get department for user {user.id}: {e}")
+    actual_role = get_role_from_user(user)
 
-        django_login(request, user)
-        return JsonResponse({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": getattr(user, 'first_name', ''),
-            "last_name": getattr(user, 'last_name', ''),
-            "role": actual_role,
-            "doctor_id": doctor_id,
-            "department": department,
-        })
-    except Exception as e:
-        import traceback
-        print(f"Login error: {e}")
-        print(traceback.format_exc())
-        return JsonResponse({"detail": f"Login failed: {str(e)}"}, status=500)
+    django_login(request, user)
+    return JsonResponse({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": getattr(user, 'first_name', ''),
+        "last_name": getattr(user, 'last_name', ''),
+        "role": actual_role,
+        "doctor_id": get_doctor_id(user.id),
+        "department": get_department(user.id),
+    })
 
 
 @csrf_exempt
