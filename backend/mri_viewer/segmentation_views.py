@@ -151,15 +151,20 @@ def segmentation_health(request):
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
-    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 새로운 파이프라인)
+    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (MAMA-MIA 파이프라인)
     
     POST /api/mri/segmentation/series/<series_id>/segment/
     Body (required): {
         "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]  // 4-channel 필수
     }
     """
+    import tempfile
+    import shutil
+    from pathlib import Path
+    import sys
+    
     try:
-        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작 (새 파이프라인): series_id={series_id}")
+        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작 (MAMA-MIA): series_id={series_id}")
         
         client = OrthancClient()
         
@@ -170,16 +175,18 @@ def segment_series(request, series_id):
         if len(sequence_series_ids) != 4:
             return Response({
                 "success": False,
-                "error": "4개 시리즈가 모두 필요합니다. DCE-MRI 세그멘테이션을 위해서는 "
-                         "Seq0, Seq1, Seq2, SeqLast 시리즈가 모두 선택되어야 합니다."
+                "error": "4개 시리즈가 모두 필요합니다. DCE-MRI 세그멘테이션을 위해서는 Seq0, Seq1, Seq2, SeqLast 시리즈가 모두 선택되어야 합니다."
             }, status=400)
         
-        # 각 시퀀스의 모든 슬라이스 DICOM 파일 다운로드 (기존 Orthanc 로직 유지)
-        logger.info("📥 Orthanc에서 4개 시퀀스의 DICOM 파일 다운로드 중...")
-        dicom_sequences = []  # [[seq1_slice1, seq1_slice2, ...], [seq2_slice1, ...], ...]
-        reference_dicom_dir = None  # 첫 번째 시퀀스 (DICOM SEG 참조용)
+        # 임시 디렉토리 생성 (DICOM 파일 저장용)
+        temp_dir = tempfile.mkdtemp(prefix="mri_seg_")
+        reference_dicom_dir = None
+        seg_dicom_path = None
         
         try:
+            # 1. Orthanc에서 4개 시퀀스의 DICOM 파일 다운로드 및 저장
+            logger.info("📥 Orthanc에서 4개 시퀀스의 DICOM 응답 대기/다운로드 중...")
+            
             for seq_idx, seq_series_id in enumerate(sequence_series_ids):
                 seq_info = client.get(f"/series/{seq_series_id}")
                 seq_instances = seq_info.get("Instances", [])
@@ -190,161 +197,73 @@ def segment_series(request, series_id):
                         "error": f"시퀀스 {seq_idx+1}에 슬라이스가 없습니다."
                     }, status=400)
                 
-                # 각 인스턴스의 DICOM 파일 다운로드
-                seq_dicom_files = []
-                for instance_id in seq_instances:
+                # 시퀀스별 디렉토리 생성
+                seq_dir = Path(temp_dir) / f"seq_{seq_idx:02d}"
+                seq_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 각 인스턴스의 DICOM 파일 저장
+                for inst_idx, instance_id in enumerate(seq_instances):
                     dicom_bytes = client.get_instance_file(instance_id)
-                    seq_dicom_files.append(dicom_bytes)
-                
-                dicom_sequences.append(seq_dicom_files)
-                logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_dicom_files)}개 슬라이스 다운로드 완료")
-            
-            # 1. DICOM → 4채널 NIfTI 변환 (새로운 파이프라인 입력 형식)
-            logger.info("🔄 DICOM → 4채널 NIfTI 변환 중...")
-            # 지연 import
-            sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
-            from dicom_nifti_converter import dicom_series_to_nifti
-            
-            with tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False) as tmp_nifti:
-                nifti_path = tmp_nifti.name
-            
-            try:
-                nifti_path, metadata = dicom_series_to_nifti(
-                    dicom_sequences=dicom_sequences,
-                    output_path=nifti_path
-                )
-                logger.info(f"✅ NIfTI 변환 완료: {nifti_path}, Shape: {metadata['shape']}")
-            except Exception as e:
-                logger.error(f"❌ DICOM → NIfTI 변환 실패: {e}", exc_info=True)
-                return Response({
-                    "success": False,
-                    "error": f"DICOM → NIfTI 변환 실패: {str(e)}"
-                }, status=500)
-            
-            # 2. 세그멘테이션 추론 (새로운 MAMA_MIA 파이프라인 사용)
-            logger.info("🧠 세그멘테이션 추론 시작 (MAMA_MIA 파이프라인)...")
-            pipeline = get_pipeline()
-            
-            # 임시 출력 경로
-            with tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False) as tmp_seg:
-                seg_nifti_path = tmp_seg.name
-            
-            try:
-                # 새로운 파이프라인: 4채널 NIfTI 파일을 입력으로 받음
-                result = pipeline.predict(
-                    image_path=nifti_path,  # 4채널 NIfTI 파일 경로
-                    output_path=seg_nifti_path,
-                    return_probabilities=False,
-                    output_format="nifti"
-                )
-                
-                # 세그멘테이션 마스크 확인
-                import nibabel as nib
-                seg_nifti = nib.load(seg_nifti_path)
-                seg_mask = seg_nifti.get_fdata().astype(np.uint8)  # [H, W, D]
-                seg_shape = seg_mask.shape
-                
-                logger.info(f"✅ 세그멘테이션 완료: Tumor detected={result['tumor_detected']}, Volume={result['tumor_volume_voxels']} voxels")
-                logger.info(f"📊 세그멘테이션 마스크 shape: {seg_shape}")
-                
-            except Exception as e:
-                logger.error(f"❌ 세그멘테이션 추론 실패: {e}", exc_info=True)
-                return Response({
-                    "success": False,
-                    "error": f"세그멘테이션 추론 실패: {str(e)}"
-                }, status=500)
-            finally:
-                # 임시 NIfTI 파일 정리
-                try:
-                    os.unlink(nifti_path)
-                except:
-                    pass
-            
-            # 3. 참조 DICOM 파일들을 임시 폴더에 저장 (DICOM SEG 생성용)
-            reference_dicom_dir = tempfile.mkdtemp()
-            try:
-                for idx, slice_bytes in enumerate(dicom_sequences[0]):  # 첫 번째 시퀀스 사용
-                    dicom_path = os.path.join(reference_dicom_dir, f"slice_{idx:04d}.dcm")
+                    dicom_path = seq_dir / f"slice_{inst_idx:04d}.dcm"
                     with open(dicom_path, 'wb') as f:
-                        f.write(slice_bytes)
+                        f.write(dicom_bytes)
+                
+                # 첫 번째 시퀀스를 참조 DICOM으로 사용
+                if seq_idx == 0:
+                    reference_dicom_dir = str(seq_dir)
+                
+                logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_instances)}개 슬라이스 저장 완료")
             
-                # 4. DICOM SEG 변환
-                logger.info("🔄 DICOM SEG 변환 중...")
-                
-                with tempfile.NamedTemporaryFile(suffix='.dcm', delete=False) as tmp_seg_dicom:
-                    seg_dicom_path = tmp_seg_dicom.name
-                
-                try:
-                    # 지연 import
-                    sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
-                    from inference_postprocess import save_as_dicom_seg
-                    
-                    # 새로운 save_as_dicom_seg 함수 사용
-                    save_as_dicom_seg(
-                        mask=seg_mask,
-                        output_path=seg_dicom_path,
-                        reference_dicom_path=reference_dicom_dir,
-                        prediction_label="Tumor"
-                    )
-                    logger.info(f"✅ DICOM SEG 변환 완료: {seg_dicom_path}")
-                except Exception as e:
-                    logger.error(f"❌ DICOM SEG 변환 실패: {e}", exc_info=True)
-                    return Response({
-                        "success": False,
-                        "error": f"DICOM SEG 변환 실패: {str(e)}"
-                    }, status=500)
-                
-                # 5. DICOM SEG를 Orthanc에 업로드 (기존 로직 유지)
-                logger.info("📤 DICOM SEG를 Orthanc에 업로드 중...")
-                try:
-                    with open(seg_dicom_path, 'rb') as f:
-                        seg_dicom_bytes = f.read()
-                    
-                    upload_result = client.upload_dicom(seg_dicom_bytes)
-                    seg_instance_id = upload_result.get('ID')
-                    
-                    logger.info(f"✅ Orthanc 업로드 완료: {seg_instance_id}")
-                except Exception as e:
-                    logger.error(f"❌ Orthanc 업로드 실패: {e}", exc_info=True)
-                    return Response({
-                        "success": False,
-                        "error": f"Orthanc 업로드 실패: {str(e)}"
-                    }, status=500)
-                finally:
-                    # 임시 DICOM SEG 파일 정리
-                    try:
-                        os.unlink(seg_dicom_path)
-                    except:
-                        pass
-                
-                # 슬라이스 수 계산
-                total_slices = len(dicom_sequences[0])
-                successful_slices = total_slices
-                
+            # 2. MAMA-MIA 모델 로드 및 추론
+            logger.info("� MAMA-MIA 파이프라인 로드 및 추론 준비...")
+            
+            # 지연 import 및 경로 설정
+            pipeline_path = Path(__file__).parent.parent / "mri_segmentation_new"
+            if str(pipeline_path) not in sys.path:
+                sys.path.insert(0, str(pipeline_path))
+            
+            from inference_pipeline import SegmentationInferencePipeline
+            
+            # 모델 경로 재확인 (v2: checkpoints 폴더 고려)
+            model_path = pipeline_path / "checkpoints" / "best_model.pth"
+            if not model_path.exists():
+                model_path = pipeline_path / "best_model.pth"
+            
+            if not model_path.exists():
+                logger.error(f"❌ 모델 파일을 찾을 수 없습니다: {model_path}")
                 return Response({
-                    'success': True,
-                    'series_id': series_id,
-                    'total_slices': total_slices,
-                    'successful_slices': successful_slices,
-                    'tumor_detected': result['tumor_detected'],
-                    'tumor_volume_voxels': result['tumor_volume_voxels'],
-                    'seg_instance_id': seg_instance_id,
-                    'saved_to_orthanc': True
-                })
+                    "success": False,
+                    "error": "세그멘테이션 모델 파일을 찾을 수 없습니다. (/mri_segmentation_new/checkpoints/best_model.pth)"
+                }, status=500)
+            
+            # 파이프라인 초기화 (CPU 모드 기본, 필요시 USE_GPU 환경변수 사용)
+            device = "cuda" if os.getenv('USE_GPU', 'false').lower() == 'true' else "cpu"
+            pipeline = SegmentationInferencePipeline(
+                model_path=str(model_path),
+                device=device,
+                threshold=0.5
+            )
+            
+            # 3. 추론 실행 (DICOM SEG 출력)
+            logger.info("🔄 세그멘테이션 추론 중 (이 작업은 CPU에서 약 10~20초 소요될 수 있습니다)...")
+            
+            seg_dicom_path = Path(temp_dir) / "segmentation.dcm"
+            
+            # MAMA-MIA predict는 image_path가 폴더이면 내부의 시퀀스를 찾아 처리함
+            result = pipeline.predict(
+                image_path=temp_dir,  # 4개 seq_XX 폴더가 있는 루트 임시 폴더
+                output_path=str(seg_dicom_path),
+                output_format="dicom"
+            )
+            
+            logger.info(f"✅ 추론 완료: tumor_detected={result['tumor_detected']}, volume={result['tumor_volume_voxels']} voxels")
+            
+            # 4. DICOM SEG를 Orthanc에 업로드
+            logger.info("📤 DICOM SEG를 Orthanc에 업로드 중...")
+            
+            if not seg_dicom_path.exists():
+                raise Exception("세그멘테이션 결과 파일(DICOM SEG)이 생성되지 않았습니다.")
                 
-            finally:
-                # 임시 파일 정리
-                try:
-                    if seg_nifti_path and os.path.exists(seg_nifti_path):
-                        os.unlink(seg_nifti_path)
-                    if reference_dicom_dir and os.path.exists(reference_dicom_dir):
-                        shutil.rmtree(reference_dicom_dir)
-                except Exception as cleanup_error:
-                    logger.warning(f"임시 파일 정리 중 오류: {cleanup_error}")
-        
-        # 4. DICOM SEG를 Orthanc에 업로드
-        logger.info("📤 DICOM SEG를 Orthanc에 업로드 중...")
-        try:
             with open(seg_dicom_path, 'rb') as f:
                 seg_dicom_bytes = f.read()
             
@@ -352,37 +271,29 @@ def segment_series(request, series_id):
             seg_instance_id = upload_result.get('ID')
             
             logger.info(f"✅ Orthanc 업로드 완료: {seg_instance_id}")
-        except Exception as e:
-            logger.error(f"❌ Orthanc 업로드 실패: {e}", exc_info=True)
+            
+            # 5. 결과 반환
             return Response({
-                "success": False,
-                "error": f"Orthanc 업로드 실패: {str(e)}"
-            }, status=500)
+                'success': True,
+                'series_id': series_id,
+                'tumor_detected': result['tumor_detected'],
+                'tumor_volume_voxels': result['tumor_volume_voxels'],
+                'seg_instance_id': seg_instance_id,
+                'saved_to_orthanc': True
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ 작업 도중 오류 발생: {str(e)}", exc_info=True)
+            raise
         finally:
-            # 임시 DICOM SEG 파일 정리
+            # 임시 파일 정리
             try:
-                os.unlink(seg_dicom_path)
-            except:
-                pass
-        
-        # 세그멘테이션 마스크의 실제 슬라이스 수 확인 (이미 위에서 로드했으므로 재사용)
-        total_slices = len(dicom_sequences[0])
-        # 세그멘테이션이 성공했다면 모든 슬라이스가 처리된 것으로 간주
-        # 실제로는 세그멘테이션 마스크의 shape를 확인하여 정확한 수를 계산할 수 있지만,
-        # 일반적으로 세그멘테이션이 성공하면 원본 슬라이스 수와 동일함
-        successful_slices = total_slices
-        
-        return Response({
-            'success': True,
-            'series_id': series_id,
-            'total_slices': total_slices,
-            'successful_slices': successful_slices,
-            'tumor_detected': result['tumor_detected'],
-            'tumor_volume_voxels': result['tumor_volume_voxels'],
-            'seg_instance_id': seg_instance_id,
-            'saved_to_orthanc': True
-        })
-        
+                if temp_dir and Path(temp_dir).exists():
+                    shutil.rmtree(temp_dir)
+                    logger.info("🧹 임시 파일 정리 완료")
+            except Exception as cleanup_error:
+                logger.warning(f"임시 파일 정리 중 오류: {cleanup_error}")
+    
     except Exception as e:
         logger.error(f"❌ 시리즈 세그멘테이션 실패: {str(e)}", exc_info=True)
         return Response({
@@ -390,6 +301,7 @@ def segment_series(request, series_id):
             'series_id': series_id,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 @api_view(['GET'])
