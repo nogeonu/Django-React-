@@ -52,99 +52,6 @@ def get_pipeline():
 
 
 @api_view(['POST'])
-def mri_segmentation(request, instance_id):
-    """
-    MRI 세그멘테이션 실행 및 Orthanc에 저장 (단일 인스턴스 또는 4채널)
-    
-    POST /api/mri/segmentation/instances/<instance_id>/segment/
-    Body (optional): {
-        "sequence_instance_ids": [id1, id2, id3, id4]  // 4-channel DCE-MRI
-    }
-    """
-    try:
-        # Request body에서 4개 시퀀스 ID 가져오기 (없으면 단일 이미지 모드)
-        sequence_ids = request.data.get('sequence_instance_ids', [instance_id])
-        
-        logger.info(f"🔍 MRI 세그멘테이션 시작: {len(sequence_ids)}개 시퀀스")
-        logger.info(f"   Instance IDs: {sequence_ids}")
-        
-        # 4채널인 경우 segment_series와 동일한 로직 사용
-        if len(sequence_ids) == 4:
-            # 각 인스턴스의 시리즈 ID 찾기
-            client = OrthancClient()
-            sequence_series_ids = []
-            for inst_id in sequence_ids:
-                inst_info = client.get_instance_info(inst_id)
-                series_id = inst_info.get('ParentSeries')
-                if series_id:
-                    sequence_series_ids.append(series_id)
-            
-            if len(sequence_series_ids) == 4:
-                # segment_series 함수 호출
-                request.data['sequence_series_ids'] = sequence_series_ids
-                return segment_series(request, sequence_series_ids[0])
-            else:
-                return Response({
-                    'success': False,
-                    'error': '4개 시퀀스의 시리즈 ID를 찾을 수 없습니다.'
-                }, status=400)
-        else:
-            # 단일 이미지 모드는 아직 지원하지 않음
-            return Response({
-                'success': False,
-                'error': '단일 이미지 모드는 지원하지 않습니다. 4채널 DCE-MRI만 지원합니다.'
-            }, status=400)
-            
-    except Exception as e:
-        logger.error(f"❌ 세그멘테이션 실패: {str(e)}", exc_info=True)
-        return Response({
-            'success': False,
-            'instance_id': instance_id,
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-def segmentation_health(request):
-    """
-    세그멘테이션 API 서버 상태 확인
-    
-    GET /api/mri/segmentation/health/
-    """
-    try:
-        # 모델 파일 존재 여부 확인
-        model_file_exists = MODEL_PATH.exists()
-        
-        # 모델 로드 가능 여부 확인
-        model_loaded = False
-        error_msg = None
-        try:
-            pipeline = get_pipeline()
-            model_loaded = pipeline is not None
-        except Exception as e:
-            logger.warning(f"모델 로드 실패: {e}")
-            error_msg = str(e)
-            model_loaded = False
-        
-        return Response({
-            'success': True,
-            'status': 'healthy' if model_loaded else 'model_not_loaded',
-            'service': 'New Segmentation Pipeline',
-            'model_loaded': model_loaded,
-            'model_file_exists': model_file_exists,
-            'model_path': str(MODEL_PATH),
-            'orthanc_url': ORTHANC_URL,
-            'error': error_msg if error_msg else None
-        })
-    except Exception as e:
-        return Response({
-            'success': False,
-            'status': 'unavailable',
-            'error': str(e)
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-
-@api_view(['POST'])
 def segment_series(request, series_id):
     """
     시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (4-channel, 새로운 파이프라인)
@@ -305,11 +212,8 @@ def segment_series(request, series_id):
             except:
                 pass
         
-        # 세그멘테이션 마스크의 실제 슬라이스 수 확인 (이미 위에서 로드했으므로 재사용)
-        total_slices = len(dicom_sequences[0])
         # 세그멘테이션이 성공했다면 모든 슬라이스가 처리된 것으로 간주
-        # 실제로는 세그멘테이션 마스크의 shape를 확인하여 정확한 수를 계산할 수 있지만,
-        # 일반적으로 세그멘테이션이 성공하면 원본 슬라이스 수와 동일함
+        total_slices = len(dicom_sequences[0])
         successful_slices = total_slices
         
         return Response({
