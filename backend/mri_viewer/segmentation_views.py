@@ -264,25 +264,15 @@ def segment_series(request, series_id):
                 # pydicom-seg가 없을 수 있으므로 fallback 사용
                 logger.warning("pydicom-seg 변환 실패, utils.py의 nifti_to_dicom_slices 사용")
                 from .utils import nifti_to_dicom_slices
-                from io import BytesIO
-                import nibabel as nib
-                
-                # NIfTI를 DICOM 슬라이스로 변환
-                nifti_img = nib.load(seg_nifti_path)
-                seg_volume = nifti_img.get_fdata()
                 
                 # 첫 번째 시퀀스의 첫 번째 DICOM에서 환자 정보 추출
                 first_dicom = pydicom.dcmread(io.BytesIO(dicom_sequences[0][0]))
                 patient_id = str(first_dicom.get('PatientID', ''))
                 patient_name = str(first_dicom.get('PatientName', ''))
                 
-                # NIfTI를 DICOM 슬라이스로 변환
-                nifti_bytesio = BytesIO()
-                nib.save(nifti_img, nifti_bytesio)
-                nifti_bytesio.seek(0)
-                
+                # NIfTI 파일 경로를 직접 사용 (BytesIO 대신)
                 dicom_slices = nifti_to_dicom_slices(
-                    nifti_bytesio,
+                    seg_nifti_path,  # 파일 경로 직접 전달
                     patient_id=patient_id,
                     patient_name=patient_name,
                     image_type='MRI 영상',
