@@ -8,7 +8,9 @@
 |------|--------|------|-----------|------|
 | **80** | Nginx | 웹 서버 (프론트엔드 + API 프록시) | ✅ 공개 | ✅ 실행 중 |
 | **8000** | Django (Gunicorn) | 메인 백엔드 API | ❌ 내부만 (Nginx 프록시) | ✅ 실행 중 |
-| **8001** | 챗봇 서버 (Gunicorn) | 피부암 포함 챗봇 | ❓ 확인 필요 | ❓ 확인 필요 |
+| **8001** | 챗봇 서버 (Gunicorn) | Flutter 프로젝트 챗봇 서버 (별도 Django 프로젝트) | ✅ 공개 | ✅ 실행 중 |
+| | | ⚠️ **같은 데이터베이스 공유**: `hospital_db` (MySQL) | | |
+| | | ⚠️ **예약 연동**: Flutter 챗봇에서 예약 생성 시 Django 프로젝트에도 반영 | | |
 | **8002** | FastAPI | 약물 검색 및 상호작용 검사 | ❌ 내부만 (Nginx 프록시) | ✅ 실행 중 |
 | **5002** | Flask ML Service | 폐암 ML 서비스 | ❌ 내부만 | ✅ 실행 중 |
 | **5006** | Mosec | MRI 세그멘테이션 | ❌ 내부만 | ✅ 실행 중 |
@@ -34,6 +36,15 @@
 - `http://127.0.0.1:5007` - Mosec (맘모그래피)
 - `http://127.0.0.1:5008` - Mosec (병리)
 - `http://127.0.0.1:8042` - Orthanc
+
+### 별도 프로젝트 (Flutter 챗봇)
+
+- `http://34.42.223.43:8001` - Flutter 프로젝트 챗봇 서버 (별도 Django 프로젝트)
+  - 위치: `/Flutter/flutter_app/chatbot_server/`
+  - Django 프로젝트(`Django-React--main`)의 `chatbot` 앱과는 별개
+  - Django 프로젝트의 챗봇은 8000 포트의 `/api/chat/` 엔드포인트 사용
+  - **데이터베이스 연동**: 같은 `hospital_db` (MySQL) 사용
+  - **예약 연동**: Flutter 챗봇에서 예약 생성 시 `patients_appointment` 테이블에 직접 INSERT하여 Django 프로젝트에도 즉시 반영됨
 
 ## 서비스 관리
 

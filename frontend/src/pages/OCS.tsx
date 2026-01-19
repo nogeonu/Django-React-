@@ -1113,9 +1113,9 @@ function OrderCard({
               (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
             ) && (
               <>
-                <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
-                  <Clock className="mr-2 h-4 w-4" />
-                  처리 시작
+              <Button onClick={onStartProcessing} disabled={isCompleting} size="sm" variant="outline">
+                <Clock className="mr-2 h-4 w-4" />
+                처리 시작
                 </Button>
                 {/* 원무과 처방전 주문의 경우 PDF 다운로드 버튼 */}
                 {order.order_type === "prescription" && order.target_department === "admin" && user?.department === "원무과" && onDownloadPdf && (
@@ -1127,7 +1127,7 @@ function OrderCard({
                   >
                     <Download className="mr-2 h-4 w-4" />
                     처방전 보기
-                  </Button>
+              </Button>
                 )}
               </>
             )}
@@ -1141,9 +1141,9 @@ function OrderCard({
               (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
             ) && (
               <>
-                <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  완료 처리
+              <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                완료 처리
                 </Button>
                 {/* 원무과 처방전 주문의 경우 PDF 다운로드 버튼 */}
                 {order.order_type === "prescription" && order.target_department === "admin" && user?.department === "원무과" && onDownloadPdf && (
@@ -1155,7 +1155,7 @@ function OrderCard({
                   >
                     <Download className="mr-2 h-4 w-4" />
                     처방전 보기
-                  </Button>
+              </Button>
                 )}
               </>
             )}
@@ -1745,7 +1745,7 @@ function CreateOrderForm({
       {orderType === "prescription" && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>약물 정보</Label>
+          <Label>약물 정보</Label>
             {medications.length > 0 && (
               <span className="text-sm text-muted-foreground">
                 {medications.length}개 선택됨
@@ -1860,53 +1860,53 @@ function CreateOrderForm({
                 <div className="flex-1 space-y-2">
                   <div className="font-semibold text-sm">{med.name}</div>
                   <div className="grid grid-cols-3 gap-2">
-                    <Input
+              <Input
                       id={`med-dosage-${idx}`}
                       name={`med-dosage-${idx}`}
-                      placeholder="용량"
-                      value={med.dosage}
-                      onChange={(e) => {
-                        const newMeds = [...medications];
-                        newMeds[idx].dosage = e.target.value;
-                        setMedications(newMeds);
-                      }}
+                placeholder="용량"
+                value={med.dosage}
+                onChange={(e) => {
+                  const newMeds = [...medications];
+                  newMeds[idx].dosage = e.target.value;
+                  setMedications(newMeds);
+                }}
                       className="text-sm"
-                    />
-                    <Input
+              />
+              <Input
                       id={`med-frequency-${idx}`}
                       name={`med-frequency-${idx}`}
-                      placeholder="용법"
-                      value={med.frequency}
-                      onChange={(e) => {
-                        const newMeds = [...medications];
-                        newMeds[idx].frequency = e.target.value;
-                        setMedications(newMeds);
-                      }}
+                placeholder="용법"
+                value={med.frequency}
+                onChange={(e) => {
+                  const newMeds = [...medications];
+                  newMeds[idx].frequency = e.target.value;
+                  setMedications(newMeds);
+                }}
                       className="text-sm"
-                    />
-                    <Input
+              />
+              <Input
                       id={`med-duration-${idx}`}
                       name={`med-duration-${idx}`}
-                      placeholder="기간"
-                      value={med.duration}
-                      onChange={(e) => {
-                        const newMeds = [...medications];
-                        newMeds[idx].duration = e.target.value;
-                        setMedications(newMeds);
-                      }}
+                placeholder="기간"
+                value={med.duration}
+                onChange={(e) => {
+                  const newMeds = [...medications];
+                  newMeds[idx].duration = e.target.value;
+                  setMedications(newMeds);
+                }}
                       className="text-sm"
-                    />
-                  </div>
+              />
+            </div>
                 </div>
-                <Button
-                  type="button"
+          <Button
+            type="button"
                   variant="ghost"
-                  size="sm"
+            size="sm"
                   onClick={() => removeDrug(med.item_seq!)}
                   className="text-destructive hover:text-destructive"
-                >
+          >
                   <XCircle className="h-4 w-4" />
-                </Button>
+          </Button>
               </div>
             ))}
           </div>
