@@ -353,6 +353,10 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     )
     
     # 4. Create Segmentation Object
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y%m%d")
+    current_time = datetime.now().strftime("%H%M%S")
+    
     seg_dataset = Segmentation(
         source_images=source_images,
         pixel_array=mask_frames,
@@ -367,6 +371,13 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         software_versions="1.0",
         device_serial_number="123456"
     )
+    
+    # Add missing DICOM metadata
+    seg_dataset.SeriesDate = current_date
+    seg_dataset.SeriesTime = current_time
+    seg_dataset.SeriesDescription = f"AI Segmentation - {prediction_label}"
+    seg_dataset.BodyPartExamined = "BREAST"
+    seg_dataset.ProtocolName = "MAMA-MIA AI Segmentation"
     
     # 5. Save
     seg_dataset.save_as(output_path)
