@@ -221,9 +221,16 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         
     source_images = [pydicom.dcmread(str(f)) for f in dicom_files]
     
+    # 1.1 Meta-data Safety Check: Ensure mandatory tags for highdicom
+    for ds in source_images:
+        if 'AccessionNumber' not in ds:
+            ds.AccessionNumber = ''
+        if 'ReferringPhysicianName' not in ds:
+            ds.ReferringPhysicianName = ''
+            
     # Sort by ImagePositionPatient (Z-axis) to ensure correct order matches mask
     # We sort by Instance Number as a robust proxy for Z-ordering in standard series
-    source_images.sort(key=lambda x: x.InstanceNumber)
+    source_images.sort(key=lambda x: getattr(x, 'InstanceNumber', 0))
     
     # 2. Prepare Mask Data
     # mask is [H, W, D] (RAS from MONAI usually). 
