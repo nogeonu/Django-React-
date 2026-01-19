@@ -189,10 +189,29 @@ def get_mri_slice(request, patient_id):
                 })
         except Exception as orthanc_error:
             # Orthanc에서 찾지 못하면 NIfTI 파일 시스템으로 fallback
-            print(f"Orthanc lookup failed for {patient_id}: {orthanc_error}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Orthanc lookup failed for {patient_id}: {orthanc_error}")
         
         # NIfTI 파일 시스템에서 찾기 (기존 MRI 데이터)
-        mri_data = get_patient_mri_data(patient_id)
+        try:
+            mri_data = get_patient_mri_data(patient_id)
+        except FileNotFoundError:
+            # Orthanc과 NIfTI 모두에서 찾지 못함
+            return Response({
+                'success': False,
+                'error': f'Patient "{patient_id}" not found in Orthanc or file system. Please upload DICOM files to Orthanc first.',
+                'suggestion': 'Check if the PatientID matches the DICOM files uploaded to Orthanc.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as nifti_error:
+            # NIfTI 파일 로드 중 다른 에러 발생
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error loading NIfTI data for {patient_id}: {nifti_error}")
+            return Response({
+                'success': False,
+                'error': f'Error loading patient data: {str(nifti_error)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         if not mri_data:
             return Response({
