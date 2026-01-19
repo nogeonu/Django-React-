@@ -73,7 +73,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          command_timeout: 20m
+          command_timeout: 30m
           script_stop: true
           script: |
             set -e
@@ -105,14 +105,17 @@ jobs:
               npm ci 2>&1 | tail -30
               exit 1
             fi
-            export NODE_OPTIONS="--max-old-space-size=1536"
+            export NODE_OPTIONS="--max-old-space-size=2048"
             # dist 디렉토리 준비 (.DS_Store 파일 제거)
             find . -name ".DS_Store" -type f -delete || true
             mkdir -p dist
             sudo rm -rf dist/* || true
             chmod -R 755 dist || true
-            if ! npm run build; then
-              echo "❌ 프론트엔드 빌드 실패, 상세 오류:"
+            echo "🔨 TypeScript 컴파일 및 Vite 빌드 시작..."
+            echo "   메모리 제한: 2048MB"
+            echo "   타임아웃: 30분"
+            if ! timeout 1800 npm run build; then
+              echo "❌ 프론트엔드 빌드 실패 또는 타임아웃, 상세 오류:"
               npm run build 2>&1 | tail -50
               exit 1
             fi
