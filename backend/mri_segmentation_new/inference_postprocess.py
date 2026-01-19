@@ -277,8 +277,25 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Actually, `Invertd` output is in the same grid as the input image.
     # So if we simply match the frame order, we just need to align dimensions.
     
+    print(f"  Input mask shape: {mask.shape}")
+    print(f"  Number of source images: {len(source_images)}")
+    print(f"  Source image dimensions: {first_rows}x{first_cols}")
+    
     # Transpose [H, W, D] -> [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
+    
+    # CRITICAL: Ensure mask has same number of frames as source images
+    if mask_frames.shape[0] != len(source_images):
+        print(f"  Warning: Mask has {mask_frames.shape[0]} frames but {len(source_images)} source images")
+        print(f"  Resizing mask to match source image count...")
+        
+        from scipy.ndimage import zoom
+        # Calculate zoom factor for depth dimension only
+        zoom_factor = len(source_images) / mask_frames.shape[0]
+        # Zoom only the first dimension (depth), keep others at 1.0
+        mask_frames_resized = zoom(mask_frames.astype(float), (zoom_factor, 1.0, 1.0), order=0)
+        mask_frames = mask_frames_resized.astype(mask.dtype)
+        print(f"  Resized mask shape: {mask_frames.shape}")
     
     # Ensure boolean
     mask_frames = mask_frames > 0
