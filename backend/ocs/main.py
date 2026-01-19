@@ -2443,7 +2443,7 @@ def check_drug_interactions(body: DrugInteractionCheck):
                 
                 if drug['edi_code'] and has_hira_table:
                     try:
-                    cur.execute(
+                        cur.execute(
                         """
                         SELECT DISTINCT gnl_nm_cd, gnl_nm
                         FROM hira_drug_ingredient_map
@@ -2451,7 +2451,7 @@ def check_drug_interactions(body: DrugInteractionCheck):
                         """,
                         (drug['edi_code'],)
                     )
-                    ingredients = cur.fetchall()
+                        ingredients = cur.fetchall()
                     except Exception as e:
                         print(f"⚠️ hira_drug_ingredient_map 조회 실패: {e}")
                         ingredients = []
@@ -2530,12 +2530,12 @@ def check_drug_interactions(body: DrugInteractionCheck):
                     has_hira_table = cur.fetchone() is not None
                     
                     if has_hira_table:
-                    for cand in list(candidates):
-                        if re.search('[가-힣]', cand): # 한글이 포함된 경우
-                            # 해당 성분명이 포함된 약품을 찾아 영문 성분명(gnl_nm) 조회
-                            # 주의: 성분명만으로 정확히 찾기 위해 LIKE 패턴 조심
+                        for cand in list(candidates):
+                            if re.search('[가-힣]', cand): # 한글이 포함된 경우
+                                # 해당 성분명이 포함된 약품을 찾아 영문 성분명(gnl_nm) 조회
+                                # 주의: 성분명만으로 정확히 찾기 위해 LIKE 패턴 조심
                                 try:
-                            cur.execute("""
+                                    cur.execute("""
                                 SELECT h.gnl_nm 
                                 FROM hira_drug_ingredient_map h
                                 JOIN drugs d ON h.edi_code = d.edi_code
@@ -2543,11 +2543,11 @@ def check_drug_interactions(body: DrugInteractionCheck):
                                   AND h.gnl_nm IS NOT NULL 
                                   AND h.gnl_nm != ''
                                 LIMIT 1
-                            """, (f"%{cand}%",))
-                            row = cur.fetchone()
-                            if row and row['gnl_nm']:
-                                eng_name = clean_utils(row['gnl_nm'])
-                                if eng_name: candidates.add(eng_name)
+                                    """, (f"%{cand}%",))
+                                    row = cur.fetchone()
+                                    if row and row['gnl_nm']:
+                                        eng_name = clean_utils(row['gnl_nm'])
+                                        if eng_name: candidates.add(eng_name)
                                 except Exception as e:
                                     # 개별 쿼리 실패해도 계속 진행
                                     pass
