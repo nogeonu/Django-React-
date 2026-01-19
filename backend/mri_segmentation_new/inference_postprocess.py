@@ -321,6 +321,35 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Ensure boolean
     mask_frames = mask_frames > 0
     
+    # 2.5 SPARSE ENCODING: Only keep non-empty frames
+    # Find frames that have at least one positive voxel
+    non_empty_indices = []
+    non_empty_frames = []
+    
+    for frame_idx in range(mask_frames.shape[0]):
+        frame = mask_frames[frame_idx]
+        if np.any(frame):  # Frame has at least one positive voxel
+            non_empty_indices.append(frame_idx)
+            non_empty_frames.append(frame)
+    
+    if len(non_empty_frames) == 0:
+        logger.warning("  No tumor detected in any frame. Creating empty segmentation.")
+        # Create a single empty frame
+        non_empty_frames = [np.zeros((first_rows, first_cols), dtype=bool)]
+        non_empty_indices = [0]
+    
+    logger.info(f"  Sparse encoding: {len(non_empty_frames)} non-empty frames out of {mask_frames.shape[0]} total")
+    logger.info(f"  Non-empty frame indices: {non_empty_indices[:10]}{'...' if len(non_empty_indices) > 10 else ''}")
+    
+    # Stack non-empty frames
+    mask_frames_sparse = np.stack(non_empty_frames, axis=0)
+    
+    # Select corresponding source images for non-empty frames
+    source_images_sparse = [source_images[idx] for idx in non_empty_indices]
+    
+    logger.info(f"  Final sparse mask shape: {mask_frames_sparse.shape}")
+    logger.info(f"  Number of reference images: {len(source_images_sparse)}")
+    
     # 3. Create Segment Description with CodedConcept
     # SCT (SNOMED CT) 코드 직접 생성
     tissue_category = CodedConcept(
@@ -358,8 +387,8 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     current_time = datetime.now().strftime("%H%M%S")
     
     seg_dataset = Segmentation(
-        source_images=source_images,
-        pixel_array=mask_frames,
+        source_images=source_images_sparse,  # Only non-empty frames
+        pixel_array=mask_frames_sparse,      # Only non-empty frames
         segmentation_type="BINARY",
         segment_descriptions=[segment_description],
         series_instance_uid=UID(),
@@ -380,8 +409,9 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     seg_dataset.ProtocolName = "MAMA-MIA AI Segmentation"
     
     # 5. Save
-    logger.info(f"  Final mask_frames shape before saving: {mask_frames.shape}")
-    logger.info(f"  NumberOfFrames: {len(source_images)}")
+    logger.info(f"  Final sparse mask shape before saving: {mask_frames_sparse.shape}")
+    logger.info(f"  NumberOfFrames (sparse): {len(source_images_sparse)}")
+    logger.info(f"  Frame mapping: {dict(zip(range(len(non_empty_indices)), non_empty_indices))}")
     seg_dataset.save_as(output_path)
     logger.info(f"DICOM SEG saved to: {output_path}")
     
