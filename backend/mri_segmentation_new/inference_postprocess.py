@@ -4,10 +4,13 @@ Converts model output (probabilities) to final segmentation mask.
 """
 import torch
 import numpy as np
+import logging
 from monai.transforms import (
     Compose, Invertd, SaveImaged, AsDiscreted,
     KeepLargestConnectedComponentd, FillHolesd
 )
+
+logger = logging.getLogger(__name__)
 from scipy import ndimage
 import config
 
@@ -277,13 +280,13 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Actually, `Invertd` output is in the same grid as the input image.
     # So if we simply match the frame order, we just need to align dimensions.
     
-    print(f"  Input mask shape: {mask.shape}")
-    print(f"  Number of source images: {len(source_images)}")
-    print(f"  Source image dimensions: {first_rows}x{first_cols}")
+    logger.info(f"  Input mask shape: {mask.shape}")
+    logger.info(f"  Number of source images: {len(source_images)}")
+    logger.info(f"  Source image dimensions: {first_rows}x{first_cols}")
     
     # Transpose [H, W, D] -> [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
-    print(f"  After transpose: {mask_frames.shape}")
+    logger.info(f"  After transpose: {mask_frames.shape}")
     
     # CRITICAL: Ensure mask matches source images in ALL dimensions
     needs_resize = False
@@ -291,29 +294,29 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     
     # Check depth (number of frames)
     if mask_frames.shape[0] != len(source_images):
-        print(f"  Warning: Mask has {mask_frames.shape[0]} frames but {len(source_images)} source images")
+        logger.warning(f"  Mask has {mask_frames.shape[0]} frames but {len(source_images)} source images")
         zoom_factors[0] = len(source_images) / mask_frames.shape[0]
         needs_resize = True
     
     # Check height (rows)
     if mask_frames.shape[1] != first_rows:
-        print(f"  Warning: Mask height {mask_frames.shape[1]} != source height {first_rows}")
+        logger.warning(f"  Mask height {mask_frames.shape[1]} != source height {first_rows}")
         zoom_factors[1] = first_rows / mask_frames.shape[1]
         needs_resize = True
     
     # Check width (columns)
     if mask_frames.shape[2] != first_cols:
-        print(f"  Warning: Mask width {mask_frames.shape[2]} != source width {first_cols}")
+        logger.warning(f"  Mask width {mask_frames.shape[2]} != source width {first_cols}")
         zoom_factors[2] = first_cols / mask_frames.shape[2]
         needs_resize = True
     
     # Apply resizing if needed
     if needs_resize:
-        print(f"  Resizing mask with zoom factors: {zoom_factors}")
+        logger.info(f"  Resizing mask with zoom factors: {zoom_factors}")
         from scipy.ndimage import zoom
         mask_frames_resized = zoom(mask_frames.astype(float), zoom_factors, order=0)
         mask_frames = mask_frames_resized.astype(mask.dtype)
-        print(f"  Resized mask shape: {mask_frames.shape}")
+        logger.info(f"  Resized mask shape: {mask_frames.shape}")
     
     # Ensure boolean
     mask_frames = mask_frames > 0
