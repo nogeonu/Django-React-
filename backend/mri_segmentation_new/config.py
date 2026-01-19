@@ -16,12 +16,12 @@ SEGMENTATIONS_DIR = DATA_ROOT / "segmentations" / "expert"
 PATIENT_INFO_DIR = DATA_ROOT / "patient_info_files"
 TRAIN_TEST_SPLIT = DATA_ROOT / "train_test_splits.csv"
 
-# Output directories (Django 프로젝트에 맞게 수정)
-OUTPUT_ROOT = PROJECT_ROOT / "outputs"
-CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"  # 모델 체크포인트 위치
+# Output directories (use absolute path for outputs to avoid issues)
+OUTPUT_ROOT = Path(r"c:\datasets\MAMA_MIA\outputs") if Path(r"c:\datasets\MAMA_MIA").exists() else PROJECT_ROOT / "outputs"
+CHECKPOINT_DIR = OUTPUT_ROOT / "checkpoints"
 LOG_DIR = OUTPUT_ROOT / "logs"
 RESULTS_DIR = OUTPUT_ROOT / "results"
-CACHE_DIR = PROJECT_ROOT / "cache"
+CACHE_DIR = OUTPUT_ROOT.parent / "cache" if OUTPUT_ROOT.parent.name == "MAMA_MIA" else PROJECT_ROOT / "cache"
 
 # Create directories
 for dir_path in [OUTPUT_ROOT, CHECKPOINT_DIR, LOG_DIR, RESULTS_DIR, CACHE_DIR]:
@@ -194,16 +194,9 @@ INFERENCE_CONFIG = {
 # Device Configuration
 # ============================================================================
 import torch
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # GPU 사용 가능 여부 자동 확인
+DEVICE = "cuda" # or "cpu"
 RANDOM_SEED = 42  # Seed for reproducibility
 print(f"Using device: {DEVICE}")
-if DEVICE == "cuda" and torch.cuda.is_available():
-    try:
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-    except Exception as e:
-        print(f"GPU 정보를 가져올 수 없습니다: {e}")
-        DEVICE = "cpu"  # GPU 오류 시 CPU로 fallback
-        print(f"CPU 모드로 전환합니다.")
-else:
-    print("CPU 모드로 실행합니다.")
+if DEVICE == "cuda":
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")

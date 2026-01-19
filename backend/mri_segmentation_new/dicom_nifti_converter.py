@@ -166,6 +166,7 @@ def nifti_to_dicom_seg(
         from highdicom.seg.sop import SegmentationTypeValues
         from highdicom.seg.enum import SegmentAlgorithmTypeValues
         from highdicom.seg.content import SegmentDescription
+        from highdicom.sr import CodedConcept
         
         # 세그멘테이션 데이터 준비: [Z, H, W] -> [H, W, Z] (highdicom 형식)
         # highdicom은 (rows, columns, frames) 형식을 기대
@@ -173,12 +174,26 @@ def nifti_to_dicom_seg(
         mask_transposed = np.transpose(mask_3d, (1, 2, 0))  # [H, W, Z]
         
         # Segment Description 생성
+        # SCT (SNOMED CT) 코드 직접 생성
+        # Tissue: SCT code "85756007" (Tissue structure)
+        # Neoplasm: SCT code "126906006" (Neoplasm)
+        tissue_category = CodedConcept(
+            value="85756007",
+            scheme_designator="SCT",
+            meaning="Tissue"
+        )
+        neoplasm_type = CodedConcept(
+            value="126906006",
+            scheme_designator="SCT",
+            meaning="Neoplasm"
+        )
+        
         segment_descriptions = [
             SegmentDescription(
                 segment_number=1,
                 segment_label="Tumor",
-                segmented_property_category=pydicom.sr.codedict.codes.DCM.Tissue,
-                segmented_property_type=pydicom.sr.codedict.codes.DCM.Neoplasm,
+                segmented_property_category=tissue_category,
+                segmented_property_type=neoplasm_type,
                 algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
                 algorithm_name="SwinUNETR+LoRA"
             )

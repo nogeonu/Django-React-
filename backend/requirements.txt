@@ -36,7 +36,7 @@ opencv-python>=4.8.0
 monai>=1.3.0
 # DICOM SEG 처리 (새로운 세그멘테이션 파이프라인)
 pydicom-seg==0.4.1
-highdicom
+highdicom>=0.20.0
 # LoRA for fine-tuning (SwinUNETR)
 peft>=0.6.0
 # PDF generation

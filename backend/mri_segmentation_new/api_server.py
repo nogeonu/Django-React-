@@ -60,12 +60,30 @@ async def predict(
             content = await file.read()
             f.write(content)
         
+        # Helper to unzip if needed
+        processing_path = input_path
+        if input_path.suffix.lower() == ".zip":
+            import zipfile
+            extract_dir = Path(tmpdir) / "extracted"
+            extract_dir.mkdir(exist_ok=True)
+            with zipfile.ZipFile(input_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # If zip contains a single folder, use that
+            items = list(extract_dir.glob("*"))
+            if len(items) == 1 and items[0].is_dir():
+                processing_path = items[0]
+            else:
+                processing_path = extract_dir
+            print(f"Extracted zip to: {processing_path}")
+
         # Run inference
-        output_path = Path(tmpdir) / f"segmentation.{'nii.gz' if output_format == 'nifti' else 'dcm'}"
+        output_filename = f"segmentation.{'nii.gz' if output_format == 'nifti' else 'dcm'}"
+        output_path = Path(tmpdir) / output_filename
         
         try:
             result = pipeline.predict(
-                str(input_path),
+                str(processing_path),
                 output_path=str(output_path),
                 output_format=output_format
             )

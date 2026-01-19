@@ -177,5 +177,107 @@ def save_segmentation(mask, output_path, reference_meta_dict=None):
 if __name__ == "__main__":
     # Example usage
     print("Post-processing module loaded successfully.")
-    print(f"Default threshold: 0.5")
-    print(f"Morphological cleaning: Enabled")
+
+def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label="Tumor"):
+    """
+    Save segmentation as DICOM SEG object using highdicom.
+    
+    Args:
+        mask: 3D numpy array (binary mask) [H, W, D]
+        output_path: Path to save .dcm file
+        reference_dicom_path: Path to folder containing original DICOM series
+        prediction_label: Label name
+    """
+    import pydicom
+    import numpy as np
+    from highdicom.seg import (
+        Segmentation,
+        SegmentDescription,
+        SegmentAlgorithmTypeValues
+    )
+    from highdicom.content import (
+        PixelMeasuresSequence,
+        PlanePositionSequence,
+        PlaneOrientationSequence,
+        AlgorithmIdentificationSequence
+    )
+    from highdicom import UID
+    from highdicom.sr import CodedConcept
+    from pathlib import Path
+    
+    # 1. Read original DICOM series to get template
+    dicom_files = sorted(Path(reference_dicom_path).glob("*.dcm"))
+    if not dicom_files:
+        raise FileNotFoundError(f"No .dcm files found in {reference_dicom_path}")
+        
+    source_images = [pydicom.dcmread(str(f)) for f in dicom_files]
+    
+    # Sort by ImagePositionPatient (Z-axis) to ensure correct order matches mask
+    # We sort by Instance Number as a robust proxy for Z-ordering in standard series
+    source_images.sort(key=lambda x: x.InstanceNumber)
+    
+    # 2. Prepare Mask Data
+    # mask is [H, W, D] (RAS from MONAI usually). 
+    # highdicom expects [Frames, Rows, Cols] (Z, Y, X).
+    # We need to transpose [H, W, D] -> [D, W, H] (Z, Y, X)
+    # Note: If MONAI loaded as RAS, and DICOM is LPS, we rely on MONAI's Invertd 
+    # having already restored it to the Patient Coordinate System geometry?
+    # Actually, `Invertd` output is in the same grid as the input image.
+    # So if we simply match the frame order, we just need to align dimensions.
+    
+    # Transpose [H, W, D] -> [D, H, W]
+    mask_frames = mask.transpose(2, 0, 1)
+    
+    # Ensure boolean
+    mask_frames = mask_frames > 0
+    
+    # 3. Create Segment Description with CodedConcept
+    # SCT (SNOMED CT) 코드 직접 생성
+    tissue_category = CodedConcept(
+        value="85756007",
+        scheme_designator="SCT",
+        meaning="Tissue"
+    )
+    neoplasm_type = CodedConcept(
+        value="126906006",
+        scheme_designator="SCT",
+        meaning="Neoplasm"
+    )
+    ai_family = CodedConcept(
+        value="T-D0050",
+        scheme_designator="DCM",
+        meaning="Artificial Intelligence"
+    )
+    
+    segment_description = SegmentDescription(
+        segment_number=1,
+        segment_label=prediction_label,
+        segmented_property_category=tissue_category,
+        segmented_property_type=neoplasm_type,
+        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        algorithm_identification=AlgorithmIdentificationSequence(
+            name="MAMA-MIA-AI",
+            version="1.0",
+            family=ai_family
+        )
+    )
+    
+    # 4. Create Segmentation Object
+    seg_dataset = Segmentation(
+        source_images=source_images,
+        pixel_array=mask_frames,
+        segmentation_type="BINARY",
+        segment_descriptions=[segment_description],
+        series_instance_uid=UID(),
+        series_number=1000,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer="MAMA-MIA Team",
+        manufacturer_model_name="Phase1-Segmentation",
+        software_versions="1.0",
+        device_serial_number="123456"
+    )
+    
+    # 5. Save
+    seg_dataset.save_as(output_path)
+    print(f"DICOM SEG saved to: {output_path}")

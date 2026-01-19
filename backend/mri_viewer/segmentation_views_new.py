@@ -19,8 +19,9 @@ import sys
 
 # 새로운 세그멘테이션 모듈 import
 sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
-from dicom_nifti_converter import dicom_series_to_nifti, nifti_to_dicom_seg
+from dicom_nifti_converter import dicom_series_to_nifti
 from inference_pipeline import SegmentationInferencePipeline
+from inference_postprocess import save_as_dicom_seg
 
 logger = logging.getLogger(__name__)
 
@@ -152,23 +153,30 @@ def segment_series(request, series_id):
         # 3. NIfTI → DICOM SEG 변환
         logger.info("🔄 NIfTI → DICOM SEG 변환 중...")
         
-        # 참조 DICOM 파일들을 임시 파일로 저장
-        reference_dicom_paths = []
+        # 세그멘테이션 마스크 로드
+        import nibabel as nib
+        seg_nifti = nib.load(seg_nifti_path)
+        seg_mask = seg_nifti.get_fdata().astype(np.uint8)  # [H, W, D]
+        
+        # 참조 DICOM 파일들을 임시 폴더에 저장
+        reference_dicom_dir = None
         try:
-            for slice_bytes in dicom_sequences[0]:  # 첫 번째 시퀀스 사용
-                tmp_dicom = tempfile.NamedTemporaryFile(suffix='.dcm', delete=False)
-                tmp_dicom.write(slice_bytes)
-                tmp_dicom.close()
-                reference_dicom_paths.append(tmp_dicom.name)
+            reference_dicom_dir = tempfile.mkdtemp()
+            for idx, slice_bytes in enumerate(dicom_sequences[0]):  # 첫 번째 시퀀스 사용
+                dicom_path = os.path.join(reference_dicom_dir, f"slice_{idx:04d}.dcm")
+                with open(dicom_path, 'wb') as f:
+                    f.write(slice_bytes)
             
             with tempfile.NamedTemporaryFile(suffix='.dcm', delete=False) as tmp_seg_dicom:
                 seg_dicom_path = tmp_seg_dicom.name
             
             try:
-                seg_dicom_path = nifti_to_dicom_seg(
-                    nifti_mask_path=seg_nifti_path,
-                    reference_dicom_paths=reference_dicom_paths,
-                    output_path=seg_dicom_path
+                # 새로운 save_as_dicom_seg 함수 사용
+                save_as_dicom_seg(
+                    mask=seg_mask,
+                    output_path=seg_dicom_path,
+                    reference_dicom_path=reference_dicom_dir,
+                    prediction_label="Tumor"
                 )
                 logger.info(f"✅ DICOM SEG 변환 완료: {seg_dicom_path}")
             except Exception as e:
@@ -184,8 +192,9 @@ def segment_series(request, series_id):
             # 임시 파일 정리
             try:
                 os.unlink(seg_nifti_path)
-                for path in reference_dicom_paths:
-                    os.unlink(path)
+                if reference_dicom_dir and os.path.exists(reference_dicom_dir):
+                    import shutil
+                    shutil.rmtree(reference_dicom_dir)
             except:
                 pass
         

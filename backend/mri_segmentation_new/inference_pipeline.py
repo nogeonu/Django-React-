@@ -46,7 +46,7 @@ class SegmentationInferencePipeline:
         """Load trained model from checkpoint."""
         # Create model architecture
         model = create_segmentation_model(
-            use_lora=True,  # LoRA 사용
+            use_lora=True,  # Assuming LoRA was used in training
             device=self.device
         )
         
@@ -65,14 +65,15 @@ class SegmentationInferencePipeline:
         model.load_state_dict(state_dict)
         return model
     
-    def predict(self, image_path, output_path=None, return_probabilities=False):
+    def predict(self, image_path, output_path=None, return_probabilities=False, output_format="nifti"):
         """
         Run complete inference pipeline on a single case.
         
         Args:
-            image_path: Path to input DCE-MRI NIfTI file
+            image_path: Path to input DCE-MRI NIfTI file or DICOM folder
             output_path: Optional path to save segmentation mask
             return_probabilities: If True, return probability map instead of binary mask
+            output_format: 'nifti' or 'dicom' (requires input to be DICOM folder)
         
         Returns:
             dict: Results containing:
@@ -86,6 +87,9 @@ class SegmentationInferencePipeline:
         
         # 1. Preprocessing
         print("Step 1/3: Preprocessing...")
+        # Note: preprocess_single_case currently optimized for NIfTI
+        # If input is DICOM folder, ensure it converts/loads correctly.
+        # For now, assuming preprocess_single_case handles the loading (via MONAI LoadImaged)
         preprocessed = preprocess_single_case(image_path)
         image_tensor = preprocessed["image"].to(self.device)
         meta_dict = preprocessed.get("image_meta_dict", None)
@@ -118,10 +122,10 @@ class SegmentationInferencePipeline:
             result_mask = postprocess_prediction(
                 probabilities,
                 meta_dict,
-                preprocessed_data=preprocessed, # Pass full data for Invertd
+                preprocessed_data=preprocessed,
                 threshold=self.threshold,
                 apply_morphology=True,
-                restore_original_spacing=True  # Restore geometry for clinical use
+                restore_original_spacing=True
             )
         
         # Calculate statistics
@@ -133,7 +137,17 @@ class SegmentationInferencePipeline:
         
         # Save if requested
         if output_path is not None and not return_probabilities:
-            save_segmentation(result_mask, output_path, meta_dict)
+            if output_format == "dicom":
+                from inference_postprocess import save_as_dicom_seg
+                # For DICOM SEG, we need the reference DICOM series path
+                if Path(image_path).is_dir():
+                    print("Generating DICOM SEG object...")
+                    save_as_dicom_seg(result_mask, output_path, image_path)
+                else:
+                    print(f"Warning: Input is not a directory ({image_path}). Cannot generate DICOM SEG. Saving as NIfTI instead.")
+                    save_segmentation(result_mask, str(output_path).replace('.dcm', '.nii.gz'), meta_dict)
+            else:
+                save_segmentation(result_mask, output_path, meta_dict)
         
         print(f"{'='*60}\n")
         
