@@ -502,21 +502,23 @@ def orthanc_upload_dicom(request):
         patient_id = request.data.get('patient_id', None)
         image_type = request.data.get('image_type', None)  # 영상 유형 추가
         
-        # 환자 이름 조회
-        patient_name = "UNKNOWN"
-        if patient_id:
+        # 환자 이름 조회: 프론트엔드에서 전달한 값을 우선 사용, 없으면 DB에서 조회
+        patient_name = request.data.get('patient_name', None)
+        if not patient_name and patient_id:
             try:
                 from patients.models import Patient
                 patient = Patient.objects.filter(patient_id=patient_id).first()
                 if patient:
                     patient_name = patient.name
-                    print(f"Found patient name for {patient_id}: {patient_name}")
+                    print(f"Found patient name from DB for {patient_id}: {patient_name}")
                 else:
                     print(f"Patient ID {patient_id} not found in database, using ID as name")
                     patient_name = patient_id
             except Exception as e:
                 print(f"Error fetching patient name: {e}")
-                patient_name = patient_id
+                patient_name = patient_id or "UNKNOWN"
+        elif not patient_name:
+            patient_name = patient_id or "UNKNOWN"
 
         print(f"Uploading file: {file_name}, patient: {patient_name} ({patient_id})")
         

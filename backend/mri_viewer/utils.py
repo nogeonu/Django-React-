@@ -400,6 +400,9 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         # DICOM 데이터셋 생성
         ds = Dataset()
         
+        # 한글 지원을 위해 문자셋 설정 (UTF-8)
+        ds.SpecificCharacterSet = 'ISO_IR 192'  # UTF-8
+        
         # 필수 DICOM 태그 (DICOM 태그 형식으로 명시적 설정)
         from pydicom.tag import Tag
         ds.PatientID = str(patient_id)  # (0010,0020)
@@ -407,7 +410,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.PatientBirthDate = ""  # (0010,0030)
         ds.PatientSex = ""  # (0010,0040)
         
-        # 디버깅: PatientID 확인
+        # 디버깅: PatientID와 PatientName 확인
         print(f"DICOM Slice {slice_idx + 1}: PatientID={ds.PatientID}, PatientName={ds.PatientName}")
         
         ds.StudyInstanceUID = study_instance_uid
