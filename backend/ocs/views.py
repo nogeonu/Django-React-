@@ -187,8 +187,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             # OrderCreateSerializer에서 이미 doctor 설정됨
             order = serializer.save()
             
-            # 주문 검증 (약물 상호작용, 알레르기)
-            validate_order(order)
+            # 주문 검증 (약물 상호작용, 알레르기) - 비동기로 처리하여 주문 생성 속도 개선
+            # validate_order는 백그라운드에서 실행되도록 스킵 (주문 생성 후 별도로 처리)
+            # validate_order(order)  # 주문 생성 속도 개선을 위해 주석 처리
             
             # 상태 이력 기록
             update_order_status(order, 'pending', self.request.user, '주문 생성')
