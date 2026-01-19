@@ -112,12 +112,18 @@ def segmentation_health(request):
     GET /api/mri/segmentation/health/
     """
     try:
+        # 모델 파일 존재 여부 확인
+        model_file_exists = MODEL_PATH.exists()
+        
         # 모델 로드 가능 여부 확인
+        model_loaded = False
+        error_msg = None
         try:
             pipeline = get_pipeline()
             model_loaded = pipeline is not None
         except Exception as e:
             logger.warning(f"모델 로드 실패: {e}")
+            error_msg = str(e)
             model_loaded = False
         
         return Response({
@@ -125,7 +131,10 @@ def segmentation_health(request):
             'status': 'healthy' if model_loaded else 'model_not_loaded',
             'service': 'New Segmentation Pipeline',
             'model_loaded': model_loaded,
-            'orthanc_url': ORTHANC_URL
+            'model_file_exists': model_file_exists,
+            'model_path': str(MODEL_PATH),
+            'orthanc_url': ORTHANC_URL,
+            'error': error_msg if error_msg else None
         })
     except Exception as e:
         return Response({
