@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize2, Scan } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 
 interface OrthancImage {
@@ -20,6 +20,7 @@ export default function DicomDetailViewer() {
     const [allImages, setAllImages] = useState<OrthancImage[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [patientInfo, setPatientInfo] = useState<any>(null);
+    const [showLesionDetection, setShowLesionDetection] = useState(false);
 
     useEffect(() => {
         if (instanceId) {
@@ -51,11 +52,16 @@ export default function DicomDetailViewer() {
                 }
 
                 // Set patient info with fallback to sessionStorage
+                // Orthanc API에서 patient_name을 직접 반환하므로 사용
+                const hasSeg = response.has_seg || false;
                 setPatientInfo({
                     patient_id: response.patient_id || patientId,
-                    patient_name: response.patient_name || response.name || sessionStorage.getItem('currentPatientName') || 'Unknown',
+                    patient_name: response.patient_name || response.patient?.MainDicomTags?.PatientName || sessionStorage.getItem('currentPatientName') || 'Unknown',
+                    has_seg: hasSeg,  // SEG 파일 존재 여부
                     ...response
                 });
+                // SEG 파일이 있으면 병변탐지 버튼 표시 (AI 분석 전에도)
+                setShowLesionDetection(hasSeg);
             }
         } catch (error) {
             console.error('Failed to load image:', error);
@@ -224,6 +230,20 @@ export default function DicomDetailViewer() {
                                         <ZoomIn className="h-4 w-4" />
                                     </Button>
                                 </div>
+                                {showLesionDetection && (
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => {
+                                            // 병변탐지 토글 (추후 구현)
+                                            console.log('병변탐지 토글');
+                                        }}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        <Scan className="h-4 w-4 mr-2" />
+                                        병변탐지
+                                    </Button>
+                                )}
                                 <Button
                                     variant="outline"
                                     size="sm"

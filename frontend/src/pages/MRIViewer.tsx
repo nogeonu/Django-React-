@@ -246,6 +246,15 @@ export default function MRIViewer() {
         setOrthancImages(data.images);
         setShowOrthancImages(true);
         setSelectedImage(0); // 첫 번째 이미지 선택
+        
+        // PatientName 저장 (Orthanc에서 가져온 정보)
+        if (data.patient_name) {
+          sessionStorage.setItem('currentPatientName', data.patient_name);
+        }
+        if (data.patient_id) {
+          sessionStorage.setItem('currentPatientId', data.patient_id);
+        }
+        
         toast({
           title: "Orthanc 이미지 로드 완료",
           description: `${data.images.length}개의 이미지를 불러왔습니다.`,
@@ -395,16 +404,16 @@ export default function MRIViewer() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* 헤더 */}
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">유방 MRI 뷰어</h1>
-          <p className="text-gray-500 mt-1">3D 의료 영상 분석 및 Orthanc PACS 연동</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">유방 MRI 뷰어</h2>
+          <p className="text-gray-500 text-sm">3D 의료 영상 분석 및 Orthanc PACS 연동</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
+            className="rounded-xl"
             size="sm"
             onClick={() => selectedPatient && fetchOrthancImages(selectedPatient)}
             disabled={!selectedPatient}
@@ -412,8 +421,8 @@ export default function MRIViewer() {
             <Database className="h-4 w-4 mr-2" />
             Orthanc 이미지
           </Button>
-          <Badge variant="outline" className="text-lg px-4 py-2">
-            <Activity className="h-4 w-4 mr-2" />
+          <Badge variant="outline" className="text-xs px-3 py-1.5 rounded-full border-blue-200 bg-blue-50 text-blue-700 font-bold">
+            <Activity className="h-3 w-3 mr-2" />
             실시간 분석
           </Badge>
         </div>

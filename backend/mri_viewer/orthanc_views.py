@@ -234,11 +234,39 @@ def orthanc_patient_detail(request, patient_id):
                     })
         
         logger.debug(f"Returning {len(images)} images for patient {orthanc_patient_id}")
+        
+        # PatientName과 PatientID 추출
+        main_tags = patient_info.get('MainDicomTags', {})
+        patient_name = main_tags.get('PatientName', '')
+        patient_id_dicom = main_tags.get('PatientID', patient_id)
+        
+        # SEG 파일 존재 여부 확인
+        has_seg = False
+        try:
+            studies = patient_info.get('Studies', [])
+            for study_id in studies:
+                study_id_str = study_id if isinstance(study_id, str) else study_id.get('ID', '')
+                series_list = client.get_study_series(study_id_str)
+                for series_id in series_list:
+                    series_id_str = series_id if isinstance(series_id, str) else series_id.get('ID', '')
+                    series_info = client.get_series_info(series_id_str)
+                    modality = series_info.get('MainDicomTags', {}).get('Modality', '')
+                    if modality == 'SEG':
+                        has_seg = True
+                        break
+                if has_seg:
+                    break
+        except Exception as e:
+            logger.debug(f"SEG 파일 확인 중 오류 (무시): {e}")
+        
         return Response({
             'success': True,
             'patient': patient_info,
+            'patient_id': patient_id_dicom,
+            'patient_name': patient_name,
             'images': images,
             'image_count': len(images),
+            'has_seg': has_seg,  # SEG 파일 존재 여부
             'orthanc_patient_id': orthanc_patient_id  # 디버깅용
         })
     except requests.exceptions.HTTPError as e:
