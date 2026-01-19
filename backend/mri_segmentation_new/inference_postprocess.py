@@ -380,5 +380,15 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     seg_dataset.ProtocolName = "MAMA-MIA AI Segmentation"
     
     # 5. Save
+    logger.info(f"  Final mask_frames shape before saving: {mask_frames.shape}")
+    logger.info(f"  NumberOfFrames: {len(source_images)}")
     seg_dataset.save_as(output_path)
-    print(f"DICOM SEG saved to: {output_path}")
+    logger.info(f"DICOM SEG saved to: {output_path}")
+    
+    # Verify saved file
+    import pydicom
+    saved_ds = pydicom.dcmread(output_path)
+    logger.info(f"  Saved DICOM SEG verification:")
+    logger.info(f"    NumberOfFrames: {getattr(saved_ds, 'NumberOfFrames', 'N/A')}")
+    logger.info(f"    Rows: {saved_ds.Rows}, Columns: {saved_ds.Columns}")
+    logger.info(f"    PixelData size: {len(saved_ds.PixelData) if hasattr(saved_ds, 'PixelData') else 'N/A'} bytes")
