@@ -79,75 +79,42 @@ def postprocess_prediction(
         binary_mask = ndimage.binary_fill_holes(binary_mask).astype(np.uint8)
     
     # Restore to original spacing/orientation if requested
+    # Use manual zoom-based restoration for reliability
     if restore_original_spacing and preprocessed_data is not None:
-        logger.info("  Restoring to original spacing using Invertd...")
-        from monai.transforms import Invertd, EnsureChannelFirstd, Compose
         from monai.data import MetaTensor
+        from scipy.ndimage import zoom
         
-        # Prepare data for inversion
-        # We need the original MetaTensor that holds transform information
         input_image = preprocessed_data.get("image")
         
-        # Create a dictionary for Invertd
-        # Note: binary_mask is numpy [H, W, D], we need [C, H, W, D] for MONAI
-        # And convert to Tensor (Invertd expects Tensor/MetaTensor)
-        # IMPORTANT: We must wrap it as MetaTensor with the current affine (1.5mm)
-        # so Invertd knows the starting point.
-        mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-        
-        # If input_image has batch dim, remove it matching pipeline logic
-        if len(input_image.shape) == 5: # [B, C, H, W, D]
-             input_image = input_image.squeeze(0)
-             
-        # Create MetaTensor with affine from input_image
-        if isinstance(input_image, MetaTensor):
-            mask_tensor = MetaTensor(mask_tensor, affine=input_image.affine)
-        
-        data = dict(preprocessed_data)
-        data["image"] = input_image
-        data["pred"] = mask_tensor
-        
-        # Import transforms pipeline
-        from inference_preprocess import get_inference_transforms
-        transforms = get_inference_transforms()
-        
-        # Define inverter
-        inverter = Invertd(
-            keys=["pred"],
-            transform=transforms,
-            orig_keys=["image"],
-            nearest_interp=True,
-            to_tensor=True
-        )
-        
-        # Apply inversion
-        # Invertd expects a LIST of dicts (batch) or a single dict?
-        # MONAI transforms usually handle single dict.
-        try:
-            result = inverter(data)
-            restored = result["pred"]
-            
-            # restored is [C, H, W, D]
-            binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-            logger.info(f"  Restored mask shape: {binary_mask.shape}")
-        except Exception as e:
-            logger.warning(f"  Invertd failed ({e}). Keeping inference resolution.")
-            # Keep original mask without restoration
-
-    elif restore_original_spacing and original_meta_dict is not None:
-        # Legacy fallback
-        logger.info("  Restoring to original spacing using manual Spacing transform...")
-        from monai.transforms import Spacing
-        original_spacing = original_meta_dict.get('pixdim', None)
-        if original_spacing is not None:
-            original_spacing = original_spacing[1:4]
-            spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
-            mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-            restored = spacing_transform(mask_tensor)
-            binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-            logger.info(f"  Restored mask shape: {binary_mask.shape}")
-    else:
-        logger.info(f"  Keeping inference resolution: {binary_mask.shape}")
+        # Get original shape from metadata
+        if isinstance(input_image, MetaTensor) and hasattr(input_image, 'meta'):
+            meta = input_image.meta
+            # Get original spatial shape before Spacingd
+            if 'spatial_shape' in meta:
+                original_shape = meta['spatial_shape']
+                print(f"  Original shape from metadata: {original_shape}")
+                print(f"  Current mask shape: {binary_mask.shape}")
+                
+                # Calculate zoom factors
+                zoom_factors = [
+                    original_shape[i] / binary_mask.shape[i] 
+                    for i in range(3)
+                ]
+                print(f"  Zoom factors for restoration: {zoom_factors}")
+                
+                # Apply zoom to restore original size
+                binary_mask_restored = zoom(
+                    binary_mask.astype(np.float32), 
+                    zoom_factors, 
+                    order=0,  # Nearest neighbor for binary mask
+                    mode='nearest'
+                )
+                binary_mask = (binary_mask_restored > 0.5).astype(np.uint8)
+                print(f"  Restored mask shape: {binary_mask.shape}")
+            else:
+                print("  Warning: No spatial_shape in metadata, skipping restoration")
+        else:
+            print("  Warning: Input image is not MetaTensor, skipping restoration")
     
     return binary_mask
 
