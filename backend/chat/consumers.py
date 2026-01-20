@@ -19,10 +19,29 @@ from .room_utils import dm_participant_ids, dm_participant_ids_from_case_key, pa
 
 def user_payload(user):
     # 한국식 이름 형식: 성+이름 (예: "박철순", "노건우")
-    first_name = (getattr(user, 'first_name', '') or '').strip()
-    last_name = (getattr(user, 'last_name', '') or '').strip()
+    # serializers.py와 동일한 로직 사용
+    first_name_raw = getattr(user, 'first_name', '') or ''
+    last_name_raw = getattr(user, 'last_name', '') or ''
     
-    if last_name and first_name:
+    first_name = first_name_raw.strip() if first_name_raw else ''
+    last_name = last_name_raw.strip() if last_name_raw else ''
+    
+    # first_name에 "철순 박" 형식으로 저장된 경우 처리
+    if first_name and not last_name:
+        parts = first_name.split()
+        if len(parts) >= 2:
+            # "철순 박" -> "박철순" (마지막이 성)
+            name = f"{parts[-1]}{''.join(parts[:-1])}"
+        else:
+            name = first_name
+    elif last_name and not first_name:
+        parts = last_name.split()
+        if len(parts) >= 2:
+            # "박 철순" -> "박철순"
+            name = f"{parts[0]}{''.join(parts[1:])}"
+        else:
+            name = last_name
+    elif last_name and first_name:
         # "건우" + "노" -> "노건우" (성+이름)
         name = f"{last_name}{first_name}"
     elif last_name:

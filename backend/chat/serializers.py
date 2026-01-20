@@ -25,30 +25,41 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
     def get_name(self, obj):
         # 한국식 이름 형식: 성+이름 (예: "박철순", "노건우")
-        # DB에서 직접 first_name, last_name을 가져와서 조합
+        # 모든 경우를 처리하여 "성+이름" 형식으로 변환
         
-        # 방법 1: first_name과 last_name 필드 직접 사용
+        # 1. first_name과 last_name 필드 직접 사용
         first_name_raw = getattr(obj, 'first_name', '') or ''
         last_name_raw = getattr(obj, 'last_name', '') or ''
         
         first_name = first_name_raw.strip() if first_name_raw else ''
         last_name = last_name_raw.strip() if last_name_raw else ''
         
-        # first_name과 last_name이 모두 있으면 "성+이름" 형식으로 조합
+        # 2. first_name에 "철순 박" 형식으로 저장된 경우 처리
+        if first_name and not last_name:
+            parts = first_name.split()
+            if len(parts) >= 2:
+                # "철순 박" -> "박철순" (마지막이 성)
+                # "건우 노" -> "노건우"
+                return f"{parts[-1]}{''.join(parts[:-1])}"
+        
+        # 3. last_name에 "박" 형식으로 저장된 경우 처리
+        if last_name and not first_name:
+            parts = last_name.split()
+            if len(parts) >= 2:
+                # "박 철순" -> "박철순"
+                return f"{parts[0]}{''.join(parts[1:])}"
+        
+        # 4. first_name과 last_name이 모두 있는 경우
         if last_name and first_name:
             # "건우" + "노" -> "노건우" (성+이름)
+            # "철순" + "박" -> "박철순"
             return f"{last_name}{first_name}"
         elif last_name:
             return last_name
         elif first_name:
-            # first_name만 있는 경우, 공백으로 분리해서 마지막이 성인지 확인
-            parts = first_name.split()
-            if len(parts) >= 2:
-                # "철순 박" -> "박철순"
-                return f"{parts[-1]}{''.join(parts[:-1])}"
             return first_name
         
-        # 방법 2: get_full_name() 사용 (fallback)
+        # 5. get_full_name() 사용 (fallback)
         full_name = obj.get_full_name()
         if full_name:
             full_name = full_name.strip()
@@ -67,7 +78,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
                 return f"{parts[-1]}{''.join(parts[:-1])}"
             return full_name
         
-        # 모두 없으면 username 반환
+        # 6. 모두 없으면 username 반환
         return obj.get_username() or str(obj.id)
 
     def get_role(self, obj):
