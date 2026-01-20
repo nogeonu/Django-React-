@@ -1447,38 +1447,6 @@ const FloatingChat = () => {
                                 })
                             );
                         })()}
-                            <div
-                                key={user.id}
-                                className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''}`}
-                                onClick={() => {
-                                    if (isSelectionMode) {
-                                        toggleUserSelection(user.id);
-                                    } else {
-                                        openDM(user.id);
-                                    }
-                                }}
-                            >
-                                {isSelectionMode && (
-                                    <input
-                                        type="checkbox"
-                                        className="friend-checkbox"
-                                        checked={selectedUserIds.has(user.id)}
-                                        onChange={() => toggleUserSelection(user.id)}
-                                        onClick={(event) => event.stopPropagation()}
-                                    />
-                                )}
-                                <div className={`chat-list-avatar ${user.is_online ? 'online' : ''}`}>
-                                    {(user.name || user.username || '?')[0]}
-                                </div>
-                                <div className="chat-list-content">
-                                    <div className="chat-list-top">
-                                        <span className="chat-list-name">{user.name || user.username}</span>
-                                        <span className="chat-list-time">{user.is_online ? '온라인' : ''}</span>
-                                    </div>
-                                    <div className="chat-list-preview">{user.department || user.role || '의료진'}</div>
-                                </div>
-                            </div>
-                        ))}
 
                         {currentTab === 'chats' && rooms.length === 0 && (
                             <div className="chat-empty">
