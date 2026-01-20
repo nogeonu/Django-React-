@@ -226,7 +226,10 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             state_qs.values("cleared_at")[:1],
             output_field=DateTimeField(),
         )
-        min_timestamp = timezone.make_aware(datetime(1970, 1, 1))
+        if getattr(settings, "USE_TZ", False):
+            min_timestamp = timezone.make_aware(datetime(1970, 1, 1))
+        else:
+            min_timestamp = datetime(1970, 1, 1)
         visible_since = Coalesce(cleared_subquery, Value(min_timestamp))
         last_message_qs = Message.objects.filter(
             room=OuterRef("pk"),
@@ -634,7 +637,10 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         if not query:
             return Response([])
         user = request.user
-        min_timestamp = timezone.make_aware(datetime(1970, 1, 1))
+        if getattr(settings, "USE_TZ", False):
+            min_timestamp = timezone.make_aware(datetime(1970, 1, 1))
+        else:
+            min_timestamp = datetime(1970, 1, 1)
         rooms = ChatRoom.objects.all()
         if user.is_authenticated:
             rooms = rooms.exclude(user_states__user=user, user_states__is_hidden=True)
