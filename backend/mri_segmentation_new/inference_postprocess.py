@@ -344,22 +344,11 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Stack non-empty frames
     mask_frames_sparse = np.stack(non_empty_frames, axis=0)
     
-    # CRITICAL: Select corresponding source images for non-empty frames
-    # This ensures proper frame-to-slice mapping in DICOM SEG
+    # Select corresponding source images for non-empty frames
     source_images_sparse = [source_images[idx] for idx in non_empty_indices]
     
     logger.info(f"  Final sparse mask shape: {mask_frames_sparse.shape}")
     logger.info(f"  Number of reference images: {len(source_images_sparse)}")
-    
-    # Create plane positions for each sparse frame
-    plane_positions = []
-    for idx in non_empty_indices:
-        ds = source_images[idx]
-        pos = PlanePositionSequence(
-            coordinate_system="PATIENT",
-            image_position=ds.ImagePositionPatient
-        )
-        plane_positions.append(pos)
     
     # 3. Create Segment Description with CodedConcept
     # SCT (SNOMED CT) 코드 직접 생성
@@ -409,8 +398,7 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         manufacturer="MAMA-MIA Team",
         manufacturer_model_name="Phase1-Segmentation",
         software_versions="1.0",
-        device_serial_number="123456",
-        plane_positions=plane_positions  # Explicit frame-to-slice mapping
+        device_serial_number="123456"
     )
     
     # Add missing DICOM metadata
