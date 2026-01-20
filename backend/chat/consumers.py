@@ -334,19 +334,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         user = self.scope.get("user")
         if user is None or user.is_anonymous:
+            logger.warning(f"WebSocket 연결 거부: 인증되지 않은 사용자")
             await self.close()
             return
 
         self.user = user
         await mark_user_online(self.user)
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
+        logger.info(f"WebSocket 연결 시도: user={self.user.id}, room={self.room_name}")
         try:
             parsed = parse_room_name(self.room_name)
-        except ValueError:
+        except ValueError as e:
+            logger.error(f"WebSocket 연결 실패: room_name 파싱 오류 - {e}")
             await self.close()
             return
         dm_ids = dm_participant_ids_from_case_key(parsed.case_key or "")
         if dm_ids and self.user.id not in dm_ids:
+            logger.warning(f"WebSocket 연결 거부: DM 참여자가 아님 - user={self.user.id}, dm_ids={dm_ids}")
             await self.close()
             return
 
@@ -390,6 +394,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        logger.info(f"WebSocket 연결 성공: user={self.user.id}, room={self.room_name}")
 
         await self.send_history()
         # WebSocket 연결만으로는 읽음 처리하지 않음 (카카오톡 방식)

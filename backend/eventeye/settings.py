@@ -96,6 +96,10 @@ CHANNEL_LAYERS = {
 OPEN_CHAT_ACCESS = True  # 모든 사용자가 채팅방 접근 가능
 MESSAGE_HISTORY_LIMIT = 50  # WebSocket 연결 시 로드할 최근 메시지 수
 
+# Chat 설정
+OPEN_CHAT_ACCESS = True  # 모든 사용자가 채팅방 접근 가능
+MESSAGE_HISTORY_LIMIT = 50  # WebSocket 연결 시 로드할 최근 메시지 수
+
 # Database
 DATABASES = {
     'default': {
