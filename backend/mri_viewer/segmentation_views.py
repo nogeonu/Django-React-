@@ -48,9 +48,22 @@ def get_pipeline():
         from inference_pipeline import SegmentationInferencePipeline
         
         logger.info(f"Loading segmentation model from: {MODEL_PATH}")
+        
+        # GPU 사용 가능 여부 확인
+        import torch
+        device = "cpu"  # 기본값은 CPU
+        if os.getenv('USE_GPU', 'false').lower() == 'true':
+            if torch.cuda.is_available():
+                device = "cuda"
+                logger.info("Using CUDA GPU for inference")
+            else:
+                logger.warning("GPU requested but not available. Using CPU instead.")
+        else:
+            logger.info("Using CPU for inference (set USE_GPU=true to enable GPU)")
+        
         _pipeline = SegmentationInferencePipeline(
             model_path=str(MODEL_PATH),
-            device="cuda" if os.getenv('USE_GPU', 'false').lower() == 'true' else "cpu",
+            device=device,
             threshold=0.5
         )
         logger.info("Model loaded successfully!")
