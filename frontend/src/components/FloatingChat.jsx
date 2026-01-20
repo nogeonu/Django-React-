@@ -186,7 +186,16 @@ const FloatingChat = () => {
             console.log('알림 수신:', data.type);
 
             if (data.type === 'notify_message') {
-                updateTotalUnreadFromAPI();
+                // 알림 배지는 채팅방을 열지 않았을 때만 업데이트
+                // 현재 채팅방이 열려있고 그 방의 메시지라면 배지 업데이트 안 함
+                const currentRoomName = currentRoomRef.current?.name;
+                const notifiedRoomName = data.data?.room_name;
+                
+                // 다른 방의 메시지이거나 채팅방이 열려있지 않을 때만 배지 업데이트
+                if (!currentRoomName || currentRoomName !== notifiedRoomName) {
+                    updateTotalUnreadFromAPI();
+                }
+                
                 if (currentTabRef.current === 'chats') {
                     loadRooms();
                 }
@@ -527,7 +536,15 @@ const FloatingChat = () => {
         }
     };
 
+    const sendMessageRef = useRef(false); // 중복 전송 방지 플래그
+
     const sendMessage = () => {
+        // 중복 전송 방지: 이미 전송 중이면 무시
+        if (sendMessageRef.current) {
+            console.log('메시지 전송 중복 방지');
+            return;
+        }
+
         const content = messageInput.trim();
         if (!content) return;
         const socket = socketRef.current;
@@ -544,7 +561,10 @@ const FloatingChat = () => {
             return;
         }
 
-        // 중복 전송 방지: 입력 필드를 먼저 비우고 전송 중 플래그 설정
+        // 전송 중 플래그 설정
+        sendMessageRef.current = true;
+        
+        // 입력 필드를 먼저 비우기
         setMessageInput('');
         if (messageInputRef.current) {
             messageInputRef.current.style.height = 'auto';
@@ -558,11 +578,17 @@ const FloatingChat = () => {
             console.log('메시지 전송:', payload, 'Socket:', socket.readyState);
             // 서버로 전송 (서버 응답으로 chat_message 이벤트가 오면 그때 표시됨)
             socket.send(JSON.stringify(payload));
+            
+            // 전송 완료 후 플래그 해제 (짧은 딜레이로 중복 전송 방지)
+            setTimeout(() => {
+                sendMessageRef.current = false;
+            }, 500);
         } catch (err) {
             console.error('메시지 전송 실패:', err);
             alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
-            // 실패 시 입력 복원
+            // 실패 시 입력 복원 및 플래그 해제
             setMessageInput(content);
+            sendMessageRef.current = false;
         }
     };
 
@@ -825,17 +851,31 @@ const FloatingChat = () => {
                         return prev;
                     }
                     
-                    // 같은 내용, 같은 발신자, 같은 시간(1초 이내)인 경우도 중복으로 간주
+                    // 같은 내용, 같은 발신자, 같은 시간(2초 이내)인 경우도 중복으로 간주
                     const me = currentUserRef.current;
                     if (me && message?.sender?.id === me.id) {
-                        const recentMessage = prev[prev.length - 1];
-                        if (recentMessage && 
-                            recentMessage.sender?.id === me.id &&
-                            recentMessage.content === message.content) {
-                            const timeDiff = new Date(message.timestamp) - new Date(recentMessage.timestamp);
-                            if (timeDiff < 1000) { // 1초 이내
-                                console.log('중복 메시지 무시 (내용/시간):', message.content);
-                                return prev;
+                        // 최근 3개 메시지 확인 (더 엄격한 중복 체크)
+                        const recentMessages = prev.slice(-3);
+                        for (const recentMsg of recentMessages) {
+                            if (recentMsg.sender?.id === me.id) {
+                                // 내용이 완전히 같거나, 새 메시지가 이전 메시지의 끝부분과 같으면 중복
+                                if (recentMsg.content === message.content) {
+                                    const timeDiff = new Date(message.timestamp) - new Date(recentMsg.timestamp);
+                                    if (timeDiff < 2000) { // 2초 이내
+                                        console.log('중복 메시지 무시 (동일 내용):', message.content);
+                                        return prev;
+                                    }
+                                } else if (message.content.length > 0 && recentMsg.content.length > 0) {
+                                    // 새 메시지가 이전 메시지의 끝부분과 같으면 중복 (예: "안녕" -> "녕")
+                                    const recentEnd = recentMsg.content.slice(-message.content.length);
+                                    if (recentEnd === message.content) {
+                                        const timeDiff = new Date(message.timestamp) - new Date(recentMsg.timestamp);
+                                        if (timeDiff < 2000) { // 2초 이내
+                                            console.log('중복 메시지 무시 (끝부분 일치):', recentMsg.content, '->', message.content);
+                                            return prev;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -844,11 +884,17 @@ const FloatingChat = () => {
                     return [...prev, message];
                 });
 
-                // 상대방 메시지인 경우 읽음 처리
+                // 상대방 메시지인 경우 읽음 처리 (채팅방이 열려있을 때만)
+                // 단, 알림 배지는 업데이트하지 않음 (이미 채팅방이 열려있으므로)
                 if (me && message?.sender?.id !== me.id) {
+                    // 읽음 처리는 하지만 알림 배지는 업데이트하지 않음
+                    // (채팅방이 열려있으면 자동으로 읽은 것으로 간주)
                     setTimeout(() => {
                         const roomId = currentRoomRef.current?.id;
-                        if (roomId) markRoomAsRead(roomId);
+                        if (roomId) {
+                            markRoomAsRead(roomId);
+                            // 채팅방이 열려있으므로 전체 알림 배지는 업데이트하지 않음
+                        }
                     }, 500);
                 }
                 return;
