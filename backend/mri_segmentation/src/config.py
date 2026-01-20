@@ -194,9 +194,16 @@ INFERENCE_CONFIG = {
 # Device Configuration
 # ============================================================================
 import torch
-DEVICE = "cuda" # or "cpu"
+import os
+
+# 환경 변수에서 우선 확인, 없으면 CPU 기본값 사용
+DEVICE = os.getenv('USE_GPU', 'false').lower() == 'true' and torch.cuda.is_available()
+DEVICE = "cuda" if DEVICE else "cpu"
+
 RANDOM_SEED = 42  # Seed for reproducibility
 print(f"Using device: {DEVICE}")
-if DEVICE == "cuda":
+if DEVICE == "cuda" and torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+else:
+    print("Using CPU for inference")
