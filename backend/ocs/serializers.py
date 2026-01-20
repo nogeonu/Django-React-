@@ -89,8 +89,9 @@ class OrderSerializer(serializers.ModelSerializer):
         elif order_type == 'lab_test':
             if target_department != 'lab':
                 raise serializers.ValidationError("검사 주문은 검사실로 전달되어야 합니다.")
-            if 'test_items' not in order_data:
-                raise serializers.ValidationError("검사 주문에는 검사 항목이 필요합니다.")
+            # test_type 또는 test_items 중 하나는 필요
+            if 'test_type' not in order_data and 'test_items' not in order_data:
+                raise serializers.ValidationError("검사 주문에는 검사 유형(test_type) 또는 검사 항목(test_items)이 필요합니다.")
         
         elif order_type == 'imaging':
             if target_department != 'radiology':
@@ -204,9 +205,17 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         elif order_type == 'lab_test':
             if target_department != 'lab':
                 raise serializers.ValidationError("검사 주문은 검사실로 전달되어야 합니다.")
+            # test_type이 있으면 test_items 검증 건너뛰기
+            test_type = order_data.get('test_type')
+            if test_type:
+                # test_type 검증 (blood 또는 rna)
+                if test_type not in ['blood', 'rna']:
+                    raise serializers.ValidationError("검사 유형(test_type)은 'blood' 또는 'rna'여야 합니다.")
+            else:
+                # 기존 test_items 방식 지원 (하위 호환성)
             test_items = order_data.get('test_items', [])
             if not test_items or len(test_items) == 0:
-                raise serializers.ValidationError("검사 주문에는 검사 항목이 필요합니다.")
+                    raise serializers.ValidationError("검사 주문에는 검사 유형(test_type) 또는 검사 항목(test_items)이 필요합니다.")
             # 빈 검사명 필터링
             valid_test_items = [t for t in test_items if t.get('name', '').strip()]
             if not valid_test_items:
