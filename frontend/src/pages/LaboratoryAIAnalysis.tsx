@@ -205,6 +205,7 @@ export default function LaboratoryAIAnalysis() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('patient_id', patientId);
+      formData.append('order_id', selectedOrder.id);  // OCS 주문 ID도 함께 전송
       
       // FormData 내용 확인 (디버깅용)
       console.log('FormData entries:');
@@ -283,6 +284,7 @@ export default function LaboratoryAIAnalysis() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('patient_id', patientId);
+      formData.append('order_id', selectedOrder.id);  // OCS 주문 ID도 함께 전송
       
       // FormData 내용 확인 (디버깅용)
       console.log('FormData entries:');
