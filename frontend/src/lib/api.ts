@@ -339,9 +339,14 @@ export const getRNATestsApi = async (params?: Record<string, unknown>) => {
   return res.data;
 };
 
-export const uploadLabTestCsvApi = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
+export const uploadLabTestCsvApi = async (fileOrFormData: File | FormData) => {
+  let formData: FormData;
+  if (fileOrFormData instanceof FormData) {
+    formData = fileOrFormData;
+  } else {
+    formData = new FormData();
+    formData.append('file', fileOrFormData);
+  }
   const res = await apiClient.post('/api/lis/lab-tests/upload_csv/', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -350,9 +355,14 @@ export const uploadLabTestCsvApi = async (file: File) => {
   return res.data;
 };
 
-export const uploadRNATestCsvApi = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
+export const uploadRNATestCsvApi = async (fileOrFormData: File | FormData) => {
+  let formData: FormData;
+  if (fileOrFormData instanceof FormData) {
+    formData = fileOrFormData;
+  } else {
+    formData = new FormData();
+    formData.append('file', fileOrFormData);
+  }
   const res = await apiClient.post('/api/lis/rna-tests/upload_csv/', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',

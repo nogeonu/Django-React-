@@ -159,12 +159,18 @@ export default function LaboratoryAIAnalysis() {
 
     setUploading(true);
     try {
-      const result = await uploadLabTestCsvApi(file);
+      // 선택한 환자의 patient_id를 함께 전송
+      const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('patient_id', patientId);
+      
+      const result = await uploadLabTestCsvApi(formData);
       toast({
         title: '업로드 성공',
         description: `${result.created}개 생성, ${result.updated}개 업데이트`,
       });
-      await loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
+      await loadRNATestsForPatient(patientId);
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -192,12 +198,18 @@ export default function LaboratoryAIAnalysis() {
 
     setUploading(true);
     try {
-      const result = await uploadRNATestCsvApi(file);
+      // 선택한 환자의 patient_id를 함께 전송
+      const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('patient_id', patientId);
+      
+      const result = await uploadRNATestCsvApi(formData);
       toast({
         title: 'RNA 업로드 성공',
         description: `${result.created}개 생성, ${result.updated}개 업데이트`,
       });
-      await loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
+      await loadRNATestsForPatient(patientId);
       setActiveTab('analysis');
     } catch (error: any) {
       toast({

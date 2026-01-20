@@ -54,6 +54,9 @@ class LabTestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # request data에서 patient_id 가져오기 (선택한 환자 정보)
+        patient_id_from_request = request.data.get('patient_id', '').strip()
+        
         try:
             decoded_file = csv_file.read().decode('utf-8')
             io_string = io.StringIO(decoded_file)
@@ -65,10 +68,11 @@ class LabTestViewSet(viewsets.ModelViewSet):
             
             for row in reader:
                 try:
-                    patient_id = row.get('patient_id', '').strip()
+                    # CSV에서 patient_id를 가져오거나, request에서 가져온 값 사용
+                    patient_id = row.get('patient_id', '').strip() or patient_id_from_request
                     
                     if not patient_id:
-                        errors.append(f"환자 ID가 없습니다: {row}")
+                        errors.append(f"환자 ID가 없습니다. CSV 파일에 patient_id 열이 없으면 patient_id 파라미터를 함께 전송해주세요: {row}")
                         continue
                     
                     try:
@@ -165,6 +169,9 @@ class RNATestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # request data에서 patient_id 가져오기 (선택한 환자 정보)
+        patient_id_from_request = request.data.get('patient_id', '').strip()
+        
         try:
             decoded_file = csv_file.read().decode('utf-8')
             io_string = io.StringIO(decoded_file)
@@ -176,10 +183,11 @@ class RNATestViewSet(viewsets.ModelViewSet):
             
             for row in reader:
                 try:
-                    patient_id = row.get('patient_id', '').strip()
+                    # CSV에서 patient_id를 가져오거나, request에서 가져온 값 사용
+                    patient_id = row.get('patient_id', '').strip() or patient_id_from_request
                     
                     if not patient_id:
-                        errors.append(f"환자 ID가 없습니다: {row}")
+                        errors.append(f"환자 ID가 없습니다. CSV 파일에 patient_id 열이 없으면 patient_id 파라미터를 함께 전송해주세요: {row}")
                         continue
                     
                     try:
