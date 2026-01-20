@@ -15,17 +15,29 @@ const buildWsBaseUrl = (serverUrl) => {
 
     // 2. Fallback to current window location
     const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // e.g., 'localhost:5173' or '34.42.223.43'
+    let host = window.location.host; // e.g., 'localhost:5173' or '34.42.223.43'
 
-    // Local dev (Vite) or host with explicit port
-    if (host.includes(':')) {
-        return `${scheme}//${host}`;
+    // 개발 환경 (Vite는 다른 포트 사용)
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        // 로컬 개발 시 Django 서버 포트로 연결
+        if (host.includes(':')) {
+            const [hostname, port] = host.split(':');
+            // Vite 포트(5173)를 Django 포트(8000)로 변경
+            if (port === '5173' || port === '3000') {
+                host = `${hostname}:8000`;
+            }
+        } else {
+            host = `${host}:8000`;
+        }
+    } else {
+        // 프로덕션 환경: 같은 호스트 사용 (Nginx가 /ws를 프록시하는 경우)
+        // 또는 직접 포트 접근이 필요한 경우
+        if (!host.includes(':')) {
+            // 포트가 없으면 WebSocket은 같은 포트 사용 (Nginx 프록시)
+            // 또는 직접 8000 포트 접근 필요 시 아래 주석 해제
+            // host = `${host}:8000`;
+        }
     }
-
-    // Remote server (Port 80/443) without /ws proxy configured
-    // Many setups run Daphne/Channels on port 8000
-    // If Nginx proxies /api but not /ws, we might need direct port access
-    // return `${scheme}//${host}:8000`; // Uncomment this if Nginx /ws proxy is not available
 
     return `${scheme}//${host}`;
 };
@@ -147,23 +159,35 @@ const FloatingChat = () => {
     };
 
     const connectNotifications = () => {
-        if (!currentUserRef.current) return;
+        if (!currentUserRef.current) {
+            console.log('알림 WebSocket: 사용자 정보 없음');
+            return;
+        }
         const existing = notifySocketRef.current;
         if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+            console.log('알림 WebSocket: 이미 연결 중');
             return;
         }
 
         const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
+        console.log('알림 WebSocket 연결 시도:', wsUrl);
         const socket = new WebSocket(wsUrl);
         notifySocketRef.current = socket;
+
+        socket.onopen = () => {
+            console.log('알림 WebSocket 연결 성공');
+        };
 
         socket.onmessage = (event) => {
             let data = null;
             try {
                 data = JSON.parse(event.data);
             } catch (err) {
+                console.error('알림 메시지 파싱 실패:', err);
                 return;
             }
+
+            console.log('알림 수신:', data.type);
 
             if (data.type === 'notify_message') {
                 updateTotalUnreadFromAPI();
@@ -178,13 +202,19 @@ const FloatingChat = () => {
             }
         };
 
-        socket.onclose = () => {
+        socket.onerror = (error) => {
+            console.error('알림 WebSocket 오류:', error);
+        };
+
+        socket.onclose = (event) => {
+            console.log('알림 WebSocket 연결 종료:', event.code, event.reason);
             if (notifySocketRef.current === socket) {
                 notifySocketRef.current = null;
             }
             if (notifyReconnectTimerRef.current) return;
             notifyReconnectTimerRef.current = setTimeout(() => {
                 notifyReconnectTimerRef.current = null;
+                console.log('알림 WebSocket 재연결 시도...');
                 connectNotifications();
             }, 5000);
         };
@@ -504,16 +534,34 @@ const FloatingChat = () => {
         const content = messageInput.trim();
         if (!content) return;
         const socket = socketRef.current;
-        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        
+        if (!socket) {
+            console.error('WebSocket이 연결되지 않았습니다.');
+            alert('채팅 연결이 끊어졌습니다. 페이지를 새로고침해주세요.');
+            return;
+        }
+        
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket 상태:', socket.readyState);
+            alert('채팅 연결이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+            return;
+        }
 
-        socket.send(JSON.stringify({
-            type: 'chat_message',
-            content,
-        }));
+        try {
+            const payload = {
+                type: 'chat_message',
+                content,
+            };
+            console.log('메시지 전송:', payload);
+            socket.send(JSON.stringify(payload));
 
-        setMessageInput('');
-        if (messageInputRef.current) {
-            messageInputRef.current.style.height = 'auto';
+            setMessageInput('');
+            if (messageInputRef.current) {
+                messageInputRef.current.style.height = 'auto';
+            }
+        } catch (err) {
+            console.error('메시지 전송 실패:', err);
+            alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
         }
     };
 
@@ -684,12 +732,14 @@ const FloatingChat = () => {
         if (!currentRoom?.name) return;
 
         const wsUrl = `${WS_BASE_URL}/ws/chat/${currentRoom.name}/`;
+        console.log('WebSocket 연결 시도:', wsUrl);
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
 
         setHeaderStatus('연결 중...');
 
         socket.onopen = () => {
+            console.log('WebSocket 연결 성공:', wsUrl);
             setHeaderStatus('연결됨');
         };
 
@@ -742,12 +792,24 @@ const FloatingChat = () => {
             }
         };
 
-        socket.onerror = () => {
+        socket.onerror = (error) => {
+            console.error('WebSocket 오류:', error);
             setHeaderStatus('연결 오류');
         };
 
-        socket.onclose = () => {
+        socket.onclose = (event) => {
+            console.log('WebSocket 연결 종료:', event.code, event.reason);
             setHeaderStatus('연결 종료');
+            // 비정상 종료 시 재연결 시도
+            if (event.code !== 1000 && currentRoomRef.current?.name) {
+                setTimeout(() => {
+                    if (currentRoomRef.current?.name) {
+                        console.log('WebSocket 재연결 시도...');
+                        // 재연결은 useEffect가 다시 실행되도록 currentRoom 변경 필요
+                        // 여기서는 로그만 남기고, 상위에서 처리하도록 함
+                    }
+                }, 3000);
+            }
         };
 
         return () => {

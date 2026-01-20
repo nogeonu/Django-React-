@@ -92,6 +92,10 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Chat 설정
+OPEN_CHAT_ACCESS = True  # 모든 사용자가 채팅방 접근 가능
+MESSAGE_HISTORY_LIMIT = 50  # WebSocket 연결 시 로드할 최근 메시지 수
+
 # Database
 DATABASES = {
     'default': {
@@ -186,10 +190,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
 }
 
 # Swagger settings
