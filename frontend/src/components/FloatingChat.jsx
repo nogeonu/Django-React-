@@ -30,13 +30,9 @@ const buildWsBaseUrl = (serverUrl) => {
             host = `${host}:8000`;
         }
     } else {
-        // 프로덕션 환경: 같은 호스트 사용 (Nginx가 /ws를 프록시하는 경우)
-        // 또는 직접 포트 접근이 필요한 경우
-        if (!host.includes(':')) {
-            // 포트가 없으면 WebSocket은 같은 포트 사용 (Nginx 프록시)
-            // 또는 직접 8000 포트 접근 필요 시 아래 주석 해제
-            // host = `${host}:8000`;
-        }
+        // 프로덕션 환경: Nginx가 /ws를 프록시하므로 같은 호스트 사용
+        // 포트 없이 사용 (Nginx가 80 포트에서 /ws를 8000으로 프록시)
+        // host는 그대로 사용 (예: '34.42.223.43')
     }
 
     return `${scheme}//${host}`;
