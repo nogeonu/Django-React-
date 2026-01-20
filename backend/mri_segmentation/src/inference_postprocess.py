@@ -4,12 +4,22 @@ Converts model output (probabilities) to final segmentation mask.
 """
 import torch
 import numpy as np
+import logging
+import sys
 from monai.transforms import (
     Compose, Invertd, SaveImaged, AsDiscreted,
     KeepLargestConnectedComponentd, FillHolesd
 )
 from scipy import ndimage
 import config
+
+# Logger 설정 (Django/Gunicorn에서 journal에 기록되도록)
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
 
 def get_postprocess_transforms(threshold=0.5, apply_morphology=True):
@@ -84,6 +94,24 @@ def postprocess_prediction(
         # We need the original MetaTensor that holds transform information
         input_image = preprocessed_data.get("image")
         
+        # 🔍 디버깅: 조원님 분석 확인
+        logger.debug("[DEBUG] Invertd 복원 시작")
+        logger.debug(f"  - binary_mask shape (전처리 후): {binary_mask.shape}")
+        logger.debug(f"  - input_image type: {type(input_image)}")
+        logger.debug(f"  - input_image is MetaTensor: {isinstance(input_image, MetaTensor)}")
+        if isinstance(input_image, MetaTensor):
+            logger.debug(f"  - input_image.affine exists: {hasattr(input_image, 'affine')}")
+            if hasattr(input_image, 'affine'):
+                logger.debug(f"  - input_image.affine shape: {input_image.affine.shape if input_image.affine is not None else None}")
+            if hasattr(input_image, 'meta'):
+                logger.debug(f"  - input_image.meta keys: {list(input_image.meta.keys())[:10] if hasattr(input_image, 'meta') else None}")
+        logger.debug(f"  - original_meta_dict: {original_meta_dict is not None}")
+        if original_meta_dict:
+            logger.debug(f"  - original_meta_dict keys: {list(original_meta_dict.keys())[:10]}")
+            logger.debug(f"  - original_meta_dict spacing: {original_meta_dict.get('spacing', 'NOT FOUND')}")
+            logger.debug(f"  - original_meta_dict pixdim: {original_meta_dict.get('pixdim', 'NOT FOUND')}")
+            logger.debug(f"  - original_meta_dict spatial_shape: {original_meta_dict.get('spatial_shape', 'NOT FOUND')}")
+        
         # Create a dictionary for Invertd
         # Note: binary_mask is numpy [H, W, D], we need [C, H, W, D] for MONAI
         # And convert to Tensor (Invertd expects Tensor/MetaTensor)
@@ -98,6 +126,9 @@ def postprocess_prediction(
         # Create MetaTensor with affine from input_image
         if isinstance(input_image, MetaTensor):
             mask_tensor = MetaTensor(mask_tensor, affine=input_image.affine)
+            logger.debug(f"  - mask_tensor created as MetaTensor with affine")
+        else:
+            logger.warning(f"  - ⚠️ WARNING: input_image is NOT MetaTensor! Type: {type(input_image)}")
         
         data = dict(preprocessed_data)
         data["image"] = input_image
@@ -124,28 +155,108 @@ def postprocess_prediction(
             restored = result["pred"]
             
             # restored is [C, H, W, D]
-            binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-            # print("Restored to original geometry using Invertd")
+            binary_mask_after_invertd = restored.squeeze(0).numpy().astype(np.uint8)
+            logger.debug(f"  - Invertd 실행 완료 (예외 없음)")
+            logger.debug(f"  - binary_mask shape (Invertd 후): {binary_mask_after_invertd.shape}")
+            
+            # 🔍 검증: Invertd가 제대로 복원했는지 확인
+            # 원본 크기와 비교 (original_meta_dict의 spatial_shape 확인)
+            if original_meta_dict and 'spatial_shape' in original_meta_dict:
+                original_shape = original_meta_dict['spatial_shape']
+                restored_shape = binary_mask_after_invertd.shape
+                logger.debug(f"  - 원본 크기 (meta_dict): {original_shape}")
+                logger.debug(f"  - 복원 후 크기: {restored_shape}")
+                
+                if restored_shape != tuple(original_shape):
+                    logger.warning(f"  - ⚠️ WARNING: Invertd가 제대로 복원하지 못함!")
+                    logger.warning(f"  - 차원 불일치 감지 → Fallback 사용")
+                    # Fallback 사용
+                    binary_mask = binary_mask  # 원래 크기 유지
+                    use_fallback = True
+                else:
+                    logger.debug(f"  - ✅ Invertd 복원 성공!")
+                    binary_mask = binary_mask_after_invertd
+                    use_fallback = False
+            else:
+                logger.warning(f"  - ⚠️ WARNING: original_meta_dict에 spatial_shape 없음")
+                logger.warning(f"  - Invertd 결과 사용 (검증 불가)")
+                binary_mask = binary_mask_after_invertd
+                use_fallback = False
+            
+            # Fallback이 필요한 경우
+            if use_fallback:
+                logger.info(f"  - Fallback으로 수동 복원 시도...")
+                # 조원님 제안: spatial_shape를 사용해서 정확한 크기로 리샘플링
+                if original_meta_dict and 'spatial_shape' in original_meta_dict:
+                    target_shape = original_meta_dict['spatial_shape']
+                    current_shape = binary_mask.shape
+                    
+                    # 현재 크기 → 목표 크기 계산
+                    scale_factors = [
+                        target_shape[0] / current_shape[0],
+                        target_shape[1] / current_shape[1],
+                        target_shape[2] / current_shape[2]
+                    ]
+                    
+                    logger.debug(f"  - 현재 크기: {current_shape}")
+                    logger.debug(f"  - 목표 크기: {target_shape}")
+                    logger.debug(f"  - Scale factors: {scale_factors}")
+                    
+                    # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링 (order=0: nearest neighbor)
+                    from scipy.ndimage import zoom
+                    binary_mask = zoom(binary_mask, scale_factors, order=0).astype(np.uint8)
+                    logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
+                else:
+                    logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
         except Exception as e:
-            print(f"Warning: Invertd failed ({e}). Falling back to manual spacing restoration.")
-            # Fallback to manual Spacing logic
-            if original_meta_dict is not None:
-                original_spacing = original_meta_dict.get('pixdim', None)
-                if original_spacing is not None:
-                    original_spacing = original_spacing[1:4]
-                    from monai.transforms import Spacing
-                    spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+            logger.error(f"  - ❌ Invertd 예외 발생: {e}")
+            logger.info(f"  - Fallback으로 수동 복원 시도...")
+            # 조원님 제안: spatial_shape를 사용해서 정확한 크기로 리샘플링
+            if original_meta_dict is not None and 'spatial_shape' in original_meta_dict:
+                target_shape = original_meta_dict['spatial_shape']
+                current_shape = binary_mask.shape
+                
+                # 현재 크기 → 목표 크기 계산
+                scale_factors = [
+                    target_shape[0] / current_shape[0],
+                    target_shape[1] / current_shape[1],
+                    target_shape[2] / current_shape[2]
+                ]
+                
+                logger.debug(f"  - 현재 크기: {current_shape}")
+                logger.debug(f"  - 목표 크기: {target_shape}")
+                logger.debug(f"  - Scale factors: {scale_factors}")
+                
+                # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링 (order=0: nearest neighbor)
+                from scipy.ndimage import zoom
+                binary_mask = zoom(binary_mask, scale_factors, order=0).astype(np.uint8)
+                logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
+            else:
+                logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
 
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
         from monai.transforms import Spacing
+        # 조원님 추천: pixdim 우선, 없으면 spacing 사용
+        original_spacing = None
         original_spacing = original_meta_dict.get('pixdim', None)
+        if original_spacing is None:
+            original_spacing = original_meta_dict.get('spacing', None)
+        
         if original_spacing is not None:
-            original_spacing = original_spacing[1:4]
-            spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
+            # spacing 값 추출 (리스트/튜플/텐서 등 다양한 형태 처리)
+            if hasattr(original_spacing, 'tolist'):
+                spacing_values = original_spacing.tolist()
+            elif hasattr(original_spacing, '__iter__') and not isinstance(original_spacing, str):
+                spacing_values = list(original_spacing)
+            else:
+                spacing_values = [original_spacing]
+            
+            # 앞의 1 제거 (pixdim 형태인 경우: [1, x, y, z])
+            if len(spacing_values) == 4:
+                spacing_values = spacing_values[1:]
+            
+            spacing_transform = Spacing(pixdim=spacing_values, mode="nearest")
             mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
             restored = spacing_transform(mask_tensor)
             binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
@@ -239,19 +350,35 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     source_images.sort(key=get_z_position)
     
     # 2. Prepare Mask Data
-    # mask is [H, W, D] (RAS from MONAI usually). 
-    # highdicom expects [Frames, Rows, Cols] (Z, Y, X).
-    # We need to transpose [H, W, D] -> [D, W, H] (Z, Y, X)
-    # Note: If MONAI loaded as RAS, and DICOM is LPS, we rely on MONAI's Invertd 
-    # having already restored it to the Patient Coordinate System geometry?
-    # Actually, `Invertd` output is in the same grid as the input image.
-    # So if we simply match the frame order, we just need to align dimensions.
+    # CRITICAL: highdicom.Segmentation expects:
+    #   - pixel_array shape: (Frames, Rows, Columns) where Frames = len(source_images)
+    #   - Each frame corresponds 1:1 with source_images[i]
     
-    # Transpose [H, W, D] -> [D, H, W]
+    # Input mask is [H, W, D] from MONAI (after Invertd restoration)
+    # We need [D, H, W] for highdicom (Frames=D, Rows=H, Cols=W)
+    
+    print(f"  Input mask shape: {mask.shape}")
+    print(f"  Source images count: {len(source_images)}")
+    
+    # Transpose to [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
+    print(f"  Transposed mask shape: {mask_frames.shape}")
     
-    # Ensure boolean
+    # Verify dimensions match
+    # Invertd가 정상 작동했다면 차원이 일치해야 함
+    # 불일치 시 명확한 에러 메시지로 문제 알림 (안전장치)
+    if mask_frames.shape[0] != len(source_images):
+        raise ValueError(
+            f"Dimension mismatch: mask has {mask_frames.shape[0]} frames "
+            f"but source_images has {len(source_images)} images. "
+            f"Original mask shape: {mask.shape}. "
+            f"This indicates Invertd failed to restore original spacing. "
+            f"Please check restore_original_spacing=True and Invertd transform."
+        )
+    
+    # Ensure boolean type for BINARY segmentation
     mask_frames = mask_frames > 0
+    print(f"  Non-empty frames: {np.sum(np.any(mask_frames, axis=(1,2)))}")
     
     # 3. Create Segment Description
     segment_description = SegmentDescription(
