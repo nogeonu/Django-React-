@@ -261,14 +261,25 @@ export default function LaboratoryAIAnalysis() {
       
       // 업로드 후 잠시 대기 후 데이터 다시 로드
       setTimeout(async () => {
+        console.log('Reloading RNA tests after upload, patientId:', patientId);
         await loadRNATestsForPatient(patientId);
+        
         // 데이터가 로드되면 분석 탭으로 이동
         const tests = await getRNATestsApi({ search: patientId });
         const testList = tests.results || tests || [];
+        console.log('Tests found after upload:', testList.length, testList);
+        
         if (testList.length > 0) {
           setRNATests(testList);
           setSelectedRNATest(testList[0]);
           setActiveTab('analysis');
+        } else {
+          // 데이터가 없으면 에러 메시지 표시
+          toast({
+            title: '데이터 로드 실패',
+            description: `업로드는 성공했지만 RNA 테스트 데이터를 찾을 수 없습니다. patientId: ${patientId}`,
+            variant: 'destructive',
+          });
         }
       }, 1000);
     } catch (error: any) {
