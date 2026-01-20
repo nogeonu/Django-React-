@@ -1304,6 +1304,14 @@ const FloatingChat = () => {
                             value={messageInput}
                             placeholder="메시지를 입력하세요"
                             rows={1}
+                            onCompositionStart={() => {
+                                isComposingRef.current = true;
+                                console.log('한글 입력 조합 시작');
+                            }}
+                            onCompositionEnd={() => {
+                                isComposingRef.current = false;
+                                console.log('한글 입력 조합 종료');
+                            }}
                             onChange={(event) => {
                                 setMessageInput(event.target.value);
                                 event.target.style.height = 'auto';
@@ -1314,6 +1322,10 @@ const FloatingChat = () => {
                                 if (roomId) markRoomAsRead(roomId);
                             }}
                             onKeyDown={(event) => {
+                                // 한글 입력 조합 중이면 Enter 키 무시
+                                if (isComposingRef.current) {
+                                    return;
+                                }
                                 if (event.key === 'Enter' && !event.shiftKey) {
                                     event.preventDefault();
                                     sendMessage();
