@@ -350,7 +350,7 @@ const FloatingChat = () => {
         setHeaderTitle(getRoomLabel(room));
     };
 
-    const markRoomAsRead = async (roomId) => {
+    const markRoomAsRead = async (roomId, updateBadge = true) => {
         if (!roomId) return;
         try {
             await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/mark-read/`), {
@@ -365,7 +365,11 @@ const FloatingChat = () => {
             setRooms((prev) => prev.map((room) => (
                 room.id === roomId ? { ...room, unread_count: 0 } : room
             )));
-            updateTotalUnreadFromAPI();
+            
+            // 채팅방이 열려있을 때는 알림 배지 업데이트 안 함 (너무 빨리 사라지는 문제 방지)
+            if (updateBadge) {
+                updateTotalUnreadFromAPI();
+            }
         } catch (err) {
             console.error('읽음 처리 실패:', err);
         }
@@ -422,7 +426,8 @@ const FloatingChat = () => {
         await updateHeaderForRoom(nextRoom);
 
         if (roomId) {
-            markRoomAsRead(roomId);
+            // 채팅방을 열 때는 알림 배지 업데이트 (사용자가 직접 열었으므로)
+            markRoomAsRead(roomId, true);
         }
     };
 
@@ -892,8 +897,8 @@ const FloatingChat = () => {
                     setTimeout(() => {
                         const roomId = currentRoomRef.current?.id;
                         if (roomId) {
-                            markRoomAsRead(roomId);
-                            // 채팅방이 열려있으므로 전체 알림 배지는 업데이트하지 않음
+                            // 채팅방이 열려있으므로 알림 배지 업데이트 안 함
+                            markRoomAsRead(roomId, false);
                         }
                     }, 500);
                 }
