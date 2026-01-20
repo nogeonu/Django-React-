@@ -1395,11 +1395,12 @@ const FloatingChat = () => {
                                                 setSelectedUserProfile(friendUser);
                                                 setShowProfileModal(true);
                                             }}
-                                            onClick={() => {
+                                            onClick={(e) => {
                                                 if (isSelectionMode) {
                                                     toggleUserSelection(friendUser.id);
                                                 } else {
-                                                    // 우클릭이 아닌 일반 클릭은 프로필 표시
+                                                    // 일반 클릭은 프로필 표시
+                                                    e.stopPropagation();
                                                     setSelectedUserProfile(friendUser);
                                                     setShowProfileModal(true);
                                                 }
