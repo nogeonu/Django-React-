@@ -93,10 +93,17 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        # 인증 확인 로깅
+        if not self.request.user.is_authenticated:
+            logger.warning(f"UserViewSet: Unauthenticated request from {self.request.META.get('REMOTE_ADDR')}")
+        else:
+            logger.info(f"UserViewSet: Authenticated user {self.request.user.id} ({self.request.user.username})")
+        
         # DB에 department 컬럼이 있지만 모델에는 없는 경우, extra()로 가져오기
-        return User.objects.all().select_related("presence").extra(
+        queryset = User.objects.filter(is_active=True).select_related("presence").extra(
             select={"department": "department"}
         ).order_by("username")
+        return queryset
 
     @action(detail=False, methods=["get"])
     def me(self, request):
