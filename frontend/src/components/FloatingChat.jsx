@@ -353,7 +353,8 @@ const FloatingChat = () => {
     const markRoomAsRead = async (roomId, updateBadge = true) => {
         if (!roomId) return;
         try {
-            await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/mark-read/`), {
+            console.log('읽음 처리 시작:', roomId, 'updateBadge:', updateBadge);
+            const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/mark-read/`), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -362,13 +363,20 @@ const FloatingChat = () => {
                 },
             });
 
-            setRooms((prev) => prev.map((room) => (
-                room.id === roomId ? { ...room, unread_count: 0 } : room
-            )));
-            
-            // 채팅방이 열려있을 때는 알림 배지 업데이트 안 함 (너무 빨리 사라지는 문제 방지)
-            if (updateBadge) {
-                updateTotalUnreadFromAPI();
+            if (res.ok) {
+                // 채팅방 목록의 unread_count를 0으로 업데이트
+                setRooms((prev) => prev.map((room) => (
+                    room.id === roomId ? { ...room, unread_count: 0 } : room
+                )));
+                
+                // 채팅방이 열려있을 때는 알림 배지 업데이트 안 함 (너무 빨리 사라지는 문제 방지)
+                // 사용자가 직접 채팅방을 열 때만 알림 배지 업데이트
+                if (updateBadge) {
+                    updateTotalUnreadFromAPI();
+                }
+                console.log('읽음 처리 완료:', roomId);
+            } else {
+                console.error('읽음 처리 실패:', res.status);
             }
         } catch (err) {
             console.error('읽음 처리 실패:', err);
@@ -426,7 +434,8 @@ const FloatingChat = () => {
         await updateHeaderForRoom(nextRoom);
 
         if (roomId) {
-            // 채팅방을 열 때는 알림 배지 업데이트 (사용자가 직접 열었으므로)
+            // 채팅방을 열 때는 즉시 읽음 처리 (카카오톡 방식)
+            // 알림 배지는 업데이트 (사용자가 직접 열었으므로)
             markRoomAsRead(roomId, true);
         }
     };
@@ -825,6 +834,11 @@ const FloatingChat = () => {
         socket.onopen = () => {
             console.log('WebSocket 연결 성공 (onopen 호출됨):', wsUrl);
             setHeaderStatus('연결됨');
+            // 채팅방이 열리면 즉시 읽음 처리 (카카오톡 방식)
+            const roomId = currentRoomRef.current?.id;
+            if (roomId) {
+                markRoomAsRead(roomId, false); // 알림 배지는 업데이트 안 함
+            }
         };
 
         socket.onmessage = (event) => {
@@ -897,18 +911,15 @@ const FloatingChat = () => {
                     return [...prev, message];
                 });
 
-                // 상대방 메시지인 경우 읽음 처리 (채팅방이 열려있을 때만)
-                // 단, 알림 배지는 업데이트하지 않음 (이미 채팅방이 열려있으므로)
+                // 상대방 메시지인 경우 읽음 처리 (채팅방이 열려있을 때만 - 카카오톡 방식)
+                // 채팅방이 열려있으면 자동으로 읽은 것으로 간주
                 if (me && message?.sender?.id !== me.id) {
-                    // 읽음 처리는 하지만 알림 배지는 업데이트하지 않음
-                    // (채팅방이 열려있으면 자동으로 읽은 것으로 간주)
-                    setTimeout(() => {
-                        const roomId = currentRoomRef.current?.id;
-                        if (roomId) {
-                            // 채팅방이 열려있으므로 알림 배지 업데이트 안 함
-                            markRoomAsRead(roomId, false);
-                        }
-                    }, 500);
+                    // 채팅방이 열려있으므로 즉시 읽음 처리
+                    const roomId = currentRoomRef.current?.id;
+                    if (roomId) {
+                        // 알림 배지는 업데이트 안 함 (이미 채팅방이 열려있으므로)
+                        markRoomAsRead(roomId, false);
+                    }
                 }
                 return;
             }
@@ -921,33 +932,28 @@ const FloatingChat = () => {
                 
                 console.log('읽음 상태 업데이트:', { readUserId, messageId, isDMRoom, myId: me?.id });
                 
-                // DM 방이 아니거나, 상대방이 읽은 경우에만 업데이트
-                if (!isDMRoom || readUserId !== me?.id) {
-                    // 특정 메시지의 읽음 상태 업데이트
-                    if (messageId) {
-                        setMessages((prev) => {
-                            const updated = prev.map((msg) => {
-                                if (msg.id === messageId) {
+                // 내가 보낸 메시지를 상대방이 읽은 경우에만 업데이트 (카카오톡 방식)
+                // DM 방: 상대방이 읽은 경우만
+                // 그룹 방: 누군가 읽은 경우 모두 업데이트
+                if (messageId) {
+                    setMessages((prev) => {
+                        const updated = prev.map((msg) => {
+                            if (msg.id === messageId) {
+                                // 내가 보낸 메시지인 경우에만 unread_count 업데이트
+                                if (msg.sender?.id === me?.id) {
                                     const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
                                     console.log('메시지 읽음 상태 업데이트 (실시간):', messageId, msg.unread_count, '->', newUnreadCount);
                                     return { ...msg, unread_count: newUnreadCount };
                                 }
-                                return msg;
-                            });
-                            // 상태가 실제로 변경되었는지 확인
-                            const changed = updated.some((msg, idx) => msg.id === messageId && msg.unread_count !== prev[idx]?.unread_count);
-                            if (changed) {
-                                console.log('읽음 상태 실시간 업데이트 완료');
                             }
-                            return updated;
+                            return msg;
                         });
-                    } else {
-                        // 전체 메시지 읽음 상태 갱신
-                        console.log('전체 메시지 읽음 상태 갱신');
-                        refreshReadStatusFromAPI(currentRoomRef.current?.id);
-                    }
+                        return updated;
+                    });
                 } else {
-                    console.log('읽음 상태 업데이트 스킵 (DM 방이고 내가 읽은 경우)');
+                    // 전체 메시지 읽음 상태 갱신
+                    console.log('전체 메시지 읽음 상태 갱신');
+                    refreshReadStatusFromAPI(currentRoomRef.current?.id);
                 }
             }
         };
@@ -1318,8 +1324,11 @@ const FloatingChat = () => {
                                 event.target.style.height = `${event.target.scrollHeight}px`;
                             }}
                             onFocus={() => {
+                                // 입력 필드에 포커스가 가면 읽음 처리 (카카오톡 방식)
                                 const roomId = currentRoomRef.current?.id;
-                                if (roomId) markRoomAsRead(roomId);
+                                if (roomId) {
+                                    markRoomAsRead(roomId, false); // 알림 배지는 업데이트 안 함
+                                }
                             }}
                             onKeyDown={(event) => {
                                 // 한글 입력 조합 중이면 Enter 키 무시
