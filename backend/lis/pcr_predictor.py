@@ -101,33 +101,34 @@ class PCRPredictor:
     def load_models(self):
         self.scaler = joblib.load(os.path.join(self.model_dir, 'final_ensemble_scaler.pkl'))
         
-        # XGBoost 모델 로드 및 base_score 수정
+        # XGBoost 모델 로드
         self.xgb_model = xgb.XGBClassifier()
         model_path = os.path.join(self.model_dir, 'final_xgb_model.json')
         self.xgb_model.load_model(model_path)
         
-        # base_score가 잘못된 형식일 경우 수정
-        if hasattr(self.xgb_model, 'get_booster'):
+        # base_score 형식 오류 수정 (SHAP 호환성)
+        try:
             booster = self.xgb_model.get_booster()
-            try:
-                # base_score 확인 및 수정
-                config = booster.save_config()
-                import json
-                config_dict = json.loads(config)
-                if 'learner' in config_dict and 'learner_model_param' in config_dict['learner']:
-                    base_score_str = config_dict['learner']['learner_model_param'].get('base_score', '0.5')
-                    # '[5E-1]' 형식인 경우 처리
-                    if isinstance(base_score_str, str) and base_score_str.startswith('[') and base_score_str.endswith(']'):
+            config = booster.save_config()
+            config_dict = json.loads(config)
+            
+            # base_score 수정
+            if 'learner' in config_dict and 'learner_model_param' in config_dict['learner']:
+                base_score_str = config_dict['learner']['learner_model_param'].get('base_score', '0.5')
+                # '[5E-1]' 형식인 경우 처리
+                if isinstance(base_score_str, str):
+                    if base_score_str.startswith('[') and base_score_str.endswith(']'):
                         base_score_str = base_score_str.strip('[]')
                     try:
                         base_score = float(base_score_str)
-                        # base_score 수정
                         config_dict['learner']['learner_model_param']['base_score'] = str(base_score)
                         booster.load_config(json.dumps(config_dict))
                     except (ValueError, TypeError):
-                        pass  # 변환 실패 시 무시
-            except Exception:
-                pass  # 설정 수정 실패 시 무시
+                        # 변환 실패 시 기본값 사용
+                        config_dict['learner']['learner_model_param']['base_score'] = '0.5'
+                        booster.load_config(json.dumps(config_dict))
+        except Exception as e:
+            warnings.warn(f"XGBoost 모델 설정 수정 실패 (계속 진행): {e}")
         
         self.lgb_model = joblib.load(os.path.join(self.model_dir, 'final_lgb_model.pkl'))
         
@@ -163,8 +164,13 @@ class PCRPredictor:
     
     def get_shap_values(self, gene_values):
         X_scaled = self.preprocess(gene_values)
-        explainer = shap.TreeExplainer(self.xgb_model)
-        return explainer.shap_values(X_scaled)[0]
+        try:
+            explainer = shap.TreeExplainer(self.xgb_model)
+            return explainer.shap_values(X_scaled)[0]
+        except Exception as e:
+            # SHAP 오류 시 기본값 반환 (예측은 계속 진행)
+            warnings.warn(f"SHAP 값 계산 실패, 기본값 사용: {e}")
+            return np.zeros(len(self.genes_27))
     
     def generate_report_image(self, gene_values, patient_info):
         """Generate clinical report as base64 image"""
