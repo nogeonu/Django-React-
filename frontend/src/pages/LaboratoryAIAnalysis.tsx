@@ -111,12 +111,14 @@ export default function LaboratoryAIAnalysis() {
   const loadOrders = async () => {
     setLoadingOrders(true);
     try {
-      // 검사 주문 중 처리 중이거나 전달된 상태인 것만 가져오기
+      // 검사 주문 중 처리 중(processing) 상태인 것만 가져오기
+      // 의사가 전달을 누르고 검사실에서 처리 시작을 누른 주문만 표시
       const data = await getOrdersApi({
         order_type: 'lab_test',
         target_department: 'lab',
-        status: 'processing,sent',
+        status: 'processing',  // 처리 중 상태만
       });
+      // 결과가 아직 입력되지 않은 주문만 필터링
       setOrders((data.results || data).filter((order: Order) => !order.lab_test_result));
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -334,7 +336,7 @@ export default function LaboratoryAIAnalysis() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>검사 주문 목록 (대기 중)</CardTitle>
+                <CardTitle>검사 주문 목록 (처리 중)</CardTitle>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -407,8 +409,8 @@ export default function LaboratoryAIAnalysis() {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <FlaskConical className="mx-auto h-12 w-12 mb-4 text-gray-400" />
-                  <p className="text-lg font-semibold mb-2">대기 중인 검사 주문이 없습니다</p>
-                  <p className="text-sm">의사가 검사 주문을 생성하면 여기에 표시됩니다</p>
+                  <p className="text-lg font-semibold mb-2">처리 중인 검사 주문이 없습니다</p>
+                  <p className="text-sm">의사가 검사 주문을 전달하고 처리 시작을 누르면 여기에 표시됩니다</p>
                 </div>
               )}
             </CardContent>
