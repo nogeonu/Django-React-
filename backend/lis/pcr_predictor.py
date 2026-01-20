@@ -57,14 +57,20 @@ def set_korean_font():
         if selected_font != 'DejaVu Sans':
             break
     
+    # 폰트 설정
     plt.rcParams['font.family'] = selected_font
     plt.rcParams['axes.unicode_minus'] = False
     
-    # 폰트 캐시 재빌드 (필요시)
-    try:
-        fm._rebuild()
-    except:
-        pass
+    # Nanum 폰트가 있으면 명시적으로 사용
+    if selected_font == 'DejaVu Sans':
+        # Nanum 폰트를 직접 찾아서 설정 시도
+        for sys_font in system_fonts:
+            if 'nanum' in sys_font.lower():
+                plt.rcParams['font.family'] = sys_font
+                print(f"✅ 한글 폰트 설정: {sys_font}")
+                break
+    else:
+        print(f"✅ 한글 폰트 설정: {selected_font}")
 
 
 set_korean_font()
