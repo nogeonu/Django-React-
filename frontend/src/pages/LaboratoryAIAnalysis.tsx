@@ -104,7 +104,14 @@ export default function LaboratoryAIAnalysis() {
 
   useEffect(() => {
     if (selectedOrder) {
-      loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
+      const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
+      if (patientId) {
+        loadRNATestsForPatient(patientId);
+      }
+    } else {
+      // 주문이 선택되지 않으면 RNA 테스트 목록 초기화
+      setRNATests([]);
+      setSelectedRNATest(null);
     }
   }, [selectedOrder]);
 
@@ -133,14 +140,30 @@ export default function LaboratoryAIAnalysis() {
   };
 
   const loadRNATestsForPatient = async (patientId: string) => {
+    if (!patientId) {
+      console.warn('loadRNATestsForPatient: patientId가 없습니다');
+      return;
+    }
+    
     try {
+      console.log('Loading RNA tests for patient:', patientId);
       const data = await getRNATestsApi({ search: patientId });
-      setRNATests(data.results || data);
-      if (data.results && data.results.length > 0) {
-        setSelectedRNATest(data.results[0]);
+      const tests = data.results || data || [];
+      console.log('Loaded RNA tests:', tests.length, tests);
+      setRNATests(tests);
+      if (tests.length > 0) {
+        setSelectedRNATest(tests[0]);
+      } else {
+        setSelectedRNATest(null);
+        console.warn('RNA 테스트 데이터를 찾을 수 없습니다. patientId:', patientId);
       }
     } catch (error) {
       console.error('Failed to load RNA tests:', error);
+      toast({
+        title: 'RNA 테스트 로드 실패',
+        description: 'RNA 테스트 데이터를 불러오는데 실패했습니다.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -166,11 +189,26 @@ export default function LaboratoryAIAnalysis() {
       formData.append('patient_id', patientId);
       
       const result = await uploadLabTestCsvApi(formData);
-      toast({
-        title: '업로드 성공',
-        description: `${result.created}개 생성, ${result.updated}개 업데이트`,
-      });
-      await loadRNATestsForPatient(patientId);
+      
+      // 업로드 결과 확인
+      if (result.errors && result.errors.length > 0) {
+        toast({
+          title: '업로드 완료 (일부 오류)',
+          description: `${result.created}개 생성, ${result.updated}개 업데이트, ${result.errors.length}개 오류`,
+          variant: 'destructive',
+        });
+        console.error('Upload errors:', result.errors);
+      } else {
+        toast({
+          title: '업로드 성공',
+          description: `${result.created}개 생성, ${result.updated}개 업데이트`,
+        });
+      }
+      
+      // 업로드 후 잠시 대기 후 데이터 다시 로드
+      setTimeout(async () => {
+        await loadRNATestsForPatient(patientId);
+      }, 500);
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -205,12 +243,30 @@ export default function LaboratoryAIAnalysis() {
       formData.append('patient_id', patientId);
       
       const result = await uploadRNATestCsvApi(formData);
-      toast({
-        title: 'RNA 업로드 성공',
-        description: `${result.created}개 생성, ${result.updated}개 업데이트`,
-      });
-      await loadRNATestsForPatient(patientId);
-      setActiveTab('analysis');
+      
+      // 업로드 결과 확인
+      if (result.errors && result.errors.length > 0) {
+        toast({
+          title: '업로드 완료 (일부 오류)',
+          description: `${result.created}개 생성, ${result.updated}개 업데이트, ${result.errors.length}개 오류`,
+          variant: 'destructive',
+        });
+        console.error('Upload errors:', result.errors);
+      } else {
+        toast({
+          title: 'RNA 업로드 성공',
+          description: `${result.created}개 생성, ${result.updated}개 업데이트`,
+        });
+      }
+      
+      // 업로드 후 잠시 대기 후 데이터 다시 로드
+      setTimeout(async () => {
+        await loadRNATestsForPatient(patientId);
+        // 데이터가 로드되면 분석 탭으로 이동
+        if (rnaTests.length > 0 || (result.created > 0 || result.updated > 0)) {
+          setActiveTab('analysis');
+        }
+      }, 500);
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -337,7 +393,7 @@ export default function LaboratoryAIAnalysis() {
             <Upload className="mr-2 h-4 w-4" />
             데이터 업로드
           </TabsTrigger>
-          <TabsTrigger value="analysis" disabled={!selectedOrder || rnaTests.length === 0}>
+          <TabsTrigger value="analysis" disabled={!selectedOrder}>
             <Brain className="mr-2 h-4 w-4" />
             AI 분석 ({rnaTests.length})
           </TabsTrigger>
@@ -565,7 +621,18 @@ export default function LaboratoryAIAnalysis() {
 
         {/* Analysis Tab */}
         <TabsContent value="analysis">
-          {selectedOrder && rnaTests.length > 0 ? (
+          {!selectedOrder ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <User className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+                <p className="text-lg font-semibold mb-2">환자 선택 필요</p>
+                <p className="text-sm mb-4">검사 주문 탭에서 환자를 선택해주세요</p>
+                <Button onClick={() => setActiveTab('orders')} variant="outline">
+                  검사 주문으로 이동
+                </Button>
+              </CardContent>
+            </Card>
+          ) : rnaTests.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: RNA Test List */}
               <Card>
