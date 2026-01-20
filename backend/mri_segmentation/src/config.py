@@ -16,7 +16,7 @@ SEGMENTATIONS_DIR = DATA_ROOT / "segmentations" / "expert"
 PATIENT_INFO_DIR = DATA_ROOT / "patient_info_files"
 TRAIN_TEST_SPLIT = DATA_ROOT / "train_test_splits.csv"
 
-# Output directories (use absolute path for outputs to avoid issues)
+# Output directories (cross-platform compatible)
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
 CHECKPOINT_DIR = OUTPUT_ROOT / "checkpoints"
 LOG_DIR = OUTPUT_ROOT / "logs"
