@@ -242,6 +242,7 @@
 
 .chat-list-item:active {
   background: rgba(59, 130, 246, 0.05);
+  transform: scale(0.98);
 }
 
 .chat-list-avatar {
@@ -343,7 +344,18 @@
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  animation: fadeIn 0.2s;
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fadeIn {
@@ -580,7 +592,7 @@
 .chat-composer-send {
   width: 36px;
   height: 36px;
-  background: var(--kakao-yellow);
+  background: var(--primary);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -591,9 +603,14 @@
   flex-shrink: 0;
 }
 
-.chat-composer-send:hover {
+.chat-composer-send:hover:not(:disabled) {
   transform: scale(1.05);
-  background: var(--kakao-yellow-deep);
+  background: var(--primary-dark);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.chat-composer-send:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .chat-composer-send:disabled {
@@ -605,7 +622,7 @@
 .chat-composer-send svg {
   width: 18px;
   height: 18px;
-  fill: #1f2937;
+  fill: white;
 }
 
 .chat-list::-webkit-scrollbar,
@@ -613,10 +630,21 @@
   width: 6px;
 }
 
+.chat-list::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .chat-list::-webkit-scrollbar-thumb,
 .chat-messages::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.chat-list::-webkit-scrollbar-thumb:hover,
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .chat-empty {
@@ -629,6 +657,7 @@
   text-align: center;
   color: var(--text-secondary);
   min-height: 200px;
+  animation: fadeIn 0.3s ease-in;
 }
 
 .chat-empty svg {
