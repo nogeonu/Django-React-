@@ -108,7 +108,9 @@ def postprocess_prediction(
         logger.debug(f"  - original_meta_dict: {original_meta_dict is not None}")
         if original_meta_dict:
             logger.debug(f"  - original_meta_dict keys: {list(original_meta_dict.keys())[:10]}")
+            logger.debug(f"  - original_meta_dict spacing: {original_meta_dict.get('spacing', 'NOT FOUND')}")
             logger.debug(f"  - original_meta_dict pixdim: {original_meta_dict.get('pixdim', 'NOT FOUND')}")
+            logger.debug(f"  - original_meta_dict spatial_shape: {original_meta_dict.get('spatial_shape', 'NOT FOUND')}")
         
         # Create a dictionary for Invertd
         # Note: binary_mask is numpy [H, W, D], we need [C, H, W, D] for MONAI
@@ -182,25 +184,21 @@ def postprocess_prediction(
                 use_fallback = False
             
             # Fallback이 필요한 경우
-            if use_fallback or (original_meta_dict and original_meta_dict.get('pixdim') is not None):
+            if use_fallback:
                 logger.info(f"  - Fallback으로 수동 복원 시도...")
-                original_spacing = original_meta_dict.get('pixdim', None)
+                # MONAI LoadImaged는 DICOM에서 'spacing' 키 사용, NIfTI는 'pixdim' 사용
+                original_spacing = None
+                if original_meta_dict:
+                    # DICOM: spacing은 [x, y, z] 형식
+                    if 'spacing' in original_meta_dict:
+                        original_spacing = original_meta_dict['spacing']
+                        logger.debug(f"  - spacing from meta_dict: {original_spacing}")
+                    # NIfTI: pixdim은 [dummy, x, y, z, ...] 형식
+                    elif 'pixdim' in original_meta_dict:
+                        original_spacing = original_meta_dict['pixdim'][1:4]
+                        logger.debug(f"  - pixdim from meta_dict: {original_meta_dict['pixdim']} -> {original_spacing}")
+                
                 if original_spacing is not None:
-                    original_spacing = original_spacing[1:4]
-                    from monai.transforms import Spacing
-                    spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-                    logger.info(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
-        except Exception as e:
-            logger.error(f"  - ❌ Invertd 예외 발생: {e}")
-            logger.info(f"  - Fallback으로 수동 복원 시도...")
-            # Fallback to manual Spacing logic
-            if original_meta_dict is not None:
-                original_spacing = original_meta_dict.get('pixdim', None)
-                if original_spacing is not None:
-                    original_spacing = original_spacing[1:4]
                     from monai.transforms import Spacing
                     spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
                     mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
@@ -208,14 +206,42 @@ def postprocess_prediction(
                     binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
                     logger.info(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
                 else:
-                    logger.error(f"  - ❌ original_meta_dict에 pixdim 없음 - 복원 불가")
+                    logger.error(f"  - ❌ original_meta_dict에 spacing/pixdim 없음 - 복원 불가")
+        except Exception as e:
+            logger.error(f"  - ❌ Invertd 예외 발생: {e}")
+            logger.info(f"  - Fallback으로 수동 복원 시도...")
+            # Fallback to manual Spacing logic
+            if original_meta_dict is not None:
+                # MONAI LoadImaged는 DICOM에서 'spacing' 키 사용, NIfTI는 'pixdim' 사용
+                original_spacing = None
+                if 'spacing' in original_meta_dict:
+                    original_spacing = original_meta_dict['spacing']
+                    logger.debug(f"  - spacing from meta_dict: {original_spacing}")
+                elif 'pixdim' in original_meta_dict:
+                    original_spacing = original_meta_dict['pixdim'][1:4]
+                    logger.debug(f"  - pixdim from meta_dict: {original_meta_dict['pixdim']} -> {original_spacing}")
+                
+                if original_spacing is not None:
+                    from monai.transforms import Spacing
+                    spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
+                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
+                    restored = spacing_transform(mask_tensor)
+                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+                    logger.info(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
+                else:
+                    logger.error(f"  - ❌ original_meta_dict에 spacing/pixdim 없음 - 복원 불가")
 
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
         from monai.transforms import Spacing
-        original_spacing = original_meta_dict.get('pixdim', None)
+        # MONAI LoadImaged는 DICOM에서 'spacing' 키 사용, NIfTI는 'pixdim' 사용
+        original_spacing = None
+        if 'spacing' in original_meta_dict:
+            original_spacing = original_meta_dict['spacing']
+        elif 'pixdim' in original_meta_dict:
+            original_spacing = original_meta_dict['pixdim'][1:4]
+        
         if original_spacing is not None:
-            original_spacing = original_spacing[1:4]
             spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
             mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
             restored = spacing_transform(mask_tensor)
