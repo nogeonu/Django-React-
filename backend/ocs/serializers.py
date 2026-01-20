@@ -213,13 +213,13 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError("검사 유형(test_type)은 'blood' 또는 'rna'여야 합니다.")
             else:
                 # 기존 test_items 방식 지원 (하위 호환성)
-            test_items = order_data.get('test_items', [])
-            if not test_items or len(test_items) == 0:
+                test_items = order_data.get('test_items', [])
+                if not test_items or len(test_items) == 0:
                     raise serializers.ValidationError("검사 주문에는 검사 유형(test_type) 또는 검사 항목(test_items)이 필요합니다.")
-            # 빈 검사명 필터링
-            valid_test_items = [t for t in test_items if t.get('name', '').strip()]
-            if not valid_test_items:
-                raise serializers.ValidationError("검사 주문에는 검사명이 필요합니다.")
+                # 빈 검사명 필터링
+                valid_test_items = [t for t in test_items if t.get('name', '').strip()]
+                if not valid_test_items:
+                    raise serializers.ValidationError("검사 주문에는 검사명이 필요합니다.")
         
         elif order_type == 'imaging':
             if target_department != 'radiology':
