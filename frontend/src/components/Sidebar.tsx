@@ -39,6 +39,10 @@ const departmentNavigation = {
     { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
     { name: "처방전달시스템", href: "/ocs", icon: FileText },
   ],
+  검사실: [
+    { name: "검사실 대시보드", href: "/laboratory-dashboard", icon: Activity },
+    { name: "처방전달시스템", href: "/ocs", icon: FileText },
+  ],
 };
 
 const adminNavigation = [

@@ -73,6 +73,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                     target_department='radiology',
                     order_type='imaging'
                 )
+            elif user_department == "검사실":
+                # 검사실: 검사 주문만 (lab_test 타입이고 target_department가 'lab')
+                queryset = queryset.filter(
+                    target_department='lab',
+                    order_type='lab_test'
+                )
             elif user_department in ["호흡기내과", "외과", "영상의학과"]:
                 # 의사: 자신이 생성한 주문 또는 자신의 환자 주문
                 # 또는 자신의 부서로 온 주문

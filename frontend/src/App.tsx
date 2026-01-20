@@ -39,6 +39,7 @@ import MedicalLayout from "@/components/MedicalLayout";
 import OCS from "@/pages/OCS";
 import ImagingAnalysisDetail from "@/pages/ImagingAnalysisDetail";
 import Schedule from "@/pages/Schedule";
+import LaboratoryDashboard from "@/pages/LaboratoryDashboard";
 
 const queryClient = new QueryClient();
 
@@ -188,6 +189,14 @@ function AppContentInner() {
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
             <OCS />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/laboratory-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <LaboratoryDashboard />
           </ProtectedRoute>
         }
       />
