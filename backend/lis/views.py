@@ -55,15 +55,12 @@ class LabTestViewSet(viewsets.ModelViewSet):
             )
         
         # request data에서 patient_id 가져오기 (선택한 환자 정보)
-        # FormData의 경우 request.POST 또는 request.data에서 가져올 수 있음
-        # MultiPartParser를 사용할 때는 request.POST에 데이터가 들어감
-        patient_id_from_request = ''
-        if hasattr(request, 'POST') and 'patient_id' in request.POST:
-            patient_id_from_request = request.POST.get('patient_id', '').strip()
-        elif hasattr(request, 'data') and 'patient_id' in request.data:
-            patient_id_from_request = str(request.data.get('patient_id', '')).strip()
+        # FormData의 경우 request.POST에서 가져와야 함 (MultiPartParser 사용 시)
+        patient_id_from_request = request.POST.get('patient_id', '').strip()
+        if not patient_id_from_request and hasattr(request, 'data'):
+            patient_id_from_request = request.data.get('patient_id', '').strip()
         
-        logger.info(f"Lab test upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys()) if hasattr(request, 'POST') else 'N/A'}, data type: {type(request.data) if hasattr(request, 'data') else 'N/A'}")
+        logger.info(f"Lab test upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys())}, POST values: {dict(request.POST) if request.POST else 'N/A'}")
         
         try:
             decoded_file = csv_file.read().decode('utf-8')
@@ -183,15 +180,12 @@ class RNATestViewSet(viewsets.ModelViewSet):
             )
         
         # request data에서 patient_id 가져오기 (선택한 환자 정보)
-        # FormData의 경우 request.POST 또는 request.data에서 가져올 수 있음
-        # MultiPartParser를 사용할 때는 request.POST에 데이터가 들어감
-        patient_id_from_request = ''
-        if hasattr(request, 'POST') and 'patient_id' in request.POST:
-            patient_id_from_request = request.POST.get('patient_id', '').strip()
-        elif hasattr(request, 'data') and 'patient_id' in request.data:
-            patient_id_from_request = str(request.data.get('patient_id', '')).strip()
+        # FormData의 경우 request.POST에서 가져와야 함 (MultiPartParser 사용 시)
+        patient_id_from_request = request.POST.get('patient_id', '').strip()
+        if not patient_id_from_request and hasattr(request, 'data'):
+            patient_id_from_request = request.data.get('patient_id', '').strip()
         
-        logger.info(f"RNA upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys()) if hasattr(request, 'POST') else 'N/A'}, data type: {type(request.data) if hasattr(request, 'data') else 'N/A'}")
+        logger.info(f"RNA upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys())}, POST values: {dict(request.POST) if request.POST else 'N/A'}")
         
         try:
             decoded_file = csv_file.read().decode('utf-8')

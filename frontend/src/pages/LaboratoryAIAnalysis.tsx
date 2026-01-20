@@ -183,8 +183,24 @@ export default function LaboratoryAIAnalysis() {
     setUploading(true);
     try {
       // 선택한 환자의 patient_id를 함께 전송
+      // OCS 주문에서 patient_id 또는 patient_number 가져오기
       const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
-      console.log('Uploading lab test with patientId:', patientId, 'Order:', selectedOrder);
+      
+      if (!patientId) {
+        toast({
+          title: '환자 ID 없음',
+          description: '선택한 주문에 환자 ID가 없습니다. 주문을 다시 선택해주세요.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      console.log('Uploading lab test with patientId:', patientId, 'Order:', {
+        id: selectedOrder.id,
+        patient_name: selectedOrder.patient_name,
+        patient_id: selectedOrder.patient_id,
+        patient_number: selectedOrder.patient_number,
+      });
       
       const formData = new FormData();
       formData.append('file', file);
@@ -245,8 +261,24 @@ export default function LaboratoryAIAnalysis() {
     setUploading(true);
     try {
       // 선택한 환자의 patient_id를 함께 전송
+      // OCS 주문에서 patient_id 또는 patient_number 가져오기
       const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
-      console.log('Uploading RNA test with patientId:', patientId, 'Order:', selectedOrder);
+      
+      if (!patientId) {
+        toast({
+          title: '환자 ID 없음',
+          description: '선택한 주문에 환자 ID가 없습니다. 주문을 다시 선택해주세요.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      console.log('Uploading RNA test with patientId:', patientId, 'Order:', {
+        id: selectedOrder.id,
+        patient_name: selectedOrder.patient_name,
+        patient_id: selectedOrder.patient_id,
+        patient_number: selectedOrder.patient_number,
+      });
       
       const formData = new FormData();
       formData.append('file', file);
