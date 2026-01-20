@@ -1474,7 +1474,6 @@ function CreateOrderForm({
     item_seq?: string;
     drug?: Drug;
   }>>([]);
-  const [testItems, setTestItems] = useState([{ name: "", priority: "routine" }]);
   const [imagingData, setImagingData] = useState({ imaging_type: "", body_part: "", contrast: false });
   const [notes, setNotes] = useState("");
   const [dueTime, setDueTime] = useState("");
