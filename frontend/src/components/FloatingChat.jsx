@@ -95,6 +95,10 @@ const FloatingChat = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createChatType, setCreateChatType] = useState(null); // 'dm' or 'group'
     const [searchQuery, setSearchQuery] = useState('');
+    const [friendSearchQuery, setFriendSearchQuery] = useState('');
+    const [selectedDepartment, setSelectedDepartment] = useState('all');
+    const [showOnlineOnly, setShowOnlineOnly] = useState(false);
+    const [departments, setDepartments] = useState([]);
 
     const chatMessagesRef = useRef(null);
     const messageInputRef = useRef(null);
@@ -235,6 +239,16 @@ const FloatingChat = () => {
             const me = currentUserRef.current;
             const list = me ? users.filter((u) => u.id !== me.id) : users;
             setFriends(list);
+            
+            // 부서 목록 추출
+            const deptSet = new Set();
+            list.forEach((user) => {
+                if (user.department) {
+                    deptSet.add(user.department);
+                }
+            });
+            const deptList = Array.from(deptSet).sort();
+            setDepartments(deptList);
         } catch (err) {
             console.error('친구 로드 실패:', err);
         }
@@ -1241,7 +1255,59 @@ const FloatingChat = () => {
                         </button>
                     </div>
 
-                    {/* 동료 탭에서는 그룹채팅 버튼 제거 - 동료는 그냥 사람 보기만 */}
+                    {/* 동료 탭: 검색 및 필터 기능 */}
+                    {currentTab === 'friends' && (
+                        <div className="friends-toolbar">
+                            <div className="friends-search">
+                                <svg className="friends-search-icon" viewBox="0 0 24 24">
+                                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    placeholder="동료 검색..."
+                                    value={friendSearchQuery}
+                                    onChange={(e) => setFriendSearchQuery(e.target.value)}
+                                    className="friends-search-input"
+                                />
+                                {friendSearchQuery && (
+                                    <button
+                                        className="friends-search-clear"
+                                        onClick={() => setFriendSearchQuery('')}
+                                        type="button"
+                                    >
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                            <div className="friends-filters">
+                                <select
+                                    className="friends-filter-select"
+                                    value={selectedDepartment}
+                                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                                >
+                                    <option value="all">전체 부서</option>
+                                    {departments.map((dept) => (
+                                        <option key={dept} value={dept}>
+                                            {dept}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    className={`friends-filter-btn ${showOnlineOnly ? 'active' : ''}`}
+                                    onClick={() => setShowOnlineOnly(!showOnlineOnly)}
+                                    type="button"
+                                    title="온라인만 보기"
+                                >
+                                    <svg viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="10" fill="currentColor" />
+                                    </svg>
+                                    <span>온라인</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="chat-list" style={{ position: 'relative' }}>
                         {currentTab === 'friends' && friends.length === 0 && (
@@ -1254,7 +1320,111 @@ const FloatingChat = () => {
                             </div>
                         )}
 
-                        {currentTab === 'friends' && friends.map((user) => (
+                        {currentTab === 'friends' && (() => {
+                            // 필터링된 동료 목록
+                            let filteredFriends = friends;
+                            
+                            // 검색 필터
+                            if (friendSearchQuery) {
+                                const query = friendSearchQuery.toLowerCase();
+                                filteredFriends = filteredFriends.filter((user) => {
+                                    const name = (user.name || user.username || '').toLowerCase();
+                                    const department = (user.department || '').toLowerCase();
+                                    const role = (user.role || '').toLowerCase();
+                                    return name.includes(query) || department.includes(query) || role.includes(query);
+                                });
+                            }
+                            
+                            // 부서 필터
+                            if (selectedDepartment !== 'all') {
+                                filteredFriends = filteredFriends.filter((user) => user.department === selectedDepartment);
+                            }
+                            
+                            // 온라인 필터
+                            if (showOnlineOnly) {
+                                filteredFriends = filteredFriends.filter((user) => user.is_online);
+                            }
+                            
+                            // 최근 대화가 있는 동료 찾기
+                            const friendsWithRooms = new Set();
+                            rooms.forEach((room) => {
+                                if (room.room_type === 'case' && room.participants) {
+                                    room.participants.forEach((p) => {
+                                        if (p.id !== currentUserRef.current?.id) {
+                                            friendsWithRooms.add(p.id);
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            return filteredFriends.length === 0 ? (
+                                <div className="chat-empty">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+                                    </svg>
+                                    <h3>검색 결과가 없습니다</h3>
+                                    <p>다른 검색어나 필터를 시도해보세요</p>
+                                </div>
+                            ) : (
+                                filteredFriends.map((user) => {
+                                    const hasExistingRoom = friendsWithRooms.has(user.id);
+                                    return (
+                                        <div
+                                            key={user.id}
+                                            className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''} ${hasExistingRoom ? 'has-room' : ''}`}
+                                            onClick={() => {
+                                                if (isSelectionMode) {
+                                                    toggleUserSelection(user.id);
+                                                } else {
+                                                    // 최근 대화가 있으면 해당 방으로, 없으면 새로 생성
+                                                    if (hasExistingRoom) {
+                                                        const existingRoom = rooms.find((room) => {
+                                                            if (room.room_type === 'case' && room.participants) {
+                                                                return room.participants.some((p) => p.id === user.id);
+                                                            }
+                                                            return false;
+                                                        });
+                                                        if (existingRoom) {
+                                                            connectToRoom(existingRoom.name, existingRoom.id, existingRoom);
+                                                            return;
+                                                        }
+                                                    }
+                                                    openDM(user.id);
+                                                }
+                                            }}
+                                        >
+                                            {isSelectionMode && (
+                                                <input
+                                                    type="checkbox"
+                                                    className="friend-checkbox"
+                                                    checked={selectedUserIds.has(user.id)}
+                                                    onChange={() => toggleUserSelection(user.id)}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            )}
+                                            <div className={`chat-list-avatar ${user.is_online ? 'online' : ''}`}>
+                                                {(user.name || user.username || '?')[0]}
+                                            </div>
+                                            <div className="chat-list-content">
+                                                <div className="chat-list-top">
+                                                    <span className="chat-list-name">
+                                                        {user.name || user.username}
+                                                        {hasExistingRoom && (
+                                                            <span className="has-room-badge" title="최근 대화 있음">💬</span>
+                                                        )}
+                                                    </span>
+                                                    <span className="chat-list-time">{user.is_online ? '온라인' : ''}</span>
+                                                </div>
+                                                <div className="chat-list-preview">{user.department || user.role || '의료진'}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            );
+                        })()}
+                        
+                        {/* 기존 코드 제거 - 위에서 처리함 */}
+                        {false && currentTab === 'friends' && friends.map((user) => (
                             <div
                                 key={user.id}
                                 className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''}`}

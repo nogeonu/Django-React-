@@ -713,6 +713,145 @@
   display: block;
 }
 
+/* 동료 탭 툴바 */
+.friends-toolbar {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.friends-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.friends-search-icon {
+  position: absolute;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.friends-search-input {
+  width: 100%;
+  padding: 8px 36px 8px 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--bg);
+}
+
+.friends-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.friends-search-clear {
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: color 0.2s;
+  z-index: 1;
+}
+
+.friends-search-clear:hover {
+  color: var(--text);
+}
+
+.friends-search-clear svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.friends-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.friends-filter-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.friends-filter-select:focus {
+  border-color: var(--primary);
+}
+
+.friends-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.friends-filter-btn:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.friends-filter-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.friends-filter-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.chat-list-item.has-room {
+  position: relative;
+}
+
+.has-room-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.chat-list-item.has-room:hover .has-room-badge {
+  opacity: 1;
+}
+
 /* 채팅 생성 버튼 (대화방 탭 내부 하단) */
 .chat-create-btn {
   position: absolute;
