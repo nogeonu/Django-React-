@@ -92,6 +92,9 @@ const FloatingChat = () => {
     const [messageInput, setMessageInput] = useState('');
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createChatType, setCreateChatType] = useState(null); // 'dm' or 'group'
+    const [searchQuery, setSearchQuery] = useState('');
 
     const chatMessagesRef = useRef(null);
     const messageInputRef = useRef(null);
@@ -504,37 +507,51 @@ const FloatingChat = () => {
         }
     };
 
-    const createGroupChat = async () => {
+    const createChat = async () => {
         if (selectedUserIds.size === 0) return;
 
         try {
             const userIds = Array.from(selectedUserIds);
-            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-                body: JSON.stringify({
-                    room_type: 'group',
-                    participant_ids: userIds,
-                }),
-                credentials: 'include',
-            });
+            
+            if (createChatType === 'dm' && userIds.length === 1) {
+                // 개인채팅
+                await openDM(userIds[0]);
+            } else if (createChatType === 'group') {
+                // 그룹채팅
+                const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({
+                        room_type: 'group',
+                        participant_ids: userIds,
+                    }),
+                    credentials: 'include',
+                });
 
-            if (!res.ok) {
-                console.error('그룹 생성 실패', await res.text());
-                alert('그룹 생성 실패');
-                return;
+                if (!res.ok) {
+                    console.error('그룹 생성 실패', await res.text());
+                    alert('그룹 생성 실패');
+                    return;
+                }
+
+                const room = await res.json();
+                await connectToRoom(room.name, room.id, room);
             }
-
-            const room = await res.json();
-            setIsSelectionMode(false);
-            setSelectedUserIds(new Set());
-            await connectToRoom(room.name, room.id, room);
+            
+            closeCreateChatModal();
         } catch (err) {
             console.error('에러:', err);
+            alert('채팅방 생성에 실패했습니다.');
         }
+    };
+
+    const createGroupChat = async () => {
+        // 기존 함수는 유지 (하위 호환성)
+        if (selectedUserIds.size === 0) return;
+        await createChat();
     };
 
     const showListView = () => {
@@ -723,16 +740,32 @@ const FloatingChat = () => {
         event.target.value = '';
     };
 
-    const toggleSelectionMode = () => {
+    const openCreateChatModal = () => {
+        setShowCreateModal(true);
+        setCreateChatType(null);
+        setSelectedUserIds(new Set());
+        setSearchQuery('');
+        loadFriends();
+    };
+
+    const closeCreateChatModal = () => {
+        setShowCreateModal(false);
+        setCreateChatType(null);
+        setIsSelectionMode(false);
+        setSelectedUserIds(new Set());
+        setSearchQuery('');
+    };
+
+    const selectChatType = (type) => {
+        setCreateChatType(type);
         setIsSelectionMode(true);
         setSelectedUserIds(new Set());
-        loadFriends();
     };
 
     const cancelSelectionMode = () => {
         setIsSelectionMode(false);
         setSelectedUserIds(new Set());
-        loadFriends();
+        setSearchQuery('');
     };
 
     const toggleUserSelection = (userId) => {
@@ -1208,41 +1241,7 @@ const FloatingChat = () => {
                         </button>
                     </div>
 
-                    {currentTab === 'friends' && (
-                        <div>
-                            {!isSelectionMode && (
-                                <div className="group-start-btn-area">
-                                    <button className="group-start-btn" onClick={toggleSelectionMode} type="button">
-                                        + 그룹채팅
-                                    </button>
-                                </div>
-                            )}
-                            {isSelectionMode && (
-                                <div className="group-control-bar">
-                                    <strong>{selectedUserIds.size}명 선택됨</strong>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                        <button
-                                            className="group-start-btn"
-                                            onClick={createGroupChat}
-                                            disabled={selectedUserIds.size === 0}
-                                            style={{
-                                                color: 'var(--primary)',
-                                                fontWeight: 'bold',
-                                                borderColor: 'var(--primary)',
-                                                opacity: selectedUserIds.size > 0 ? 1 : 0.5,
-                                            }}
-                                            type="button"
-                                        >
-                                            확인
-                                        </button>
-                                        <button className="group-start-btn" onClick={cancelSelectionMode} type="button">
-                                            취소
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    {/* 동료 탭에서는 그룹채팅 버튼 제거 - 동료는 그냥 사람 보기만 */}
 
                     <div className="chat-list">
                         {currentTab === 'friends' && friends.length === 0 && (
@@ -1318,6 +1317,20 @@ const FloatingChat = () => {
                                 )}
                             </div>
                         ))}
+
+                        {/* 대화방 탭에 + 버튼 추가 (오른쪽 하단) */}
+                        {currentTab === 'chats' && (
+                            <button
+                                className="chat-create-btn"
+                                onClick={openCreateChatModal}
+                                title="새 채팅 만들기"
+                                type="button"
+                            >
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1399,6 +1412,128 @@ const FloatingChat = () => {
                     </div>
                 </div>
             </div>
+
+            {/* 채팅 생성 모달 */}
+            {showCreateModal && (
+                <div className="chat-create-modal-overlay" onClick={closeCreateChatModal}>
+                    <div className="chat-create-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="chat-create-modal-header">
+                            <h3>새 채팅 만들기</h3>
+                            <button className="chat-create-modal-close" onClick={closeCreateChatModal} type="button">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {!createChatType ? (
+                            <div className="chat-create-type-selector">
+                                <button
+                                    className="chat-create-type-btn"
+                                    onClick={() => selectChatType('dm')}
+                                    type="button"
+                                >
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                                    </svg>
+                                    <span>개인채팅</span>
+                                </button>
+                                <button
+                                    className="chat-create-type-btn"
+                                    onClick={() => selectChatType('group')}
+                                    type="button"
+                                >
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                                    </svg>
+                                    <span>팀채팅</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="chat-create-user-selector">
+                                <div className="chat-create-search">
+                                    <input
+                                        type="text"
+                                        placeholder="동료 검색..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="chat-create-search-input"
+                                    />
+                                    <svg className="chat-create-search-icon" viewBox="0 0 24 24">
+                                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                    </svg>
+                                </div>
+
+                                <div className="chat-create-user-list">
+                                    {friends
+                                        .filter((user) => {
+                                            if (!searchQuery) return true;
+                                            const query = searchQuery.toLowerCase();
+                                            const name = (user.name || user.username || '').toLowerCase();
+                                            const department = (user.department || '').toLowerCase();
+                                            return name.includes(query) || department.includes(query);
+                                        })
+                                        .map((user) => (
+                                            <div
+                                                key={user.id}
+                                                className={`chat-create-user-item ${selectedUserIds.has(user.id) ? 'selected' : ''}`}
+                                                onClick={() => {
+                                                    if (createChatType === 'dm' && selectedUserIds.size > 0 && !selectedUserIds.has(user.id)) {
+                                                        // 개인채팅은 1명만 선택 가능
+                                                        setSelectedUserIds(new Set([user.id]));
+                                                    } else {
+                                                        toggleUserSelection(user.id);
+                                                    }
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedUserIds.has(user.id)}
+                                                    onChange={() => {
+                                                        if (createChatType === 'dm' && selectedUserIds.size > 0 && !selectedUserIds.has(user.id)) {
+                                                            setSelectedUserIds(new Set([user.id]));
+                                                        } else {
+                                                            toggleUserSelection(user.id);
+                                                        }
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                                <div className={`chat-list-avatar ${user.is_online ? 'online' : ''}`}>
+                                                    {(user.name || user.username || '?')[0]}
+                                                </div>
+                                                <div className="chat-list-info">
+                                                    <div className="chat-list-name">{user.name || user.username}</div>
+                                                    <div className="chat-list-preview">{user.department || user.role || '의료진'}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+
+                                <div className="chat-create-actions">
+                                    <button
+                                        className="chat-create-cancel-btn"
+                                        onClick={cancelSelectionMode}
+                                        type="button"
+                                    >
+                                        뒤로
+                                    </button>
+                                    <button
+                                        className="chat-create-confirm-btn"
+                                        onClick={createChat}
+                                        disabled={
+                                            selectedUserIds.size === 0 ||
+                                            (createChatType === 'dm' && selectedUserIds.size !== 1)
+                                        }
+                                        type="button"
+                                    >
+                                        완료 ({selectedUserIds.size})
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
