@@ -202,6 +202,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',  # 채팅 API 인증을 위해 필요
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'chat_messages': '1000/hour',  # 메시지 조회 throttle
+        'chat_search': '100/hour',     # 메시지 검색 throttle
+        'chat_upload': '50/hour',      # 파일 업로드 throttle
+    },
 }
 
 # Swagger settings
