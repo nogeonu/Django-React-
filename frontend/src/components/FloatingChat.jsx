@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './FloatingChat.css';
 
-const CHAT_SERVER = 'http://34.42.223.43:8003';
+const CHAT_SERVER = ''; // 로컬 서버 연동을 위해 비움
 
 const buildWsBaseUrl = (serverUrl) => {
     try {
@@ -104,9 +104,16 @@ const FloatingChat = () => {
         friendsRef.current = friends;
     }, [friends]);
 
+    const buildMessengerApiUrl = (path) => {
+        const messengerPath = path.startsWith('/api/chat/')
+            ? path.replace('/api/chat/', '/api/messenger/chat/')
+            : path;
+        return buildApiUrl(messengerPath);
+    };
+
     const updateTotalUnreadFromAPI = async () => {
         try {
-            const res = await fetch(buildApiUrl('/api/chat/rooms/'), { credentials: 'include' });
+            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), { credentials: 'include' });
             if (!res.ok) return;
             const roomsData = await res.json();
             const isPopupOpen = isOpenRef.current;
@@ -166,10 +173,9 @@ const FloatingChat = () => {
             }, 5000);
         };
     };
-
     const loadFriends = async () => {
         try {
-            const res = await fetch(buildApiUrl('/api/chat/users/'), { credentials: 'include' });
+            const res = await fetch(buildMessengerApiUrl('/api/chat/users/'), { credentials: 'include' });
             if (!res.ok) return;
             const users = await res.json();
             const me = currentUserRef.current;
@@ -182,7 +188,7 @@ const FloatingChat = () => {
 
     const loadRooms = async () => {
         try {
-            const res = await fetch(buildApiUrl('/api/chat/rooms/'), { credentials: 'include' });
+            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), { credentials: 'include' });
             if (!res.ok) return;
             const roomsData = await res.json();
             const me = currentUserRef.current;
@@ -296,7 +302,7 @@ const FloatingChat = () => {
     const markRoomAsRead = async (roomId) => {
         if (!roomId) return;
         try {
-            await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/mark-read/`), {
+            await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/mark-read/`), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -317,7 +323,7 @@ const FloatingChat = () => {
     const refreshReadStatusFromAPI = async (roomId) => {
         if (!roomId) return;
         try {
-            const res = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=0`), {
+            const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=0`), {
                 credentials: 'include',
             });
             if (!res.ok) return;
@@ -336,7 +342,7 @@ const FloatingChat = () => {
 
     const getRoomIdByName = async (roomName) => {
         try {
-            const res = await fetch(buildApiUrl('/api/chat/rooms/'), { credentials: 'include' });
+            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), { credentials: 'include' });
             if (!res.ok) return null;
             const roomsData = await res.json();
             const found = roomsData.find((room) => room.name === roomName);
@@ -377,7 +383,7 @@ const FloatingChat = () => {
             const u2 = Math.max(me.id, targetUserId);
             const caseKey = `dm:${u1}:${u2}`;
 
-            const res = await fetch(buildApiUrl('/api/chat/rooms/'), {
+            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -411,7 +417,7 @@ const FloatingChat = () => {
 
         try {
             const userIds = Array.from(selectedUserIds);
-            const res = await fetch(buildApiUrl('/api/chat/rooms/'), {
+            const res = await fetch(buildMessengerApiUrl('/api/chat/rooms/'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -458,7 +464,7 @@ const FloatingChat = () => {
         if (!confirm('채팅방을 나가시겠습니까? 대화방 목록에서 사라집니다.')) return;
 
         try {
-            const res = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/leave/`), {
+            const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/leave/`), {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),
@@ -518,7 +524,7 @@ const FloatingChat = () => {
             const formData = new FormData();
             formData.append('file', file);
 
-            const uploadRes = await fetch(buildApiUrl('/api/chat/files/'), {
+            const uploadRes = await fetch(buildMessengerApiUrl('/api/chat/files/'), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -553,7 +559,7 @@ const FloatingChat = () => {
             }
 
             const uploadData = await uploadRes.json();
-            const msgRes = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/messages/`), {
+            const msgRes = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/messages/`), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -605,7 +611,7 @@ const FloatingChat = () => {
     useEffect(() => {
         const init = async () => {
             try {
-                const res = await fetch(buildApiUrl('/api/chat/users/me/'), { credentials: 'include' });
+                const res = await fetch(buildMessengerApiUrl('/api/chat/users/me/'), { credentials: 'include' });
                 if (!res.ok) return;
                 const user = await res.json();
                 currentUserRef.current = user;
@@ -641,7 +647,7 @@ const FloatingChat = () => {
         pendingMessagesRef.current = [];
 
         try {
-            const res = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=1`), {
+            const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=1`), {
                 credentials: 'include',
             });
             if (!res.ok) return;
