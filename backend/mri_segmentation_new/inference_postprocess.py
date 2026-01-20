@@ -63,8 +63,11 @@ def postprocess_prediction(
     # Remove batch dimension
     pred = prediction.squeeze(0).squeeze(0)  # [H, W, D]
     
+    print(f"  Post-processing: Input mask shape from model: {pred.shape}")
+    
     # Apply threshold
     binary_mask = (pred > threshold).cpu().numpy().astype(np.uint8)
+    print(f"  After threshold: {binary_mask.shape}")
     
     # Morphological cleaning
     if apply_morphology:
@@ -128,20 +131,65 @@ def postprocess_prediction(
             
             # restored is [C, H, W, D]
             binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-            print("✅ Restored to original geometry using Invertd")
+            print(f"✅ Restored to original geometry using Invertd: {binary_mask.shape}")
         except Exception as e:
             print(f"⚠️ Warning: Invertd failed ({e}). Falling back to manual spacing restoration.")
-            # Fallback to manual Spacing logic
-            if original_meta_dict is not None:
-                original_spacing = original_meta_dict.get('pixdim', None)
-                if original_spacing is not None:
-                    original_spacing = original_spacing[1:4]
-                    from monai.transforms import Spacing
-                    spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-
+            # Fallback: Use scipy.ndimage.zoom for reliable restoration
+            from scipy.ndimage import zoom
+            
+            # Get original shape from preprocessed_data metadata
+            if isinstance(input_image, MetaTensor) and hasattr(input_image, 'meta'):
+                meta = input_image.meta
+                # Try to get original spatial shape
+                if 'spatial_shape' in meta:
+                    original_shape = meta['spatial_shape']
+                    print(f"  Original shape from metadata: {original_shape}")
+                    print(f"  Current mask shape: {binary_mask.shape}")
+                    
+                    # Calculate zoom factors
+                    zoom_factors = [
+                        original_shape[i] / binary_mask.shape[i] 
+                        for i in range(3)
+                    ]
+                    print(f"  Zoom factors: {zoom_factors}")
+                    
+                    # Apply zoom
+                    binary_mask_restored = zoom(
+                        binary_mask.astype(np.float32), 
+                        zoom_factors, 
+                        order=0,  # Nearest neighbor for binary mask
+                        mode='nearest'
+                    )
+                    binary_mask = (binary_mask_restored > 0.5).astype(np.uint8)
+                    print(f"  ✅ Restored mask shape: {binary_mask.shape}")
+                else:
+                    print("  ⚠️ No spatial_shape in metadata, trying original_meta_dict fallback")
+                    # Try original_meta_dict fallback
+                    if original_meta_dict is not None:
+                        original_spacing = original_meta_dict.get('pixdim', None)
+                        if original_spacing is not None:
+                            original_spacing = original_spacing[1:4]
+                            from monai.transforms import Spacing
+                            spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
+                            mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
+                            restored = spacing_transform(mask_tensor)
+                            binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+                            print(f"  ✅ Restored using Spacing transform: {binary_mask.shape}")
+            else:
+                print("  ⚠️ Input image is not MetaTensor, trying original_meta_dict fallback")
+                # Try original_meta_dict fallback
+                if original_meta_dict is not None:
+                    original_spacing = original_meta_dict.get('pixdim', None)
+                    if original_spacing is not None:
+                        original_spacing = original_spacing[1:4]
+                        from monai.transforms import Spacing
+                        spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
+                        mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
+                        restored = spacing_transform(mask_tensor)
+                        binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+                        print(f"  ✅ Restored using Spacing transform: {binary_mask.shape}")
+    
+    print(f"  Final mask shape before return: {binary_mask.shape}")
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
         from monai.transforms import Spacing
@@ -152,7 +200,9 @@ def postprocess_prediction(
             mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
             restored = spacing_transform(mask_tensor)
             binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+            print(f"  ✅ Restored using legacy Spacing transform: {binary_mask.shape}")
     
+    print(f"  Final mask shape before return: {binary_mask.shape}")
     return binary_mask
 
 
