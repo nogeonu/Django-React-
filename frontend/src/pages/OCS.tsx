@@ -1650,12 +1650,17 @@ function CreateOrderForm({
       };
       department = "admin";
     } else if (orderType === "lab_test") {
-      const validTestItems = testItems.filter((t) => t.name.trim());
-      if (validTestItems.length === 0) {
-        alert("최소 하나의 검사 항목을 입력해주세요.");
+      if (!imagingData.imaging_type) {
+        toast({
+          title: "검사 유형 선택 필요",
+          description: "검사 유형을 선택해주세요.",
+          variant: "destructive",
+        });
         return;
       }
-      orderData = { test_items: validTestItems };
+      orderData = { 
+        test_type: imagingData.imaging_type, // 혈액검사 또는 rna 검사
+      };
       department = "lab";
     } else if (orderType === "imaging") {
       // 촬영 유형 필수 체크
@@ -1988,47 +1993,20 @@ function CreateOrderForm({
       )}
 
       {orderType === "lab_test" && (
-        <div className="space-y-2">
-          <Label>검사 항목</Label>
-          {testItems.map((item, idx) => (
-            <div key={idx} className="flex gap-2">
-              <Input
-                placeholder="검사명"
-                value={item.name}
-                onChange={(e) => {
-                  const newItems = [...testItems];
-                  newItems[idx].name = e.target.value;
-                  setTestItems(newItems);
-                }}
-                className="flex-1"
-              />
-              <Select
-                value={item.priority}
-                onValueChange={(value) => {
-                  const newItems = [...testItems];
-                  newItems[idx].priority = value;
-                  setTestItems(newItems);
-                }}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="routine">일반</SelectItem>
-                  <SelectItem value="urgent">긴급</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setTestItems([...testItems, { name: "", priority: "routine" }])}
+        <div>
+          <Label>검사 유형 *</Label>
+          <Select
+            value={imagingData.imaging_type || ""}
+            onValueChange={(value) => setImagingData({ ...imagingData, imaging_type: value })}
           >
-            <Plus className="mr-2 h-4 w-4" />
-            검사 항목 추가
-          </Button>
+            <SelectTrigger>
+              <SelectValue placeholder="검사 유형 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="blood">혈액검사</SelectItem>
+              <SelectItem value="rna">RNA 검사</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
 
