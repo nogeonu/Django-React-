@@ -238,45 +238,36 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
 
     source_images.sort(key=get_z_position)
     
-    num_source_slices = len(source_images)
-    print(f"  Source DICOM slices: {num_source_slices}")
-    print(f"  Mask shape: {mask.shape}")
-    
     # 2. Prepare Mask Data
-    # mask is [H, W, D] (RAS from MONAI usually). 
-    # highdicom expects [Frames, Rows, Cols] (Z, Y, X).
-    # We need to transpose [H, W, D] -> [D, H, W] (Z, Y, X)
-    # Note: If MONAI loaded as RAS, and DICOM is LPS, we rely on MONAI's Invertd 
-    # having already restored it to the Patient Coordinate System geometry?
-    # Actually, `Invertd` output is in the same grid as the input image.
-    # So if we simply match the frame order, we just need to align dimensions.
+    # CRITICAL: highdicom.Segmentation expects:
+    #   - pixel_array shape: (Frames, Rows, Columns) where Frames = len(source_images)
+    #   - Each frame corresponds 1:1 with source_images[i]
     
-    # Transpose [H, W, D] -> [D, H, W]
+    # Input mask is [H, W, D] from MONAI (after Invertd restoration)
+    # We need [D, H, W] for highdicom (Frames=D, Rows=H, Cols=W)
+    
+    print(f"  Input mask shape: {mask.shape}")
+    print(f"  Source images count: {len(source_images)}")
+    
+    # Transpose to [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
+    print(f"  Transposed mask shape: {mask_frames.shape}")
     
-    # Check dimension mismatch
-    num_mask_frames = mask_frames.shape[0]
-    if num_mask_frames != num_source_slices:
-        print(f"  WARNING: Dimension mismatch! Mask has {num_mask_frames} frames, but source has {num_source_slices} slices.")
-        print(f"  Resampling mask to match source slice count...")
-        
-        # Resample mask to match source slice count
-        from scipy import ndimage
-        target_shape = (num_source_slices, mask_frames.shape[1], mask_frames.shape[2])
-        
-        # Use zoom to resample
-        zoom_factors = (
-            num_source_slices / num_mask_frames,
-            1.0,  # Keep H dimension
-            1.0   # Keep W dimension
+    # Verify dimensions match
+    # Invertd가 정상 작동했다면 차원이 일치해야 함
+    # 불일치 시 명확한 에러 메시지로 문제 알림 (안전장치)
+    if mask_frames.shape[0] != len(source_images):
+        raise ValueError(
+            f"Dimension mismatch: mask has {mask_frames.shape[0]} frames "
+            f"but source_images has {len(source_images)} images. "
+            f"Original mask shape: {mask.shape}. "
+            f"This indicates Invertd failed to restore original spacing. "
+            f"Please check restore_original_spacing=True and Invertd transform."
         )
-        
-        mask_frames = ndimage.zoom(mask_frames.astype(float), zoom_factors, order=0)  # Nearest neighbor
-        mask_frames = mask_frames.astype(bool)
-        print(f"  Resampled mask shape: {mask_frames.shape}")
     
-    # Ensure boolean
-    mask_frames = mask_frames > 0 if mask_frames.dtype != bool else mask_frames
+    # Ensure boolean type for BINARY segmentation
+    mask_frames = mask_frames > 0
+    print(f"  Non-empty frames: {np.sum(np.any(mask_frames, axis=(1,2)))}")
     
     # 3. Create Segment Description
     segment_description = SegmentDescription(
