@@ -263,10 +263,14 @@ export default function LaboratoryAIAnalysis() {
       setTimeout(async () => {
         await loadRNATestsForPatient(patientId);
         // 데이터가 로드되면 분석 탭으로 이동
-        if (rnaTests.length > 0 || (result.created > 0 || result.updated > 0)) {
+        const tests = await getRNATestsApi({ search: patientId });
+        const testList = tests.results || tests || [];
+        if (testList.length > 0) {
+          setRNATests(testList);
+          setSelectedRNATest(testList[0]);
           setActiveTab('analysis');
         }
-      }, 500);
+      }, 1000);
     } catch (error: any) {
       toast({
         title: '업로드 실패',
