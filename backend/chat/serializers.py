@@ -25,22 +25,36 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
     def get_name(self, obj):
         # 한국식 이름 형식: 성+이름 (예: "박철순")
-        first_name = getattr(obj, 'first_name', '') or ''
-        last_name = getattr(obj, 'last_name', '') or ''
+        # DB에서 직접 first_name, last_name을 가져와서 조합
+        first_name = (obj.first_name or '').strip()
+        last_name = (obj.last_name or '').strip()
+        
+        # first_name과 last_name이 모두 있으면 "성+이름" 형식으로 조합
         if last_name and first_name:
             return f"{last_name}{first_name}"
         elif last_name:
             return last_name
         elif first_name:
             return first_name
+        
+        # get_full_name()은 Django 기본 메서드로 "first_name last_name" 형식을 반환
+        # 이를 "last_name first_name" 형식으로 변환
         full_name = obj.get_full_name()
         if full_name:
-            # "철순 박" 형식을 "박철순"으로 변환
-            parts = full_name.strip().split()
+            full_name = full_name.strip()
+            # 공백으로 분리하여 순서 바꾸기
+            parts = full_name.split()
             if len(parts) == 2:
+                # "철순 박" -> "박철순"
                 return f"{parts[1]}{parts[0]}"
+            elif len(parts) > 2:
+                # 여러 단어가 있는 경우 마지막이 성일 가능성
+                # "철순 박" 형식이면 마지막이 성
+                return f"{parts[-1]}{''.join(parts[:-1])}"
             return full_name
-        return obj.get_username()
+        
+        # 모두 없으면 username 반환
+        return obj.get_username() or str(obj.id)
 
     def get_role(self, obj):
         # department 필드 사용

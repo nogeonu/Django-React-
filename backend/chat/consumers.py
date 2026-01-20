@@ -18,11 +18,31 @@ from .room_utils import dm_participant_ids, dm_participant_ids_from_case_key, pa
 
 
 def user_payload(user):
-    full_name = user.get_full_name()
+    # 한국식 이름 형식: 성+이름 (예: "박철순")
+    first_name = (getattr(user, 'first_name', '') or '').strip()
+    last_name = (getattr(user, 'last_name', '') or '').strip()
+    
+    if last_name and first_name:
+        name = f"{last_name}{first_name}"
+    elif last_name:
+        name = last_name
+    elif first_name:
+        name = first_name
+    else:
+        full_name = user.get_full_name()
+        if full_name:
+            parts = full_name.strip().split()
+            if len(parts) == 2:
+                name = f"{parts[1]}{parts[0]}"
+            else:
+                name = full_name
+        else:
+            name = user.get_username()
+    
     return {
         "id": user.id,
         "username": user.get_username(),
-        "name": full_name if full_name else user.get_username(),
+        "name": name,
         "role": getattr(user, "role", ""),
     }
 
