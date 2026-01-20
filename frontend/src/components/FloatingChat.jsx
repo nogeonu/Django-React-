@@ -4,14 +4,30 @@ import './FloatingChat.css';
 const CHAT_SERVER = ''; // 로컬 서버 연동을 위해 비움
 
 const buildWsBaseUrl = (serverUrl) => {
-    try {
-        const parsed = new URL(serverUrl);
-        const scheme = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${scheme}//${parsed.host}`;
-    } catch (err) {
-        const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${scheme}//${window.location.host}`;
+    // 1. Explicit server URL (e.g., hardcoded or from env)
+    if (serverUrl) {
+        try {
+            const parsed = new URL(serverUrl);
+            const scheme = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${scheme}//${parsed.host}`;
+        } catch (err) { }
     }
+
+    // 2. Fallback to current window location
+    const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host; // e.g., 'localhost:5173' or '34.42.223.43'
+
+    // Local dev (Vite) or host with explicit port
+    if (host.includes(':')) {
+        return `${scheme}//${host}`;
+    }
+
+    // Remote server (Port 80/443) without /ws proxy configured
+    // Many setups run Daphne/Channels on port 8000
+    // If Nginx proxies /api but not /ws, we might need direct port access
+    // return `${scheme}//${host}:8000`; // Uncomment this if Nginx /ws proxy is not available
+
+    return `${scheme}//${host}`;
 };
 
 const API_BASE_URL = CHAT_SERVER;
