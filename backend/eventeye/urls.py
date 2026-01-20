@@ -23,7 +23,8 @@ def api_root(request):
             'lung_cancer': '/api/lung_cancer/',
             'mri_viewer': '/api/mri/',
             'ocs': '/api/ocs/',
-            'chat': '/api/chat/',
+            'chatbot': '/api/chat/',
+            'messenger': '/api/messenger/',
             'lis': '/api/lis/',
             'admin': '/admin/',
             'swagger': '/swagger/',
@@ -62,6 +63,7 @@ urlpatterns = [
     path('api/mri/', include('mri_viewer.urls')),
     path('api/ocs/', include('ocs.urls')),
     path('api/chat/', include('chatbot.urls')),
+    path('api/messenger/', include('chat.urls')),
     path('api/lis/', include('lis.urls')),
     # Auth endpoints
     path('api/auth/login', auth_views.login, name='login'),
