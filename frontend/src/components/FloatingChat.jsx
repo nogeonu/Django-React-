@@ -369,6 +369,20 @@ const FloatingChat = () => {
                     room.id === roomId ? { ...room, unread_count: 0 } : room
                 )));
                 
+                // 현재 채팅방이 열려있으면 메시지의 unread_count도 업데이트
+                if (currentRoomRef.current?.id === roomId) {
+                    // 내가 보낸 메시지가 아닌 메시지들의 unread_count를 0으로 설정
+                    setMessages((prev) => prev.map((msg) => {
+                        const me = currentUserRef.current;
+                        // 내가 보낸 메시지가 아니면 unread_count를 0으로 (읽었으므로)
+                        if (me && msg.sender?.id !== me.id) {
+                            return { ...msg, unread_count: 0 };
+                        }
+                        return msg;
+                    }));
+                    console.log('메시지 읽음 상태 업데이트 완료');
+                }
+                
                 // 채팅방이 열려있을 때는 알림 배지 업데이트 안 함 (너무 빨리 사라지는 문제 방지)
                 // 사용자가 직접 채팅방을 열 때만 알림 배지 업데이트
                 if (updateBadge) {
@@ -837,7 +851,10 @@ const FloatingChat = () => {
             // 채팅방이 열리면 즉시 읽음 처리 (카카오톡 방식)
             const roomId = currentRoomRef.current?.id;
             if (roomId) {
-                markRoomAsRead(roomId, false); // 알림 배지는 업데이트 안 함
+                // 약간의 딜레이를 주어 메시지 로드 후 읽음 처리
+                setTimeout(() => {
+                    markRoomAsRead(roomId, false); // 알림 배지는 업데이트 안 함
+                }, 300);
             }
         };
 
@@ -858,6 +875,13 @@ const FloatingChat = () => {
                     const pendingMessages = pendingMessagesRef.current.filter((msg) => !existingIds.has(msg.id));
                     setMessages([...historyMessages, ...pendingMessages]);
                     console.log('메시지 히스토리 수신:', historyMessages.length, '개');
+                    
+                    // 메시지 로드 후 읽음 처리 (카카오톡 방식)
+                    if (roomId) {
+                        setTimeout(() => {
+                            markRoomAsRead(roomId, false);
+                        }, 200);
+                    }
                 } else if (roomId) {
                     // roomId가 있으면 API로 로드
                     loadMessagesFromAPI(roomId);
@@ -920,6 +944,13 @@ const FloatingChat = () => {
                         // 알림 배지는 업데이트 안 함 (이미 채팅방이 열려있으므로)
                         markRoomAsRead(roomId, false);
                     }
+                    // 메시지의 unread_count도 즉시 0으로 설정 (화면에 표시되는 "1" 제거)
+                    setMessages((prev) => prev.map((msg) => {
+                        if (msg.id === message.id && msg.sender?.id !== me.id) {
+                            return { ...msg, unread_count: 0 };
+                        }
+                        return msg;
+                    }));
                 }
                 return;
             }
