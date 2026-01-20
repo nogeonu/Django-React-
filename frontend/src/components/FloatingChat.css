@@ -1131,6 +1131,67 @@
   cursor: not-allowed;
 }
 
+/* 프로필 모달 스타일 */
+.profile-modal-content {
+  padding: 24px;
+  text-align: center;
+}
+
+.profile-avatar-large {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.profile-info {
+  text-align: left;
+}
+
+.profile-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.profile-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-detail-item:last-child {
+  border-bottom: none;
+}
+
+.profile-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.profile-value {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
 @media (max-width: 520px) {
   .chat-popup {
     width: calc(100vw - 32px);

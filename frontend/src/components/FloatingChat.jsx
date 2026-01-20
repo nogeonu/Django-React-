@@ -99,6 +99,8 @@ const FloatingChat = () => {
     const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [showOnlineOnly, setShowOnlineOnly] = useState(false);
     const [departments, setDepartments] = useState([]);
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [selectedUserProfile, setSelectedUserProfile] = useState(null);
 
     const chatMessagesRef = useRef(null);
     const messageInputRef = useRef(null);
@@ -1388,33 +1390,18 @@ const FloatingChat = () => {
                                         <div
                                             key={friendUser.id}
                                             className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''} ${hasExistingRoom ? 'has-room' : ''}`}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                setSelectedUserProfile(friendUser);
+                                                setShowProfileModal(true);
+                                            }}
                                             onClick={() => {
                                                 if (isSelectionMode) {
                                                     toggleUserSelection(friendUser.id);
                                                 } else {
-                                                    // 최근 대화가 있으면 해당 방으로, 없으면 새로 생성
-                                                    if (hasExistingRoom && currentUser) {
-                                                        const existingRoom = rooms.find((room) => {
-                                                            // case:dm: 타입 체크
-                                                            if (room.name && room.name.startsWith('case:dm:')) {
-                                                                const parts = room.name.split(':');
-                                                                if (parts.length >= 3) {
-                                                                    const ids = parts.slice(2).map((id) => parseInt(id, 10));
-                                                                    return ids.includes(friendUser.id) && ids.includes(currentUser.id);
-                                                                }
-                                                            }
-                                                            // participants 체크
-                                                            if (room.participants && Array.isArray(room.participants)) {
-                                                                return room.participants.some((p) => p.id === friendUser.id);
-                                                            }
-                                                            return false;
-                                                        });
-                                                        if (existingRoom) {
-                                                            connectToRoom(existingRoom.name, existingRoom.id, existingRoom);
-                                                            return;
-                                                        }
-                                                    }
-                                                    openDM(friendUser.id);
+                                                    // 우클릭이 아닌 일반 클릭은 프로필 표시
+                                                    setSelectedUserProfile(friendUser);
+                                                    setShowProfileModal(true);
                                                 }
                                             }}
                                         >
@@ -1691,6 +1678,67 @@ const FloatingChat = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* 프로필 모달 */}
+            {showProfileModal && selectedUserProfile && (
+                <div className="chat-create-modal-overlay" onClick={() => setShowProfileModal(false)}>
+                    <div className="chat-create-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="chat-create-modal-header">
+                            <h3>의사 정보</h3>
+                            <button className="chat-create-modal-close" onClick={() => setShowProfileModal(false)} type="button">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="profile-modal-content">
+                            <div className="profile-avatar-large">
+                                <div className={`chat-list-avatar ${selectedUserProfile.is_online ? 'online' : ''}`} style={{ width: '80px', height: '80px', fontSize: '32px' }}>
+                                    {(selectedUserProfile.name || selectedUserProfile.username || '?')[0]}
+                                </div>
+                            </div>
+                            <div className="profile-info">
+                                <h4 className="profile-name">{selectedUserProfile.name || selectedUserProfile.username}</h4>
+                                <div className="profile-detail">
+                                    <div className="profile-detail-item">
+                                        <span className="profile-label">부서</span>
+                                        <span className="profile-value">{selectedUserProfile.department || selectedUserProfile.role || '의료진'}</span>
+                                    </div>
+                                    <div className="profile-detail-item">
+                                        <span className="profile-label">상태</span>
+                                        <span className="profile-value">
+                                            {selectedUserProfile.is_online ? (
+                                                <span style={{ color: 'var(--success)' }}>온라인</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-secondary)' }}>오프라인</span>
+                                            )}
+                                        </span>
+                                    </div>
+                                    {selectedUserProfile.username && (
+                                        <div className="profile-detail-item">
+                                            <span className="profile-label">사용자명</span>
+                                            <span className="profile-value">{selectedUserProfile.username}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="profile-actions">
+                                    <button
+                                        className="chat-create-confirm-btn"
+                                        onClick={() => {
+                                            setShowProfileModal(false);
+                                            openDM(selectedUserProfile.id);
+                                        }}
+                                        type="button"
+                                    >
+                                        메시지 보내기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
