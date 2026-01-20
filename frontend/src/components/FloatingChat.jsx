@@ -1347,15 +1347,30 @@ const FloatingChat = () => {
                             
                             // 최근 대화가 있는 동료 찾기
                             const friendsWithRooms = new Set();
-                            rooms.forEach((room) => {
-                                if (room.room_type === 'case' && room.participants) {
-                                    room.participants.forEach((p) => {
-                                        if (p.id !== currentUserRef.current?.id) {
-                                            friendsWithRooms.add(p.id);
+                            const me = currentUserRef.current;
+                            if (me) {
+                                rooms.forEach((room) => {
+                                    // case 타입 (개인 채팅)인 경우
+                                    if (room.name && room.name.startsWith('case:dm:')) {
+                                        const parts = room.name.split(':');
+                                        if (parts.length >= 3) {
+                                            const ids = parts.slice(2).map((id) => parseInt(id, 10));
+                                            const friendId = ids.find((id) => id !== me.id);
+                                            if (friendId) {
+                                                friendsWithRooms.add(friendId);
+                                            }
                                         }
-                                    });
-                                }
-                            });
+                                    }
+                                    // participants가 있는 경우 (group 또는 다른 타입)
+                                    if (room.participants && Array.isArray(room.participants)) {
+                                        room.participants.forEach((p) => {
+                                            if (p.id && p.id !== me.id) {
+                                                friendsWithRooms.add(p.id);
+                                            }
+                                        });
+                                    }
+                                });
+                            }
                             
                             return filteredFriends.length === 0 ? (
                                 <div className="chat-empty">
@@ -1377,9 +1392,18 @@ const FloatingChat = () => {
                                                     toggleUserSelection(user.id);
                                                 } else {
                                                     // 최근 대화가 있으면 해당 방으로, 없으면 새로 생성
-                                                    if (hasExistingRoom) {
+                                                    if (hasExistingRoom && me) {
                                                         const existingRoom = rooms.find((room) => {
-                                                            if (room.room_type === 'case' && room.participants) {
+                                                            // case:dm: 타입 체크
+                                                            if (room.name && room.name.startsWith('case:dm:')) {
+                                                                const parts = room.name.split(':');
+                                                                if (parts.length >= 3) {
+                                                                    const ids = parts.slice(2).map((id) => parseInt(id, 10));
+                                                                    return ids.includes(user.id) && ids.includes(me.id);
+                                                                }
+                                                            }
+                                                            // participants 체크
+                                                            if (room.participants && Array.isArray(room.participants)) {
                                                                 return room.participants.some((p) => p.id === user.id);
                                                             }
                                                             return false;
@@ -1422,9 +1446,6 @@ const FloatingChat = () => {
                                 })
                             );
                         })()}
-                        
-                        {/* 기존 코드 제거 - 위에서 처리함 */}
-                        {false && currentTab === 'friends' && friends.map((user) => (
                             <div
                                 key={user.id}
                                 className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''}`}
