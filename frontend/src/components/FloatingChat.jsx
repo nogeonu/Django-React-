@@ -544,22 +544,25 @@ const FloatingChat = () => {
             return;
         }
 
+        // 중복 전송 방지: 입력 필드를 먼저 비우고 전송 중 플래그 설정
+        setMessageInput('');
+        if (messageInputRef.current) {
+            messageInputRef.current.style.height = 'auto';
+        }
+
         try {
             const payload = {
                 type: 'chat_message',
                 content,
             };
-            console.log('메시지 전송:', payload);
-            // 입력 필드 먼저 비우기 (중복 전송 방지)
-            setMessageInput('');
-            if (messageInputRef.current) {
-                messageInputRef.current.style.height = 'auto';
-            }
+            console.log('메시지 전송:', payload, 'Socket:', socket.readyState);
             // 서버로 전송 (서버 응답으로 chat_message 이벤트가 오면 그때 표시됨)
             socket.send(JSON.stringify(payload));
         } catch (err) {
             console.error('메시지 전송 실패:', err);
             alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
+            // 실패 시 입력 복원
+            setMessageInput(content);
         }
     };
 
@@ -736,11 +739,45 @@ const FloatingChat = () => {
     useEffect(() => {
         if (!currentRoom?.name) {
             setHeaderStatus('대기 중');
+            // 기존 소켓 정리
+            if (socketRef.current) {
+                const oldSocket = socketRef.current;
+                oldSocket.onopen = null;
+                oldSocket.onmessage = null;
+                oldSocket.onerror = null;
+                oldSocket.onclose = null;
+                if (oldSocket.readyState === WebSocket.OPEN || oldSocket.readyState === WebSocket.CONNECTING) {
+                    oldSocket.close();
+                }
+                socketRef.current = null;
+            }
             return;
+        }
+
+        // 이미 같은 방에 연결되어 있는지 확인
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            const currentRoomName = currentRoomRef.current?.name;
+            if (currentRoomName === currentRoom.name) {
+                console.log('이미 같은 방에 연결되어 있음:', currentRoomName);
+                return;
+            }
         }
 
         const wsUrl = `${WS_BASE_URL}/ws/chat/${currentRoom.name}/`;
         console.log('WebSocket 연결 시도:', wsUrl, 'WS_BASE_URL:', WS_BASE_URL, 'currentRoom:', currentRoom);
+        
+        // 기존 소켓이 있으면 먼저 정리
+        if (socketRef.current) {
+            const oldSocket = socketRef.current;
+            oldSocket.onopen = null;
+            oldSocket.onmessage = null;
+            oldSocket.onerror = null;
+            oldSocket.onclose = null;
+            if (oldSocket.readyState === WebSocket.OPEN || oldSocket.readyState === WebSocket.CONNECTING) {
+                oldSocket.close();
+            }
+        }
+        
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
 
@@ -779,12 +816,31 @@ const FloatingChat = () => {
                 const message = data.data.message;
                 const me = currentUserRef.current;
                 
-                // 중복 메시지 체크 (ID로 확인)
+                // 중복 메시지 체크 (ID로 확인) - 더 엄격한 체크
                 setMessages((prev) => {
-                    if (prev.some((msg) => msg.id === message.id)) {
-                        console.log('중복 메시지 무시:', message.id);
+                    // ID로 중복 체크
+                    const existingById = prev.find((msg) => msg.id === message.id);
+                    if (existingById) {
+                        console.log('중복 메시지 무시 (ID):', message.id, message.content);
                         return prev;
                     }
+                    
+                    // 같은 내용, 같은 발신자, 같은 시간(1초 이내)인 경우도 중복으로 간주
+                    const me = currentUserRef.current;
+                    if (me && message?.sender?.id === me.id) {
+                        const recentMessage = prev[prev.length - 1];
+                        if (recentMessage && 
+                            recentMessage.sender?.id === me.id &&
+                            recentMessage.content === message.content) {
+                            const timeDiff = new Date(message.timestamp) - new Date(recentMessage.timestamp);
+                            if (timeDiff < 1000) { // 1초 이내
+                                console.log('중복 메시지 무시 (내용/시간):', message.content);
+                                return prev;
+                            }
+                        }
+                    }
+                    
+                    console.log('새 메시지 추가:', message.id, message.content);
                     return [...prev, message];
                 });
 
@@ -804,20 +860,27 @@ const FloatingChat = () => {
                 const isDMRoom = currentRoomRef.current?.name?.startsWith('case:dm:');
                 const me = currentUserRef.current;
                 
+                console.log('읽음 상태 업데이트:', { readUserId, messageId, isDMRoom, myId: me?.id });
+                
                 // DM 방이 아니거나, 상대방이 읽은 경우에만 업데이트
                 if (!isDMRoom || readUserId !== me?.id) {
                     // 특정 메시지의 읽음 상태 업데이트
                     if (messageId) {
                         setMessages((prev) => prev.map((msg) => {
                             if (msg.id === messageId) {
-                                return { ...msg, unread_count: Math.max(0, (msg.unread_count || 1) - 1) };
+                                const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
+                                console.log('메시지 읽음 상태 업데이트:', messageId, msg.unread_count, '->', newUnreadCount);
+                                return { ...msg, unread_count: newUnreadCount };
                             }
                             return msg;
                         }));
                     } else {
                         // 전체 메시지 읽음 상태 갱신
+                        console.log('전체 메시지 읽음 상태 갱신');
                         refreshReadStatusFromAPI(currentRoomRef.current?.id);
                     }
+                } else {
+                    console.log('읽음 상태 업데이트 스킵 (DM 방이고 내가 읽은 경우)');
                 }
             }
         };
