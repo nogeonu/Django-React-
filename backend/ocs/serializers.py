@@ -359,3 +359,29 @@ class ImagingAnalysisResultCreateSerializer(serializers.ModelSerializer):
         fields = [
             'order', 'analysis_result', 'findings', 'recommendations', 'confidence_score'
         ]
+
+
+class LabTestResultSerializer(serializers.ModelSerializer):
+    """검사 결과 Serializer"""
+    input_by_name = serializers.CharField(source='input_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = LabTestResult
+        fields = [
+            'id', 'order', 'input_by', 'input_by_name',
+            'test_results', 'ai_findings', 'ai_confidence_score',
+            'ai_report_image', 'ai_prediction', 'notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class LabTestResultCreateSerializer(serializers.ModelSerializer):
+    """검사 결과 생성 Serializer"""
+    
+    class Meta:
+        model = LabTestResult
+        fields = [
+            'order', 'test_results', 'ai_findings', 'ai_confidence_score',
+            'ai_report_image', 'ai_prediction', 'notes'
+        ]
