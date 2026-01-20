@@ -763,6 +763,24 @@ function OrderCard({
   const [labAiConfidence, setLabAiConfidence] = useState<number>(0);
   const [labAiReportImage, setLabAiReportImage] = useState("");
   const [labAiPrediction, setLabAiPrediction] = useState("");
+
+  // 다이얼로그 열 때 기존 결과 로드
+  useEffect(() => {
+    if (showLabResultDialog && order.lab_test_result) {
+      setLabTestResults(order.lab_test_result.test_results || {});
+      setLabAiFindings(order.lab_test_result.ai_findings || "");
+      setLabAiConfidence(order.lab_test_result.ai_confidence_score || 0);
+      setLabAiReportImage(order.lab_test_result.ai_report_image || "");
+      setLabAiPrediction(order.lab_test_result.ai_prediction || "");
+    } else if (showLabResultDialog) {
+      // 새로 입력하는 경우 초기화
+      setLabTestResults({});
+      setLabAiFindings("");
+      setLabAiConfidence(0);
+      setLabAiReportImage("");
+      setLabAiPrediction("");
+    }
+  }, [showLabResultDialog, order.lab_test_result]);
   const [heatmapImages, setHeatmapImages] = useState<File[]>([]);  // 여러 이미지 지원
   const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map());  // instanceId -> previewUrl
   const [orthancImages, setOrthancImages] = useState<any[]>([]);
@@ -1269,7 +1287,6 @@ function OrderCard({
             {/* 검사실: 검사 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "lab_test" && 
              (order.status === "processing" || order.status === "completed") && 
-             !order.lab_test_result &&
              user?.department === "검사실" && (
               <Button
                 onClick={() => setShowLabResultDialog(true)}
@@ -1278,7 +1295,7 @@ function OrderCard({
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <FlaskConical className="mr-2 h-4 w-4" />
-                결과 입력
+                {order.lab_test_result ? "결과 수정" : "결과 입력"}
               </Button>
             )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
@@ -1578,6 +1595,7 @@ function OrderCard({
                 <Label className="text-base font-semibold mb-2 block">AI 분석 (선택사항)</Label>
                 <LabResultAISection
                   patientId={order.patient_id || order.patient_number || ''}
+                  existingResult={order.lab_test_result}
                   onPCRResult={(result) => {
                     setLabAiFindings(result.prediction === 'Positive' ? '양성 (Positive)' : '음성 (Negative)');
                     setLabAiConfidence(result.probability);
@@ -1703,7 +1721,7 @@ function OrderCard({
 }
 
 // 검사 결과 AI 분석 섹션 컴포넌트
-function LabResultAISection({ patientId, onPCRResult }: { patientId: string; onPCRResult: (result: any) => void }) {
+function LabResultAISection({ patientId, onPCRResult, existingResult }: { patientId: string; onPCRResult: (result: any) => void; existingResult?: any }) {
   const [rnaTests, setRNATests] = useState<any[]>([]);
   const [selectedRNATest, setSelectedRNATest] = useState<any>(null);
   const [predicting, setPredicting] = useState(false);
@@ -1715,10 +1733,24 @@ function LabResultAISection({ patientId, onPCRResult }: { patientId: string; onP
     }
   }, [patientId]);
 
+  useEffect(() => {
+    // 기존 결과가 있으면 자동으로 로드
+    if (existingResult && existingResult.ai_report_image) {
+      onPCRResult({
+        prediction: existingResult.ai_prediction === 'Positive' ? 'Positive' : 'Negative',
+        probability: existingResult.ai_confidence_score || 0,
+        image: existingResult.ai_report_image,
+      });
+    }
+  }, [existingResult]);
+
   const loadRNATests = async () => {
     try {
       const data = await getRNATestsApi({ search: patientId });
       setRNATests(data.results || data);
+      if (data.results && data.results.length > 0) {
+        setSelectedRNATest(data.results[0]);
+      }
     } catch (error) {
       console.error('Failed to load RNA tests:', error);
     }
@@ -1751,7 +1783,15 @@ function LabResultAISection({ patientId, onPCRResult }: { patientId: string; onP
 
   return (
     <div className="space-y-3">
-      {rnaTests.length > 0 ? (
+      {existingResult && existingResult.ai_report_image ? (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm font-semibold text-green-800 mb-2">✓ 저장된 분석 결과가 있습니다</p>
+          <p className="text-xs text-green-700">
+            소견: {existingResult.ai_findings || 'N/A'}<br/>
+            신뢰도: {existingResult.ai_confidence_score ? (existingResult.ai_confidence_score * 100).toFixed(1) + '%' : 'N/A'}
+          </p>
+        </div>
+      ) : rnaTests.length > 0 ? (
         <>
           <Select value={selectedRNATest?.id?.toString()} onValueChange={(value) => {
             const test = rnaTests.find(t => t.id.toString() === value);

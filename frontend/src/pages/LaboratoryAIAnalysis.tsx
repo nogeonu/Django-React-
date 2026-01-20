@@ -3,13 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { 
   Brain, 
   Upload, 
   Dna,
   Activity,
   FileText,
-  Loader2
+  Loader2,
+  Search,
+  User,
+  Calendar,
+  FlaskConical
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -17,7 +22,10 @@ import {
   uploadRNATestCsvApi,
   predictPCRApi,
   getRNATestsApi,
+  getOrdersApi,
+  getPendingOrdersApi,
 } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface RNATest {
   id: number;
@@ -28,6 +36,17 @@ interface RNATest {
   patient_gender: string;
   test_date: string;
   [key: string]: any;
+}
+
+interface Order {
+  id: string;
+  patient_name: string;
+  patient_id: string;
+  patient_number: string;
+  order_data: any;
+  status: string;
+  created_at: string;
+  lab_test_result?: any;
 }
 
 const GENE_NAMES = [
@@ -69,22 +88,58 @@ const GENE_PATHWAYS: Record<string, string> = {
 
 export default function LaboratoryAIAnalysis() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('upload');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('orders');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [rnaTests, setRNATests] = useState<RNATest[]>([]);
   const [selectedRNATest, setSelectedRNATest] = useState<RNATest | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pcrPrediction, setPcrPrediction] = useState<any>(null);
   const [predictingPCR, setPredictingPCR] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
-    loadRNATests();
+    loadOrders();
   }, []);
 
-  const loadRNATests = async () => {
+  useEffect(() => {
+    if (selectedOrder) {
+      loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
+    }
+  }, [selectedOrder]);
+
+  const loadOrders = async () => {
+    setLoadingOrders(true);
     try {
-      const data = await getRNATestsApi();
+      // 검사 주문 중 처리 중이거나 전달된 상태인 것만 가져오기
+      const data = await getOrdersApi({
+        order_type: 'lab_test',
+        target_department: 'lab',
+        status: 'processing,sent',
+      });
+      setOrders((data.results || data).filter((order: Order) => !order.lab_test_result));
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      toast({
+        title: '주문 목록 로드 실패',
+        description: '검사 주문 목록을 불러오는데 실패했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const loadRNATestsForPatient = async (patientId: string) => {
+    try {
+      const data = await getRNATestsApi({ search: patientId });
       setRNATests(data.results || data);
+      if (data.results && data.results.length > 0) {
+        setSelectedRNATest(data.results[0]);
+      }
     } catch (error) {
       console.error('Failed to load RNA tests:', error);
     }
@@ -94,6 +149,15 @@ export default function LaboratoryAIAnalysis() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!selectedOrder) {
+      toast({
+        title: '환자 선택 필요',
+        description: '먼저 검사 주문을 선택해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setUploading(true);
     try {
       const result = await uploadLabTestCsvApi(file);
@@ -101,6 +165,7 @@ export default function LaboratoryAIAnalysis() {
         title: '업로드 성공',
         description: `${result.created}개 생성, ${result.updated}개 업데이트`,
       });
+      await loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -117,6 +182,15 @@ export default function LaboratoryAIAnalysis() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!selectedOrder) {
+      toast({
+        title: '환자 선택 필요',
+        description: '먼저 검사 주문을 선택해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setUploading(true);
     try {
       const result = await uploadRNATestCsvApi(file);
@@ -124,11 +198,8 @@ export default function LaboratoryAIAnalysis() {
         title: 'RNA 업로드 성공',
         description: `${result.created}개 생성, ${result.updated}개 업데이트`,
       });
-      await loadRNATests();
-      
-      if (rnaTests.length > 0 || (result.created > 0 || result.updated > 0)) {
-        setActiveTab('analysis');
-      }
+      await loadRNATestsForPatient(selectedOrder.patient_id || selectedOrder.patient_number);
+      setActiveTab('analysis');
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -152,13 +223,26 @@ export default function LaboratoryAIAnalysis() {
       return;
     }
 
+    if (!selectedOrder) {
+      toast({
+        title: '주문 선택 필요',
+        description: '먼저 검사 주문을 선택해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setPredictingPCR(true);
     try {
       const result = await predictPCRApi(testToPredict.id);
       setPcrPrediction(result);
+      
+      // 결과를 OCS 주문에 저장
+      await saveResultToOrder(result);
+      
       toast({
         title: 'pCR 예측 완료',
-        description: `예측 확률: ${(result.probability * 100).toFixed(1)}%`,
+        description: `예측 확률: ${(result.probability * 100).toFixed(1)}% - 결과가 저장되었습니다.`,
       });
     } catch (error: any) {
       toast({
@@ -171,6 +255,54 @@ export default function LaboratoryAIAnalysis() {
     }
   };
 
+  const saveResultToOrder = async (predictionResult: any) => {
+    if (!selectedOrder) return;
+
+    try {
+      // OCS 결과 입력 API 호출
+      const response = await fetch(`/api/ocs/orders/${selectedOrder.id}/input_lab_result/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          test_results: {},
+          ai_findings: predictionResult.prediction === 'Positive' ? '양성 (Positive)' : '음성 (Negative)',
+          ai_confidence_score: predictionResult.probability,
+          ai_report_image: predictionResult.image || '',
+          ai_prediction: predictionResult.prediction || '',
+          notes: `pCR 예측 확률: ${(predictionResult.probability * 100).toFixed(1)}%`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('결과 저장 실패');
+      }
+
+      // 주문 목록 새로고침
+      await loadOrders();
+    } catch (error) {
+      console.error('Failed to save result:', error);
+      toast({
+        title: '결과 저장 실패',
+        description: '예측 결과를 저장하는데 실패했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      order.patient_name?.toLowerCase().includes(term) ||
+      order.patient_id?.toLowerCase().includes(term) ||
+      order.patient_number?.toLowerCase().includes(term) ||
+      order.id.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -178,7 +310,7 @@ export default function LaboratoryAIAnalysis() {
         <div>
           <h1 className="text-3xl font-bold">AI 분석 시스템</h1>
           <p className="text-muted-foreground mt-1">
-            검사 데이터 업로드 및 AI 모델 추론 결과 확인
+            OCS 검사 주문 기반 AI 모델 추론 및 결과 저장
           </p>
         </div>
       </div>
@@ -186,122 +318,243 @@ export default function LaboratoryAIAnalysis() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="upload">
+          <TabsTrigger value="orders">
+            <FlaskConical className="mr-2 h-4 w-4" />
+            검사 주문 ({filteredOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="upload" disabled={!selectedOrder}>
             <Upload className="mr-2 h-4 w-4" />
             데이터 업로드
           </TabsTrigger>
-          <TabsTrigger value="analysis">
+          <TabsTrigger value="analysis" disabled={!selectedOrder || rnaTests.length === 0}>
             <Brain className="mr-2 h-4 w-4" />
             AI 분석 ({rnaTests.length})
           </TabsTrigger>
         </TabsList>
 
+        {/* Orders Tab */}
+        <TabsContent value="orders">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>검사 주문 목록 (대기 중)</CardTitle>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="환자명, 환자번호, 주문ID 검색..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-64"
+                    />
+                  </div>
+                  <Button onClick={loadOrders} variant="outline" size="sm">
+                    새로고침
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingOrders ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : filteredOrders.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`cursor-pointer rounded-lg border p-4 transition-all ${
+                        selectedOrder?.id === order.id
+                          ? 'bg-primary/10 border-primary'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setActiveTab('upload');
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-primary/10 rounded-lg">
+                            <User className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{order.patient_name}</p>
+                            <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                              <span>환자번호: {order.patient_number || order.patient_id}</span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(order.created_at).toLocaleDateString('ko-KR')}
+                              </span>
+                            </div>
+                            {order.order_data?.test_items && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                검사 항목: {order.order_data.test_items.map((item: any) => item.name).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={order.status === 'processing' ? 'default' : 'secondary'}>
+                            {order.status === 'processing' ? '처리 중' : '전달됨'}
+                          </Badge>
+                          {selectedOrder?.id === order.id && (
+                            <Badge className="bg-primary text-white">선택됨</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FlaskConical className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+                  <p className="text-lg font-semibold mb-2">대기 중인 검사 주문이 없습니다</p>
+                  <p className="text-sm">의사가 검사 주문을 생성하면 여기에 표시됩니다</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Upload Tab */}
         <TabsContent value="upload">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Lab Test Upload */}
-            <Card>
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  혈액검사 데이터 업로드
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-sm text-muted-foreground mb-4">
-                      CSV 파일을 업로드하여 혈액검사 데이터를 등록하세요
-                    </p>
-                    <label htmlFor="lab-upload">
-                      <Button 
-                        variant="outline" 
-                        disabled={uploading} 
-                        asChild
-                        className="cursor-pointer"
-                      >
-                        <span>
-                          {uploading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              업로드 중...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="mr-2 h-4 w-4" />
-                              CSV 파일 선택
-                            </>
-                          )}
-                        </span>
-                      </Button>
-                    </label>
-                    <input
-                      id="lab-upload"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleLabTestUpload}
-                      className="hidden"
-                    />
+          {selectedOrder ? (
+            <div className="space-y-4">
+              <Card className="bg-primary/5 border-primary">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <User className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-lg">{selectedOrder.patient_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        환자번호: {selectedOrder.patient_number || selectedOrder.patient_id}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* RNA Test Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Lab Test Upload */}
+                <Card>
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-blue-600" />
+                      혈액검사 데이터 업로드
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          CSV 파일을 업로드하여 혈액검사 데이터를 등록하세요
+                        </p>
+                        <label htmlFor="lab-upload">
+                          <Button 
+                            variant="outline" 
+                            disabled={uploading} 
+                            asChild
+                            className="cursor-pointer"
+                          >
+                            <span>
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  업로드 중...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  CSV 파일 선택
+                                </>
+                              )}
+                            </span>
+                          </Button>
+                        </label>
+                        <input
+                          id="lab-upload"
+                          type="file"
+                          accept=".csv"
+                          onChange={handleLabTestUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* RNA Test Upload */}
+                <Card>
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+                    <CardTitle className="flex items-center gap-2">
+                      <Dna className="h-5 w-5 text-purple-600" />
+                      RNA 검사 데이터 업로드
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <Dna className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          CSV 파일을 업로드하여 RNA 검사 데이터를 등록하세요
+                        </p>
+                        <label htmlFor="rna-upload">
+                          <Button 
+                            variant="outline" 
+                            disabled={uploading} 
+                            asChild
+                            className="cursor-pointer"
+                          >
+                            <span>
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  업로드 중...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  CSV 파일 선택
+                                </>
+                              )}
+                            </span>
+                          </Button>
+                        </label>
+                        <input
+                          id="rna-upload"
+                          type="file"
+                          accept=".csv"
+                          onChange={handleRNATestUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : (
             <Card>
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-                <CardTitle className="flex items-center gap-2">
-                  <Dna className="h-5 w-5 text-purple-600" />
-                  RNA 검사 데이터 업로드
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Dna className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-sm text-muted-foreground mb-4">
-                      CSV 파일을 업로드하여 RNA 검사 데이터를 등록하세요
-                    </p>
-                    <label htmlFor="rna-upload">
-                      <Button 
-                        variant="outline" 
-                        disabled={uploading} 
-                        asChild
-                        className="cursor-pointer"
-                      >
-                        <span>
-                          {uploading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              업로드 중...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="mr-2 h-4 w-4" />
-                              CSV 파일 선택
-                            </>
-                          )}
-                        </span>
-                      </Button>
-                    </label>
-                    <input
-                      id="rna-upload"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleRNATestUpload}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <User className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+                <p className="text-lg font-semibold mb-2">환자 선택 필요</p>
+                <p className="text-sm mb-4">검사 주문 탭에서 환자를 선택해주세요</p>
+                <Button onClick={() => setActiveTab('orders')} variant="outline">
+                  검사 주문으로 이동
+                </Button>
               </CardContent>
             </Card>
-          </div>
+          )}
         </TabsContent>
 
         {/* Analysis Tab */}
         <TabsContent value="analysis">
-          {rnaTests.length > 0 ? (
+          {selectedOrder && rnaTests.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: RNA Test List */}
               <Card>
