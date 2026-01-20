@@ -802,11 +802,16 @@ const FloatingChat = () => {
             setHeaderStatus('연결 종료');
             // 비정상 종료 시 재연결 시도
             if (event.code !== 1000 && currentRoomRef.current?.name) {
+                const roomName = currentRoomRef.current.name;
                 setTimeout(() => {
-                    if (currentRoomRef.current?.name) {
+                    if (currentRoomRef.current?.name === roomName) {
                         console.log('WebSocket 재연결 시도...');
-                        // 재연결은 useEffect가 다시 실행되도록 currentRoom 변경 필요
-                        // 여기서는 로그만 남기고, 상위에서 처리하도록 함
+                        // 재연결을 위해 currentRoom을 다시 설정
+                        const room = currentRoomRef.current;
+                        setCurrentRoom(null);
+                        setTimeout(() => {
+                            setCurrentRoom(room);
+                        }, 100);
                     }
                 }, 3000);
             }
