@@ -17,11 +17,11 @@ PATIENT_INFO_DIR = DATA_ROOT / "patient_info_files"
 TRAIN_TEST_SPLIT = DATA_ROOT / "train_test_splits.csv"
 
 # Output directories (use absolute path for outputs to avoid issues)
-OUTPUT_ROOT = Path(r"c:\datasets\MAMA_MIA\outputs") if Path(r"c:\datasets\MAMA_MIA").exists() else PROJECT_ROOT / "outputs"
+OUTPUT_ROOT = PROJECT_ROOT / "outputs"
 CHECKPOINT_DIR = OUTPUT_ROOT / "checkpoints"
 LOG_DIR = OUTPUT_ROOT / "logs"
 RESULTS_DIR = OUTPUT_ROOT / "results"
-CACHE_DIR = OUTPUT_ROOT.parent / "cache" if OUTPUT_ROOT.parent.name == "MAMA_MIA" else PROJECT_ROOT / "cache"
+CACHE_DIR = PROJECT_ROOT / "cache"
 
 # Create directories
 for dir_path in [OUTPUT_ROOT, CHECKPOINT_DIR, LOG_DIR, RESULTS_DIR, CACHE_DIR]:
