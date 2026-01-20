@@ -125,7 +125,7 @@ class SegmentationInferencePipeline:
                 preprocessed_data=preprocessed,
                 threshold=self.threshold,
                 apply_morphology=True,
-                restore_original_spacing=True  # 모델 명세서: 원본 크기로 복원
+                restore_original_spacing=False  # 18프레임 잘 나왔을 때 설정
             )
         
         # Calculate statistics
