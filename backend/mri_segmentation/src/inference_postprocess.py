@@ -238,10 +238,14 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
 
     source_images.sort(key=get_z_position)
     
+    num_source_slices = len(source_images)
+    print(f"  Source DICOM slices: {num_source_slices}")
+    print(f"  Mask shape: {mask.shape}")
+    
     # 2. Prepare Mask Data
     # mask is [H, W, D] (RAS from MONAI usually). 
     # highdicom expects [Frames, Rows, Cols] (Z, Y, X).
-    # We need to transpose [H, W, D] -> [D, W, H] (Z, Y, X)
+    # We need to transpose [H, W, D] -> [D, H, W] (Z, Y, X)
     # Note: If MONAI loaded as RAS, and DICOM is LPS, we rely on MONAI's Invertd 
     # having already restored it to the Patient Coordinate System geometry?
     # Actually, `Invertd` output is in the same grid as the input image.
@@ -250,8 +254,29 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Transpose [H, W, D] -> [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
     
+    # Check dimension mismatch
+    num_mask_frames = mask_frames.shape[0]
+    if num_mask_frames != num_source_slices:
+        print(f"  WARNING: Dimension mismatch! Mask has {num_mask_frames} frames, but source has {num_source_slices} slices.")
+        print(f"  Resampling mask to match source slice count...")
+        
+        # Resample mask to match source slice count
+        from scipy import ndimage
+        target_shape = (num_source_slices, mask_frames.shape[1], mask_frames.shape[2])
+        
+        # Use zoom to resample
+        zoom_factors = (
+            num_source_slices / num_mask_frames,
+            1.0,  # Keep H dimension
+            1.0   # Keep W dimension
+        )
+        
+        mask_frames = ndimage.zoom(mask_frames.astype(float), zoom_factors, order=0)  # Nearest neighbor
+        mask_frames = mask_frames.astype(bool)
+        print(f"  Resampled mask shape: {mask_frames.shape}")
+    
     # Ensure boolean
-    mask_frames = mask_frames > 0
+    mask_frames = mask_frames > 0 if mask_frames.dtype != bool else mask_frames
     
     # 3. Create Segment Description
     segment_description = SegmentDescription(
