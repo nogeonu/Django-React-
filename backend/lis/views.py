@@ -55,7 +55,13 @@ class LabTestViewSet(viewsets.ModelViewSet):
             )
         
         # request data에서 patient_id 가져오기 (선택한 환자 정보)
-        patient_id_from_request = request.data.get('patient_id', '').strip()
+        # FormData의 경우 request.POST 또는 request.data에서 가져올 수 있음
+        patient_id_from_request = (
+            request.POST.get('patient_id', '').strip() or 
+            (request.data.get('patient_id', '').strip() if hasattr(request, 'data') else '') or 
+            ''
+        )
+        logger.info(f"Lab test upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys())}, data keys: {list(request.data.keys()) if hasattr(request, 'data') else 'N/A'}")
         
         try:
             decoded_file = csv_file.read().decode('utf-8')
@@ -72,7 +78,12 @@ class LabTestViewSet(viewsets.ModelViewSet):
                     patient_id = row.get('patient_id', '').strip() or patient_id_from_request
                     
                     if not patient_id:
-                        errors.append(f"환자 ID가 없습니다. CSV 파일에 patient_id 열이 없으면 patient_id 파라미터를 함께 전송해주세요: {row}")
+                        error_detail = f"CSV 파일에 patient_id 열이 없고, request에서도 patient_id를 받지 못했습니다."
+                        if patient_id_from_request:
+                            error_detail += f" (request patient_id: '{patient_id_from_request}')"
+                        csv_keys = list(row.keys())[:10]  # 처음 10개 키만 표시
+                        errors.append(f"환자 ID가 없습니다. {error_detail} CSV 열: {csv_keys}")
+                        logger.error(f"Patient ID missing - CSV keys: {list(row.keys())}, request patient_id: '{patient_id_from_request}'")
                         continue
                     
                     try:
@@ -170,7 +181,13 @@ class RNATestViewSet(viewsets.ModelViewSet):
             )
         
         # request data에서 patient_id 가져오기 (선택한 환자 정보)
-        patient_id_from_request = request.data.get('patient_id', '').strip()
+        # FormData의 경우 request.POST 또는 request.data에서 가져올 수 있음
+        patient_id_from_request = (
+            request.POST.get('patient_id', '').strip() or 
+            (request.data.get('patient_id', '').strip() if hasattr(request, 'data') else '') or 
+            ''
+        )
+        logger.info(f"RNA upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys())}, data keys: {list(request.data.keys()) if hasattr(request, 'data') else 'N/A'}")
         
         try:
             decoded_file = csv_file.read().decode('utf-8')
@@ -187,7 +204,12 @@ class RNATestViewSet(viewsets.ModelViewSet):
                     patient_id = row.get('patient_id', '').strip() or patient_id_from_request
                     
                     if not patient_id:
-                        errors.append(f"환자 ID가 없습니다. CSV 파일에 patient_id 열이 없으면 patient_id 파라미터를 함께 전송해주세요: {row}")
+                        error_detail = f"CSV 파일에 patient_id 열이 없고, request에서도 patient_id를 받지 못했습니다."
+                        if patient_id_from_request:
+                            error_detail += f" (request patient_id: '{patient_id_from_request}')"
+                        csv_keys = list(row.keys())[:10]  # 처음 10개 키만 표시
+                        errors.append(f"환자 ID가 없습니다. {error_detail} CSV 열: {csv_keys}")
+                        logger.error(f"Patient ID missing - CSV keys: {list(row.keys())}, request patient_id: '{patient_id_from_request}'")
                         continue
                     
                     try:

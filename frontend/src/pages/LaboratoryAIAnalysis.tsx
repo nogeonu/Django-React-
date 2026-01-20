@@ -184,9 +184,17 @@ export default function LaboratoryAIAnalysis() {
     try {
       // 선택한 환자의 patient_id를 함께 전송
       const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
+      console.log('Uploading lab test with patientId:', patientId, 'Order:', selectedOrder);
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('patient_id', patientId);
+      
+      // FormData 내용 확인 (디버깅용)
+      console.log('FormData entries:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+      }
       
       const result = await uploadLabTestCsvApi(formData);
       
@@ -238,9 +246,17 @@ export default function LaboratoryAIAnalysis() {
     try {
       // 선택한 환자의 patient_id를 함께 전송
       const patientId = selectedOrder.patient_id || selectedOrder.patient_number;
+      console.log('Uploading RNA test with patientId:', patientId, 'Order:', selectedOrder);
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('patient_id', patientId);
+      
+      // FormData 내용 확인 (디버깅용)
+      console.log('FormData entries:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+      }
       
       const result = await uploadRNATestCsvApi(formData);
       
