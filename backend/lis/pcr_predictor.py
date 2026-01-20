@@ -203,6 +203,9 @@ class PCRPredictor:
     
     def generate_report_image(self, gene_values, patient_info):
         """Generate clinical report as base64 image"""
+        # 한글 폰트 재설정 (이미지 생성 전)
+        set_korean_font()
+        
         prob = self.predict(gene_values)
         shap_vals = self.get_shap_values(gene_values)
         
