@@ -357,12 +357,13 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # Input mask is [H, W, D] from MONAI (after Invertd restoration)
     # We need [D, H, W] for highdicom (Frames=D, Rows=H, Cols=W)
     
-    print(f"  Input mask shape: {mask.shape}")
-    print(f"  Source images count: {len(source_images)}")
+    logger.info(f"📦 DICOM SEG 생성 시작")
+    logger.debug(f"  - Input mask shape: {mask.shape}")
+    logger.debug(f"  - Source images count: {len(source_images)}")
     
     # Transpose to [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
-    print(f"  Transposed mask shape: {mask_frames.shape}")
+    logger.debug(f"  - Transposed mask shape: {mask_frames.shape}")
     
     # Verify dimensions match
     # Invertd가 정상 작동했다면 차원이 일치해야 함
@@ -378,7 +379,8 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     
     # Ensure boolean type for BINARY segmentation
     mask_frames = mask_frames > 0
-    print(f"  Non-empty frames: {np.sum(np.any(mask_frames, axis=(1,2)))}")
+    non_empty_frames = np.sum(np.any(mask_frames, axis=(1,2)))
+    logger.debug(f"  - Non-empty frames: {non_empty_frames}/{len(source_images)}")
     
     # 3. Create Segment Description
     segment_description = SegmentDescription(
@@ -411,5 +413,6 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     )
     
     # 5. Save
+    logger.info(f"💾 DICOM SEG 파일 저장 중: {output_path}")
     seg_dataset.save_as(output_path)
-    print(f"DICOM SEG saved to: {output_path}")
+    logger.info(f"✅ DICOM SEG 저장 완료: {output_path}")
