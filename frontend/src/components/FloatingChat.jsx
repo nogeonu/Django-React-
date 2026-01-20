@@ -927,14 +927,13 @@ const FloatingChat = () => {
             if (data.type === 'message_read_status') {
                 const readUserId = data.data.user_id;
                 const messageId = data.data.message_id;
-                const isDMRoom = currentRoomRef.current?.name?.startsWith('case:dm:');
+                const roomId = data.data.room_id;
                 const me = currentUserRef.current;
                 
-                console.log('읽음 상태 업데이트:', { readUserId, messageId, isDMRoom, myId: me?.id });
+                console.log('읽음 상태 업데이트:', { readUserId, messageId, roomId, myId: me?.id });
                 
                 // 내가 보낸 메시지를 상대방이 읽은 경우에만 업데이트 (카카오톡 방식)
-                // DM 방: 상대방이 읽은 경우만
-                // 그룹 방: 누군가 읽은 경우 모두 업데이트
+                // 특정 메시지 ID가 있으면 해당 메시지만 업데이트
                 if (messageId) {
                     setMessages((prev) => {
                         const updated = prev.map((msg) => {
@@ -950,10 +949,10 @@ const FloatingChat = () => {
                         });
                         return updated;
                     });
-                } else {
-                    // 전체 메시지 읽음 상태 갱신
-                    console.log('전체 메시지 읽음 상태 갱신');
-                    refreshReadStatusFromAPI(currentRoomRef.current?.id);
+                } else if (roomId && currentRoomRef.current?.id === roomId) {
+                    // room_id만 있고 현재 채팅방이면 전체 메시지 읽음 상태 갱신
+                    console.log('전체 메시지 읽음 상태 갱신 (room_id 기반)');
+                    refreshReadStatusFromAPI(roomId);
                 }
             }
         };
