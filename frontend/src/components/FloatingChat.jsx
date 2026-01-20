@@ -725,17 +725,20 @@ const FloatingChat = () => {
     };
 
     useEffect(() => {
-        if (!currentRoom?.name) return;
+        if (!currentRoom?.name) {
+            setHeaderStatus('대기 중');
+            return;
+        }
 
         const wsUrl = `${WS_BASE_URL}/ws/chat/${currentRoom.name}/`;
-        console.log('WebSocket 연결 시도:', wsUrl, 'WS_BASE_URL:', WS_BASE_URL);
+        console.log('WebSocket 연결 시도:', wsUrl, 'WS_BASE_URL:', WS_BASE_URL, 'currentRoom:', currentRoom);
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
 
         setHeaderStatus('연결 중...');
 
         socket.onopen = () => {
-            console.log('WebSocket 연결 성공:', wsUrl);
+            console.log('WebSocket 연결 성공 (onopen 호출됨):', wsUrl);
             setHeaderStatus('연결됨');
         };
 
