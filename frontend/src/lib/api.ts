@@ -315,4 +315,42 @@ export const checkDrugInteractionsApi = async (itemSeqs: string[]): Promise<Drug
   return res.data;
 };
 
+// LIS (Laboratory Information System) API
+export const getLabTestsApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/lis/lab-tests/', { params });
+  return res.data;
+};
+
+export const getRNATestsApi = async (params?: Record<string, unknown>) => {
+  const res = await apiClient.get('/api/lis/rna-tests/', { params });
+  return res.data;
+};
+
+export const uploadLabTestCsvApi = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await apiClient.post('/api/lis/lab-tests/upload_csv/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return res.data;
+};
+
+export const uploadRNATestCsvApi = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await apiClient.post('/api/lis/rna-tests/upload_csv/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return res.data;
+};
+
+export const predictPCRApi = async (rnaTestId: number) => {
+  const res = await apiClient.post(`/api/lis/rna-tests/${rnaTestId}/predict_pcr/`);
+  return res.data;
+};
+
 export default apiClient;

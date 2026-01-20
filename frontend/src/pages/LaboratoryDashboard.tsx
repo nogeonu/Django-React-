@@ -10,7 +10,6 @@ import {
   Search, 
   CheckCircle2, 
   Clock, 
-  AlertCircle,
   FileText,
   TrendingUp,
   Users,
