@@ -29,10 +29,12 @@ ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://34.42.223.43:8042')
 ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
-# 모델 경로
-MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "checkpoints" / "best_model.pth"
+# 모델 경로 (우선순위: src/best_model.pth -> checkpoints/best_model.pth)
+MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "src" / "best_model.pth"
 if not MODEL_PATH.exists():
-    MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "src" / "checkpoints" / "best_model.pth"
+    MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "checkpoints" / "best_model.pth"
+if not MODEL_PATH.exists():
+    logger.warning(f"Model file not found at expected locations. Searched: {MODEL_PATH}")
 
 # 전역 추론 파이프라인 (한 번만 로드)
 _pipeline = None
