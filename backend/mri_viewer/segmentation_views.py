@@ -30,9 +30,9 @@ ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
 # 모델 경로
-MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation_new" / "checkpoints" / "best_model.pth"
+MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "checkpoints" / "best_model.pth"
 if not MODEL_PATH.exists():
-    MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation_new" / "best_model.pth"
+    MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "src" / "checkpoints" / "best_model.pth"
 
 # 전역 추론 파이프라인 (한 번만 로드)
 _pipeline = None
@@ -42,7 +42,7 @@ def get_pipeline():
     global _pipeline
     if _pipeline is None:
         # 지연 import로 Django 시작 시 오류 방지
-        sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation_new"))
+        sys.path.insert(0, str(Path(__file__).parent.parent / "mri_segmentation" / "src"))
         from inference_pipeline import SegmentationInferencePipeline
         
         logger.info(f"Loading segmentation model from: {MODEL_PATH}")
