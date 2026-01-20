@@ -332,14 +332,14 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     def _with_message_counts(self, queryset):
         return queryset.annotate(
             unread_count=Count(
-                "notifications",
-                filter=Q(notifications__is_read=False)
-                & ~Q(notifications__user_id=F("sender_id")),
+                "chat_notifications",
+                filter=Q(chat_notifications__is_read=False)
+                & ~Q(chat_notifications__user_id=F("sender_id")),
             ),
             read_count=Count(
-                "notifications",
-                filter=Q(notifications__is_read=True)
-                & ~Q(notifications__user_id=F("sender_id")),
+                "chat_notifications",
+                filter=Q(chat_notifications__is_read=True)
+                & ~Q(chat_notifications__user_id=F("sender_id")),
             ),
         )
 

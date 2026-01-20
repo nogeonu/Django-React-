@@ -122,7 +122,7 @@ def create_message(room, user, content, message_type):
 @database_sync_to_async
 def get_recent_messages(room, user, limit):
     queryset = room.messages.select_related("sender").annotate(
-        unread_cnt=Count("notifications", filter=Q(notifications__is_read=False))
+        unread_cnt=Count("chat_notifications", filter=Q(chat_notifications__is_read=False))
     )
     state = (
         ChatRoomUserState.objects.filter(user=user, room=room)
