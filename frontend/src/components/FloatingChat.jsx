@@ -1243,7 +1243,7 @@ const FloatingChat = () => {
 
                     {/* 동료 탭에서는 그룹채팅 버튼 제거 - 동료는 그냥 사람 보기만 */}
 
-                    <div className="chat-list">
+                    <div className="chat-list" style={{ position: 'relative' }}>
                         {currentTab === 'friends' && friends.length === 0 && (
                             <div className="chat-empty">
                                 <svg viewBox="0 0 24 24">
