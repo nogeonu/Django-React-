@@ -89,10 +89,13 @@ export default function Sidebar({ isSidebarOpen }: SidebarProps) {
     departmentMenuItems = departmentNavigation['외과'];
   }
 
-  const menuItems = [
-    { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-    ...departmentMenuItems
-  ];
+  // 검사실 사용자는 대시보드 메뉴 제외
+  const menuItems = user?.department === '검사실' 
+    ? departmentMenuItems
+    : [
+        { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+        ...departmentMenuItems
+      ];
 
   const getRoleBadgeColor = (role: string) => {
     const colors = {

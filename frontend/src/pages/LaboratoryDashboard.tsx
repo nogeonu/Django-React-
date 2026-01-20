@@ -13,7 +13,9 @@ import {
   FileText,
   TrendingUp,
   Users,
-  Activity
+  Activity,
+  Dna,
+  Brain
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,6 +23,7 @@ import {
   getRNATestsApi,
   uploadLabTestCsvApi,
   uploadRNATestCsvApi,
+  predictPCRApi,
 } from '@/lib/api';
 
 interface LabTest {
@@ -57,13 +60,24 @@ interface RNATest {
   [key: string]: any;
 }
 
+const GENE_NAMES = [
+  'CXCL13', 'CD8A', 'CCR7', 'C1QA', 'LY9', 'CXCL10', 'CXCL9', 'STAT1',
+  'CCND1', 'MKI67', 'TOP2A', 'BRCA1', 'RAD51', 'PRKDC', 'POLD3', 'POLB',
+  'LIG1', 'ERBB2', 'ESR1', 'PGR', 'ARAF', 'PIK3CA', 'AKT1', 'MTOR',
+  'TP53', 'PTEN', 'MYC'
+];
+
 export default function LaboratoryDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [labTests, setLabTests] = useState<LabTest[]>([]);
   const [rnaTests, setRNATests] = useState<RNATest[]>([]);
+  const [selectedRNATest, setSelectedRNATest] = useState<RNATest | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pcrPrediction, setPcrPrediction] = useState<any>(null);
+  const [predictingPCR, setPredictingPCR] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     loadLabTests();
@@ -123,7 +137,16 @@ export default function LaboratoryDashboard() {
         title: 'RNA 업로드 성공',
         description: `${result.created}개 생성, ${result.updated}개 업데이트`,
       });
-      loadRNATests();
+      // RNA 검사 목록 다시 로드
+      const updatedData = await getRNATestsApi();
+      const updatedTests = updatedData.results || updatedData;
+      setRNATests(updatedTests);
+      
+      // RNA 업로드 후 RNA Results 탭으로 이동하고 첫 번째 RNA 검사 선택
+      if (updatedTests.length > 0) {
+        setActiveTab('rna-results');
+        setSelectedRNATest(updatedTests[0]);
+      }
     } catch (error: any) {
       toast({
         title: '업로드 실패',
@@ -133,6 +156,36 @@ export default function LaboratoryDashboard() {
     } finally {
       setLoading(false);
       event.target.value = '';
+    }
+  };
+
+  const handlePCRPredict = async () => {
+    const testToPredict = selectedRNATest || rnaTests[0];
+    if (!testToPredict) {
+      toast({
+        title: 'RNA 검사 선택 필요',
+        description: 'pCR 예측을 위해 RNA 검사를 선택해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPredictingPCR(true);
+    try {
+      const result = await predictPCRApi(testToPredict.id);
+      setPcrPrediction(result);
+      toast({
+        title: 'pCR 예측 완료',
+        description: `예측 확률: ${(result.probability * 100).toFixed(1)}%`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'pCR 예측 실패',
+        description: error?.response?.data?.error || 'pCR 예측 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPredictingPCR(false);
     }
   };
 
@@ -311,22 +364,22 @@ export default function LaboratoryDashboard() {
         </CardContent>
       </Card>
 
-      {/* Tabs for Test Lists */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4 bg-white">
-          <TabsTrigger value="pending">
-            <Clock className="mr-2 h-4 w-4" />
-            대기 중 ({labTests.length})
-          </TabsTrigger>
-          <TabsTrigger value="completed">
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            완료 ({rnaTests.length})
-          </TabsTrigger>
-          <TabsTrigger value="all">
-            <FileText className="mr-2 h-4 w-4" />
-            전체 ({stats.total})
-          </TabsTrigger>
-        </TabsList>
+        {/* Tabs for Test Lists */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4 bg-white">
+            <TabsTrigger value="pending">
+              <Clock className="mr-2 h-4 w-4" />
+              대기 중 ({labTests.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              완료 ({rnaTests.length})
+            </TabsTrigger>
+            <TabsTrigger value="rna-results">
+              <Dna className="mr-2 h-4 w-4" />
+              RNA Results
+            </TabsTrigger>
+          </TabsList>
 
         {/* Pending Tests */}
         <TabsContent value="pending">
@@ -432,77 +485,202 @@ export default function LaboratoryDashboard() {
           </Card>
         </TabsContent>
 
-        {/* All Tests */}
-        <TabsContent value="all">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Lab Tests */}
-            <Card className="border-none shadow-sm bg-white">
-              <CardHeader className="border-b border-gray-50 pb-4">
-                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  혈액검사 ({labTests.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                  {labTests.map((test) => (
-                    <div
-                      key={test.id}
-                      className="cursor-pointer rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-sm">{test.patient_name}</p>
-                          <p className="text-xs text-gray-500">{test.accession_number}</p>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          대기
-                        </Badge>
+        {/* RNA Results Tab */}
+        <TabsContent value="rna-results">
+          {selectedRNATest || rnaTests.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: Gene Expression Table */}
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader className="border-b border-gray-50 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Dna className="h-5 w-5 text-purple-600" />
+                        <CardTitle className="text-lg font-bold text-gray-900">유전자 발현값</CardTitle>
                       </div>
+                      {(selectedRNATest || rnaTests[0]) && (
+                        <p className="text-sm text-gray-500">
+                          Patient: {(selectedRNATest || rnaTests[0]).patient_name} ({(selectedRNATest || rnaTests[0]).patient_id})
+                        </p>
+                      )}
                     </div>
-                  ))}
-                  {labTests.length === 0 && (
-                    <p className="py-8 text-center text-gray-500">혈액검사 결과가 없습니다</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <Button 
+                      onClick={handlePCRPredict} 
+                      disabled={predictingPCR}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Brain className="mr-2 h-4 w-4" />
+                      {predictingPCR ? 'Predicting...' : 'pCR Predict'}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">유전자명</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">발현값</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {GENE_NAMES.map((gene) => {
+                          const test = selectedRNATest || rnaTests[0];
+                          const value = test?.[gene];
+                          return (
+                            <tr key={gene} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 font-mono text-sm font-medium text-purple-700">{gene}</td>
+                              <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                                {value !== null && value !== undefined ? value.toFixed(3) : 'N/A'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* RNA Tests */}
-            <Card className="border-none shadow-sm bg-white">
-              <CardHeader className="border-b border-gray-50 pb-4">
-                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                  RNA 검사 ({rnaTests.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                  {rnaTests.map((test) => (
-                    <div
-                      key={test.id}
-                      className="cursor-pointer rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-sm">{test.patient_name}</p>
-                          <p className="text-xs text-gray-500">{test.accession_number}</p>
+              {/* Right: pCR Prediction Results */}
+              <div className="space-y-6">
+                {pcrPrediction ? (
+                  <>
+                    {/* Prediction Result Card */}
+                    <Card className="border-none shadow-sm bg-white border-2 border-green-500">
+                      <CardHeader className="border-b border-gray-50 bg-green-50">
+                        <CardTitle className="text-lg font-bold text-green-800">pCR 예측 결과</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <p className="text-sm text-gray-600 mb-2">예측 확률</p>
+                          <p className="text-5xl font-bold text-green-600 mb-4">
+                            {(pcrPrediction.probability * 100).toFixed(1)}%
+                          </p>
+                          <p className="text-xl font-semibold">
+                            {pcrPrediction.prediction === 'Positive' ? (
+                              <span className="text-green-600">✓ 양성 (Positive)</span>
+                            ) : (
+                              <span className="text-red-600">✗ 음성 (Negative)</span>
+                            )}
+                          </p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          완료
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                  {rnaTests.length === 0 && (
-                    <p className="py-8 text-center text-gray-500">RNA 검사 결과가 없습니다</p>
-                  )}
-                </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Treatment Recommendations */}
+                    <Card className="border-none shadow-sm bg-white">
+                      <CardHeader className="border-b border-gray-50 bg-indigo-50">
+                        <CardTitle className="text-lg font-bold text-indigo-800">AI 맞춤 치료 제안</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        {pcrPrediction.probability >= 0.342 ? (
+                          <div className="space-y-3 text-sm">
+                            <div className="flex items-start gap-2">
+                              <span className="text-lg">📋</span>
+                              <div>
+                                <p className="font-semibold">HER2 양성 특성</p>
+                                <p className="text-gray-600">• Trastuzumab/Pertuzumab 표적치료 권장</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-lg">📋</span>
+                              <div>
+                                <p className="font-semibold">높은 면역 활성</p>
+                                <p className="text-gray-600">• 면역관문억제제 병용 고려 가능</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-lg">📋</span>
+                              <div>
+                                <p className="font-semibold">빠른 세포 증식</p>
+                                <p className="text-gray-600">• 세포독성 항암제 반응성 우수 예상</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 text-sm">
+                            <div className="flex items-start gap-2">
+                              <span className="text-lg">📋</span>
+                              <div>
+                                <p className="font-semibold">관찰 요망</p>
+                                <p className="text-gray-600">• 표준 프로토콜 준수<br/>• 정밀 추적 검사 권장</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Clinical Report Image */}
+                    {pcrPrediction.image && (
+                      <Card className="border-none shadow-sm bg-white">
+                        <CardHeader className="border-b border-gray-50 bg-purple-50">
+                          <CardTitle className="text-lg font-bold text-purple-800">AI 임상 리포트</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                          <div 
+                            className="cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setShowReportModal(true)}
+                          >
+                            <img 
+                              src={`data:image/png;base64,${pcrPrediction.image}`}
+                              alt="pCR Clinical Report"
+                              className="w-full rounded-lg shadow-lg"
+                            />
+                            <p className="text-xs text-center text-gray-500 mt-2">클릭하여 확대</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                ) : (
+                  <Card className="border-none shadow-sm bg-white">
+                    <CardContent className="py-12 text-center text-gray-500">
+                      <Brain className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+                      <p className="text-lg font-semibold mb-2">예측 결과 없음</p>
+                      <p className="text-sm">"pCR Predict" 버튼을 클릭하여 유전자 발현 데이터를 분석하세요</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Card className="border-none shadow-sm bg-white">
+              <CardContent className="py-12 text-center text-gray-500">
+                <Dna className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+                <p className="text-lg font-semibold mb-2">RNA 검사 결과가 없습니다</p>
+                <p className="text-sm">CSV 파일을 업로드해주세요</p>
               </CardContent>
             </Card>
-          </div>
+          )}
         </TabsContent>
       </Tabs>
+
+      {/* Report Image Modal */}
+      {showReportModal && pcrPrediction && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
+          onClick={() => setShowReportModal(false)}
+        >
+          <div className="relative max-w-7xl max-h-[95vh] overflow-auto">
+            <button
+              onClick={() => setShowReportModal(false)}
+              className="absolute top-4 right-4 z-10 rounded-full bg-white p-2 shadow-lg hover:bg-gray-100"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img 
+              src={`data:image/png;base64,${pcrPrediction.image}`}
+              alt="pCR Clinical Report - Full Size"
+              className="w-full h-auto rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
