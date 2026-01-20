@@ -100,8 +100,13 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             logger.info(f"UserViewSet: Authenticated user {self.request.user.id} ({self.request.user.username})")
         
         # DB에 department 컬럼이 있지만 모델에는 없는 경우, extra()로 가져오기
+        # first_name과 last_name도 명시적으로 선택하여 가져오기
         queryset = User.objects.filter(is_active=True).select_related("presence").extra(
-            select={"department": "department"}
+            select={
+                "department": "department",
+                "first_name": "first_name",
+                "last_name": "last_name"
+            }
         ).order_by("username")
         return queryset
 

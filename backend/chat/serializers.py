@@ -24,10 +24,15 @@ class UserSummarySerializer(serializers.ModelSerializer):
         fields = ("id", "username", "name", "role", "department", "is_online", "last_seen_at")
 
     def get_name(self, obj):
-        # 한국식 이름 형식: 성+이름 (예: "박철순", "노 건우")
+        # 한국식 이름 형식: 성+이름 (예: "박철순", "노건우")
         # DB에서 직접 first_name, last_name을 가져와서 조합
-        first_name = (getattr(obj, 'first_name', '') or '').strip()
-        last_name = (getattr(obj, 'last_name', '') or '').strip()
+        
+        # 방법 1: first_name과 last_name 필드 직접 사용
+        first_name_raw = getattr(obj, 'first_name', '') or ''
+        last_name_raw = getattr(obj, 'last_name', '') or ''
+        
+        first_name = first_name_raw.strip() if first_name_raw else ''
+        last_name = last_name_raw.strip() if last_name_raw else ''
         
         # first_name과 last_name이 모두 있으면 "성+이름" 형식으로 조합
         if last_name and first_name:
@@ -36,13 +41,20 @@ class UserSummarySerializer(serializers.ModelSerializer):
         elif last_name:
             return last_name
         elif first_name:
+            # first_name만 있는 경우, 공백으로 분리해서 마지막이 성인지 확인
+            parts = first_name.split()
+            if len(parts) >= 2:
+                # "철순 박" -> "박철순"
+                return f"{parts[-1]}{''.join(parts[:-1])}"
             return first_name
         
-        # get_full_name()은 Django 기본 메서드로 "first_name last_name" 형식을 반환
-        # 이를 "last_name first_name" 형식으로 변환
+        # 방법 2: get_full_name() 사용 (fallback)
         full_name = obj.get_full_name()
         if full_name:
             full_name = full_name.strip()
+            if not full_name:
+                return obj.get_username() or str(obj.id)
+            
             # 공백으로 분리하여 순서 바꾸기
             parts = full_name.split()
             if len(parts) == 2:
