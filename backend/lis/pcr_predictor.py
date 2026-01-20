@@ -95,7 +95,14 @@ class PCRPredictor:
             '호르몬 수용체 (ER/PR)': ['ESR1', 'PGR'],
             '신호전달 (AKT/mTOR)': ['ARAF', 'PIK3CA', 'AKT1', 'MTOR', 'TP53', 'PTEN', 'MYC']
         }
-        self.model_dir = os.path.join(os.path.dirname(__file__), 'models', 'saved')
+        # 모델 디렉토리 경로 설정 (ml_service에서 호출될 때도 작동하도록)
+        current_file = os.path.abspath(__file__)
+        if 'ml_service' in current_file or 'ml_service' in os.getcwd():
+            # ml_service에서 실행 중인 경우
+            self.model_dir = os.path.join(os.path.dirname(os.path.dirname(current_file)), 'lis', 'models', 'saved')
+        else:
+            # lis 앱에서 직접 실행 중인 경우
+            self.model_dir = os.path.join(os.path.dirname(__file__), 'models', 'saved')
         self.load_models()
     
     def load_models(self):
