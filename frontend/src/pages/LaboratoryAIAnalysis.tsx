@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -10,9 +9,6 @@ import {
   Dna,
   Activity,
   FileText,
-  TrendingUp,
-  CheckCircle2,
-  AlertCircle,
   Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -22,16 +18,6 @@ import {
   predictPCRApi,
   getRNATestsApi,
 } from '@/lib/api';
-
-interface LabTest {
-  id: number;
-  accession_number: string;
-  patient_name: string;
-  patient_id: string;
-  patient_age: number;
-  patient_gender: string;
-  test_date: string;
-}
 
 interface RNATest {
   id: number;
@@ -86,7 +72,6 @@ export default function LaboratoryAIAnalysis() {
   const [activeTab, setActiveTab] = useState('upload');
   const [rnaTests, setRNATests] = useState<RNATest[]>([]);
   const [selectedRNATest, setSelectedRNATest] = useState<RNATest | null>(null);
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pcrPrediction, setPcrPrediction] = useState<any>(null);
   const [predictingPCR, setPredictingPCR] = useState(false);
