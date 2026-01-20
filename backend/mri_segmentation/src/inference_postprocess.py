@@ -186,76 +186,47 @@ def postprocess_prediction(
             # Fallback이 필요한 경우
             if use_fallback:
                 logger.info(f"  - Fallback으로 수동 복원 시도...")
-                # 조원님 추천: pixdim 우선, 없으면 spacing 사용
-                original_spacing = None
-                if original_meta_dict:
-                    # pixdim 우선 확인 (NIfTI)
-                    original_spacing = original_meta_dict.get('pixdim', None)
-                    if original_spacing is None:
-                        # spacing 사용 (DICOM)
-                        original_spacing = original_meta_dict.get('spacing', None)
-                        if original_spacing is not None:
-                            logger.debug(f"  - spacing 키 사용: {original_spacing}")
-                
-                if original_spacing is not None:
-                    from monai.transforms import Spacing
-                    # spacing 값 추출 (리스트/튜플/텐서 등 다양한 형태 처리)
-                    if hasattr(original_spacing, 'tolist'):
-                        spacing_values = original_spacing.tolist()
-                    elif hasattr(original_spacing, '__iter__') and not isinstance(original_spacing, str):
-                        spacing_values = list(original_spacing)
-                    else:
-                        spacing_values = [original_spacing]
+                # spatial_shape를 사용해서 정확한 크기로 리샘플링
+                if original_meta_dict and 'spatial_shape' in original_meta_dict:
+                    target_shape = original_meta_dict['spatial_shape']
+                    logger.debug(f"  - 현재 mask shape: {binary_mask.shape}")
+                    logger.debug(f"  - 목표 shape (spatial_shape): {target_shape}")
                     
-                    # 앞의 1 제거 (pixdim 형태인 경우: [1, x, y, z])
-                    if len(spacing_values) == 4:
-                        spacing_values = spacing_values[1:]
-                    
-                    logger.debug(f"  - 최종 spacing 값: {spacing_values}")
-                    spacing_transform = Spacing(pixdim=spacing_values, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-                    logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
+                    # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링
+                    from scipy.ndimage import zoom
+                    current_shape = binary_mask.shape
+                    zoom_factors = (
+                        target_shape[0] / current_shape[0],
+                        target_shape[1] / current_shape[1],
+                        target_shape[2] / current_shape[2]
+                    )
+                    logger.debug(f"  - zoom factors: {zoom_factors}")
+                    binary_mask = zoom(binary_mask, zoom_factors, order=0, mode='nearest').astype(np.uint8)
+                    logger.info(f"  - ✅ Fallback 복원 성공 (zoom 사용): {binary_mask.shape}")
                 else:
-                    logger.error(f"  - ❌ spacing/pixdim 모두 없음 - 복원 불가")
+                    logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
         except Exception as e:
             logger.error(f"  - ❌ Invertd 예외 발생: {e}")
             logger.info(f"  - Fallback으로 수동 복원 시도...")
-            # Fallback to manual Spacing logic
-            # 조원님 추천: pixdim 우선, 없으면 spacing 사용
-            original_spacing = None
-            if original_meta_dict is not None:
-                # pixdim 우선 확인 (NIfTI)
-                original_spacing = original_meta_dict.get('pixdim', None)
-                if original_spacing is None:
-                    # spacing 사용 (DICOM)
-                    original_spacing = original_meta_dict.get('spacing', None)
-                    if original_spacing is not None:
-                        logger.debug(f"  - spacing 키 사용: {original_spacing}")
+            # Fallback: spatial_shape를 사용해서 정확한 크기로 리샘플링
+            if original_meta_dict is not None and 'spatial_shape' in original_meta_dict:
+                target_shape = original_meta_dict['spatial_shape']
+                logger.debug(f"  - 현재 mask shape: {binary_mask.shape}")
+                logger.debug(f"  - 목표 shape (spatial_shape): {target_shape}")
                 
-                if original_spacing is not None:
-                    from monai.transforms import Spacing
-                    # spacing 값 추출 (리스트/튜플/텐서 등 다양한 형태 처리)
-                    if hasattr(original_spacing, 'tolist'):
-                        spacing_values = original_spacing.tolist()
-                    elif hasattr(original_spacing, '__iter__') and not isinstance(original_spacing, str):
-                        spacing_values = list(original_spacing)
-                    else:
-                        spacing_values = [original_spacing]
-                    
-                    # 앞의 1 제거 (pixdim 형태인 경우: [1, x, y, z])
-                    if len(spacing_values) == 4:
-                        spacing_values = spacing_values[1:]
-                    
-                    logger.debug(f"  - 최종 spacing 값: {spacing_values}")
-                    spacing_transform = Spacing(pixdim=spacing_values, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-                    logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
-                else:
-                    logger.error(f"  - ❌ spacing/pixdim 모두 없음 - 복원 불가")
+                # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링
+                from scipy.ndimage import zoom
+                current_shape = binary_mask.shape
+                zoom_factors = (
+                    target_shape[0] / current_shape[0],
+                    target_shape[1] / current_shape[1],
+                    target_shape[2] / current_shape[2]
+                )
+                logger.debug(f"  - zoom factors: {zoom_factors}")
+                binary_mask = zoom(binary_mask, zoom_factors, order=0, mode='nearest').astype(np.uint8)
+                logger.info(f"  - ✅ Fallback 복원 성공 (zoom 사용): {binary_mask.shape}")
+            else:
+                logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
 
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
