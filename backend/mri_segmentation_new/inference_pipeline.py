@@ -125,7 +125,7 @@ class SegmentationInferencePipeline:
                 preprocessed_data=preprocessed,
                 threshold=self.threshold,
                 apply_morphology=True,
-                restore_original_spacing=True  # 모델 명세서: 원본 크기로 복원
+                restore_original_spacing=False  # Invertd 실패 문제로 임시 비활성화
             )
         
         # Calculate statistics
