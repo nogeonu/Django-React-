@@ -266,11 +266,30 @@ export default function LaboratoryDashboard() {
     return { flag: 'Normal', color: 'text-green-700', bgColor: 'bg-green-100' };
   };
 
+  // 검사 결과가 있는지 확인하는 함수 (결과 값이 하나라도 있으면 완료)
+  const hasResults = (test: LabTest): boolean => {
+    return !!(
+      test.wbc !== null || 
+      test.hemoglobin !== null || 
+      test.neutrophils !== null || 
+      test.lymphocytes !== null || 
+      test.platelets !== null || 
+      test.nlr !== null || 
+      test.crp !== null || 
+      test.ldh !== null || 
+      test.albumin !== null
+    );
+  };
+
+  // 대기 중인 검사 필터링 (결과 값이 모두 null인 경우)
+  const pendingLabTests = labTests.filter(test => !hasResults(test));
+
   // 통계 계산
   const stats = {
     total: labTests.length + rnaTests.length,
     lab: labTests.length,
     rna: rnaTests.length,
+    pending: pendingLabTests.length,
     today: labTests.filter(test => {
       const today = new Date().toISOString().split('T')[0];
       return test.test_date === today;
@@ -416,7 +435,7 @@ export default function LaboratoryDashboard() {
           <TabsList className="mb-4 bg-white shadow-sm">
             <TabsTrigger value="lab-requests" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-900">
               <Clock className="mr-2 h-4 w-4" />
-              검사 요청 ({labTests.length})
+              검사 요청 ({pendingLabTests.length})
             </TabsTrigger>
             <TabsTrigger value="lab-results" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900">
               <FileText className="mr-2 h-4 w-4" />
@@ -439,7 +458,7 @@ export default function LaboratoryDashboard() {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-3">
-                  {labTests.map((test) => (
+                  {pendingLabTests.map((test) => (
                     <div
                       key={test.id}
                       className="cursor-pointer rounded-lg border border-gray-200 p-4 hover:bg-orange-50 hover:border-orange-300 transition-all"
@@ -477,11 +496,11 @@ export default function LaboratoryDashboard() {
                       </div>
                     </div>
                   ))}
-                  {labTests.length === 0 && (
+                  {pendingLabTests.length === 0 && (
                     <div className="py-12 text-center text-gray-500">
                       <Clock className="mx-auto h-12 w-12 mb-3 text-gray-300" />
                       <p className="text-lg font-medium">대기 중인 검사가 없습니다</p>
-                      <p className="text-sm">CSV 파일을 업로드하여 검사를 등록하세요</p>
+                      <p className="text-sm">모든 검사가 완료되었거나 검사 요청이 없습니다</p>
                     </div>
                   )}
                 </div>
@@ -491,7 +510,7 @@ export default function LaboratoryDashboard() {
 
           {/* Lab Results Tab */}
           <TabsContent value="lab-results">
-            {selectedLabTest ? (
+            {selectedLabTest && hasResults(selectedLabTest) ? (
               <Card className="shadow-md">
                 <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-cyan-50">
                   <div className="flex items-center justify-between">
@@ -687,6 +706,26 @@ export default function LaboratoryDashboard() {
                       <strong>Tip:</strong> 비정상 결과는 색상 플래그로 표시되어 쉽게 식별할 수 있습니다.
                     </p>
                   </div>
+                </CardContent>
+              </Card>
+            ) : selectedLabTest && !hasResults(selectedLabTest) ? (
+              <Card className="shadow-md">
+                <CardContent className="py-12 text-center text-gray-500">
+                  <Clock className="mx-auto h-12 w-12 mb-4 text-orange-400" />
+                  <p className="text-lg font-semibold mb-2">검사 결과 입력 대기 중</p>
+                  <p className="text-sm">이 검사는 아직 결과가 입력되지 않았습니다. 결과를 입력해주세요.</p>
+                  <Button 
+                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      // TODO: 결과 입력 모달 또는 페이지로 이동
+                      toast({
+                        title: '결과 입력',
+                        description: '결과 입력 기능은 곧 추가될 예정입니다.',
+                      });
+                    }}
+                  >
+                    결과 입력하기
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
