@@ -12,6 +12,7 @@ import xgboost as xgb
 import lightgbm as lgb
 from scipy.stats.mstats import winsorize
 import os
+import json
 import shap
 import warnings
 import base64
@@ -100,8 +101,33 @@ class PCRPredictor:
     def load_models(self):
         self.scaler = joblib.load(os.path.join(self.model_dir, 'final_ensemble_scaler.pkl'))
         
+        # XGBoost 모델 로드 및 base_score 수정
         self.xgb_model = xgb.XGBClassifier()
-        self.xgb_model.load_model(os.path.join(self.model_dir, 'final_xgb_model.json'))
+        model_path = os.path.join(self.model_dir, 'final_xgb_model.json')
+        self.xgb_model.load_model(model_path)
+        
+        # base_score가 잘못된 형식일 경우 수정
+        if hasattr(self.xgb_model, 'get_booster'):
+            booster = self.xgb_model.get_booster()
+            try:
+                # base_score 확인 및 수정
+                config = booster.save_config()
+                import json
+                config_dict = json.loads(config)
+                if 'learner' in config_dict and 'learner_model_param' in config_dict['learner']:
+                    base_score_str = config_dict['learner']['learner_model_param'].get('base_score', '0.5')
+                    # '[5E-1]' 형식인 경우 처리
+                    if isinstance(base_score_str, str) and base_score_str.startswith('[') and base_score_str.endswith(']'):
+                        base_score_str = base_score_str.strip('[]')
+                    try:
+                        base_score = float(base_score_str)
+                        # base_score 수정
+                        config_dict['learner']['learner_model_param']['base_score'] = str(base_score)
+                        booster.load_config(json.dumps(config_dict))
+                    except (ValueError, TypeError):
+                        pass  # 변환 실패 시 무시
+            except Exception:
+                pass  # 설정 수정 실패 시 무시
         
         self.lgb_model = joblib.load(os.path.join(self.model_dir, 'final_lgb_model.pkl'))
         
