@@ -31,6 +31,16 @@ urlpatterns = [
     path('segmentation/instances/<str:seg_instance_id>/frames/', segmentation_views.get_segmentation_frames, name='get-segmentation-frames'),
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
     
+    # 연구실 컴퓨터 추론 요청 API
+    path('segmentation/series/<str:series_id>/request-local/', segmentation_views.request_local_inference, name='request-local-inference'),
+    path('segmentation/status/<str:request_id>/', segmentation_views.check_inference_status, name='check-inference-status'),
+    path('segmentation/requests/', segmentation_views.list_inference_requests, name='list-inference-requests'),
+    
+    # HTTP API 방식 (공유 디렉토리 불필요)
+    path('segmentation/pending-requests/', segmentation_views.get_pending_requests, name='get-pending-requests'),
+    path('segmentation/complete-request/<str:request_id>/', segmentation_views.complete_inference_request, name='complete-inference-request'),
+    path('segmentation/update-status/<str:request_id>/', segmentation_views.update_request_status, name='update-request-status'),
+    
     # 맘모그래피 AI 분석 API
     path('mammography/analyze/', mammography_views.mammography_ai_analysis, name='analyze-mammography'),
     path('mammography/health/', mammography_views.mammography_health, name='mammography-health'),

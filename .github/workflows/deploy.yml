@@ -230,12 +230,6 @@ jobs:
             sudo systemctl restart mammography-mosec 2>/dev/null || echo "⚠️ mammography-mosec 서비스 없음"
             sudo systemctl restart pathology-mosec 2>/dev/null || echo "⚠️ pathology-mosec 서비스 없음"
             
-            # Gunicorn 서비스 설정 (timeout 30분)
-            echo "⚙️ Gunicorn 서비스 설정 중..."
-            printf '[Unit]\nDescription=Gunicorn daemon for Django\nAfter=network.target\n\n[Service]\nUser=%s\nGroup=%s\nWorkingDirectory=%s/backend\nEnvironment="PATH=%s/backend/.venv/bin"\nExecStart=%s/backend/.venv/bin/gunicorn eventeye.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 1800\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' "$USER" "$USER" "$APP_DIR" "$APP_DIR" "$APP_DIR" | sudo tee /etc/systemd/system/gunicorn.service > /dev/null
-            sudo systemctl daemon-reload || echo "⚠️ systemd daemon-reload 실패"
-            sudo systemctl enable gunicorn || echo "⚠️ gunicorn enable 실패"
-            
             echo "🔄 Django 서비스 재시작 중..."
             sudo systemctl restart gunicorn 2>/dev/null || sudo systemctl start gunicorn 2>/dev/null || echo "⚠️ gunicorn 재시작 실패"
             

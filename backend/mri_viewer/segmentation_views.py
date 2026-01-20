@@ -2,10 +2,12 @@
 MRI 세그멘테이션 API Views (MAMA_MIA_DELIVERY_PKG 파이프라인 사용)
 - Orthanc 연동: 기존 시스템 로직 유지
 - 추론: 새로운 MAMA_MIA 파이프라인 사용
+- 연구실 컴퓨터 추론: 로컬 환경에서 추론 실행 가능
 """
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.utils import timezone
 import requests
 import io
 import logging
@@ -15,6 +17,7 @@ import numpy as np
 import pydicom
 import tempfile
 import shutil
+import json
 from pathlib import Path
 from .orthanc_client import OrthancClient
 import sys
@@ -166,11 +169,16 @@ def segmentation_health(request):
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
-    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장 (MAMA-MIA 파이프라인)
+    시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장
+    
+    연구실 컴퓨터 워커가 실행 중이면 자동으로 요청 생성, 아니면 GCP에서 직접 실행
     
     POST /api/mri/segmentation/series/<series_id>/segment/
     Body (required): {
         "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]  // 4-channel 필수
+    }
+    Query params (optional): {
+        "use_local": true/false  // 연구실 컴퓨터 사용 여부 (기본: 자동 감지)
     }
     """
     import tempfile
@@ -179,7 +187,7 @@ def segment_series(request, series_id):
     import sys
     
     try:
-        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작 (MAMA-MIA): series_id={series_id}")
+        logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
         
         client = OrthancClient()
         
@@ -192,6 +200,23 @@ def segment_series(request, series_id):
                 "success": False,
                 "error": "4개 시리즈가 모두 필요합니다. DCE-MRI 세그멘테이션을 위해서는 Seq0, Seq1, Seq2, SeqLast 시리즈가 모두 선택되어야 합니다."
             }, status=400)
+        
+        # 연구실 컴퓨터 사용 여부 확인
+        use_local = request.query_params.get('use_local', '').lower() == 'true'
+        force_gcp = request.query_params.get('force_gcp', '').lower() == 'true'
+        
+        # 환경 변수로 기본값 설정 가능
+        if not use_local and not force_gcp:
+            use_local = os.getenv('USE_LOCAL_INFERENCE', 'false').lower() == 'true'
+        
+        # 연구실 컴퓨터 워커 사용 시
+        if use_local and not force_gcp:
+            logger.info("🏠 연구실 컴퓨터 워커를 통해 추론 요청 생성")
+            return request_local_inference(request, series_id)
+        
+        # GCP에서 직접 실행 (기존 방식)
+        logger.info("☁️ GCP 서버에서 직접 추론 실행")
+        
         
         # 임시 디렉토리 생성 (DICOM 파일 저장용)
         temp_dir = tempfile.mkdtemp(prefix="mri_seg_")
@@ -369,4 +394,414 @@ def get_segmentation_frames(request, seg_instance_id):
         return Response({
             "success": False,
             "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ============================================================
+# 연구실 컴퓨터 추론 요청 API
+# ============================================================
+
+# 요청 디렉토리 (연구실 컴퓨터와 공유)
+REQUEST_DIR = Path(os.getenv('INFERENCE_REQUEST_DIR', '/tmp/mri_inference_requests'))
+
+
+@api_view(['POST'])
+def request_local_inference(request, series_id):
+    """
+    연구실 컴퓨터에서 추론 실행 요청
+    
+    POST /api/mri/segmentation/series/<series_id>/request-local/
+    Body: {
+        "sequence_series_ids": [series1_id, series2_id, series3_id, series4_id]
+    }
+    """
+    try:
+        sequence_series_ids = request.data.get("sequence_series_ids", [])
+        
+        if len(sequence_series_ids) != 4:
+            return Response({
+                'success': False,
+                'error': '4개 시리즈가 필요합니다.'
+            }, status=400)
+        
+        # 요청 디렉토리 생성
+        REQUEST_DIR.mkdir(exist_ok=True, parents=True)
+        
+        # 요청 데이터 생성
+        request_data = {
+            'series_ids': sequence_series_ids,
+            'main_series_id': series_id,
+            'requested_at': timezone.now().isoformat(),
+            'status': 'pending',
+            'requested_by': request.user.username if hasattr(request, 'user') and request.user.is_authenticated else 'anonymous'
+        }
+        
+        # 요청 파일 저장 (타임스탬프 포함하여 중복 방지)
+        timestamp = int(timezone.now().timestamp() * 1000)
+        request_id = f"{series_id}_{timestamp}"
+        request_file = REQUEST_DIR / f"{request_id}.json"
+        
+        with open(request_file, 'w', encoding='utf-8') as f:
+            json.dump(request_data, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"✅ 추론 요청 생성: {request_file.name}")
+        logger.info(f"   - 시리즈: {sequence_series_ids}")
+        logger.info(f"   - 요청자: {request_data['requested_by']}")
+        
+        # 워커가 처리할 때까지 대기 (최대 5분)
+        import time
+        max_wait_time = 300  # 5분
+        check_interval = 2  # 2초마다 확인
+        elapsed_time = 0
+        
+        logger.info("⏳ 연구실 컴퓨터 워커가 요청을 처리할 때까지 대기 중...")
+        
+        while elapsed_time < max_wait_time:
+            time.sleep(check_interval)
+            elapsed_time += check_interval
+            
+            # 요청 상태 확인
+            try:
+                with open(request_file, 'r', encoding='utf-8') as f:
+                    current_data = json.load(f)
+                
+                current_status = current_data.get('status')
+                
+                if current_status == 'completed':
+                    # 완료됨 - 결과 반환
+                    result = current_data.get('result', {})
+                    logger.info(f"✅ 추론 완료! (소요 시간: {elapsed_time}초)")
+                    
+                    return Response({
+                        'success': True,
+                        'series_id': series_id,
+                        'request_id': request_id,
+                        'tumor_detected': result.get('tumor_detected'),
+                        'tumor_volume_voxels': result.get('tumor_volume_voxels'),
+                        'seg_instance_id': result.get('seg_instance_id'),
+                        'elapsed_time_seconds': result.get('elapsed_time_seconds'),
+                        'saved_to_orthanc': True,
+                        'processed_by': 'local_worker'
+                    })
+                
+                elif current_status == 'failed':
+                    # 실패
+                    result = current_data.get('result', {})
+                    error_msg = result.get('error', '알 수 없는 오류')
+                    logger.error(f"❌ 추론 실패: {error_msg}")
+                    
+                    return Response({
+                        'success': False,
+                        'error': error_msg,
+                        'request_id': request_id
+                    }, status=500)
+                
+                elif current_status == 'processing':
+                    # 처리 중
+                    logger.info(f"   처리 중... ({elapsed_time}초 경과)")
+                
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                # 파일이 아직 생성되지 않았거나 읽기 실패
+                pass
+            
+            # 진행률 표시 (30초마다)
+            if elapsed_time % 30 == 0:
+                logger.info(f"   대기 중... ({elapsed_time}/{max_wait_time}초)")
+        
+        # 타임아웃
+        logger.warning(f"⏱️ 타임아웃: 워커가 {max_wait_time}초 내에 응답하지 않음")
+        
+        return Response({
+            'success': False,
+            'error': f'연구실 컴퓨터 워커가 {max_wait_time}초 내에 응답하지 않았습니다. 워커가 실행 중인지 확인하세요.',
+            'request_id': request_id,
+            'status': 'timeout',
+            'note': '요청은 생성되었습니다. 나중에 /api/mri/segmentation/status/{request_id}/ 에서 상태를 확인하세요.'
+        }, status=504)
+        
+    except Exception as e:
+        logger.error(f"❌ 추론 요청 생성 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def check_inference_status(request, request_id):
+    """
+    추론 요청 상태 확인
+    
+    GET /api/mri/segmentation/status/<request_id>/
+    """
+    try:
+        # 요청 파일 찾기
+        request_files = list(REQUEST_DIR.glob(f"{request_id}.json"))
+        
+        if not request_files:
+            return Response({
+                'success': False,
+                'error': '요청을 찾을 수 없습니다.',
+                'request_id': request_id
+            }, status=404)
+        
+        # 요청 데이터 읽기
+        with open(request_files[0], 'r', encoding='utf-8') as f:
+            request_data = json.load(f)
+        
+        # 상태별 메시지
+        status_messages = {
+            'pending': '대기 중: 연구실 컴퓨터에서 처리 대기 중입니다.',
+            'processing': '처리 중: 추론이 진행 중입니다.',
+            'completed': '완료: 추론이 성공적으로 완료되었습니다.',
+            'failed': '실패: 추론 중 오류가 발생했습니다.'
+        }
+        
+        current_status = request_data.get('status', 'unknown')
+        
+        response_data = {
+            'success': True,
+            'request_id': request_id,
+            'status': current_status,
+            'message': status_messages.get(current_status, '알 수 없는 상태'),
+            'requested_at': request_data.get('requested_at'),
+            'started_at': request_data.get('started_at'),
+            'completed_at': request_data.get('completed_at'),
+            'series_ids': request_data.get('series_ids'),
+            'requested_by': request_data.get('requested_by')
+        }
+        
+        # 결과가 있으면 포함
+        if 'result' in request_data:
+            result = request_data['result']
+            response_data['result'] = {
+                'success': result.get('success'),
+                'seg_instance_id': result.get('seg_instance_id'),
+                'tumor_detected': result.get('tumor_detected'),
+                'tumor_volume_voxels': result.get('tumor_volume_voxels'),
+                'elapsed_time_seconds': result.get('elapsed_time_seconds'),
+                'error': result.get('error')
+            }
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        logger.error(f"❌ 상태 확인 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def list_inference_requests(request):
+    """
+    추론 요청 목록 조회
+    
+    GET /api/mri/segmentation/requests/
+    Query params:
+        - status: pending, processing, completed, failed
+        - limit: 최대 개수 (기본: 50)
+    """
+    try:
+        # 쿼리 파라미터
+        filter_status = request.GET.get('status')
+        limit = int(request.GET.get('limit', 50))
+        
+        # 요청 파일 찾기
+        request_files = sorted(REQUEST_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        requests_list = []
+        for request_file in request_files[:limit]:
+            try:
+                with open(request_file, 'r', encoding='utf-8') as f:
+                    request_data = json.load(f)
+                
+                # 상태 필터링
+                if filter_status and request_data.get('status') != filter_status:
+                    continue
+                
+                requests_list.append({
+                    'request_id': request_file.stem,
+                    'status': request_data.get('status'),
+                    'requested_at': request_data.get('requested_at'),
+                    'started_at': request_data.get('started_at'),
+                    'completed_at': request_data.get('completed_at'),
+                    'series_ids': request_data.get('series_ids'),
+                    'requested_by': request_data.get('requested_by'),
+                    'has_result': 'result' in request_data
+                })
+            except Exception as e:
+                logger.warning(f"⚠️ 요청 파일 읽기 실패: {request_file.name} - {e}")
+                continue
+        
+        return Response({
+            'success': True,
+            'count': len(requests_list),
+            'requests': requests_list,
+            'filter': {
+                'status': filter_status,
+                'limit': limit
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 요청 목록 조회 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_pending_requests(request):
+    """
+    연구실 컴퓨터 워커용: 대기 중인 추론 요청 조회 (HTTP API 방식)
+    
+    GET /api/mri/segmentation/pending-requests/
+    
+    연구실 컴퓨터가 이 API를 폴링하여 요청을 가져옵니다.
+    공유 디렉토리나 내부 IP가 필요 없습니다!
+    """
+    try:
+        # 대기 중인 요청만 찾기
+        request_files = sorted(REQUEST_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime)
+        
+        pending_requests = []
+        for request_file in request_files:
+            try:
+                with open(request_file, 'r', encoding='utf-8') as f:
+                    request_data = json.load(f)
+                
+                # pending 상태만 반환
+                if request_data.get('status') == 'pending':
+                    pending_requests.append({
+                        'request_id': request_file.stem,
+                        'series_ids': request_data.get('series_ids'),
+                        'main_series_id': request_data.get('main_series_id'),
+                        'requested_at': request_data.get('requested_at'),
+                        'requested_by': request_data.get('requested_by')
+                    })
+            except Exception as e:
+                logger.warning(f"⚠️ 요청 파일 읽기 실패: {request_file.name} - {e}")
+                continue
+        
+        return Response({
+            'success': True,
+            'count': len(pending_requests),
+            'requests': pending_requests
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 대기 중인 요청 조회 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def complete_inference_request(request, request_id):
+    """
+    연구실 컴퓨터 워커용: 추론 완료 결과 업로드 (HTTP API 방식)
+    
+    POST /api/mri/segmentation/complete-request/<request_id>/
+    Body: {
+        "success": true,
+        "seg_instance_id": "...",
+        "tumor_detected": true,
+        "tumor_volume_voxels": 12345,
+        "elapsed_time_seconds": 30.5,
+        "error": null
+    }
+    """
+    try:
+        # 요청 파일 찾기
+        request_file = REQUEST_DIR / f"{request_id}.json"
+        
+        if not request_file.exists():
+            return Response({
+                'success': False,
+                'error': '요청을 찾을 수 없습니다.'
+            }, status=404)
+        
+        # 요청 데이터 읽기
+        with open(request_file, 'r', encoding='utf-8') as f:
+            request_data = json.load(f)
+        
+        # 결과 업데이트
+        request_data['status'] = 'completed' if request.data.get('success') else 'failed'
+        request_data['completed_at'] = timezone.now().isoformat()
+        request_data['result'] = {
+            'success': request.data.get('success'),
+            'seg_instance_id': request.data.get('seg_instance_id'),
+            'tumor_detected': request.data.get('tumor_detected'),
+            'tumor_volume_voxels': request.data.get('tumor_volume_voxels'),
+            'elapsed_time_seconds': request.data.get('elapsed_time_seconds'),
+            'error': request.data.get('error')
+        }
+        
+        # 파일 저장
+        with open(request_file, 'w', encoding='utf-8') as f:
+            json.dump(request_data, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"✅ 추론 완료 결과 업로드: {request_id}")
+        
+        return Response({
+            'success': True,
+            'message': '결과가 성공적으로 업로드되었습니다.',
+            'request_id': request_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 결과 업로드 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def update_request_status(request, request_id):
+    """
+    연구실 컴퓨터 워커용: 요청 상태 업데이트 (processing 등)
+    
+    POST /api/mri/segmentation/update-status/<request_id>/
+    Body: {
+        "status": "processing",
+        "started_at": "2024-01-01T00:00:00"
+    }
+    """
+    try:
+        request_file = REQUEST_DIR / f"{request_id}.json"
+        
+        if not request_file.exists():
+            return Response({
+                'success': False,
+                'error': '요청을 찾을 수 없습니다.'
+            }, status=404)
+        
+        with open(request_file, 'r', encoding='utf-8') as f:
+            request_data = json.load(f)
+        
+        # 상태 업데이트
+        if 'status' in request.data:
+            request_data['status'] = request.data['status']
+        if 'started_at' in request.data:
+            request_data['started_at'] = request.data['started_at']
+        
+        with open(request_file, 'w', encoding='utf-8') as f:
+            json.dump(request_data, f, indent=2, ensure_ascii=False)
+        
+        return Response({
+            'success': True,
+            'request_id': request_id,
+            'status': request_data.get('status')
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 상태 업데이트 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
