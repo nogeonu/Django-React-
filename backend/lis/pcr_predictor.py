@@ -27,18 +27,44 @@ warnings.filterwarnings('ignore')
 
 
 def set_korean_font():
+    """한글 폰트 설정 - 서버 환경에 맞게 자동 선택"""
     import matplotlib.font_manager as fm
-    k_fonts = ['Malgun Gothic', 'AppleGothic', 'NanumGothic', 'Dotum', 'Gulim']
+    
+    # 가능한 한글 폰트 목록 (우선순위 순)
+    k_fonts = [
+        'NanumGothic', 'Nanum Gothic', 'NanumBarunGothic', 'Nanum Barun Gothic',
+        'Malgun Gothic', 'AppleGothic', 'Apple SD Gothic Neo',
+        'Noto Sans CJK KR', 'Noto Sans KR',
+        'DejaVu Sans',  # 폴백 (한글 미지원이지만 기본 폰트)
+        'sans-serif'
+    ]
+    
+    # 시스템에 설치된 폰트 목록 가져오기
     system_fonts = [f.name for f in fm.fontManager.ttflist]
     
-    selected_font = 'sans-serif'
-    for f in k_fonts:
-        if f in system_fonts:
-            selected_font = f
+    # 한글 폰트 찾기
+    selected_font = 'DejaVu Sans'  # 기본값
+    for font_name in k_fonts:
+        # 정확한 이름 매칭
+        if font_name in system_fonts:
+            selected_font = font_name
             break
-            
+        # 부분 매칭 (Nanum 포함 등)
+        for sys_font in system_fonts:
+            if font_name.lower().replace(' ', '') in sys_font.lower().replace(' ', ''):
+                selected_font = sys_font
+                break
+        if selected_font != 'DejaVu Sans':
+            break
+    
     plt.rcParams['font.family'] = selected_font
     plt.rcParams['axes.unicode_minus'] = False
+    
+    # 폰트 캐시 재빌드 (필요시)
+    try:
+        fm._rebuild()
+    except:
+        pass
 
 
 set_korean_font()
