@@ -10,17 +10,13 @@ from .models import LabTest, RNATest
 from .serializers import LabTestSerializer, RNATestSerializer
 from patients.models import Patient
 import logging
+import requests
+import os
 
 logger = logging.getLogger(__name__)
 
-# Import pCR predictor
-try:
-    from .pcr_predictor import PCRPredictor
-    pcr_predictor = PCRPredictor()
-    PCR_AVAILABLE = True
-except Exception as e:
-    logger.warning(f"pCR predictor not available: {e}")
-    PCR_AVAILABLE = False
+# Flask ML Service URL (pCR 예측용)
+ML_SERVICE_URL = os.environ.get('ML_SERVICE_URL', 'http://localhost:5002')
 
 
 class LabTestViewSet(viewsets.ModelViewSet):
@@ -242,27 +238,21 @@ class RNATestViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def predict_pcr(self, request, pk=None):
-        """pCR 예측 수행"""
-        if not PCR_AVAILABLE:
-            return Response(
-                {'error': 'pCR 예측 모델을 사용할 수 없습니다.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-        
+        """pCR 예측 수행 - Flask ML Service 호출"""
         try:
             rna_test = self.get_object()
             
             # 유전자 발현값 추출
             gene_values = {
-                'CXCL13': rna_test.CXCL13, 'CD8A': rna_test.CD8A, 'CCR7': rna_test.CCR7,
-                'C1QA': rna_test.C1QA, 'LY9': rna_test.LY9, 'CXCL10': rna_test.CXCL10,
-                'CXCL9': rna_test.CXCL9, 'STAT1': rna_test.STAT1, 'CCND1': rna_test.CCND1,
-                'MKI67': rna_test.MKI67, 'TOP2A': rna_test.TOP2A, 'BRCA1': rna_test.BRCA1,
-                'RAD51': rna_test.RAD51, 'PRKDC': rna_test.PRKDC, 'POLD3': rna_test.POLD3,
-                'POLB': rna_test.POLB, 'LIG1': rna_test.LIG1, 'ERBB2': rna_test.ERBB2,
-                'ESR1': rna_test.ESR1, 'PGR': rna_test.PGR, 'ARAF': rna_test.ARAF,
-                'PIK3CA': rna_test.PIK3CA, 'AKT1': rna_test.AKT1, 'MTOR': rna_test.MTOR,
-                'TP53': rna_test.TP53, 'PTEN': rna_test.PTEN, 'MYC': rna_test.MYC
+                'CXCL13': rna_test.CXCL13 or 0, 'CD8A': rna_test.CD8A or 0, 'CCR7': rna_test.CCR7 or 0,
+                'C1QA': rna_test.C1QA or 0, 'LY9': rna_test.LY9 or 0, 'CXCL10': rna_test.CXCL10 or 0,
+                'CXCL9': rna_test.CXCL9 or 0, 'STAT1': rna_test.STAT1 or 0, 'CCND1': rna_test.CCND1 or 0,
+                'MKI67': rna_test.MKI67 or 0, 'TOP2A': rna_test.TOP2A or 0, 'BRCA1': rna_test.BRCA1 or 0,
+                'RAD51': rna_test.RAD51 or 0, 'PRKDC': rna_test.PRKDC or 0, 'POLD3': rna_test.POLD3 or 0,
+                'POLB': rna_test.POLB or 0, 'LIG1': rna_test.LIG1 or 0, 'ERBB2': rna_test.ERBB2 or 0,
+                'ESR1': rna_test.ESR1 or 0, 'PGR': rna_test.PGR or 0, 'ARAF': rna_test.ARAF or 0,
+                'PIK3CA': rna_test.PIK3CA or 0, 'AKT1': rna_test.AKT1 or 0, 'MTOR': rna_test.MTOR or 0,
+                'TP53': rna_test.TP53 or 0, 'PTEN': rna_test.PTEN or 0, 'MYC': rna_test.MYC or 0
             }
             
             # 환자 정보
@@ -278,18 +268,48 @@ class RNATestViewSet(viewsets.ModelViewSet):
                 'test_date': str(rna_test.test_date)
             }
             
-            # pCR 예측 수행
-            result = pcr_predictor.generate_report_image(gene_values, patient_info)
+            # Flask ML Service를 통해 pCR 예측 수행
+            logger.info(f"🚀 Flask ML Service 호출: {ML_SERVICE_URL}/predict_pcr")
+            ml_response = requests.post(
+                f'{ML_SERVICE_URL}/predict_pcr',
+                json={
+                    'gene_values': gene_values,
+                    'patient_info': patient_info
+                },
+                timeout=30
+            )
+            
+            if ml_response.status_code != 200:
+                error_msg = ml_response.json().get('error', '알 수 없는 오류') if ml_response.status_code != 503 else 'pCR 예측 모델이 로드되지 않았습니다.'
+                logger.error(f"❌ Flask ML Service 오류: {ml_response.status_code} - {error_msg}")
+                return Response(
+                    {'error': f'ML 서비스 오류: {error_msg}'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE if ml_response.status_code == 503 else status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            ml_result = ml_response.json()
             
             return Response({
                 'success': True,
-                'probability': result['probability'],
-                'prediction': result['prediction'],
-                'image': result['image'],
-                'top_genes': result['top_genes'],
-                'pathway_scores': result['pathway_scores']
+                'probability': ml_result['probability'],
+                'prediction': ml_result['prediction'],
+                'image': ml_result['image'],
+                'top_genes': ml_result['top_genes'],
+                'pathway_scores': ml_result['pathway_scores']
             })
             
+        except requests.exceptions.Timeout:
+            logger.error("❌ Flask ML Service 타임아웃")
+            return Response(
+                {'error': 'ML 서비스 응답 시간이 초과되었습니다.'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        except requests.exceptions.ConnectionError:
+            logger.error(f"❌ Flask ML Service 연결 실패: {ML_SERVICE_URL}")
+            return Response(
+                {'error': f'ML 서비스에 연결할 수 없습니다. (URL: {ML_SERVICE_URL})'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
         except Exception as pcr_error:
             logger.error(f"pCR prediction error: {pcr_error}", exc_info=True)
             return Response(
