@@ -24,8 +24,23 @@ class UserSummarySerializer(serializers.ModelSerializer):
         fields = ("id", "username", "name", "role", "department", "is_online", "last_seen_at")
 
     def get_name(self, obj):
+        # 한국식 이름 형식: 성+이름 (예: "박철순")
+        first_name = getattr(obj, 'first_name', '') or ''
+        last_name = getattr(obj, 'last_name', '') or ''
+        if last_name and first_name:
+            return f"{last_name}{first_name}"
+        elif last_name:
+            return last_name
+        elif first_name:
+            return first_name
         full_name = obj.get_full_name()
-        return full_name if full_name else obj.get_username()
+        if full_name:
+            # "철순 박" 형식을 "박철순"으로 변환
+            parts = full_name.strip().split()
+            if len(parts) == 2:
+                return f"{parts[1]}{parts[0]}"
+            return full_name
+        return obj.get_username()
 
     def get_role(self, obj):
         # department 필드 사용
@@ -36,7 +51,12 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
     def get_is_online(self, obj):
         presence = getattr(obj, "presence", None)
-        return bool(getattr(presence, "is_online", False))
+        if not presence:
+            return False
+        # active_connections가 0보다 크고 is_online이 True일 때만 온라인으로 표시
+        active_connections = getattr(presence, "active_connections", 0)
+        is_online = getattr(presence, "is_online", False)
+        return bool(active_connections > 0 and is_online)
 
     def get_last_seen_at(self, obj):
         presence = getattr(obj, "presence", None)
