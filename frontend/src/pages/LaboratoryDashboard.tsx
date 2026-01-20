@@ -8,7 +8,6 @@ import {
   FlaskConical, 
   Upload, 
   Search, 
-  CheckCircle2, 
   Clock, 
   FileText,
   TrendingUp,
@@ -16,8 +15,7 @@ import {
   Activity,
   Dna,
   Brain,
-  Printer,
-  AlertCircle
+  Printer
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
