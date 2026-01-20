@@ -4,12 +4,22 @@ Converts model output (probabilities) to final segmentation mask.
 """
 import torch
 import numpy as np
+import logging
+import sys
 from monai.transforms import (
     Compose, Invertd, SaveImaged, AsDiscreted,
     KeepLargestConnectedComponentd, FillHolesd
 )
 from scipy import ndimage
 import config
+
+# Logger 설정 (Django/Gunicorn에서 journal에 기록되도록)
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
 
 def get_postprocess_transforms(threshold=0.5, apply_morphology=True):
@@ -85,20 +95,20 @@ def postprocess_prediction(
         input_image = preprocessed_data.get("image")
         
         # 🔍 디버깅: 조원님 분석 확인
-        print(f"[DEBUG] Invertd 복원 시작")
-        print(f"  - binary_mask shape (전처리 후): {binary_mask.shape}")
-        print(f"  - input_image type: {type(input_image)}")
-        print(f"  - input_image is MetaTensor: {isinstance(input_image, MetaTensor)}")
+        logger.debug("[DEBUG] Invertd 복원 시작")
+        logger.debug(f"  - binary_mask shape (전처리 후): {binary_mask.shape}")
+        logger.debug(f"  - input_image type: {type(input_image)}")
+        logger.debug(f"  - input_image is MetaTensor: {isinstance(input_image, MetaTensor)}")
         if isinstance(input_image, MetaTensor):
-            print(f"  - input_image.affine exists: {hasattr(input_image, 'affine')}")
+            logger.debug(f"  - input_image.affine exists: {hasattr(input_image, 'affine')}")
             if hasattr(input_image, 'affine'):
-                print(f"  - input_image.affine shape: {input_image.affine.shape if input_image.affine is not None else None}")
+                logger.debug(f"  - input_image.affine shape: {input_image.affine.shape if input_image.affine is not None else None}")
             if hasattr(input_image, 'meta'):
-                print(f"  - input_image.meta keys: {list(input_image.meta.keys())[:10] if hasattr(input_image, 'meta') else None}")
-        print(f"  - original_meta_dict: {original_meta_dict is not None}")
+                logger.debug(f"  - input_image.meta keys: {list(input_image.meta.keys())[:10] if hasattr(input_image, 'meta') else None}")
+        logger.debug(f"  - original_meta_dict: {original_meta_dict is not None}")
         if original_meta_dict:
-            print(f"  - original_meta_dict keys: {list(original_meta_dict.keys())[:10]}")
-            print(f"  - original_meta_dict pixdim: {original_meta_dict.get('pixdim', 'NOT FOUND')}")
+            logger.debug(f"  - original_meta_dict keys: {list(original_meta_dict.keys())[:10]}")
+            logger.debug(f"  - original_meta_dict pixdim: {original_meta_dict.get('pixdim', 'NOT FOUND')}")
         
         # Create a dictionary for Invertd
         # Note: binary_mask is numpy [H, W, D], we need [C, H, W, D] for MONAI
@@ -114,9 +124,9 @@ def postprocess_prediction(
         # Create MetaTensor with affine from input_image
         if isinstance(input_image, MetaTensor):
             mask_tensor = MetaTensor(mask_tensor, affine=input_image.affine)
-            print(f"  - mask_tensor created as MetaTensor with affine")
+            logger.debug(f"  - mask_tensor created as MetaTensor with affine")
         else:
-            print(f"  - ⚠️ WARNING: input_image is NOT MetaTensor! Type: {type(input_image)}")
+            logger.warning(f"  - ⚠️ WARNING: input_image is NOT MetaTensor! Type: {type(input_image)}")
         
         data = dict(preprocessed_data)
         data["image"] = input_image
@@ -144,36 +154,36 @@ def postprocess_prediction(
             
             # restored is [C, H, W, D]
             binary_mask_after_invertd = restored.squeeze(0).numpy().astype(np.uint8)
-            print(f"  - Invertd 실행 완료 (예외 없음)")
-            print(f"  - binary_mask shape (Invertd 후): {binary_mask_after_invertd.shape}")
+            logger.debug(f"  - Invertd 실행 완료 (예외 없음)")
+            logger.debug(f"  - binary_mask shape (Invertd 후): {binary_mask_after_invertd.shape}")
             
             # 🔍 검증: Invertd가 제대로 복원했는지 확인
             # 원본 크기와 비교 (original_meta_dict의 spatial_shape 확인)
             if original_meta_dict and 'spatial_shape' in original_meta_dict:
                 original_shape = original_meta_dict['spatial_shape']
                 restored_shape = binary_mask_after_invertd.shape
-                print(f"  - 원본 크기 (meta_dict): {original_shape}")
-                print(f"  - 복원 후 크기: {restored_shape}")
+                logger.debug(f"  - 원본 크기 (meta_dict): {original_shape}")
+                logger.debug(f"  - 복원 후 크기: {restored_shape}")
                 
                 if restored_shape != tuple(original_shape):
-                    print(f"  - ⚠️ WARNING: Invertd가 제대로 복원하지 못함!")
-                    print(f"  - 차원 불일치 감지 → Fallback 사용")
+                    logger.warning(f"  - ⚠️ WARNING: Invertd가 제대로 복원하지 못함!")
+                    logger.warning(f"  - 차원 불일치 감지 → Fallback 사용")
                     # Fallback 사용
                     binary_mask = binary_mask  # 원래 크기 유지
                     use_fallback = True
                 else:
-                    print(f"  - ✅ Invertd 복원 성공!")
+                    logger.debug(f"  - ✅ Invertd 복원 성공!")
                     binary_mask = binary_mask_after_invertd
                     use_fallback = False
             else:
-                print(f"  - ⚠️ WARNING: original_meta_dict에 spatial_shape 없음")
-                print(f"  - Invertd 결과 사용 (검증 불가)")
+                logger.warning(f"  - ⚠️ WARNING: original_meta_dict에 spatial_shape 없음")
+                logger.warning(f"  - Invertd 결과 사용 (검증 불가)")
                 binary_mask = binary_mask_after_invertd
                 use_fallback = False
             
             # Fallback이 필요한 경우
             if use_fallback or (original_meta_dict and original_meta_dict.get('pixdim') is not None):
-                print(f"  - Fallback으로 수동 복원 시도...")
+                logger.info(f"  - Fallback으로 수동 복원 시도...")
                 original_spacing = original_meta_dict.get('pixdim', None)
                 if original_spacing is not None:
                     original_spacing = original_spacing[1:4]
@@ -182,10 +192,10 @@ def postprocess_prediction(
                     mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
                     restored = spacing_transform(mask_tensor)
                     binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-                    print(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
+                    logger.info(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
         except Exception as e:
-            print(f"  - ❌ Invertd 예외 발생: {e}")
-            print(f"  - Fallback으로 수동 복원 시도...")
+            logger.error(f"  - ❌ Invertd 예외 발생: {e}")
+            logger.info(f"  - Fallback으로 수동 복원 시도...")
             # Fallback to manual Spacing logic
             if original_meta_dict is not None:
                 original_spacing = original_meta_dict.get('pixdim', None)
@@ -196,9 +206,9 @@ def postprocess_prediction(
                     mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
                     restored = spacing_transform(mask_tensor)
                     binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-                    print(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
+                    logger.info(f"  - Fallback 복원 후 shape: {binary_mask.shape}")
                 else:
-                    print(f"  - ❌ original_meta_dict에 pixdim 없음 - 복원 불가")
+                    logger.error(f"  - ❌ original_meta_dict에 pixdim 없음 - 복원 불가")
 
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
