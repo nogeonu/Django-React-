@@ -178,7 +178,6 @@
   display: flex;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
