@@ -312,11 +312,21 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     
     # Apply resizing if needed
     if needs_resize:
-        logger.info(f"  Resizing mask with zoom factors: {zoom_factors}")
+        logger.warning(f"  *** RESIZING MASK ***")
+        logger.warning(f"  Original mask shape: {mask_frames.shape}")
+        logger.warning(f"  Target size: ({len(source_images)}, {first_rows}, {first_cols})")
+        logger.warning(f"  Zoom factors: {zoom_factors}")
         from scipy.ndimage import zoom
-        mask_frames_resized = zoom(mask_frames.astype(float), zoom_factors, order=0)
-        mask_frames = mask_frames_resized.astype(mask.dtype)
-        logger.info(f"  Resized mask shape: {mask_frames.shape}")
+        # Use float for zoom, then convert back
+        mask_frames_float = mask_frames.astype(np.float32)
+        mask_frames_resized = zoom(mask_frames_float, zoom_factors, order=0, mode='nearest')
+        # Convert back to original dtype (preserve boolean if it was boolean)
+        if mask.dtype == bool:
+            mask_frames = (mask_frames_resized > 0.5).astype(bool)
+        else:
+            mask_frames = mask_frames_resized.astype(mask.dtype)
+        logger.warning(f"  *** RESIZED MASK SHAPE: {mask_frames.shape} ***")
+        logger.warning(f"  Verification: height={mask_frames.shape[1]}, width={mask_frames.shape[2]}, target={first_rows}x{first_cols}")
     
     # Ensure boolean
     mask_frames = mask_frames > 0
