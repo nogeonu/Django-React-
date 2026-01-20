@@ -186,45 +186,51 @@ def postprocess_prediction(
             # Fallback이 필요한 경우
             if use_fallback:
                 logger.info(f"  - Fallback으로 수동 복원 시도...")
-                # spatial_shape를 사용해서 정확한 크기로 리샘플링
+                # 조원님 제안: spatial_shape를 사용해서 정확한 크기로 리샘플링
                 if original_meta_dict and 'spatial_shape' in original_meta_dict:
                     target_shape = original_meta_dict['spatial_shape']
-                    logger.debug(f"  - 현재 mask shape: {binary_mask.shape}")
-                    logger.debug(f"  - 목표 shape (spatial_shape): {target_shape}")
-                    
-                    # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링
-                    from scipy.ndimage import zoom
                     current_shape = binary_mask.shape
-                    zoom_factors = (
+                    
+                    # 현재 크기 → 목표 크기 계산
+                    scale_factors = [
                         target_shape[0] / current_shape[0],
                         target_shape[1] / current_shape[1],
                         target_shape[2] / current_shape[2]
-                    )
-                    logger.debug(f"  - zoom factors: {zoom_factors}")
-                    binary_mask = zoom(binary_mask, zoom_factors, order=0, mode='nearest').astype(np.uint8)
-                    logger.info(f"  - ✅ Fallback 복원 성공 (zoom 사용): {binary_mask.shape}")
+                    ]
+                    
+                    logger.debug(f"  - 현재 크기: {current_shape}")
+                    logger.debug(f"  - 목표 크기: {target_shape}")
+                    logger.debug(f"  - Scale factors: {scale_factors}")
+                    
+                    # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링 (order=0: nearest neighbor)
+                    from scipy.ndimage import zoom
+                    binary_mask = zoom(binary_mask, scale_factors, order=0).astype(np.uint8)
+                    logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
                 else:
                     logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
         except Exception as e:
             logger.error(f"  - ❌ Invertd 예외 발생: {e}")
             logger.info(f"  - Fallback으로 수동 복원 시도...")
-            # Fallback: spatial_shape를 사용해서 정확한 크기로 리샘플링
+            # 조원님 제안: spatial_shape를 사용해서 정확한 크기로 리샘플링
             if original_meta_dict is not None and 'spatial_shape' in original_meta_dict:
                 target_shape = original_meta_dict['spatial_shape']
-                logger.debug(f"  - 현재 mask shape: {binary_mask.shape}")
-                logger.debug(f"  - 목표 shape (spatial_shape): {target_shape}")
-                
-                # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링
-                from scipy.ndimage import zoom
                 current_shape = binary_mask.shape
-                zoom_factors = (
+                
+                # 현재 크기 → 목표 크기 계산
+                scale_factors = [
                     target_shape[0] / current_shape[0],
                     target_shape[1] / current_shape[1],
                     target_shape[2] / current_shape[2]
-                )
-                logger.debug(f"  - zoom factors: {zoom_factors}")
-                binary_mask = zoom(binary_mask, zoom_factors, order=0, mode='nearest').astype(np.uint8)
-                logger.info(f"  - ✅ Fallback 복원 성공 (zoom 사용): {binary_mask.shape}")
+                ]
+                
+                logger.debug(f"  - 현재 크기: {current_shape}")
+                logger.debug(f"  - 목표 크기: {target_shape}")
+                logger.debug(f"  - Scale factors: {scale_factors}")
+                
+                # scipy.ndimage.zoom을 사용해서 정확한 크기로 리샘플링 (order=0: nearest neighbor)
+                from scipy.ndimage import zoom
+                binary_mask = zoom(binary_mask, scale_factors, order=0).astype(np.uint8)
+                logger.info(f"  - ✅ Fallback 복원 성공: {binary_mask.shape}")
             else:
                 logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
 
