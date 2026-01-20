@@ -964,26 +964,26 @@ const FloatingChat = () => {
                 console.log('읽음 상태 업데이트:', { readUserId, messageId, roomId, myId: me?.id });
                 
                 // 내가 보낸 메시지를 상대방이 읽은 경우에만 업데이트 (카카오톡 방식)
-                // 특정 메시지 ID가 있으면 해당 메시지만 업데이트
-                if (messageId) {
-                    setMessages((prev) => {
-                        const updated = prev.map((msg) => {
-                            if (msg.id === messageId) {
-                                // 내가 보낸 메시지인 경우에만 unread_count 업데이트
-                                if (msg.sender?.id === me?.id) {
+                if (roomId && currentRoomRef.current?.id === roomId) {
+                    // 특정 메시지 ID가 있으면 해당 메시지만 업데이트
+                    if (messageId) {
+                        setMessages((prev) => {
+                            const updated = prev.map((msg) => {
+                                if (msg.id === messageId && msg.sender?.id === me?.id) {
+                                    // 내가 보낸 메시지의 unread_count 감소
                                     const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
                                     console.log('메시지 읽음 상태 업데이트 (실시간):', messageId, msg.unread_count, '->', newUnreadCount);
                                     return { ...msg, unread_count: newUnreadCount };
                                 }
-                            }
-                            return msg;
+                                return msg;
+                            });
+                            return updated;
                         });
-                        return updated;
-                    });
-                } else if (roomId && currentRoomRef.current?.id === roomId) {
-                    // room_id만 있고 현재 채팅방이면 전체 메시지 읽음 상태 갱신
-                    console.log('전체 메시지 읽음 상태 갱신 (room_id 기반)');
-                    refreshReadStatusFromAPI(roomId);
+                    } else {
+                        // messageId가 없으면 전체 메시지 읽음 상태 갱신
+                        console.log('전체 메시지 읽음 상태 갱신 (room_id 기반)');
+                        refreshReadStatusFromAPI(roomId);
+                    }
                 }
             }
         };
@@ -1066,9 +1066,12 @@ const FloatingChat = () => {
             const sender = msg.sender || {};
             const senderName = sender.name || sender.username || '알 수 없음';
             const isMine = me && sender.id === me.id;
-            let displayUnreadCount = typeof msg.unread_count === 'number' ? msg.unread_count : 0;
-            if (isDMRoom && !isMine) {
-                displayUnreadCount = 0;
+            // 내가 보낸 메시지의 unread_count만 표시 (카카오톡 방식)
+            // 상대방이 보낸 메시지는 unread_count 표시 안 함
+            let displayUnreadCount = 0;
+            if (isMine) {
+                // 내가 보낸 메시지: 상대방이 읽지 않은 수
+                displayUnreadCount = typeof msg.unread_count === 'number' ? msg.unread_count : 0;
             }
 
             items.push(
