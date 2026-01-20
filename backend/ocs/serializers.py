@@ -75,8 +75,13 @@ class OrderSerializer(serializers.ModelSerializer):
     
     def get_lab_test_result(self, obj):
         """검사 결과 가져오기"""
-        if obj.order_type == 'lab_test' and hasattr(obj, 'lab_test_result'):
-            return LabTestResultSerializer(obj.lab_test_result).data
+        if obj.order_type == 'lab_test':
+            try:
+                if hasattr(obj, 'lab_test_result') and obj.lab_test_result:
+                    return LabTestResultSerializer(obj.lab_test_result).data
+            except Exception:
+                # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
+                pass
         return None
     
     def validate(self, data):
@@ -281,19 +286,21 @@ class OrderListSerializer(serializers.ModelSerializer):
     
     def get_lab_test_result(self, obj):
         """검사 결과 가져오기"""
-        if obj.order_type == 'lab_test' and hasattr(obj, 'lab_test_result'):
+        if obj.order_type == 'lab_test':
             try:
-                return LabTestResultSerializer(obj.lab_test_result).data
-            except:
-                return None
+                if hasattr(obj, 'lab_test_result') and obj.lab_test_result:
+                    return LabTestResultSerializer(obj.lab_test_result).data
+            except Exception:
+                # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
+                pass
         return None
 
 
 class NotificationSerializer(serializers.ModelSerializer):
     """알림 Serializer"""
-    related_order_id = serializers.UUIDField(source='related_order.id', read_only=True)
-    related_order_type = serializers.CharField(source='related_order.order_type', read_only=True)
-    related_patient_name = serializers.CharField(source='related_order.patient.name', read_only=True)
+    related_order_id = serializers.SerializerMethodField()
+    related_order_type = serializers.SerializerMethodField()
+    related_patient_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Notification
@@ -304,6 +311,27 @@ class NotificationSerializer(serializers.ModelSerializer):
             'related_resource_type', 'related_resource_id'
         ]
         read_only_fields = ['id', 'created_at', 'read_at']
+    
+    def get_related_order_id(self, obj):
+        """관련 주문 ID 가져오기"""
+        try:
+            return obj.related_order.id if obj.related_order else None
+        except Exception:
+            return None
+    
+    def get_related_order_type(self, obj):
+        """관련 주문 유형 가져오기"""
+        try:
+            return obj.related_order.order_type if obj.related_order else None
+        except Exception:
+            return None
+    
+    def get_related_patient_name(self, obj):
+        """관련 환자 이름 가져오기"""
+        try:
+            return obj.related_order.patient.name if obj.related_order and obj.related_order.patient else None
+        except Exception:
+            return None
 
 
 class ImagingAnalysisResultSerializer(serializers.ModelSerializer):
