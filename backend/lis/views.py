@@ -60,6 +60,20 @@ class LabTestViewSet(viewsets.ModelViewSet):
         if not patient_id_from_request and hasattr(request, 'data'):
             patient_id_from_request = request.data.get('patient_id', '').strip()
         
+        # order_id가 제공된 경우 OCS 주문에서 환자 정보 가져오기
+        order_id_from_request = request.POST.get('order_id', '').strip()
+        if not order_id_from_request and hasattr(request, 'data'):
+            order_id_from_request = request.data.get('order_id', '').strip()
+        
+        if order_id_from_request and not patient_id_from_request:
+            try:
+                from ocs.models import Order
+                order = Order.objects.select_related('patient').get(id=order_id_from_request)
+                patient_id_from_request = order.patient.patient_id
+                logger.info(f"Lab test upload - patient_id from order {order_id_from_request}: '{patient_id_from_request}'")
+            except Exception as e:
+                logger.warning(f"Failed to get patient_id from order {order_id_from_request}: {e}")
+        
         logger.info(f"Lab test upload - patient_id_from_request: '{patient_id_from_request}', POST keys: {list(request.POST.keys())}, POST values: {dict(request.POST) if request.POST else 'N/A'}")
         
         try:
