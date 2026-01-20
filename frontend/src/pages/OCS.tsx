@@ -53,6 +53,9 @@ import {
   searchPatientsApi,
   createImagingAnalysisApi,
   getPatientAnalysisDataApi,
+  inputLabResultApi,
+  getRNATestsApi,
+  predictPCRApi,
 } from "@/lib/api";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -83,6 +86,17 @@ interface Order {
     findings: string;
     recommendations: string;
     confidence_score: number;
+  };
+  lab_test_result?: {
+    id: string;
+    test_results: any;
+    ai_findings: string;
+    ai_confidence_score: number;
+    ai_report_image: string;
+    ai_prediction: string;
+    notes: string;
+    input_by_name: string;
+    created_at: string;
   };
 }
 
@@ -346,6 +360,25 @@ export default function OCS() {
     },
   });
 
+  // 검사 결과 입력
+  const inputLabResultMutation = useMutation({
+    mutationFn: ({ orderId, data }: { orderId: string; data: any }) => inputLabResultApi(orderId, data),
+    onSuccess: () => {
+      toast({
+        title: "검사 결과 입력 완료",
+        description: "의사에게 알림이 전송되었습니다.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["ocs-orders"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "검사 결과 입력 실패",
+        description: error?.response?.data?.error || "검사 결과 입력 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // 주문 완료
   const completeOrderMutation = useMutation({
     mutationFn: completeOrderApi,
@@ -445,10 +478,11 @@ export default function OCS() {
         <div className="flex gap-2">
           {/* 부서별로 주문 생성 버튼 표시 */}
           {(() => {
-            // 원무과, 영상의학과, 방사선과는 주문 생성 불가
+            // 원무과, 영상의학과, 방사선과, 검사실은 주문 생성 불가
             if (user?.department === "원무과" || 
                 user?.department === "영상의학과" || 
-                user?.department === "방사선과") {
+                user?.department === "방사선과" ||
+                user?.department === "검사실") {
               return null;
             }
             // 의료진(외과, 호흡기내과 등) 또는 superuser만 생성 가능
@@ -680,6 +714,8 @@ export default function OCS() {
               isCompleting={completeOrderMutation.isPending}
               onCreateAnalysis={createImagingAnalysisApi}
               onViewAnalysis={(analysisId) => navigate(`/ocs/imaging-analysis/${analysisId}?order=${order.id}`)}
+              onInputLabResult={(data) => inputLabResultMutation.mutate({ orderId: order.id, data })}
+              isInputtingLabResult={inputLabResultMutation.isPending}
             />
           ))
         )}
@@ -700,6 +736,8 @@ function OrderCard({
   isCompleting,
   onCreateAnalysis,
   onViewAnalysis,
+  onInputLabResult,
+  isInputtingLabResult,
 }: {
   order: Order;
   user: any;
@@ -712,11 +750,19 @@ function OrderCard({
   isCompleting: boolean;
   onCreateAnalysis?: (data: any) => Promise<any>;
   onViewAnalysis?: (analysisId: string) => void;
+  onInputLabResult?: (data: any) => void;
+  isInputtingLabResult?: boolean;
 }) {
   const [showAnalysisDialog, setShowAnalysisDialog] = useState(false);
+  const [showLabResultDialog, setShowLabResultDialog] = useState(false);
   const [findings, setFindings] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [confidenceScore, setConfidenceScore] = useState(0.95);
+  const [labTestResults, setLabTestResults] = useState<any>({});
+  const [labAiFindings, setLabAiFindings] = useState("");
+  const [labAiConfidence, setLabAiConfidence] = useState<number>(0);
+  const [labAiReportImage, setLabAiReportImage] = useState("");
+  const [labAiPrediction, setLabAiPrediction] = useState("");
   const [heatmapImages, setHeatmapImages] = useState<File[]>([]);  // 여러 이미지 지원
   const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map());  // instanceId -> previewUrl
   const [orthancImages, setOrthancImages] = useState<any[]>([]);
@@ -1045,6 +1091,66 @@ function OrderCard({
             )}
           </div>
 
+          {/* 검사 결과 */}
+          {order.order_type === "lab_test" && order.lab_test_result && (
+            <div className="border rounded-lg p-4 bg-blue-50">
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <FlaskConical className="h-4 w-4" />
+                검사 결과
+              </h4>
+              <div className="space-y-3">
+                {order.lab_test_result.ai_findings && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">AI 소견</p>
+                    <p className="text-sm font-semibold">{order.lab_test_result.ai_findings}</p>
+                    {order.lab_test_result.ai_confidence_score && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        (신뢰도: {(order.lab_test_result.ai_confidence_score * 100).toFixed(1)}%)
+                      </p>
+                    )}
+                  </div>
+                )}
+                {order.lab_test_result?.ai_report_image && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">AI 임상 리포트</p>
+                    <div className="border rounded-lg p-2 bg-white">
+                      <img
+                        src={`data:image/png;base64,${order.lab_test_result.ai_report_image}`}
+                        alt="AI Clinical Report"
+                        className="w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                          const newWindow = window.open();
+                          if (newWindow) {
+                            newWindow.document.write(`
+                              <html>
+                                <head><title>AI 임상 리포트</title></head>
+                                <body style="margin:0; padding:20px; background:#f5f5f5;">
+                                  <img src="data:image/png;base64,${order.lab_test_result?.ai_report_image || ''}" style="max-width:100%; height:auto;" />
+                                </body>
+                              </html>
+                            `);
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-center text-muted-foreground mt-2">클릭하여 확대</p>
+                    </div>
+                  </div>
+                )}
+                {order.lab_test_result?.notes && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">추가 메모</p>
+                    <p className="text-sm whitespace-pre-wrap">{order.lab_test_result.notes}</p>
+                  </div>
+                )}
+                {order.lab_test_result?.input_by_name && (
+                  <p className="text-xs text-muted-foreground">
+                    입력자: {order.lab_test_result.input_by_name} | 입력일: {format(new Date(order.lab_test_result.created_at), 'yyyy-MM-dd HH:mm')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 영상 분석 결과 */}
           {order.order_type === "imaging" && order.imaging_analysis && (
             <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg space-y-3">
@@ -1134,11 +1240,12 @@ function OrderCard({
             {/* 부서 담당자: 처리 중인 주문 완료 처리 */}
             {/* 원무과는 처방전 주문(admin)에 대해 완료 처리 가능 */}
             {/* 영상의학과는 영상 촬영 주문의 경우 완료 처리 버튼 숨김 (분석 결과 입력으로 대체) */}
+            {/* 검사실은 검사 주문의 경우 완료 처리 버튼 숨김 (결과 입력으로 대체) */}
             {order.status === "processing" && 
-             !(order.order_type === "imaging" && user?.department === "영상의학과") && (
+             !(order.order_type === "imaging" && user?.department === "영상의학과") &&
+             !(order.order_type === "lab_test" && user?.department === "검사실") && (
               (order.target_department === "admin" && user?.department === "원무과") ||
-              (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과")) ||
-              (order.target_department === "lab" && user?.department !== "원무과" && user?.department !== "영상의학과" && user?.department !== "방사선과")
+              (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과"))
             ) && (
               <>
               <Button onClick={onComplete} disabled={isCompleting} size="sm" variant="default">
@@ -1158,6 +1265,21 @@ function OrderCard({
               </Button>
                 )}
               </>
+            )}
+            {/* 검사실: 검사 결과 입력 (processing 상태에서도 표시) */}
+            {order.order_type === "lab_test" && 
+             (order.status === "processing" || order.status === "completed") && 
+             !order.lab_test_result &&
+             user?.department === "검사실" && (
+              <Button
+                onClick={() => setShowLabResultDialog(true)}
+                size="sm"
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <FlaskConical className="mr-2 h-4 w-4" />
+                결과 입력
+              </Button>
             )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "imaging" && 
@@ -1439,7 +1561,226 @@ function OrderCard({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 검사 결과 입력 다이얼로그 */}
+      {showLabResultDialog && (
+        <Dialog open={showLabResultDialog} onOpenChange={setShowLabResultDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>검사 결과 입력</DialogTitle>
+              <DialogDescription>
+                {order.patient_name}님의 검사 결과를 입력하세요. AI 분석 결과를 포함할 수 있습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* RNA 검사 선택 및 pCR 예측 */}
+              <div className="border rounded-lg p-4 bg-purple-50">
+                <Label className="text-base font-semibold mb-2 block">AI 분석 (선택사항)</Label>
+                <LabResultAISection
+                  patientId={order.patient_id || order.patient_number || ''}
+                  onPCRResult={(result) => {
+                    setLabAiFindings(result.prediction === 'Positive' ? '양성 (Positive)' : '음성 (Negative)');
+                    setLabAiConfidence(result.probability);
+                    setLabAiReportImage(result.image || '');
+                    setLabAiPrediction(result.prediction || '');
+                    toast({
+                      title: "AI 분석 완료",
+                      description: `pCR 예측 확률: ${(result.probability * 100).toFixed(1)}%`,
+                    });
+                  }}
+                />
+              </div>
+
+              {/* 검사 결과 데이터 */}
+              <div>
+                <Label>검사 결과 데이터 (JSON)</Label>
+                <Textarea
+                  value={JSON.stringify(labTestResults, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      setLabTestResults(JSON.parse(e.target.value));
+                    } catch {
+                      // JSON 파싱 실패 시 무시
+                    }
+                  }}
+                  placeholder='{"wbc": 7.5, "hemoglobin": 14.2, ...}'
+                  rows={6}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              {/* AI 소견 */}
+              <div>
+                <Label>AI 소견</Label>
+                <Textarea
+                  value={labAiFindings}
+                  onChange={(e) => setLabAiFindings(e.target.value)}
+                  placeholder="AI 분석 소견을 입력하세요..."
+                  rows={3}
+                />
+              </div>
+
+              {/* AI 신뢰도 */}
+              <div>
+                <Label>AI 신뢰도: {(labAiConfidence * 100).toFixed(1)}%</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={labAiConfidence}
+                  onChange={(e) => setLabAiConfidence(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* AI 리포트 이미지 미리보기 */}
+              {labAiReportImage && (
+                <div>
+                  <Label>AI 임상 리포트</Label>
+                  <div className="border rounded-lg p-2 bg-white">
+                    <img
+                      src={`data:image/png;base64,${labAiReportImage}`}
+                      alt="AI Clinical Report"
+                      className="w-full rounded"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 추가 메모 */}
+              <div>
+                <Label>추가 메모</Label>
+                <Textarea
+                  value={labTestResults.notes || ''}
+                  onChange={(e) => setLabTestResults({ ...labTestResults, notes: e.target.value })}
+                  placeholder="추가 메모를 입력하세요..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowLabResultDialog(false);
+                setLabTestResults({});
+                setLabAiFindings("");
+                setLabAiConfidence(0);
+                setLabAiReportImage("");
+                setLabAiPrediction("");
+              }}>
+                취소
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (onInputLabResult) {
+                    onInputLabResult({
+                      test_results: labTestResults,
+                      ai_findings: labAiFindings,
+                      ai_confidence_score: labAiConfidence,
+                      ai_report_image: labAiReportImage,
+                      ai_prediction: labAiPrediction,
+                      notes: labTestResults.notes || '',
+                    });
+                    setShowLabResultDialog(false);
+                    setLabTestResults({});
+                    setLabAiFindings("");
+                    setLabAiConfidence(0);
+                    setLabAiReportImage("");
+                    setLabAiPrediction("");
+                  }
+                }}
+                disabled={isInputtingLabResult}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isInputtingLabResult ? "입력 중..." : "결과 저장"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
+  );
+}
+
+// 검사 결과 AI 분석 섹션 컴포넌트
+function LabResultAISection({ patientId, onPCRResult }: { patientId: string; onPCRResult: (result: any) => void }) {
+  const [rnaTests, setRNATests] = useState<any[]>([]);
+  const [selectedRNATest, setSelectedRNATest] = useState<any>(null);
+  const [predicting, setPredicting] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (patientId) {
+      loadRNATests();
+    }
+  }, [patientId]);
+
+  const loadRNATests = async () => {
+    try {
+      const data = await getRNATestsApi({ search: patientId });
+      setRNATests(data.results || data);
+    } catch (error) {
+      console.error('Failed to load RNA tests:', error);
+    }
+  };
+
+  const handlePCRPredict = async () => {
+    if (!selectedRNATest) {
+      toast({
+        title: 'RNA 검사 선택 필요',
+        description: 'pCR 예측을 위해 RNA 검사를 선택해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPredicting(true);
+    try {
+      const result = await predictPCRApi(selectedRNATest.id);
+      onPCRResult(result);
+    } catch (error: any) {
+      toast({
+        title: 'pCR 예측 실패',
+        description: error?.response?.data?.error || 'pCR 예측 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPredicting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {rnaTests.length > 0 ? (
+        <>
+          <Select value={selectedRNATest?.id?.toString()} onValueChange={(value) => {
+            const test = rnaTests.find(t => t.id.toString() === value);
+            setSelectedRNATest(test);
+          }}>
+            <SelectTrigger>
+              <SelectValue placeholder="RNA 검사 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              {rnaTests.map((test) => (
+                <SelectItem key={test.id} value={test.id.toString()}>
+                  {test.accession_number} - {test.patient_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={handlePCRPredict}
+            disabled={!selectedRNATest || predicting}
+            size="sm"
+            className="w-full bg-purple-600 hover:bg-purple-700"
+          >
+            {predicting ? "예측 중..." : "pCR 예측 실행"}
+          </Button>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">해당 환자의 RNA 검사 데이터가 없습니다.</p>
+      )}
+    </div>
   );
 }
 

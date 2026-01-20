@@ -264,6 +264,19 @@ export const createImagingAnalysisApi = async (data: Record<string, unknown> | F
   return res.data;
 };
 
+// 검사 결과 입력 API
+export const inputLabResultApi = async (orderId: string, data: {
+  test_results?: any;
+  ai_findings?: string;
+  ai_confidence_score?: number;
+  ai_report_image?: string;
+  ai_prediction?: string;
+  notes?: string;
+}) => {
+  const res = await apiClient.post(`/api/ocs/orders/${orderId}/input_lab_result/`, data);
+  return res.data;
+};
+
 // 약물 검색 및 상호작용 검사 API
 export interface Drug {
   item_seq: string;

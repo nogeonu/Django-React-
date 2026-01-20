@@ -256,3 +256,44 @@ class ImagingAnalysisResult(models.Model):
     
     def __str__(self):
         return f"{self.order.patient.name} - {self.order.get_order_type_display()} 분석 결과"
+
+
+class LabTestResult(models.Model):
+    """검사 결과 (혈액검사/RNA 검사)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='lab_test_result',
+        verbose_name='주문'
+    )
+    input_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_test_results',
+        verbose_name='결과 입력자'
+    )
+    # 검사 결과 데이터 (JSON)
+    test_results = models.JSONField(default=dict, verbose_name='검사 결과 데이터')
+    
+    # AI 분석 결과 (pCR 예측 등)
+    ai_findings = models.TextField(blank=True, verbose_name='AI 소견')
+    ai_confidence_score = models.FloatField(null=True, blank=True, verbose_name='AI 신뢰도')
+    ai_report_image = models.TextField(blank=True, verbose_name='AI 임상 리포트 이미지 (base64)')
+    ai_prediction = models.CharField(max_length=50, blank=True, verbose_name='AI 예측 결과')  # 'Positive', 'Negative' 등
+    
+    # 추가 메모
+    notes = models.TextField(blank=True, verbose_name='추가 메모')
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='입력일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일')
+    
+    class Meta:
+        verbose_name = '검사 결과'
+        verbose_name_plural = '검사 결과들'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.order.patient.name} - {self.order.get_order_type_display()} 검사 결과"

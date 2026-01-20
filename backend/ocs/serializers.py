@@ -2,7 +2,7 @@
 OCS Serializers
 """
 from rest_framework import serializers
-from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult
 from patients.models import Patient
 
 
@@ -62,7 +62,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'due_time', 'notes', 'validation_passed', 'validation_notes',
             'created_at', 'updated_at', 'completed_at',
             'status_history', 'drug_interaction_checks', 'allergy_checks',
-            'imaging_analysis'
+            'imaging_analysis',
+            'lab_test_result'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
     
@@ -70,6 +71,12 @@ class OrderSerializer(serializers.ModelSerializer):
         """영상 분석 결과 가져오기"""
         if obj.order_type == 'imaging' and hasattr(obj, 'imaging_analysis'):
             return ImagingAnalysisResultSerializer(obj.imaging_analysis).data
+        return None
+    
+    def get_lab_test_result(self, obj):
+        """검사 결과 가져오기"""
+        if obj.order_type == 'lab_test' and hasattr(obj, 'lab_test_result'):
+            return LabTestResultSerializer(obj.lab_test_result).data
         return None
     
     def validate(self, data):
@@ -249,6 +256,8 @@ class OrderListSerializer(serializers.ModelSerializer):
     
     # 영상 분석 결과 (영상촬영 주문인 경우)
     imaging_analysis = serializers.SerializerMethodField()
+    # 검사 결과 (검사 주문인 경우)
+    lab_test_result = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
@@ -257,7 +266,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             'doctor_name', 'status', 'priority', 'target_department',
             'order_data', 'validation_passed', 'validation_notes',  # order_data 추가
             'created_at', 'due_time', 'completed_at',
-            'imaging_analysis'  # 영상 분석 결과 추가
+            'imaging_analysis',  # 영상 분석 결과 추가
+            'lab_test_result'  # 검사 결과 추가
         ]
     
     def get_imaging_analysis(self, obj):
@@ -265,6 +275,15 @@ class OrderListSerializer(serializers.ModelSerializer):
         if obj.order_type == 'imaging' and hasattr(obj, 'imaging_analysis'):
             try:
                 return ImagingAnalysisResultSerializer(obj.imaging_analysis).data
+            except:
+                return None
+        return None
+    
+    def get_lab_test_result(self, obj):
+        """검사 결과 가져오기"""
+        if obj.order_type == 'lab_test' and hasattr(obj, 'lab_test_result'):
+            try:
+                return LabTestResultSerializer(obj.lab_test_result).data
             except:
                 return None
         return None

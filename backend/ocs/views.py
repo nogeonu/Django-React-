@@ -16,11 +16,12 @@ from datetime import timedelta
 import requests
 import logging
 
-from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderListSerializer,
     OrderStatusHistorySerializer, DrugInteractionCheckSerializer, AllergyCheckSerializer,
-    NotificationSerializer, ImagingAnalysisResultSerializer, ImagingAnalysisResultCreateSerializer
+    NotificationSerializer, ImagingAnalysisResultSerializer, ImagingAnalysisResultCreateSerializer,
+    LabTestResultSerializer, LabTestResultCreateSerializer
 )
 from .services import validate_order, update_order_status, check_drug_interactions, check_allergies, create_imaging_analysis_result
 from eventeye.doctor_utils import get_department
@@ -35,7 +36,7 @@ DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://127.0.0.1:8002
 
 class OrderViewSet(viewsets.ModelViewSet):
     """OCS 주문 관리 ViewSet"""
-    queryset = Order.objects.select_related('patient', 'doctor').prefetch_related(
+    queryset = Order.objects.select_related('patient', 'doctor', 'imaging_analysis', 'lab_test_result').prefetch_related(
         'status_history', 'drug_interaction_checks', 'allergy_checks'
     ).all()
     authentication_classes = [SessionAuthentication]
@@ -174,6 +175,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             logger.warning(f"Order creation denied: 방사선과 cannot create orders (user: {user.id})")
             raise PermissionDenied("방사선과는 주문을 생성할 수 없습니다. 의사가 생성한 주문을 받아서 처리합니다.")
         
+        # 검사실은 주문 생성 불가 (주문을 받아서 처리하는 역할)
+        if user_department == "검사실":
+            logger.warning(f"Order creation denied: 검사실 cannot create orders (user: {user.id})")
+            raise PermissionDenied("검사실은 주문을 생성할 수 없습니다. 의사가 생성한 주문을 받아서 처리합니다.")
+        
         # 의료진(외과, 호흡기내과 등)은 주문 생성 가능
         # 부서가 위의 제한된 부서가 아니면 주문 생성 허용
         # is_staff가 False인 경우도 체크 (원무과는 is_staff=False)
@@ -268,6 +274,74 @@ class OrderViewSet(viewsets.ModelViewSet):
         update_order_status(order, 'processing', request.user, '처리 시작')
         serializer = self.get_serializer(order)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser])
+    def input_lab_result(self, request, pk=None):
+        """검사 결과 입력 (검사실용)"""
+        order = self.get_object()
+        
+        # 검사 주문인지 확인
+        if order.order_type != 'lab_test':
+            return Response(
+                {'error': '검사 주문만 결과를 입력할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 검사실만 결과 입력 가능
+        user = request.user
+        user_department = get_department(user.id) if user else None
+        
+        if user_department != "검사실":
+            raise PermissionDenied("검사실만 검사 결과를 입력할 수 있습니다.")
+        
+        # 처리 중 상태인지 확인
+        if order.status != 'processing':
+            return Response(
+                {'error': '처리 중인 주문만 결과를 입력할 수 있습니다. 먼저 처리 시작을 해주세요.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # 기존 결과가 있으면 업데이트, 없으면 생성
+            lab_result, created = LabTestResult.objects.update_or_create(
+                order=order,
+                defaults={
+                    'input_by': user,
+                    'test_results': request.data.get('test_results', {}),
+                    'ai_findings': request.data.get('ai_findings', ''),
+                    'ai_confidence_score': request.data.get('ai_confidence_score'),
+                    'ai_report_image': request.data.get('ai_report_image', ''),
+                    'ai_prediction': request.data.get('ai_prediction', ''),
+                    'notes': request.data.get('notes', ''),
+                }
+            )
+            
+            # 주문 상태를 완료로 변경
+            update_order_status(order, 'completed', user, '검사 결과 입력 완료')
+            order.completed_at = timezone.now()
+            order.save()
+            
+            # 의사에게 알림 전송
+            from .services import create_notification
+            create_notification(
+                user=order.doctor,
+                notification_type='order_completed',
+                title='검사 결과 입력 완료',
+                message=f'{order.patient.name}님의 검사 결과가 입력되었습니다. OCS에서 확인하세요.',
+                related_order=order
+            )
+            
+            logger.info(f"Lab test result input for order {order.id} by {user}")
+            
+            serializer = LabTestResultSerializer(lab_result)
+            return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Lab test result input failed: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'검사 결과 입력 중 오류가 발생했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def download_prescription_pdf(self, request, pk=None):
@@ -535,6 +609,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # 'sent' 상태에서 바로 완료 처리하는 경우는 처리 시작으로 변경
                 update_order_status(order, 'processing', request.user, '처리 시작')
             logger.info(f"Imaging order {order.id} completed by radiology, status remains 'processing' (awaiting analysis)")
+        elif order.order_type == 'lab_test' and order.target_department == 'lab':
+            # 검사 주문의 경우: 검사실이 완료해도 '처리중' 상태 유지 (결과 입력 대기)
+            # 검사실이 결과를 입력해야 진짜 완료
+            if order.status == 'processing':
+                update_order_status(order, 'processing', request.user, '검사 완료 (결과 입력 대기중)')
+            else:
+                # 'sent' 상태에서 바로 완료 처리하는 경우는 처리 시작으로 변경
+                update_order_status(order, 'processing', request.user, '처리 시작')
+            logger.info(f"Lab test order {order.id} completed by lab, status remains 'processing' (awaiting result input)")
         else:
             # 다른 주문 유형은 일반적으로 완료 처리
             update_order_status(order, 'completed', request.user, '처리 완료')
