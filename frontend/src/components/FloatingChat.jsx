@@ -1347,15 +1347,15 @@ const FloatingChat = () => {
                             
                             // 최근 대화가 있는 동료 찾기
                             const friendsWithRooms = new Set();
-                            const me = currentUserRef.current;
-                            if (me) {
+                            const currentUser = currentUserRef.current;
+                            if (currentUser) {
                                 rooms.forEach((room) => {
                                     // case 타입 (개인 채팅)인 경우
                                     if (room.name && room.name.startsWith('case:dm:')) {
                                         const parts = room.name.split(':');
                                         if (parts.length >= 3) {
                                             const ids = parts.slice(2).map((id) => parseInt(id, 10));
-                                            const friendId = ids.find((id) => id !== me.id);
+                                            const friendId = ids.find((id) => id !== currentUser.id);
                                             if (friendId) {
                                                 friendsWithRooms.add(friendId);
                                             }
@@ -1364,7 +1364,7 @@ const FloatingChat = () => {
                                     // participants가 있는 경우 (group 또는 다른 타입)
                                     if (room.participants && Array.isArray(room.participants)) {
                                         room.participants.forEach((p) => {
-                                            if (p.id && p.id !== me.id) {
+                                            if (p.id && p.id !== currentUser.id) {
                                                 friendsWithRooms.add(p.id);
                                             }
                                         });
@@ -1381,30 +1381,31 @@ const FloatingChat = () => {
                                     <p>다른 검색어나 필터를 시도해보세요</p>
                                 </div>
                             ) : (
-                                filteredFriends.map((user) => {
-                                    const hasExistingRoom = friendsWithRooms.has(user.id);
+                                filteredFriends.map((friendUser) => {
+                                    const hasExistingRoom = friendsWithRooms.has(friendUser.id);
+                                    const currentUser = currentUserRef.current;
                                     return (
                                         <div
-                                            key={user.id}
+                                            key={friendUser.id}
                                             className={`chat-list-item ${isSelectionMode ? 'selection-mode' : ''} ${hasExistingRoom ? 'has-room' : ''}`}
                                             onClick={() => {
                                                 if (isSelectionMode) {
-                                                    toggleUserSelection(user.id);
+                                                    toggleUserSelection(friendUser.id);
                                                 } else {
                                                     // 최근 대화가 있으면 해당 방으로, 없으면 새로 생성
-                                                    if (hasExistingRoom && me) {
+                                                    if (hasExistingRoom && currentUser) {
                                                         const existingRoom = rooms.find((room) => {
                                                             // case:dm: 타입 체크
                                                             if (room.name && room.name.startsWith('case:dm:')) {
                                                                 const parts = room.name.split(':');
                                                                 if (parts.length >= 3) {
                                                                     const ids = parts.slice(2).map((id) => parseInt(id, 10));
-                                                                    return ids.includes(user.id) && ids.includes(me.id);
+                                                                    return ids.includes(friendUser.id) && ids.includes(currentUser.id);
                                                                 }
                                                             }
                                                             // participants 체크
                                                             if (room.participants && Array.isArray(room.participants)) {
-                                                                return room.participants.some((p) => p.id === user.id);
+                                                                return room.participants.some((p) => p.id === friendUser.id);
                                                             }
                                                             return false;
                                                         });
@@ -1413,7 +1414,7 @@ const FloatingChat = () => {
                                                             return;
                                                         }
                                                     }
-                                                    openDM(user.id);
+                                                    openDM(friendUser.id);
                                                 }
                                             }}
                                         >
@@ -1421,25 +1422,25 @@ const FloatingChat = () => {
                                                 <input
                                                     type="checkbox"
                                                     className="friend-checkbox"
-                                                    checked={selectedUserIds.has(user.id)}
-                                                    onChange={() => toggleUserSelection(user.id)}
+                                                    checked={selectedUserIds.has(friendUser.id)}
+                                                    onChange={() => toggleUserSelection(friendUser.id)}
                                                     onClick={(event) => event.stopPropagation()}
                                                 />
                                             )}
-                                            <div className={`chat-list-avatar ${user.is_online ? 'online' : ''}`}>
-                                                {(user.name || user.username || '?')[0]}
+                                            <div className={`chat-list-avatar ${friendUser.is_online ? 'online' : ''}`}>
+                                                {(friendUser.name || friendUser.username || '?')[0]}
                                             </div>
                                             <div className="chat-list-content">
                                                 <div className="chat-list-top">
                                                     <span className="chat-list-name">
-                                                        {user.name || user.username}
+                                                        {friendUser.name || friendUser.username}
                                                         {hasExistingRoom && (
                                                             <span className="has-room-badge" title="최근 대화 있음">💬</span>
                                                         )}
                                                     </span>
-                                                    <span className="chat-list-time">{user.is_online ? '온라인' : ''}</span>
+                                                    <span className="chat-list-time">{friendUser.is_online ? '온라인' : ''}</span>
                                                 </div>
-                                                <div className="chat-list-preview">{user.department || user.role || '의료진'}</div>
+                                                <div className="chat-list-preview">{friendUser.department || friendUser.role || '의료진'}</div>
                                             </div>
                                         </div>
                                     );
