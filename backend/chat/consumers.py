@@ -528,14 +528,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def message_read_status(self, event):
         """읽음 상태 변경 알림"""
+        data = {
+            "user_id": event["user_id"],
+            "room_id": event["room_id"],
+        }
+        # message_id가 있으면 포함
+        if "message_id" in event:
+            data["message_id"] = event["message_id"]
+        
         await self.send(
             text_data=json.dumps(
                 {
                     "type": "message_read_status",
-                    "data": {
-                        "user_id": event["user_id"],
-                        "room_id": event["room_id"],
-                    },
+                    "data": data,
                 }
             )
         )

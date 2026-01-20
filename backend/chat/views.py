@@ -518,16 +518,34 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 "last_read_at": timezone.now(),
             },
         )
+        # 읽음 처리 전에 읽지 않은 메시지 ID 목록 가져오기 (브로드캐스트용)
+        unread_notifications = Notification.objects.filter(
+            user=request.user, room=room, is_read=False
+        ).select_related('message').values_list('message_id', flat=True)
+        unread_message_ids = list(unread_notifications)
+        
         updated_count = Notification.objects.filter(
             user=request.user, room=room, is_read=False
         ).update(is_read=True)
         
-        # WebSocket 브로드캐스트
+        # WebSocket 브로드캐스트 (읽음 처리된 메시지 ID 목록 포함)
         if updated_count > 0:
             channel_layer = get_channel_layer()
             if channel_layer:
                 try:
                     group_name = f"chat_{room.name.replace(':', '_')}"
+                    # 각 메시지별로 읽음 상태 이벤트 전송
+                    for message_id in unread_message_ids:
+                        async_to_sync(channel_layer.group_send)(
+                            group_name,
+                            {
+                                "type": "message_read_status",
+                                "user_id": request.user.id,
+                                "room_id": room.id,
+                                "message_id": message_id,
+                            },
+                        )
+                    # 전체 읽음 상태도 브로드캐스트 (fallback)
                     async_to_sync(channel_layer.group_send)(
                         group_name,
                         {
@@ -536,8 +554,10 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                             "room_id": room.id,
                         },
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"WebSocket 브로드캐스트 실패: {e}")
         
         return Response({"detail": "Marked as read", "updated_count": updated_count})
     

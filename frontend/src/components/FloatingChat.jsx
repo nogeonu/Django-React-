@@ -400,18 +400,30 @@ const FloatingChat = () => {
     const refreshReadStatusFromAPI = async (roomId) => {
         if (!roomId) return;
         try {
+            console.log('읽음 상태 API 갱신 시작:', roomId);
             const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=0`), {
                 credentials: 'include',
             });
-            if (!res.ok) return;
+            if (!res.ok) {
+                console.error('읽음 상태 API 갱신 실패:', res.status);
+                return;
+            }
             const messagesData = await res.json();
             const messageMap = new Map(messagesData.map((msg) => [String(msg.id), msg]));
 
-            setMessages((prev) => prev.map((msg) => {
-                const updated = messageMap.get(String(msg.id));
-                if (!updated) return msg;
-                return { ...msg, unread_count: updated.unread_count };
-            }));
+            setMessages((prev) => {
+                const updated = prev.map((msg) => {
+                    const updatedMsg = messageMap.get(String(msg.id));
+                    if (!updatedMsg) return msg;
+                    // unread_count가 변경되었는지 확인
+                    if (msg.unread_count !== updatedMsg.unread_count) {
+                        console.log('메시지 읽음 상태 갱신:', msg.id, msg.unread_count, '->', updatedMsg.unread_count);
+                    }
+                    return { ...msg, unread_count: updatedMsg.unread_count };
+                });
+                return updated;
+            });
+            console.log('읽음 상태 API 갱신 완료');
         } catch (err) {
             console.error('읽음 상태 갱신 실패:', err);
         }
@@ -961,15 +973,15 @@ const FloatingChat = () => {
                 const roomId = data.data.room_id;
                 const me = currentUserRef.current;
                 
-                console.log('읽음 상태 업데이트:', { readUserId, messageId, roomId, myId: me?.id });
+                console.log('읽음 상태 업데이트 이벤트 수신:', { readUserId, messageId, roomId, myId: me?.id, currentRoomId: currentRoomRef.current?.id });
                 
-                // 내가 보낸 메시지를 상대방이 읽은 경우에만 업데이트 (카카오톡 방식)
-                if (roomId && currentRoomRef.current?.id === roomId) {
+                // 현재 채팅방이 열려있고, 내가 보낸 메시지를 상대방이 읽은 경우에만 업데이트
+                if (roomId && currentRoomRef.current?.id === roomId && me) {
                     // 특정 메시지 ID가 있으면 해당 메시지만 업데이트
                     if (messageId) {
                         setMessages((prev) => {
                             const updated = prev.map((msg) => {
-                                if (msg.id === messageId && msg.sender?.id === me?.id) {
+                                if (msg.id === messageId && msg.sender?.id === me.id) {
                                     // 내가 보낸 메시지의 unread_count 감소
                                     const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
                                     console.log('메시지 읽음 상태 업데이트 (실시간):', messageId, msg.unread_count, '->', newUnreadCount);
@@ -980,8 +992,8 @@ const FloatingChat = () => {
                             return updated;
                         });
                     } else {
-                        // messageId가 없으면 전체 메시지 읽음 상태 갱신
-                        console.log('전체 메시지 읽음 상태 갱신 (room_id 기반)');
+                        // messageId가 없으면 즉시 API로 최신 읽음 상태 가져오기
+                        console.log('전체 메시지 읽음 상태 갱신 (실시간)');
                         refreshReadStatusFromAPI(roomId);
                     }
                 }
