@@ -12,7 +12,7 @@
 | | | ⚠️ **같은 데이터베이스 공유**: `hospital_db` (MySQL) | | |
 | | | ⚠️ **예약 연동**: Flutter 챗봇에서 예약 생성 시 Django 프로젝트에도 반영 | | |
 | **8002** | FastAPI | 약물 검색 및 상호작용 검사 | ❌ 내부만 (Nginx 프록시) | ✅ 실행 중 |
-| **5002** | Flask ML Service | 폐암 ML 서비스 | ❌ 내부만 | ✅ 실행 중 |
+| **5002** | Flask ML Service | 폐암 ML 서비스 + pCR 예측 (유전자 예측) | ❌ 내부만 | ✅ 실행 중 |
 | **5006** | Mosec | MRI 세그멘테이션 | ❌ 내부만 | ✅ 실행 중 |
 | **5007** | Mosec | 맘모그래피 분석 | ❌ 내부만 | ✅ 실행 중 |
 | **5008** | Mosec | 병리 이미지 분석 | ❌ 내부만 | ✅ 실행 중 |
@@ -57,7 +57,7 @@ sudo systemctl status <service-name>
 - `nginx.service` - 웹 서버
 - `gunicorn.service` - Django 백엔드
 - `drug-api-service.service` - FastAPI 약물 검색
-- `ml-service.service` - Flask ML Service
+- `ml-service.service` - Flask ML Service (폐암 + pCR 예측)
 - `segmentation-mosec.service` - MRI 세그멘테이션 (포트 5006)
 - `mammography-mosec.service` - 맘모그래피 (포트 5007)
 - `pathology-mosec.service` - 병리 이미지 (포트 5008)
