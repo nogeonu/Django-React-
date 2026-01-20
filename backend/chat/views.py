@@ -189,13 +189,15 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     throttle_classes = [ScopedRateThrottle]
 
     def get_throttles(self):
+        # throttle scope 설정 (settings.py에 DEFAULT_THROTTLE_RATES가 정의되어 있어야 함)
         if self.action in {"messages", "messages_cursor", "messages_around"}:
             self.throttle_scope = "chat_messages"
         elif self.action == "search_messages":
             self.throttle_scope = "chat_search"
         else:
             self.throttle_scope = None
-        return super().get_throttles()
+        throttles = super().get_throttles()
+        return throttles
 
     def get_queryset(self):
         user = self.request.user
