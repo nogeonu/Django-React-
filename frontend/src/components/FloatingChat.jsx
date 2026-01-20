@@ -794,24 +794,25 @@ const FloatingChat = () => {
         };
 
         socket.onclose = (event) => {
-            console.log('WebSocket 연결 종료:', event.code, event.reason, 'wasClean:', event.wasClean);
-            if (event.code !== 1000) {  // 정상 종료가 아닌 경우
-                setHeaderStatus('연결 종료');
-            }
-            // 비정상 종료 시 재연결 시도
-            if (event.code !== 1000 && currentRoomRef.current?.name) {
-                const roomName = currentRoomRef.current.name;
-                setTimeout(() => {
-                    if (currentRoomRef.current?.name === roomName) {
-                        console.log('WebSocket 재연결 시도...');
-                        // 재연결을 위해 currentRoom을 다시 설정
-                        const room = currentRoomRef.current;
-                        setCurrentRoom(null);
-                        setTimeout(() => {
-                            setCurrentRoom(room);
-                        }, 100);
-                    }
-                }, 3000);
+            console.log('WebSocket 연결 종료:', event.code, event.reason, 'wasClean:', event.wasClean, 'URL:', wsUrl);
+            // cleanup에서 호출된 경우가 아니고, 현재 방이 여전히 같은 경우에만 상태 업데이트
+            if (socketRef.current === socket && currentRoomRef.current?.name === currentRoom.name) {
+                if (event.code !== 1000) {  // 정상 종료가 아닌 경우
+                    setHeaderStatus('연결 종료');
+                    // 비정상 종료 시 재연결 시도
+                    const roomName = currentRoomRef.current.name;
+                    setTimeout(() => {
+                        if (currentRoomRef.current?.name === roomName && !socketRef.current) {
+                            console.log('WebSocket 재연결 시도...');
+                            // 재연결을 위해 currentRoom을 다시 설정
+                            const room = currentRoomRef.current;
+                            setCurrentRoom(null);
+                            setTimeout(() => {
+                                setCurrentRoom(room);
+                            }, 100);
+                        }
+                    }, 3000);
+                }
             }
         };
 
