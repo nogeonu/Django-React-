@@ -82,7 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     patientUser,
     setPatientUser,
     login: async ({ username, password }) => {
-      const u = await loginApi({ username, password });
+      await loginApi({ username, password });
+      const u = await meApi();
       setUser(u);
       return u;
     },
