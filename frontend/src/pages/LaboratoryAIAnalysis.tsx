@@ -245,13 +245,31 @@ export default function LaboratoryAIAnalysis() {
       const result = await uploadRNATestCsvApi(formData);
       
       // 업로드 결과 확인
-      if (result.errors && result.errors.length > 0) {
+      if (!result.success || (result.errors && result.errors.length > 0 && result.created === 0 && result.updated === 0)) {
+        const errorMessage = result.error || result.errors?.[0] || '알 수 없는 오류';
+        toast({
+          title: '업로드 실패',
+          description: `오류: ${errorMessage}\n${result.created || 0}개 생성, ${result.updated || 0}개 업데이트`,
+          variant: 'destructive',
+        });
+        console.error('Upload failed:', result);
+        return;
+      } else if (result.errors && result.errors.length > 0) {
+        // 일부 오류가 있지만 일부는 성공한 경우
         toast({
           title: '업로드 완료 (일부 오류)',
           description: `${result.created}개 생성, ${result.updated}개 업데이트, ${result.errors.length}개 오류`,
           variant: 'destructive',
         });
-        console.error('Upload errors:', result.errors);
+        console.warn('Upload completed with errors:', result.errors);
+      } else if (result.created === 0 && result.updated === 0) {
+        toast({
+          title: '업로드 실패',
+          description: '데이터가 생성되거나 업데이트되지 않았습니다. CSV 파일 형식과 patient_id를 확인해주세요.',
+          variant: 'destructive',
+        });
+        console.error('No data created or updated:', result);
+        return;
       } else {
         toast({
           title: 'RNA 업로드 성공',
@@ -259,29 +277,32 @@ export default function LaboratoryAIAnalysis() {
         });
       }
       
-      // 업로드 후 잠시 대기 후 데이터 다시 로드
-      setTimeout(async () => {
-        console.log('Reloading RNA tests after upload, patientId:', patientId);
-        await loadRNATestsForPatient(patientId);
-        
-        // 데이터가 로드되면 분석 탭으로 이동
-        const tests = await getRNATestsApi({ search: patientId });
-        const testList = tests.results || tests || [];
-        console.log('Tests found after upload:', testList.length, testList);
-        
-        if (testList.length > 0) {
-          setRNATests(testList);
-          setSelectedRNATest(testList[0]);
-          setActiveTab('analysis');
-        } else {
-          // 데이터가 없으면 에러 메시지 표시
-          toast({
-            title: '데이터 로드 실패',
-            description: `업로드는 성공했지만 RNA 테스트 데이터를 찾을 수 없습니다. patientId: ${patientId}`,
-            variant: 'destructive',
-          });
-        }
-      }, 1000);
+      // 업로드 성공 시에만 데이터 다시 로드
+      if (result.created > 0 || result.updated > 0) {
+        // 업로드 후 잠시 대기 후 데이터 다시 로드
+        setTimeout(async () => {
+          console.log('Reloading RNA tests after upload, patientId:', patientId);
+          await loadRNATestsForPatient(patientId);
+          
+          // 데이터가 로드되면 분석 탭으로 이동
+          const tests = await getRNATestsApi({ search: patientId });
+          const testList = tests.results || tests || [];
+          console.log('Tests found after upload:', testList.length, testList);
+          
+          if (testList.length > 0) {
+            setRNATests(testList);
+            setSelectedRNATest(testList[0]);
+            setActiveTab('analysis');
+          } else {
+            // 데이터가 없으면 에러 메시지 표시
+            toast({
+              title: '데이터 로드 실패',
+              description: `업로드는 성공했지만 RNA 테스트 데이터를 찾을 수 없습니다. patientId: ${patientId}. 잠시 후 다시 시도해주세요.`,
+              variant: 'destructive',
+            });
+          }
+        }, 1500);
+      }
     } catch (error: any) {
       toast({
         title: '업로드 실패',

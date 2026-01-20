@@ -208,8 +208,12 @@ class RNATestViewSet(viewsets.ModelViewSet):
                                   'TP53', 'PTEN', 'MYC']
                     
                     for gene in gene_names:
-                        value = row.get(gene, '')
-                        gene_data[gene] = float(value) if value else None
+                        value = row.get(gene, '').strip() if row.get(gene) else ''
+                        try:
+                            gene_data[gene] = float(value) if value else None
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Gene {gene} 값 변환 실패: {value}, 오류: {e}")
+                            gene_data[gene] = None
                     
                     rna_test, created = RNATest.objects.update_or_create(
                         accession_number=accession_number,
@@ -227,7 +231,10 @@ class RNATestViewSet(viewsets.ModelViewSet):
                         updated_count += 1
                         
                 except Exception as e:
-                    errors.append(f"행 처리 오류: {str(e)} - {row}")
+                    error_msg = f"행 처리 오류: {str(e)}"
+                    if hasattr(e, '__cause__') and e.__cause__:
+                        error_msg += f" (원인: {str(e.__cause__)})"
+                    errors.append(f"{error_msg} - 행 데이터: {dict(row)}")
                     logger.error(f"RNA test upload error: {e}", exc_info=True)
             
             return Response({
