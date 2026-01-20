@@ -67,6 +67,36 @@ const GENE_NAMES = [
   'TP53', 'PTEN', 'MYC'
 ];
 
+const GENE_PATHWAYS: Record<string, string> = {
+  'CXCL13': '면역 (Immune)',
+  'CD8A': '면역 (Immune)',
+  'CCR7': '면역 (Immune)',
+  'C1QA': '면역 (Immune)',
+  'LY9': '면역 (Immune)',
+  'CXCL10': '면역 (Immune)',
+  'CXCL9': '면역 (Immune)',
+  'STAT1': '면역 (Immune)',
+  'CCND1': '세포증식 (Proliferation)',
+  'MKI67': '세포증식 (Proliferation)',
+  'TOP2A': '세포증식 (Proliferation)',
+  'BRCA1': 'DNA 복구 (DNA Repair)',
+  'RAD51': 'DNA 복구 (DNA Repair)',
+  'PRKDC': 'DNA 복구 (DNA Repair)',
+  'POLD3': 'DNA 복구 (DNA Repair)',
+  'POLB': 'DNA 복구 (DNA Repair)',
+  'LIG1': 'DNA 복구 (DNA Repair)',
+  'ERBB2': 'HER2 수용체',
+  'ESR1': '호르몬 수용체 (ER/PR)',
+  'PGR': '호르몬 수용체 (ER/PR)',
+  'ARAF': '신호전달 (AKT/mTOR)',
+  'PIK3CA': '신호전달 (AKT/mTOR)',
+  'AKT1': '신호전달 (AKT/mTOR)',
+  'MTOR': '신호전달 (AKT/mTOR)',
+  'TP53': '신호전달 (AKT/mTOR)',
+  'PTEN': '신호전달 (AKT/mTOR)',
+  'MYC': '신호전달 (AKT/mTOR)',
+};
+
 export default function LaboratoryDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('pending');
@@ -521,18 +551,21 @@ export default function LaboratoryDashboard() {
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">유전자명</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">발현값</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pathway</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {GENE_NAMES.map((gene) => {
                           const test = selectedRNATest || rnaTests[0];
                           const value = test?.[gene];
+                          const pathway = GENE_PATHWAYS[gene] || '기타';
                           return (
                             <tr key={gene} className="hover:bg-gray-50">
                               <td className="px-4 py-2 font-mono text-sm font-medium text-purple-700">{gene}</td>
                               <td className="px-4 py-2 text-right font-semibold text-gray-900">
                                 {value !== null && value !== undefined ? value.toFixed(3) : 'N/A'}
                               </td>
+                              <td className="px-4 py-2 text-sm text-gray-600">{pathway}</td>
                             </tr>
                           );
                         })}
