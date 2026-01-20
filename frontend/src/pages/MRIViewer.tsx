@@ -467,10 +467,40 @@ export default function MRIViewer() {
         }, () => resolve());
       } else if (entry.isDirectory) {
         const dirReader = (entry as FileSystemDirectoryEntry).createReader();
-        dirReader.readEntries((entries: FileSystemEntry[]) => {
-          const promises = entries.map(e => collectFilesFromEntry(e, files));
-          Promise.all(promises).then(() => resolve());
-        });
+        
+        // readEntries는 한 번에 모든 엔트리를 반환하지 않을 수 있으므로
+        // 빈 배열이 반환될 때까지 반복 호출해야 함
+        const readAllEntries = (): Promise<void> => {
+          return new Promise((readResolve) => {
+            const allEntries: FileSystemEntry[] = [];
+            
+            const readBatch = () => {
+              dirReader.readEntries((entries: FileSystemEntry[]) => {
+                if (entries.length === 0) {
+                  // 더 이상 엔트리가 없으면 모든 엔트리를 처리
+                  const promises = allEntries.map(e => collectFilesFromEntry(e, files));
+                  Promise.all(promises).then(() => readResolve());
+                } else {
+                  // 엔트리를 수집하고 다음 배치 읽기
+                  allEntries.push(...entries);
+                  readBatch(); // 재귀적으로 다음 배치 읽기
+                }
+              }, () => {
+                // 에러 발생 시에도 수집된 엔트리 처리
+                if (allEntries.length > 0) {
+                  const promises = allEntries.map(e => collectFilesFromEntry(e, files));
+                  Promise.all(promises).then(() => readResolve());
+                } else {
+                  readResolve();
+                }
+              });
+            };
+            
+            readBatch();
+          });
+        };
+        
+        readAllEntries().then(() => resolve());
       } else {
         resolve();
       }
