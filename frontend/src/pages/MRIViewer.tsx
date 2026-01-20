@@ -35,6 +35,30 @@ import { useAuth } from "@/context/AuthContext";
 import { getPatientsApi } from "@/lib/api";
 import CornerstoneViewer from "@/components/CornerstoneViewer";
 
+// FileSystemEntry 타입 정의 (브라우저 API)
+interface FileSystemEntry {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  fullPath: string;
+}
+
+interface FileSystemFileEntry extends FileSystemEntry {
+  isFile: true;
+  isDirectory: false;
+  file(callback: (file: File) => void, errorCallback?: (error: Error) => void): void;
+}
+
+interface FileSystemDirectoryEntry extends FileSystemEntry {
+  isFile: false;
+  isDirectory: true;
+  createReader(): FileSystemDirectoryReader;
+}
+
+interface FileSystemDirectoryReader {
+  readEntries(callback: (entries: FileSystemEntry[]) => void, errorCallback?: (error: Error) => void): void;
+}
+
 
 interface SystemPatient {
   id: number;
@@ -427,6 +451,32 @@ export default function MRIViewer() {
     setIsDragging(false);
   };
 
+  // 폴더 내의 모든 DICOM/NIfTI 파일을 재귀적으로 수집하는 헬퍼 함수
+  const collectFilesFromEntry = async (entry: FileSystemEntry, files: File[]): Promise<void> => {
+    return new Promise((resolve) => {
+      if (entry.isFile) {
+        (entry as FileSystemFileEntry).file((file: File) => {
+          // DICOM 또는 NIfTI 파일만 허용
+          if (file.name.endsWith('.dicom') ||
+            file.name.endsWith('.dcm') ||
+            file.name.endsWith('.nii') ||
+            file.name.endsWith('.nii.gz')) {
+            files.push(file);
+          }
+          resolve();
+        }, () => resolve());
+      } else if (entry.isDirectory) {
+        const dirReader = (entry as FileSystemDirectoryEntry).createReader();
+        dirReader.readEntries((entries: FileSystemEntry[]) => {
+          const promises = entries.map(e => collectFilesFromEntry(e, files));
+          Promise.all(promises).then(() => resolve());
+        });
+      } else {
+        resolve();
+      }
+    });
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -444,17 +494,38 @@ export default function MRIViewer() {
     const items = Array.from(e.dataTransfer.items);
     const files: File[] = [];
 
-    // 드롭된 파일 수집
+    // 드롭된 파일/폴더 수집
     for (const item of items) {
       if (item.kind === 'file') {
-        const file = item.getAsFile();
-        if (file) {
-          // DICOM 또는 NIfTI 파일만 허용
-          if (file.name.endsWith('.dicom') ||
-            file.name.endsWith('.dcm') ||
-            file.name.endsWith('.nii') ||
-            file.name.endsWith('.nii.gz')) {
-            files.push(file);
+        // FileSystemEntry API 사용 (폴더 지원)
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          if (entry.isFile) {
+            // 개별 파일
+            const file = item.getAsFile();
+            if (file) {
+              // DICOM 또는 NIfTI 파일만 허용
+              if (file.name.endsWith('.dicom') ||
+                file.name.endsWith('.dcm') ||
+                file.name.endsWith('.nii') ||
+                file.name.endsWith('.nii.gz')) {
+                files.push(file);
+              }
+            }
+          } else if (entry.isDirectory) {
+            // 폴더인 경우: 내부의 모든 DICOM/NIfTI 파일 수집
+            await collectFilesFromEntry(entry, files);
+          }
+        } else {
+          // FileSystemEntry를 지원하지 않는 경우: 기존 방식 사용
+          const file = item.getAsFile();
+          if (file) {
+            if (file.name.endsWith('.dicom') ||
+              file.name.endsWith('.dcm') ||
+              file.name.endsWith('.nii') ||
+              file.name.endsWith('.nii.gz')) {
+              files.push(file);
+            }
           }
         }
       }
@@ -463,10 +534,18 @@ export default function MRIViewer() {
     if (files.length === 0) {
       toast({
         title: "오류",
-        description: "DICOM 또는 NIfTI 파일을 드롭해주세요.",
+        description: "DICOM 또는 NIfTI 파일을 드롭해주세요. (폴더 업로드 지원)",
         variant: "destructive"
       });
       return;
+    }
+
+    // 파일이 많으면 알림
+    if (files.length > 100) {
+      toast({
+        title: "업로드 준비",
+        description: `${files.length}개의 파일을 업로드합니다. 시간이 걸릴 수 있습니다...`,
+      });
     }
 
     await uploadFiles(files);
