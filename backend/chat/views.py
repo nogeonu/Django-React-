@@ -90,6 +90,8 @@ def filter_dm_rooms_for_user(queryset, user):
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSummarySerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
+
     def get_queryset(self):
         # DB에 department 컬럼이 있지만 모델에는 없는 경우, extra()로 가져오기
         return User.objects.all().select_related("presence").extra(
@@ -106,6 +108,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_serializer_context(self):
         return {"request": self.request}
@@ -175,6 +178,7 @@ class ChatAttachmentViewSet(viewsets.GenericViewSet):
 class ChatRoomViewSet(viewsets.ModelViewSet):
     serializer_class = ChatRoomSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
     throttle_classes = [ScopedRateThrottle]
 
     def get_throttles(self):

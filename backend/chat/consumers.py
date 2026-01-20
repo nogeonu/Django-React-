@@ -201,6 +201,8 @@ def mark_room_read(user, room, timestamp=None):
 
 @database_sync_to_async
 def mark_user_online(user):
+    # USE_TZ=False인 경우 timezone.now()는 이미 naive임. 
+    # 하지만 명확히 하기 위해 settings.USE_TZ 확인 로직 추가 가능 (현재는 기본 사용)
     now = timezone.now()
     UserPresence.objects.get_or_create(user=user)
     UserPresence.objects.filter(user=user).update(

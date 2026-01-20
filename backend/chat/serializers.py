@@ -42,7 +42,10 @@ class UserSummarySerializer(serializers.ModelSerializer):
         last_seen = getattr(presence, "last_seen_at", None)
         if not last_seen:
             return None
-        return timezone.localtime(last_seen).isoformat()
+        # USE_TZ=False일 때 timezone.localtime()은 에러를 유발할 수 있으므로 isoformat()만 사용
+        if settings.USE_TZ:
+            return timezone.localtime(last_seen).isoformat()
+        return last_seen.isoformat()
 
     def get_department(self, obj):
         # 1. DepartmentMembership 테이블에서 가져오기
