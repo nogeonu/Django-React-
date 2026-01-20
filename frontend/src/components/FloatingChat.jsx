@@ -728,7 +728,7 @@ const FloatingChat = () => {
         if (!currentRoom?.name) return;
 
         const wsUrl = `${WS_BASE_URL}/ws/chat/${currentRoom.name}/`;
-        console.log('WebSocket 연결 시도:', wsUrl);
+        console.log('WebSocket 연결 시도:', wsUrl, 'WS_BASE_URL:', WS_BASE_URL);
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
 
@@ -789,13 +789,15 @@ const FloatingChat = () => {
         };
 
         socket.onerror = (error) => {
-            console.error('WebSocket 오류:', error);
+            console.error('WebSocket 오류:', error, 'URL:', wsUrl);
             setHeaderStatus('연결 오류');
         };
 
         socket.onclose = (event) => {
-            console.log('WebSocket 연결 종료:', event.code, event.reason);
-            setHeaderStatus('연결 종료');
+            console.log('WebSocket 연결 종료:', event.code, event.reason, 'wasClean:', event.wasClean);
+            if (event.code !== 1000) {  // 정상 종료가 아닌 경우
+                setHeaderStatus('연결 종료');
+            }
             // 비정상 종료 시 재연결 시도
             if (event.code !== 1000 && currentRoomRef.current?.name) {
                 const roomName = currentRoomRef.current.name;
