@@ -209,7 +209,11 @@ def postprocess_prediction(
                 else:
                     logger.error(f"  - ❌ spatial_shape 없음 - 크기 복원 불가")
         except Exception as e:
-            logger.error(f"  - ❌ Invertd 예외 발생: {e}")
+            import traceback
+            error_msg = str(e)
+            error_traceback = traceback.format_exc()
+            logger.error(f"  - ❌ Invertd 예외 발생: {error_msg}")
+            logger.debug(f"  - 예외 상세:\n{error_traceback}")
             logger.info(f"  - Fallback으로 수동 복원 시도...")
             # 조원님 제안: spatial_shape를 사용해서 정확한 크기로 리샘플링
             if original_meta_dict is not None and 'spatial_shape' in original_meta_dict:
@@ -358,17 +362,22 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # We need [D, H, W] for highdicom (Frames=D, Rows=H, Cols=W)
     
     logger.info(f"📦 DICOM SEG 생성 시작")
-    logger.debug(f"  - Input mask shape: {mask.shape}")
-    logger.debug(f"  - Source images count: {len(source_images)}")
+    logger.info(f"  - Input mask shape: {mask.shape}")
+    logger.info(f"  - Source images count: {len(source_images)}")
     
     # Transpose to [D, H, W]
     mask_frames = mask.transpose(2, 0, 1)
-    logger.debug(f"  - Transposed mask shape: {mask_frames.shape}")
+    logger.info(f"  - Transposed mask shape: {mask_frames.shape}")
+    logger.info(f"  - mask_frames dtype: {mask_frames.dtype}")
+    logger.info(f"  - mask_frames min/max: {mask_frames.min()}/{mask_frames.max()}")
     
     # Verify dimensions match
     # Invertd가 정상 작동했다면 차원이 일치해야 함
     # 불일치 시 명확한 에러 메시지로 문제 알림 (안전장치)
     if mask_frames.shape[0] != len(source_images):
+        logger.error(f"  - ❌ 차원 불일치 감지!")
+        logger.error(f"    mask_frames.shape[0] = {mask_frames.shape[0]}")
+        logger.error(f"    len(source_images) = {len(source_images)}")
         raise ValueError(
             f"Dimension mismatch: mask has {mask_frames.shape[0]} frames "
             f"but source_images has {len(source_images)} images. "
@@ -376,6 +385,8 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
             f"This indicates Invertd failed to restore original spacing. "
             f"Please check restore_original_spacing=True and Invertd transform."
         )
+    
+    logger.info(f"  - ✅ 차원 일치 확인: {mask_frames.shape[0]} frames = {len(source_images)} images")
     
     # Ensure boolean type for BINARY segmentation
     mask_frames = mask_frames > 0
@@ -397,6 +408,18 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     )
     
     # 4. Create Segmentation Object
+    logger.info(f"🔨 highdicom.Segmentation 객체 생성 중...")
+    logger.info(f"  - pixel_array shape: {mask_frames.shape}")
+    logger.info(f"  - pixel_array dtype: {mask_frames.dtype}")
+    logger.info(f"  - source_images 개수: {len(source_images)}")
+    
+    # 첫 번째와 마지막 source_image의 ImagePositionPatient 확인
+    if len(source_images) > 0:
+        first_pos = source_images[0].ImagePositionPatient
+        last_pos = source_images[-1].ImagePositionPatient
+        logger.info(f"  - 첫 번째 슬라이스 ImagePositionPatient: {first_pos}")
+        logger.info(f"  - 마지막 슬라이스 ImagePositionPatient: {last_pos}")
+    
     seg_dataset = Segmentation(
         source_images=source_images,
         pixel_array=mask_frames,
@@ -412,7 +435,15 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         device_serial_number="123456"
     )
     
+    # 생성된 DICOM SEG의 NumberOfFrames 확인
+    num_frames_in_seg = getattr(seg_dataset, 'NumberOfFrames', None)
+    logger.info(f"  - 생성된 DICOM SEG의 NumberOfFrames: {num_frames_in_seg}")
+    
     # 5. Save
     logger.info(f"💾 DICOM SEG 파일 저장 중: {output_path}")
     seg_dataset.save_as(output_path)
     logger.info(f"✅ DICOM SEG 저장 완료: {output_path}")
+    
+    # 저장 후 파일 크기 확인
+    file_size = Path(output_path).stat().st_size
+    logger.info(f"  - 저장된 파일 크기: {file_size / 1024 / 1024:.2f} MB")
