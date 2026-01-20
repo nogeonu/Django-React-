@@ -542,11 +542,18 @@ const FloatingChat = () => {
     };
 
     const sendMessageRef = useRef(false); // 중복 전송 방지 플래그
+    const isComposingRef = useRef(false); // 한글 입력 조합 중 플래그
 
     const sendMessage = () => {
         // 중복 전송 방지: 이미 전송 중이면 무시
         if (sendMessageRef.current) {
             console.log('메시지 전송 중복 방지');
+            return;
+        }
+
+        // 한글 입력 조합 중이면 전송하지 않음
+        if (isComposingRef.current) {
+            console.log('한글 입력 조합 중, 전송 대기');
             return;
         }
 
@@ -569,11 +576,12 @@ const FloatingChat = () => {
         // 전송 중 플래그 설정
         sendMessageRef.current = true;
         
-        // 입력 필드를 먼저 비우기
-        setMessageInput('');
+        // 입력 필드를 먼저 완전히 비우기 (한글 조합 문제 방지)
         if (messageInputRef.current) {
+            messageInputRef.current.value = ''; // DOM 직접 조작으로 확실히 비우기
             messageInputRef.current.style.height = 'auto';
         }
+        setMessageInput(''); // React state도 비우기
 
         try {
             const payload = {
@@ -917,14 +925,22 @@ const FloatingChat = () => {
                 if (!isDMRoom || readUserId !== me?.id) {
                     // 특정 메시지의 읽음 상태 업데이트
                     if (messageId) {
-                        setMessages((prev) => prev.map((msg) => {
-                            if (msg.id === messageId) {
-                                const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
-                                console.log('메시지 읽음 상태 업데이트:', messageId, msg.unread_count, '->', newUnreadCount);
-                                return { ...msg, unread_count: newUnreadCount };
+                        setMessages((prev) => {
+                            const updated = prev.map((msg) => {
+                                if (msg.id === messageId) {
+                                    const newUnreadCount = Math.max(0, (msg.unread_count || 1) - 1);
+                                    console.log('메시지 읽음 상태 업데이트 (실시간):', messageId, msg.unread_count, '->', newUnreadCount);
+                                    return { ...msg, unread_count: newUnreadCount };
+                                }
+                                return msg;
+                            });
+                            // 상태가 실제로 변경되었는지 확인
+                            const changed = updated.some((msg, idx) => msg.id === messageId && msg.unread_count !== prev[idx]?.unread_count);
+                            if (changed) {
+                                console.log('읽음 상태 실시간 업데이트 완료');
                             }
-                            return msg;
-                        }));
+                            return updated;
+                        });
                     } else {
                         // 전체 메시지 읽음 상태 갱신
                         console.log('전체 메시지 읽음 상태 갱신');
