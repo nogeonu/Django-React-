@@ -817,9 +817,14 @@ const FloatingChat = () => {
         };
 
         return () => {
-            socket.onclose = null;
-            socket.close();
             if (socketRef.current === socket) {
+                socket.onopen = null;
+                socket.onmessage = null;
+                socket.onerror = null;
+                socket.onclose = null;
+                if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+                    socket.close();
+                }
                 socketRef.current = null;
             }
         };
