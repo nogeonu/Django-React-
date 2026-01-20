@@ -405,7 +405,8 @@ const FloatingChat = () => {
 
         const nextRoom = roomData || { id: roomId, name: roomName };
         setCurrentRoom(nextRoom);
-        setMessages([]);
+        // 메시지는 useEffect에서 WebSocket 연결 후 message_history로 로드됨
+        // 여기서는 초기화만 하고, 실제 로드는 WebSocket 연결 후 서버에서 받음
         pendingMessagesRef.current = [];
         isHistoryLoadingRef.current = false;
 
@@ -549,12 +550,13 @@ const FloatingChat = () => {
                 content,
             };
             console.log('메시지 전송:', payload);
-            socket.send(JSON.stringify(payload));
-
+            // 입력 필드 먼저 비우기 (중복 전송 방지)
             setMessageInput('');
             if (messageInputRef.current) {
                 messageInputRef.current.style.height = 'auto';
             }
+            // 서버로 전송 (서버 응답으로 chat_message 이벤트가 오면 그때 표시됨)
+            socket.send(JSON.stringify(payload));
         } catch (err) {
             console.error('메시지 전송 실패:', err);
             alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
@@ -703,24 +705,31 @@ const FloatingChat = () => {
     }, []);
 
     const loadMessagesFromAPI = async (roomId) => {
+        if (!roomId) return;
+        
         isHistoryLoadingRef.current = true;
+        const currentPending = [...pendingMessagesRef.current];
         pendingMessagesRef.current = [];
 
         try {
             const res = await fetch(buildMessengerApiUrl(`/api/chat/rooms/${roomId}/messages/?limit=50&mark_read=1`), {
                 credentials: 'include',
             });
-            if (!res.ok) return;
+            if (!res.ok) {
+                console.error('메시지 로드 실패:', res.status);
+                return;
+            }
             const messagesData = await res.json();
             const baseMessages = messagesData || [];
             const existingIds = new Set(baseMessages.map((msg) => msg.id));
-            const pendingMessages = pendingMessagesRef.current.filter((msg) => !existingIds.has(msg.id));
+            // pending 메시지 중 중복되지 않은 것만 추가
+            const pendingMessages = currentPending.filter((msg) => !existingIds.has(msg.id));
             setMessages([...baseMessages, ...pendingMessages]);
+            console.log('메시지 로드 완료:', baseMessages.length, '개, pending:', pendingMessages.length);
         } catch (err) {
             console.error('메시지 로드 실패:', err);
         } finally {
             isHistoryLoadingRef.current = false;
-            pendingMessagesRef.current = [];
         }
     };
 
@@ -752,10 +761,16 @@ const FloatingChat = () => {
 
             if (data.type === 'message_history') {
                 const roomId = currentRoomRef.current?.id;
-                if (roomId) {
+                if (data.data?.messages) {
+                    // 서버에서 직접 메시지 목록을 받은 경우
+                    const historyMessages = data.data.messages || [];
+                    const existingIds = new Set(historyMessages.map((msg) => msg.id));
+                    const pendingMessages = pendingMessagesRef.current.filter((msg) => !existingIds.has(msg.id));
+                    setMessages([...historyMessages, ...pendingMessages]);
+                    console.log('메시지 히스토리 수신:', historyMessages.length, '개');
+                } else if (roomId) {
+                    // roomId가 있으면 API로 로드
                     loadMessagesFromAPI(roomId);
-                } else if (data.data?.messages) {
-                    setMessages(data.data.messages || []);
                 }
                 return;
             }
@@ -763,30 +778,46 @@ const FloatingChat = () => {
             if (data.type === 'chat_message') {
                 const message = data.data.message;
                 const me = currentUserRef.current;
+                
+                // 중복 메시지 체크 (ID로 확인)
+                setMessages((prev) => {
+                    if (prev.some((msg) => msg.id === message.id)) {
+                        console.log('중복 메시지 무시:', message.id);
+                        return prev;
+                    }
+                    return [...prev, message];
+                });
+
+                // 상대방 메시지인 경우 읽음 처리
                 if (me && message?.sender?.id !== me.id) {
                     setTimeout(() => {
                         const roomId = currentRoomRef.current?.id;
                         if (roomId) markRoomAsRead(roomId);
                     }, 500);
                 }
-
-                if (isHistoryLoadingRef.current) {
-                    pendingMessagesRef.current.push(message);
-                } else {
-                    setMessages((prev) => {
-                        if (prev.some((msg) => msg.id === message.id)) return prev;
-                        return [...prev, message];
-                    });
-                }
                 return;
             }
 
             if (data.type === 'message_read_status') {
                 const readUserId = data.data.user_id;
+                const messageId = data.data.message_id;
                 const isDMRoom = currentRoomRef.current?.name?.startsWith('case:dm:');
                 const me = currentUserRef.current;
+                
+                // DM 방이 아니거나, 상대방이 읽은 경우에만 업데이트
                 if (!isDMRoom || readUserId !== me?.id) {
-                    refreshReadStatusFromAPI(currentRoomRef.current?.id);
+                    // 특정 메시지의 읽음 상태 업데이트
+                    if (messageId) {
+                        setMessages((prev) => prev.map((msg) => {
+                            if (msg.id === messageId) {
+                                return { ...msg, unread_count: Math.max(0, (msg.unread_count || 1) - 1) };
+                            }
+                            return msg;
+                        }));
+                    } else {
+                        // 전체 메시지 읽음 상태 갱신
+                        refreshReadStatusFromAPI(currentRoomRef.current?.id);
+                    }
                 }
             }
         };
