@@ -80,6 +80,7 @@ def postprocess_prediction(
     
     # Restore to original spacing/orientation if requested
     if restore_original_spacing and preprocessed_data is not None:
+        logger.info("  Restoring to original spacing using Invertd...")
         from monai.transforms import Invertd, EnsureChannelFirstd, Compose
         from monai.data import MetaTensor
         
@@ -128,22 +129,14 @@ def postprocess_prediction(
             
             # restored is [C, H, W, D]
             binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
-            # print("Restored to original geometry using Invertd")
+            logger.info(f"  Restored mask shape: {binary_mask.shape}")
         except Exception as e:
-            print(f"Warning: Invertd failed ({e}). Falling back to manual spacing restoration.")
-            # Fallback to manual Spacing logic
-            if original_meta_dict is not None:
-                original_spacing = original_meta_dict.get('pixdim', None)
-                if original_spacing is not None:
-                    original_spacing = original_spacing[1:4]
-                    from monai.transforms import Spacing
-                    spacing_transform = Spacing(pixdim=original_spacing, mode="nearest")
-                    mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
-                    restored = spacing_transform(mask_tensor)
-                    binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+            logger.warning(f"  Invertd failed ({e}). Keeping inference resolution.")
+            # Keep original mask without restoration
 
     elif restore_original_spacing and original_meta_dict is not None:
         # Legacy fallback
+        logger.info("  Restoring to original spacing using manual Spacing transform...")
         from monai.transforms import Spacing
         original_spacing = original_meta_dict.get('pixdim', None)
         if original_spacing is not None:
@@ -152,6 +145,9 @@ def postprocess_prediction(
             mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).float()
             restored = spacing_transform(mask_tensor)
             binary_mask = restored.squeeze(0).numpy().astype(np.uint8)
+            logger.info(f"  Restored mask shape: {binary_mask.shape}")
+    else:
+        logger.info(f"  Keeping inference resolution: {binary_mask.shape}")
     
     return binary_mask
 
