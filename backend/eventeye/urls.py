@@ -24,6 +24,7 @@ def api_root(request):
             'mri_viewer': '/api/mri/',
             'ocs': '/api/ocs/',
             'chat': '/api/chat/',
+            'lis': '/api/lis/',
             'admin': '/admin/',
             'swagger': '/swagger/',
             'redoc': '/redoc/'
@@ -61,6 +62,7 @@ urlpatterns = [
     path('api/mri/', include('mri_viewer.urls')),
     path('api/ocs/', include('ocs.urls')),
     path('api/chat/', include('chatbot.urls')),
+    path('api/lis/', include('lis.urls')),
     # Auth endpoints
     path('api/auth/login', auth_views.login, name='login'),
     path('api/auth/me', auth_views.me, name='me'),
