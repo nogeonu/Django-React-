@@ -18,11 +18,12 @@ from .room_utils import dm_participant_ids, dm_participant_ids_from_case_key, pa
 
 
 def user_payload(user):
-    # 한국식 이름 형식: 성+이름 (예: "박철순")
+    # 한국식 이름 형식: 성+이름 (예: "박철순", "노건우")
     first_name = (getattr(user, 'first_name', '') or '').strip()
     last_name = (getattr(user, 'last_name', '') or '').strip()
     
     if last_name and first_name:
+        # "건우" + "노" -> "노건우" (성+이름)
         name = f"{last_name}{first_name}"
     elif last_name:
         name = last_name
@@ -33,7 +34,11 @@ def user_payload(user):
         if full_name:
             parts = full_name.strip().split()
             if len(parts) == 2:
+                # "건우 노" -> "노건우" (마지막이 성)
                 name = f"{parts[1]}{parts[0]}"
+            elif len(parts) > 2:
+                # 여러 단어가 있는 경우 마지막이 성
+                name = f"{parts[-1]}{''.join(parts[:-1])}"
             else:
                 name = full_name
         else:

@@ -24,13 +24,14 @@ class UserSummarySerializer(serializers.ModelSerializer):
         fields = ("id", "username", "name", "role", "department", "is_online", "last_seen_at")
 
     def get_name(self, obj):
-        # 한국식 이름 형식: 성+이름 (예: "박철순")
+        # 한국식 이름 형식: 성+이름 (예: "박철순", "노 건우")
         # DB에서 직접 first_name, last_name을 가져와서 조합
-        first_name = (obj.first_name or '').strip()
-        last_name = (obj.last_name or '').strip()
+        first_name = (getattr(obj, 'first_name', '') or '').strip()
+        last_name = (getattr(obj, 'last_name', '') or '').strip()
         
         # first_name과 last_name이 모두 있으면 "성+이름" 형식으로 조합
         if last_name and first_name:
+            # "건우" + "노" -> "노건우" (성+이름)
             return f"{last_name}{first_name}"
         elif last_name:
             return last_name
@@ -45,11 +46,12 @@ class UserSummarySerializer(serializers.ModelSerializer):
             # 공백으로 분리하여 순서 바꾸기
             parts = full_name.split()
             if len(parts) == 2:
+                # "건우 노" -> "노건우" (마지막이 성)
                 # "철순 박" -> "박철순"
                 return f"{parts[1]}{parts[0]}"
             elif len(parts) > 2:
                 # 여러 단어가 있는 경우 마지막이 성일 가능성
-                # "철순 박" 형식이면 마지막이 성
+                # "건우 노" 형식이면 마지막이 성
                 return f"{parts[-1]}{''.join(parts[:-1])}"
             return full_name
         
