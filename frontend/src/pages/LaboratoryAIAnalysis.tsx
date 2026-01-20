@@ -23,9 +23,7 @@ import {
   predictPCRApi,
   getRNATestsApi,
   getOrdersApi,
-  getPendingOrdersApi,
 } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
 
 interface RNATest {
   id: number;
@@ -88,7 +86,6 @@ const GENE_PATHWAYS: Record<string, string> = {
 
 export default function LaboratoryAIAnalysis() {
   const { toast } = useToast();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
