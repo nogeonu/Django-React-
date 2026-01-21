@@ -438,19 +438,61 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.SamplesPerPixel = 1
         ds.PhotometricInterpretation = "MONOCHROME2"
         
-        # 슬라이스 위치 (간단한 추정)
+        # 슬라이스 위치 및 Spacing 정보 (affine 행렬에서 추출)
         try:
+            # affine 행렬에서 spacing 추출
+            if affine is not None and affine.shape == (4, 4):
+                # spacing = sqrt(sum(affine[0:3, i]^2)) for i in [0, 1, 2]
+                spacing_x = np.sqrt(np.sum(affine[0:3, 0] ** 2))
+                spacing_y = np.sqrt(np.sum(affine[0:3, 1] ** 2))
+                spacing_z = np.sqrt(np.sum(affine[0:3, 2] ** 2))
+            else:
+                spacing_x = spacing_y = spacing_z = 1.0
+            
+            # header에서 pixdim 확인 (우선순위)
             if hasattr(header, 'get'):
                 pixdim = header.get('pixdim', [1, 1, 1, 1])
-                slice_thickness = float(pixdim[3]) if len(pixdim) > 3 else 1.0
-            else:
-                slice_thickness = 1.0
-        except:
-            slice_thickness = 1.0
+                if len(pixdim) >= 4:
+                    spacing_x = float(pixdim[1]) if pixdim[1] > 0 else spacing_x
+                    spacing_y = float(pixdim[2]) if pixdim[2] > 0 else spacing_y
+                    spacing_z = float(pixdim[3]) if pixdim[3] > 0 else spacing_z
+        except Exception as e:
+            logger.warning(f"Failed to extract spacing from affine/header: {e}")
+            spacing_x = spacing_y = spacing_z = 1.0
         
-        slice_location = slice_idx * slice_thickness
+        # PixelSpacing 설정 (x, y spacing) - Invertd에 필수!
+        ds.PixelSpacing = [str(spacing_x), str(spacing_y)]
+        ds.SliceThickness = str(spacing_z)
+        
+        # ImagePositionPatient 계산 (affine 행렬 사용)
+        try:
+            if affine is not None and affine.shape == (4, 4):
+                # 첫 번째 슬라이스의 위치
+                first_slice_pos = affine @ np.array([0, 0, 0, 1])
+                # 현재 슬라이스의 위치 (z 방향으로 이동)
+                current_slice_pos = affine @ np.array([0, 0, slice_idx, 1])
+                ds.ImagePositionPatient = [
+                    str(current_slice_pos[0]),
+                    str(current_slice_pos[1]),
+                    str(current_slice_pos[2])
+                ]
+            else:
+                # Fallback: 간단한 계산
+                slice_location = slice_idx * spacing_z
+                ds.ImagePositionPatient = ['0', '0', str(slice_location)]
+        except Exception as e:
+            logger.warning(f"Failed to calculate ImagePositionPatient: {e}")
+            slice_location = slice_idx * spacing_z
+            ds.ImagePositionPatient = ['0', '0', str(slice_location)]
+        
+        # ImageOrientationPatient 설정 (RAS 좌표계 - 표준)
+        # Row direction (x): [1, 0, 0]
+        # Column direction (y): [0, 1, 0]
+        ds.ImageOrientationPatient = ['1', '0', '0', '0', '1', '0']
+        
+        # SliceLocation (z 위치)
+        slice_location = slice_idx * spacing_z
         ds.SliceLocation = str(slice_location)
-        ds.SliceThickness = str(slice_thickness)
         
         # 픽셀 데이터 (numpy 배열을 직접 할당)
         ds.PixelData = slice_data.tobytes()
