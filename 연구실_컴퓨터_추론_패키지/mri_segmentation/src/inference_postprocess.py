@@ -353,6 +353,29 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
 
     source_images.sort(key=get_z_position)
     
+    # 소스 이미지에 FrameOfReferenceUID가 있는지 확인 및 추가 (highdicom.Segmentation 필수)
+    logger.info(f"🔍 소스 이미지 FrameOfReferenceUID 확인 중...")
+    frame_of_reference_uid = None
+    
+    # 먼저 기존 FrameOfReferenceUID가 있는지 확인
+    for ds in source_images:
+        if hasattr(ds, 'FrameOfReferenceUID') and ds.FrameOfReferenceUID:
+            frame_of_reference_uid = ds.FrameOfReferenceUID
+            logger.info(f"  - 기존 FrameOfReferenceUID 발견: {frame_of_reference_uid}")
+            break
+    
+    # 없으면 새로 생성
+    if not frame_of_reference_uid:
+        from pydicom.uid import generate_uid
+        frame_of_reference_uid = generate_uid()
+        logger.warning(f"  - ⚠️ FrameOfReferenceUID가 없어 새로 생성: {frame_of_reference_uid}")
+    
+    # 모든 소스 이미지에 FrameOfReferenceUID 추가/업데이트
+    for ds in source_images:
+        ds.FrameOfReferenceUID = frame_of_reference_uid
+    
+    logger.info(f"  - ✅ 모든 소스 이미지에 FrameOfReferenceUID 설정 완료: {frame_of_reference_uid}")
+    
     # 2. Prepare Mask Data
     # CRITICAL: highdicom.Segmentation expects:
     #   - pixel_array shape: (Frames, Rows, Columns) where Frames = len(source_images)
