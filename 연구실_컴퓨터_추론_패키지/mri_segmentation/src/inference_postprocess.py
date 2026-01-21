@@ -397,8 +397,26 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         logger.warning(f"  - ⚠️ FrameOfReferenceUID가 없어 새로 생성: {frame_of_reference_uid}")
     
     # 모든 소스 이미지에 FrameOfReferenceUID 추가/업데이트 (강제 설정)
+    # highdicom이 인식할 수 있도록 pydicom의 DataElement를 사용하여 명시적으로 추가
+    from pydicom.dataelem import DataElement
+    from pydicom.datadict import dictionary_VR, tag_for_keyword
+    
     for i, ds in enumerate(source_images):
-        ds.FrameOfReferenceUID = frame_of_reference_uid
+        # DataElement를 사용하여 명시적으로 추가 (highdicom이 인식할 수 있도록)
+        tag = tag_for_keyword('FrameOfReferenceUID')
+        if tag:
+            if tag in ds:
+                # 기존 태그가 있으면 업데이트
+                ds[tag].value = frame_of_reference_uid
+            else:
+                # 태그가 없으면 새로 추가
+                vr = dictionary_VR(tag)
+                elem = DataElement(tag, vr, frame_of_reference_uid)
+                ds.add(elem)
+        else:
+            # 태그를 찾을 수 없으면 일반 속성으로 설정
+            ds.FrameOfReferenceUID = frame_of_reference_uid
+        
         # 실제로 설정되었는지 확인
         if not hasattr(ds, 'FrameOfReferenceUID') or not ds.FrameOfReferenceUID:
             logger.error(f"  - ❌ 슬라이스 {i+1}에 FrameOfReferenceUID 설정 실패!")
@@ -408,6 +426,107 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     logger.info(f"  - ✅ 모든 소스 이미지에 FrameOfReferenceUID 설정 완료: {frame_of_reference_uid}")
     logger.info(f"  - 검증: 첫 번째 이미지 FrameOfReferenceUID = {source_images[0].FrameOfReferenceUID}")
     logger.info(f"  - 검증: 마지막 이미지 FrameOfReferenceUID = {source_images[-1].FrameOfReferenceUID}")
+    
+    # highdicom이 인식할 수 있는지 추가 검증
+    for i, ds in enumerate(source_images[:3]):  # 처음 3개만 검증
+        frame_uid = getattr(ds, 'FrameOfReferenceUID', None)
+        if not frame_uid or str(frame_uid).strip() != frame_of_reference_uid:
+            logger.error(f"  - ❌ 슬라이스 {i+1}의 FrameOfReferenceUID 검증 실패!")
+            logger.error(f"    기대값: {frame_of_reference_uid}")
+            logger.error(f"    실제값: {frame_uid}")
+            raise ValueError(f"FrameOfReferenceUID verification failed for slice {i+1}")
+    
+    # ImagePositionPatient와 ImageOrientationPatient도 확인 및 설정
+    # highdicom이 공간 정보를 제대로 인식할 수 있도록 (정렬 후)
+    logger.info(f"🔍 소스 이미지 공간 정보 확인 및 설정 중...")
+    base_slice_thickness = 1.0
+    if len(source_images) > 0:
+        # 첫 번째 이미지에서 SliceThickness 확인
+        if hasattr(source_images[0], 'SliceThickness') and source_images[0].SliceThickness:
+            try:
+                base_slice_thickness = float(source_images[0].SliceThickness)
+            except (ValueError, TypeError):
+                pass
+    
+    for i, ds in enumerate(source_images):
+        # ImageOrientationPatient 설정 (없으면 기본값)
+        if not hasattr(ds, 'ImageOrientationPatient') or not ds.ImageOrientationPatient:
+            # 기본값: RAS 좌표계
+            iop_tag = tag_for_keyword('ImageOrientationPatient')
+            if iop_tag:
+                vr = dictionary_VR(iop_tag)
+                elem = DataElement(iop_tag, vr, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+                if iop_tag in ds:
+                    ds[iop_tag].value = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+                else:
+                    ds.add(elem)
+            else:
+                ds.ImageOrientationPatient = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        
+        # ImagePositionPatient 설정 (없으면 정렬된 순서 기반으로 계산)
+        if not hasattr(ds, 'ImagePositionPatient') or not ds.ImagePositionPatient:
+            # 정렬된 순서를 기반으로 Z 위치 계산
+            z_position = i * base_slice_thickness
+            ipp_tag = tag_for_keyword('ImagePositionPatient')
+            if ipp_tag:
+                vr = dictionary_VR(ipp_tag)
+                elem = DataElement(ipp_tag, vr, [0.0, 0.0, float(z_position)])
+                if ipp_tag in ds:
+                    ds[ipp_tag].value = [0.0, 0.0, float(z_position)]
+                else:
+                    ds.add(elem)
+            else:
+                ds.ImagePositionPatient = [0.0, 0.0, float(z_position)]
+    
+    # PixelSpacing과 SliceThickness 설정 (highdicom.Segmentation 필수)
+    logger.info(f"🔍 소스 이미지 PixelSpacing 및 SliceThickness 확인 및 설정 중...")
+    default_pixel_spacing = [1.0, 1.0]  # 기본값: 1mm x 1mm
+    default_slice_thickness = base_slice_thickness
+    
+    # 첫 번째 이미지에서 기존 값 확인
+    if len(source_images) > 0:
+        first_ds = source_images[0]
+        if hasattr(first_ds, 'PixelSpacing') and first_ds.PixelSpacing:
+            try:
+                if isinstance(first_ds.PixelSpacing, (list, tuple)):
+                    default_pixel_spacing = [float(x) for x in first_ds.PixelSpacing[:2]]
+                else:
+                    default_pixel_spacing = [float(first_ds.PixelSpacing), float(first_ds.PixelSpacing)]
+            except (ValueError, TypeError):
+                pass
+    
+    for i, ds in enumerate(source_images):
+        # PixelSpacing 설정 (없으면 기본값)
+        if not hasattr(ds, 'PixelSpacing') or not ds.PixelSpacing:
+            ps_tag = tag_for_keyword('PixelSpacing')
+            if ps_tag:
+                vr = dictionary_VR(ps_tag)
+                elem = DataElement(ps_tag, vr, [str(default_pixel_spacing[0]), str(default_pixel_spacing[1])])
+                if ps_tag in ds:
+                    ds[ps_tag].value = [str(default_pixel_spacing[0]), str(default_pixel_spacing[1])]
+                else:
+                    ds.add(elem)
+            else:
+                ds.PixelSpacing = [str(default_pixel_spacing[0]), str(default_pixel_spacing[1])]
+            if i == 0:  # 첫 번째 이미지만 로그
+                logger.info(f"  - PixelSpacing 추가: {default_pixel_spacing}")
+        
+        # SliceThickness 설정 (없으면 기본값)
+        if not hasattr(ds, 'SliceThickness') or not ds.SliceThickness:
+            st_tag = tag_for_keyword('SliceThickness')
+            if st_tag:
+                vr = dictionary_VR(st_tag)
+                elem = DataElement(st_tag, vr, str(default_slice_thickness))
+                if st_tag in ds:
+                    ds[st_tag].value = str(default_slice_thickness)
+                else:
+                    ds.add(elem)
+            else:
+                ds.SliceThickness = str(default_slice_thickness)
+            if i == 0:  # 첫 번째 이미지만 로그
+                logger.info(f"  - SliceThickness 추가: {default_slice_thickness}")
+    
+    logger.info(f"  - ✅ 모든 소스 이미지 공간 정보 설정 완료")
     
     # 소스 이미지에 필수 Study 메타데이터 확인 및 추가 (highdicom.Segmentation에서 필요할 수 있음)
     logger.info(f"🔍 소스 이미지 Study 메타데이터 확인 중...")

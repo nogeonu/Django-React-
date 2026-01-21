@@ -19,6 +19,7 @@ urlpatterns = [
     path('orthanc/instances/<str:instance_id>/file', orthanc_views.orthanc_instance_file, name='orthanc-instance-file'),
     path('orthanc/upload/', csrf_exempt(orthanc_views.orthanc_upload_dicom), name='orthanc-upload'),
     path('orthanc/upload-folder/', csrf_exempt(orthanc_views.orthanc_upload_dicom_folder), name='orthanc-upload-folder'),
+    path('orthanc/upload-series-folder/', csrf_exempt(orthanc_views.orthanc_upload_dicom_series_folder), name='orthanc-upload-series-folder'),
     path('orthanc/patients/<str:patient_id>/delete/', orthanc_views.orthanc_delete_patient, name='orthanc-delete-patient'),
     
     # AI Segmentation API (MRI - 향후 모델 통합)

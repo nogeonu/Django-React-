@@ -451,16 +451,14 @@ export default function MRIViewer() {
     setIsDragging(false);
   };
 
-  // 폴더 내의 모든 DICOM/NIfTI 파일을 재귀적으로 수집하는 헬퍼 함수
+  // 폴더 내의 모든 DICOM 파일을 재귀적으로 수집하는 헬퍼 함수
   const collectFilesFromEntry = async (entry: FileSystemEntry, files: File[]): Promise<void> => {
     return new Promise((resolve) => {
       if (entry.isFile) {
         (entry as FileSystemFileEntry).file((file: File) => {
-          // DICOM 또는 NIfTI 파일만 허용
+          // DICOM 파일만 허용 (NIfTI 제거)
           if (file.name.endsWith('.dicom') ||
-            file.name.endsWith('.dcm') ||
-            file.name.endsWith('.nii') ||
-            file.name.endsWith('.nii.gz')) {
+            file.name.endsWith('.dcm')) {
             files.push(file);
           }
           resolve();
@@ -534,26 +532,23 @@ export default function MRIViewer() {
             // 개별 파일
             const file = item.getAsFile();
             if (file) {
-              // DICOM 또는 NIfTI 파일만 허용
+              // DICOM 파일만 허용 (NIfTI 제거)
               if (file.name.endsWith('.dicom') ||
-                file.name.endsWith('.dcm') ||
-                file.name.endsWith('.nii') ||
-                file.name.endsWith('.nii.gz')) {
+                file.name.endsWith('.dcm')) {
                 files.push(file);
               }
             }
           } else if (entry.isDirectory) {
-            // 폴더인 경우: 내부의 모든 DICOM/NIfTI 파일 수집
+            // 폴더인 경우: 내부의 모든 DICOM 파일 수집
             await collectFilesFromEntry(entry, files);
           }
         } else {
           // FileSystemEntry를 지원하지 않는 경우: 기존 방식 사용
           const file = item.getAsFile();
           if (file) {
+            // DICOM 파일만 허용 (NIfTI 제거)
             if (file.name.endsWith('.dicom') ||
-              file.name.endsWith('.dcm') ||
-              file.name.endsWith('.nii') ||
-              file.name.endsWith('.nii.gz')) {
+              file.name.endsWith('.dcm')) {
               files.push(file);
             }
           }
@@ -564,7 +559,7 @@ export default function MRIViewer() {
     if (files.length === 0) {
       toast({
         title: "오류",
-        description: "DICOM 또는 NIfTI 파일을 드롭해주세요. (폴더 업로드 지원)",
+        description: "DICOM 파일을 드롭해주세요. (폴더 업로드 지원)",
         variant: "destructive"
       });
       return;
@@ -592,7 +587,20 @@ export default function MRIViewer() {
       return;
     }
 
-    const fileArray = Array.from(files);
+    // DICOM 파일만 필터링 (NIfTI 제거)
+    const fileArray = Array.from(files).filter(file => 
+      file.name.endsWith('.dicom') || file.name.endsWith('.dcm')
+    );
+    
+    if (fileArray.length === 0) {
+      toast({
+        title: "오류",
+        description: "DICOM 파일만 업로드 가능합니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     await uploadFiles(fileArray);
   };
 
@@ -714,6 +722,51 @@ export default function MRIViewer() {
     const patientName = selectedPatientInfo?.name || selectedPatient;
 
     try {
+      // MRI 영상인 경우 시리즈 폴더 업로드 엔드포인트 사용
+      if (imageType === 'MRI 영상') {
+        const formData = new FormData();
+        files.forEach(file => {
+          formData.append('files', file);
+        });
+        formData.append('patient_id', selectedPatient);
+        formData.append('patient_name', patientName);
+        formData.append('image_type', imageType);
+
+        const response = await fetch('/api/mri/orthanc/upload-series-folder/', {
+          method: 'POST',
+          body: formData
+        });
+
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          const text = await response.text();
+          errorMessages.push(`서버 응답 파싱 실패 (${response.status})`);
+          console.error(`❌ 응답 파싱 실패:`, text);
+          return;
+        }
+
+        if (response.ok && data.success) {
+          successCount = data.total_instances || files.length;
+          toast({
+            title: "업로드 완료",
+            description: `${data.uploaded_series ? Object.keys(data.uploaded_series).length : 0}개 시리즈, ${successCount}개 인스턴스 업로드 완료`
+          });
+          if (selectedPatient) fetchOrthancImages(selectedPatient);
+        } else {
+          const errorMsg = data.error || data.message || '업로드 실패';
+          errorMessages.push(errorMsg);
+          toast({
+            title: "업로드 실패",
+            description: errorMsg,
+            variant: "destructive"
+          });
+        }
+        return;
+      }
+
+      // 기존 로직 (병리 영상, 유방촬영술 영상)
       for (let i = 0; i < files.length; i++) {
         try {
           const formData = new FormData();
@@ -980,7 +1033,7 @@ export default function MRIViewer() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
-                  DICOM 폴더 또는 NIfTI 파일을 서버로 전송합니다. 전송 후 실시간 3D 변환이 시작됩니다.
+                  DICOM 폴더를 서버로 전송합니다. seq_0, seq_1, seq_2, seq_3 구조의 폴더를 선택하세요.
                 </p>
 
                 {/* 드래그 앤 드롭 영역 */}
@@ -1014,7 +1067,9 @@ export default function MRIViewer() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={imageType === '병리 영상' ? '.svs' : '.dicom,.dcm,.nii,.nii.gz'}
+                    webkitdirectory=""
+                    directory=""
+                    accept={imageType === '병리 영상' ? '.svs' : '.dicom,.dcm'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"
