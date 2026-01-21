@@ -358,11 +358,18 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     frame_of_reference_uid = None
     
     # 먼저 기존 FrameOfReferenceUID가 있는지 확인
-    for ds in source_images:
-        if hasattr(ds, 'FrameOfReferenceUID') and ds.FrameOfReferenceUID:
-            frame_of_reference_uid = ds.FrameOfReferenceUID
-            logger.info(f"  - 기존 FrameOfReferenceUID 발견: {frame_of_reference_uid}")
-            break
+    for i, ds in enumerate(source_images):
+        if hasattr(ds, 'FrameOfReferenceUID'):
+            uid_value = ds.FrameOfReferenceUID
+            # 빈 문자열이나 None이 아닌 유효한 UID 확인
+            if uid_value and str(uid_value).strip():
+                frame_of_reference_uid = str(uid_value).strip()
+                logger.info(f"  - 기존 FrameOfReferenceUID 발견 (슬라이스 {i+1}): {frame_of_reference_uid}")
+                break
+            else:
+                logger.debug(f"  - 슬라이스 {i+1}: FrameOfReferenceUID가 빈 값입니다")
+        else:
+            logger.debug(f"  - 슬라이스 {i+1}: FrameOfReferenceUID 속성이 없습니다")
     
     # 없으면 새로 생성
     if not frame_of_reference_uid:
@@ -370,11 +377,18 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
         frame_of_reference_uid = generate_uid()
         logger.warning(f"  - ⚠️ FrameOfReferenceUID가 없어 새로 생성: {frame_of_reference_uid}")
     
-    # 모든 소스 이미지에 FrameOfReferenceUID 추가/업데이트
-    for ds in source_images:
+    # 모든 소스 이미지에 FrameOfReferenceUID 추가/업데이트 (강제 설정)
+    for i, ds in enumerate(source_images):
         ds.FrameOfReferenceUID = frame_of_reference_uid
+        # 실제로 설정되었는지 확인
+        if not hasattr(ds, 'FrameOfReferenceUID') or not ds.FrameOfReferenceUID:
+            logger.error(f"  - ❌ 슬라이스 {i+1}에 FrameOfReferenceUID 설정 실패!")
+            raise ValueError(f"Failed to set FrameOfReferenceUID on slice {i+1}")
     
+    # 최종 검증
     logger.info(f"  - ✅ 모든 소스 이미지에 FrameOfReferenceUID 설정 완료: {frame_of_reference_uid}")
+    logger.info(f"  - 검증: 첫 번째 이미지 FrameOfReferenceUID = {source_images[0].FrameOfReferenceUID}")
+    logger.info(f"  - 검증: 마지막 이미지 FrameOfReferenceUID = {source_images[-1].FrameOfReferenceUID}")
     
     # 2. Prepare Mask Data
     # CRITICAL: highdicom.Segmentation expects:
