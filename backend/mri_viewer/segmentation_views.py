@@ -700,6 +700,113 @@ def get_pending_requests(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+def get_pending_inference(request):
+    """
+    조원님 워커 호환용: 대기 중인 추론 요청 조회 (단일 요청 반환)
+    
+    GET /api/inference/pending
+    
+    조원님의 워커가 사용하는 형식:
+    - 요청이 있으면: {"id": request_id, "series_id": "...", "series_ids": [...]}
+    - 요청이 없으면: {"id": null}
+    """
+    try:
+        # 대기 중인 요청만 찾기 (가장 오래된 것부터)
+        request_files = sorted(REQUEST_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime)
+        
+        for request_file in request_files:
+            try:
+                with open(request_file, 'r', encoding='utf-8') as f:
+                    request_data = json.load(f)
+                
+                # pending 상태만 반환
+                if request_data.get('status') == 'pending':
+                    # 상태를 processing으로 변경
+                    request_data['status'] = 'processing'
+                    request_data['started_at'] = timezone.now().isoformat()
+                    
+                    with open(request_file, 'w', encoding='utf-8') as f:
+                        json.dump(request_data, f, indent=2, ensure_ascii=False)
+                    
+                    logger.info(f"✅ 요청 할당: {request_file.stem}")
+                    
+                    # 조원님 워커 형식으로 반환
+                    return Response({
+                        'id': request_file.stem,
+                        'series_id': request_data.get('main_series_id'),
+                        'series_ids': request_data.get('series_ids', [])
+                    })
+            except Exception as e:
+                logger.warning(f"⚠️ 요청 파일 읽기 실패: {request_file.name} - {e}")
+                continue
+        
+        # 대기 중인 요청 없음
+        return Response({'id': None})
+        
+    except Exception as e:
+        logger.error(f"❌ 대기 중인 요청 조회 실패: {str(e)}", exc_info=True)
+        return Response({
+            'id': None,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def complete_inference(request, request_id):
+    """
+    조원님 워커 호환용: 추론 완료 결과 업로드
+    
+    POST /api/inference/{request_id}/complete
+    Body: {
+        "success": true,
+        "seg_instance_id": "...",
+        "tumor_detected": true,
+        "tumor_volume_voxels": 1234,
+        "inference_time_seconds": 45.2
+    }
+    """
+    try:
+        request_file = REQUEST_DIR / f"{request_id}.json"
+        
+        if not request_file.exists():
+            return Response({
+                'success': False,
+                'error': '요청을 찾을 수 없습니다.'
+            }, status=404)
+        
+        with open(request_file, 'r', encoding='utf-8') as f:
+            request_data = json.load(f)
+        
+        # 결과 업데이트
+        request_data['status'] = 'completed' if request.data.get('success') else 'failed'
+        request_data['completed_at'] = timezone.now().isoformat()
+        request_data['result'] = {
+            'success': request.data.get('success'),
+            'seg_instance_id': request.data.get('seg_instance_id'),
+            'tumor_detected': request.data.get('tumor_detected'),
+            'tumor_volume_voxels': request.data.get('tumor_volume_voxels'),
+            'elapsed_time_seconds': request.data.get('inference_time_seconds') or request.data.get('elapsed_time_seconds'),
+            'error': request.data.get('error')
+        }
+        
+        with open(request_file, 'w', encoding='utf-8') as f:
+            json.dump(request_data, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"✅ 추론 완료 결과 업로드: {request_id}")
+        
+        return Response({
+            'success': True
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 결과 업로드 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 def complete_inference_request(request, request_id):
     """

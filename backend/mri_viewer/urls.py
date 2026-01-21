@@ -41,6 +41,10 @@ urlpatterns = [
     path('segmentation/complete-request/<str:request_id>/', segmentation_views.complete_inference_request, name='complete-inference-request'),
     path('segmentation/update-status/<str:request_id>/', segmentation_views.update_request_status, name='update-request-status'),
     
+    # 조원님 워커 호환용 API (HTTP_API_구현_계획.md 참고)
+    path('inference/pending', segmentation_views.get_pending_inference, name='get-pending-inference'),
+    path('inference/<str:request_id>/complete', segmentation_views.complete_inference, name='complete-inference'),
+    
     # 맘모그래피 AI 분석 API
     path('mammography/analyze/', mammography_views.mammography_ai_analysis, name='analyze-mammography'),
     path('mammography/health/', mammography_views.mammography_health, name='mammography-health'),
