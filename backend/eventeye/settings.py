@@ -248,4 +248,4 @@ FLUTTER_GITHUB_REPO = 'nogeonu/flutter-mobile'  # GitHub 저장소 (owner/repo)
 # File upload size limits (for NIfTI and DICOM files)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500 MB
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 50000  # DICOM 파일 업로드를 위해 증가 (seq_0~seq_3 폴더)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000  # DICOM 파일 업로드를 위해 증가 (seq_0~seq_3 폴더, 각 134장씩 총 536장)
