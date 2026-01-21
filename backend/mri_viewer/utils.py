@@ -424,6 +424,8 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.StudyTime = datetime.now().strftime("%H%M%S")
         ds.StudyID = str(uuid.uuid4())[:8]
         ds.StudyDescription = settings['study_description']
+        ds.AccessionNumber = ""  # Accession Number
+        ds.ReferringPhysicianName = ""  # Referring Physician Name
         
         ds.SeriesInstanceUID = series_instance_uid
         ds.SeriesNumber = str(series_number)  # 정수형을 문자열로 변환 (DICOM IS 타입)
@@ -628,6 +630,8 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, series_des
     ds.StudyTime = datetime.now().strftime("%H%M%S")
     ds.StudyID = str(uuid.uuid4())[:8]
     ds.StudyDescription = "Mammography Analysis"
+    ds.AccessionNumber = ""  # Accession Number
+    ds.ReferringPhysicianName = ""  # Referring Physician Name
     
     # Series 정보
     ds.SeriesInstanceUID = generate_uid()
