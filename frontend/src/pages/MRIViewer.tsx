@@ -465,13 +465,13 @@ export default function MRIViewer() {
         }, () => resolve());
       } else if (entry.isDirectory) {
         const dirReader = (entry as FileSystemDirectoryEntry).createReader();
-        
+
         // readEntries는 한 번에 모든 엔트리를 반환하지 않을 수 있으므로
         // 빈 배열이 반환될 때까지 반복 호출해야 함
         const readAllEntries = (): Promise<void> => {
           return new Promise((readResolve) => {
             const allEntries: FileSystemEntry[] = [];
-            
+
             const readBatch = () => {
               dirReader.readEntries((entries: FileSystemEntry[]) => {
                 if (entries.length === 0) {
@@ -493,11 +493,11 @@ export default function MRIViewer() {
                 }
               });
             };
-            
+
             readBatch();
           });
         };
-        
+
         readAllEntries().then(() => resolve());
       } else {
         resolve();
@@ -572,9 +572,9 @@ export default function MRIViewer() {
       const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
       const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
       const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
-      
+
       const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
-      
+
       if (foundSeqs > 0) {
         toast({
           title: "폴더 확인",
@@ -611,10 +611,10 @@ export default function MRIViewer() {
     }
 
     // DICOM 파일만 필터링 (NIfTI 제거)
-    const fileArray = Array.from(files).filter(file => 
+    const fileArray = Array.from(files).filter(file =>
       file.name.endsWith('.dicom') || file.name.endsWith('.dcm')
     );
-    
+
     if (fileArray.length === 0) {
       toast({
         title: "오류",
@@ -623,7 +623,7 @@ export default function MRIViewer() {
       });
       return;
     }
-    
+
     // MRI 영상인 경우 seq 폴더 확인
     if (imageType === 'MRI 영상') {
       const filePaths = fileArray.map(f => (f as any).webkitRelativePath || f.name).join('|');
@@ -631,9 +631,9 @@ export default function MRIViewer() {
       const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
       const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
       const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
-      
+
       const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
-      
+
       if (foundSeqs > 0) {
         toast({
           title: "폴더 확인",
@@ -646,7 +646,7 @@ export default function MRIViewer() {
         });
       }
     }
-    
+
     await uploadFiles(fileArray);
   };
 
@@ -772,7 +772,9 @@ export default function MRIViewer() {
       if (imageType === 'MRI 영상') {
         const formData = new FormData();
         files.forEach(file => {
-          formData.append('files', file);
+          // 폴더 구조 유지를 위해 상대 경로 포함 (서버에서 seq_0, seq_1 판별에 사용)
+          const relativePath = (file as any).webkitRelativePath || file.name;
+          formData.append('files', file, relativePath);
         });
         formData.append('patient_id', selectedPatient);
         formData.append('patient_name', patientName);
@@ -782,6 +784,18 @@ export default function MRIViewer() {
           method: 'POST',
           body: formData
         });
+
+        // 404 에러인 경우 서버 상태 안내
+        if (response.status === 404) {
+          toast({
+            title: "업로드 실패 (404 Not Found)",
+            description: "외부 서버에 해당 기능이 아직 배포되지 않았을 수 있습니다. 상단의 주소를 localhost:5173으로 실행 중인 로컬 환경에서 테스트해보세요.",
+            variant: "destructive",
+            duration: 10000,
+          });
+          setUploading(false);
+          return;
+        }
 
         // Response body는 한 번만 읽을 수 있으므로 text를 먼저 읽고 JSON 파싱 시도
         const responseText = await response.text();
@@ -1133,8 +1147,8 @@ export default function MRIViewer() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-200 ${isDragging
-                      ? 'border-blue-400 bg-blue-500/10 scale-[1.02]'
-                      : 'border-gray-700 hover:border-gray-600'
+                    ? 'border-blue-400 bg-blue-500/10 scale-[1.02]'
+                    : 'border-gray-700 hover:border-gray-600'
                     }`}
                 >
                   <div className="text-center space-y-3">
@@ -1147,7 +1161,7 @@ export default function MRIViewer() {
                         {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? 'seq_0, seq_1, seq_2, seq_3 폴더를 드래그하세요' : '파일을 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
-                        {imageType === 'MRI 영상' 
+                        {imageType === 'MRI 영상'
                           ? '✨ 여러 폴더를 동시에 드래그 가능! 각 폴더가 하나의 시리즈로 저장됩니다'
                           : '또는 아래 버튼으로 파일 선택'}
                       </p>
