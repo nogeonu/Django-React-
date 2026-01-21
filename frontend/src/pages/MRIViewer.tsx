@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,10 +25,12 @@ import {
   ChevronRight,
   ChevronLeft,
   Info,
-  Settings2,
   Cpu,
   Plus,
-  Maximize2
+  Settings2,
+  Maximize2,
+  X,
+  Folder
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -155,6 +157,30 @@ export default function MRIViewer() {
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]); // 업로드 대기 중인 파일들
+
+  // 업로드 대기 목록을 폴더별로 그룹화
+  const groupedPendingFolders = useMemo(() => {
+    const groups: Record<string, { count: number; files: File[] }> = {};
+    pendingFiles.forEach(file => {
+      const path = (file as any).webkitRelativePath || '';
+      const folderName = path.includes('/') ? path.split('/')[0] : '개별 파일';
+      if (!groups[folderName]) {
+        groups[folderName] = { count: 0, files: [] };
+      }
+      groups[folderName].count++;
+      groups[folderName].files.push(file);
+    });
+    return groups;
+  }, [pendingFiles]);
+
+  const removeFolderFromQueue = (folderName: string) => {
+    setPendingFiles(prev => prev.filter(file => {
+      const path = (file as any).webkitRelativePath || '';
+      const name = path.includes('/') ? path.split('/')[0] : '개별 파일';
+      return name !== folderName;
+    }));
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -1091,6 +1117,7 @@ export default function MRIViewer() {
                       <p className="font-bold">방법 1 (권장): 드래그 앤 드롭</p>
                       <p className="pl-2">• seq_0, seq_1, seq_2, seq_3 폴더를 각각 드래그해서 위 영역에 놓으세요</p>
                       <p className="pl-2">• 여러 폴더를 동시에 드래그 가능합니다</p>
+                      <p className="pl-2 font-bold text-blue-400">• 팁: 상위 폴더 하나만 드래그해도 내부의 모든 seq가 포함됩니다</p>
                       <p className="font-bold mt-2">방법 2: 연속 폴더 추가</p>
                       <p className="pl-2">• 아래 버튼으로 폴더를 하나ずつ 추가하여 목록을 만드세요</p>
                       <p className="pl-2">• 목록이 완성되면 한 번에 업로드할 수 있습니다</p>
@@ -1116,26 +1143,30 @@ export default function MRIViewer() {
                         onClick={() => setPendingFiles([])}
                         className="h-6 text-[9px] font-bold text-red-400 hover:text-red-300 hover:bg-red-400/10 p-0"
                       >
-                        목록 비우기
+                        전체 비우기
                       </Button>
                     </div>
 
-                    {/* 감지된 시리즈 요약 (MRI인 경우) */}
-                    {imageType === 'MRI 영상' && (
-                      <div className="flex flex-wrap gap-2">
-                        {['seq_0', 'seq_1', 'seq_2', 'seq_3'].map(seq => {
-                          const count = pendingFiles.filter(f =>
-                            ((f as any).webkitRelativePath || f.name).toLowerCase().includes(seq.toLowerCase())
-                          ).length;
-                          if (count === 0) return null;
-                          return (
-                            <Badge key={seq} variant="outline" className="text-[9px] bg-blue-500/20 text-blue-200 border-blue-500/30">
-                              {seq}: {count}장
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {/* 그룹화된 폴더 목록 */}
+                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1 thin-scrollbar">
+                      {Object.entries(groupedPendingFolders).map(([folder, info]) => (
+                        <div key={folder} className="flex items-center justify-between bg-white/5 px-2 py-1 rounded-lg">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <Folder className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span className="text-[10px] text-gray-300 truncate font-medium">{folder}</span>
+                            <span className="text-[9px] text-gray-500 shrink-0">({info.count}장)</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeFolderFromQueue(folder)}
+                            className="h-5 w-5 text-gray-500 hover:text-red-400"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
 
                     <Button
                       className="w-full h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs"
@@ -1143,7 +1174,7 @@ export default function MRIViewer() {
                       disabled={uploading}
                     >
                       {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                      {pendingFiles.length}개 파일 일괄 업로드 시작
+                      {pendingFiles.length}개 파일 일괄 업로드
                     </Button>
                   </div>
                 )}
