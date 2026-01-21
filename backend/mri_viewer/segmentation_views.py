@@ -530,6 +530,8 @@ def complete_inference(request, request_id):
 
 
 @api_view(['POST'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 def complete_inference_request(request, request_id):
     return complete_inference(request, request_id)
 

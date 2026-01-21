@@ -39,7 +39,7 @@ urlpatterns = [
     
     # HTTP API 방식 (공유 디렉토리 불필요)
     path('segmentation/pending-requests/', csrf_exempt(segmentation_views.get_pending_requests), name='get-pending-requests'),
-    path('segmentation/complete-request/<str:request_id>/', csrf_exempt(segmentation_views.complete_inference_request), name='complete-inference-request'),
+    path('segmentation/complete-request/<str:request_id>/', segmentation_views.complete_inference_request, name='complete-inference-request'),
     path('segmentation/update-status/<str:request_id>/', csrf_exempt(segmentation_views.update_request_status), name='update-request-status'),
     
     # 조원님 워커 호환용 API (HTTP_API_구현_계획.md 참고)
