@@ -1087,7 +1087,7 @@ export default function MRIViewer() {
               <CardContent className="space-y-4">
                 <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
                   {imageType === 'MRI 영상' 
-                    ? 'DICOM 폴더를 서버로 전송합니다. 상위 폴더(예: ISPY2_213913_DICOM_4CH)를 선택하면 내부의 seq_0, seq_1, seq_2, seq_3 폴더의 모든 파일이 자동으로 포함됩니다. 또는 여러 폴더를 드래그 앤 드롭할 수 있습니다.'
+                    ? 'seq_0, seq_1, seq_2, seq_3 폴더를 각각 폴더 단위로 선택하세요. 각 폴더가 하나의 시리즈로 Orthanc에 저장됩니다. 여러 폴더를 드래그 앤 드롭하거나, 상위 폴더를 선택하면 내부의 모든 seq 폴더가 자동으로 포함됩니다.'
                     : 'DICOM 파일을 서버로 전송합니다.'}
                 </p>
 
@@ -1108,11 +1108,11 @@ export default function MRIViewer() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">
-                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '폴더를 드래그하세요 (여러 폴더 가능)' : '파일을 드래그하세요'}
+                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? 'seq_0~seq_3 폴더를 드래그하세요 (여러 폴더 동시 가능)' : '파일을 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {imageType === 'MRI 영상' 
-                          ? '또는 아래 버튼으로 상위 폴더 선택 (seq_0~seq_3 자동 포함)'
+                          ? '각 폴더가 하나의 시리즈로 저장됩니다. 또는 상위 폴더 선택 시 자동 포함'
                           : '또는 아래 버튼으로 파일 선택'}
                       </p>
                     </div>

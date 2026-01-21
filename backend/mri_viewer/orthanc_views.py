@@ -485,35 +485,58 @@ def orthanc_upload_dicom_series_folder(request):
         all_uploaded_instances = []
         failed_files = []
         
+        # StudyInstanceUID 생성 (모든 시리즈가 같은 Study에 속하도록)
+        from pydicom.uid import generate_uid
+        study_instance_uid = generate_uid()
+        
         for seq_num in sorted(seq_groups.keys()):
             seq_files = seq_groups[seq_num]
+            # 파일 이름으로 정렬 (슬라이스 순서 보장)
+            seq_files.sort(key=lambda f: f.name)
+            
             series_instances = []
             series_errors = []
             
-            for file in seq_files:
+            # 각 seq 폴더마다 고유한 SeriesInstanceUID 생성
+            series_instance_uid = generate_uid()
+            series_number = seq_num + 1  # SeriesNumber는 1부터 시작
+            series_description = f"DCE-MRI Sequence {seq_num}"
+            
+            logger.info(f"  📦 seq_{seq_num} 처리 시작: {len(seq_files)}개 파일, SeriesInstanceUID: {series_instance_uid}")
+            
+            for file_idx, file in enumerate(seq_files):
                 try:
                     file_data = file.read()
                     
-                    # DICOM 파일인지 확인
+                    # DICOM 파일 읽기 및 수정
                     try:
                         dicom_file = pydicom.dcmread(BytesIO(file_data))
-                    except Exception as e:
-                        logger.warning(f"  ⚠️ DICOM 파일이 아닐 수 있음: {file.name} - {e}")
-                        # DICOM이 아니어도 업로드 시도
-                    
-                    # patient_id가 제공된 경우 DICOM 파일의 PatientID 태그 수정
-                    if patient_id:
-                        try:
-                            dicom_file = pydicom.dcmread(BytesIO(file_data))
+                        
+                        # patient_id가 제공된 경우 DICOM 파일의 태그 수정
+                        if patient_id:
                             dicom_file.SpecificCharacterSet = 'ISO_IR 192'  # UTF-8
                             dicom_file.PatientID = str(patient_id)
                             dicom_file.PatientName = str(patient_name)
-                            
-                            output = BytesIO()
-                            pydicom.dcmwrite(output, dicom_file, write_like_original=False)
-                            file_data = output.getvalue()
-                        except Exception as e:
-                            logger.warning(f"DICOM 태그 수정 실패 (원본 그대로 업로드): {e}")
+                        
+                        # 모든 파일에 동일한 StudyInstanceUID 설정
+                        dicom_file.StudyInstanceUID = study_instance_uid
+                        
+                        # 각 seq 폴더의 모든 파일에 동일한 SeriesInstanceUID 설정
+                        dicom_file.SeriesInstanceUID = series_instance_uid
+                        dicom_file.SeriesNumber = str(series_number)
+                        dicom_file.SeriesDescription = series_description
+                        
+                        # InstanceNumber 설정 (파일 순서대로)
+                        dicom_file.InstanceNumber = str(file_idx + 1)
+                        
+                        # 수정된 DICOM을 바이트로 변환
+                        output = BytesIO()
+                        pydicom.dcmwrite(output, dicom_file, write_like_original=False)
+                        file_data = output.getvalue()
+                        
+                    except Exception as e:
+                        logger.warning(f"  ⚠️ DICOM 파일 처리 실패: {file.name} - {e}")
+                        # DICOM이 아니어도 원본 그대로 업로드 시도
                     
                     # Orthanc에 업로드
                     result = client.upload_dicom(file_data)
