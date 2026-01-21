@@ -129,33 +129,74 @@ class PCRPredictor:
         }
         # 모델 디렉토리 경로 설정 (ml_service에서 호출될 때도 작동하도록)
         current_file = os.path.abspath(__file__)
-        if 'ml_service' in current_file or 'ml_service' in os.getcwd():
-            # ml_service에서 실행 중인 경우
-            self.model_dir = os.path.join(os.path.dirname(os.path.dirname(current_file)), 'lis', 'models', 'saved')
-        else:
-            # lis 앱에서 직접 실행 중인 경우
-            self.model_dir = os.path.join(os.path.dirname(__file__), 'models', 'saved')
+        
+        # 여러 경로 시도
+        possible_paths = [
+            # 1. ml_service에서 실행 중인 경우
+            os.path.join(os.path.dirname(os.path.dirname(current_file)), 'lis', 'models', 'saved'),
+            # 2. lis 앱에서 직접 실행 중인 경우
+            os.path.join(os.path.dirname(__file__), 'models', 'saved'),
+            # 3. 절대 경로 (서버 환경)
+            '/srv/django-react/app/backend/lis/models/saved',
+            # 4. 현재 작업 디렉토리 기준
+            os.path.join(os.getcwd(), 'backend', 'lis', 'models', 'saved'),
+        ]
+        
+        self.model_dir = None
+        for path in possible_paths:
+            if os.path.exists(path) and os.path.exists(os.path.join(path, 'final_ensemble_scaler.pkl')):
+                self.model_dir = path
+                print(f"✅ 모델 디렉토리 찾음: {self.model_dir}")
+                break
+        
+        if not self.model_dir:
+            error_msg = f"❌ 모델 디렉토리를 찾을 수 없습니다. 시도한 경로: {possible_paths}"
+            print(error_msg)
+            raise FileNotFoundError(error_msg)
+        
         self.load_models()
     
     def load_models(self):
         """앙상블 모델 3개 로드: XGBoost, LightGBM, Hierarchical Neural Network"""
-        self.scaler = joblib.load(os.path.join(self.model_dir, 'final_ensemble_scaler.pkl'))
-        
-        # 1. XGBoost 모델 로드
-        self.xgb_model = xgb.XGBClassifier()
-        model_path = os.path.join(self.model_dir, 'final_xgb_model.json')
-        self.xgb_model.load_model(model_path)
-        
-        # 2. LightGBM 모델 로드
-        self.lgb_model = joblib.load(os.path.join(self.model_dir, 'final_lgb_model.pkl'))
-        
-        # 3. Hierarchical Neural Network 모델 로드
-        pathway_sizes = [8, 3, 6, 1, 2, 7]
-        self.hier_model = HierarchicalModel(pathway_sizes)
-        self.hier_model.load_state_dict(torch.load(os.path.join(self.model_dir, 'final_hier_model.pth')))
-        self.hier_model.eval()
-        
-        print("✅ 앙상블 모델 3개 로드 완료: XGBoost, LightGBM, Hierarchical NN")
+        try:
+            # Scaler 로드
+            scaler_path = os.path.join(self.model_dir, 'final_ensemble_scaler.pkl')
+            if not os.path.exists(scaler_path):
+                raise FileNotFoundError(f"Scaler 파일을 찾을 수 없습니다: {scaler_path}")
+            self.scaler = joblib.load(scaler_path)
+            print(f"✅ Scaler 로드 완료: {scaler_path}")
+            
+            # 1. XGBoost 모델 로드
+            xgb_path = os.path.join(self.model_dir, 'final_xgb_model.json')
+            if not os.path.exists(xgb_path):
+                raise FileNotFoundError(f"XGBoost 모델 파일을 찾을 수 없습니다: {xgb_path}")
+            self.xgb_model = xgb.XGBClassifier()
+            self.xgb_model.load_model(xgb_path)
+            print(f"✅ XGBoost 모델 로드 완료: {xgb_path}")
+            
+            # 2. LightGBM 모델 로드
+            lgb_path = os.path.join(self.model_dir, 'final_lgb_model.pkl')
+            if not os.path.exists(lgb_path):
+                raise FileNotFoundError(f"LightGBM 모델 파일을 찾을 수 없습니다: {lgb_path}")
+            self.lgb_model = joblib.load(lgb_path)
+            print(f"✅ LightGBM 모델 로드 완료: {lgb_path}")
+            
+            # 3. Hierarchical Neural Network 모델 로드
+            hier_path = os.path.join(self.model_dir, 'final_hier_model.pth')
+            if not os.path.exists(hier_path):
+                raise FileNotFoundError(f"Hierarchical NN 모델 파일을 찾을 수 없습니다: {hier_path}")
+            pathway_sizes = [8, 3, 6, 1, 2, 7]
+            self.hier_model = HierarchicalModel(pathway_sizes)
+            self.hier_model.load_state_dict(torch.load(hier_path))
+            self.hier_model.eval()
+            print(f"✅ Hierarchical NN 모델 로드 완료: {hier_path}")
+            
+            print("✅ 앙상블 모델 3개 로드 완료: XGBoost, LightGBM, Hierarchical NN")
+        except Exception as e:
+            print(f"❌ 모델 로드 중 오류 발생: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def preprocess(self, gene_values):
         """gene_values: dict with gene names as keys"""

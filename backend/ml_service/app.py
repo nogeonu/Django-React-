@@ -18,6 +18,9 @@ CORS(app)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 try:
     from lis.pcr_predictor import PCRPredictor
+    print(f"🔍 pCR 예측 모델 로드 시도 중...")
+    print(f"현재 작업 디렉토리: {os.getcwd()}")
+    print(f"ml_service 경로: {os.path.dirname(__file__)}")
     pcr_predictor = PCRPredictor()
     pcr_model_loaded = True
     print(f"✅ pCR 예측 모델 로드 완료")
@@ -25,6 +28,8 @@ except Exception as e:
     pcr_predictor = None
     pcr_model_loaded = False
     print(f"❌ pCR 예측 모델 로드 실패: {e}")
+    import traceback
+    traceback.print_exc()
 
 # 폐암 ML 모델 로드
 current_dir = os.path.dirname(os.path.abspath(__file__))
