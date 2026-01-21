@@ -801,7 +801,7 @@ export default function MRIViewer() {
         const formData = new FormData();
         
         // 파일과 경로 정보를 함께 전달
-        files.forEach((file, index) => {
+        files.forEach((file) => {
           // 파일 추가
           formData.append('files', file);
           
