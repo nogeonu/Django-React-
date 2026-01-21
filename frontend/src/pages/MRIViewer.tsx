@@ -527,10 +527,11 @@ export default function MRIViewer() {
 
     const items = Array.from(e.dataTransfer.items);
     const files: File[] = [];
+    const folders: FileSystemDirectoryEntry[] = [];
 
     console.log(`📦 드롭된 항목 수: ${items.length}`);
 
-    // 드롭된 파일/폴더 수집
+    // 드롭된 파일/폴더 수집 (폴더는 별도로 수집)
     for (const item of items) {
       if (item.kind === 'file') {
         // FileSystemEntry API 사용 (폴더 지원)
@@ -547,10 +548,9 @@ export default function MRIViewer() {
               }
             }
           } else if (entry.isDirectory) {
-            // 폴더인 경우: 내부의 모든 DICOM 파일 수집 (경로 정보 포함)
+            // 폴더인 경우: 별도 배열에 추가 (나중에 일괄 처리)
             console.log(`📁 폴더 감지: ${entry.name}`);
-            await collectFilesFromEntry(entry, files, entry.name);
-            console.log(`✅ 폴더 처리 완료: ${entry.name}, 현재 총 ${files.length}개 파일`);
+            folders.push(entry as FileSystemDirectoryEntry);
           }
         } else {
           // FileSystemEntry를 지원하지 않는 경우: 기존 방식 사용
@@ -566,7 +566,16 @@ export default function MRIViewer() {
       }
     }
 
-    console.log(`📊 최종 수집된 파일 수: ${files.length}개`);
+    // 감지된 폴더가 있으면 모두 처리
+    if (folders.length > 0) {
+      console.log(`📁 총 ${folders.length}개 폴더 감지됨`);
+      for (const folder of folders) {
+        await collectFilesFromEntry(folder, files, folder.name);
+        console.log(`✅ 폴더 처리 완료: ${folder.name}, 현재 총 ${files.length}개 파일`);
+      }
+    }
+
+    console.log(`📊 최종 수집된 파일 수: ${files.length}개 (${folders.length}개 폴더에서)`);
 
     if (files.length === 0) {
       toast({
@@ -1231,7 +1240,7 @@ export default function MRIViewer() {
                     disabled={uploading}
                   >
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    {imageType === 'MRI 영상' ? '상위 폴더 선택 (seq_0~seq_3 자동 포함)' : imageType === '유방촬영술 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
+                    {imageType === 'MRI 영상' ? '폴더 선택 (seq_0~seq_3, 여러 폴더 동시 선택 가능)' : imageType === '유방촬영술 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
                   </Button>
                 </div>
               </CardContent>
