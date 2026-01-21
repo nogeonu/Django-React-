@@ -596,7 +596,7 @@ export default function MRIViewer() {
 
     // MRI 영상인 경우 seq 폴더 확인 및 안내
     if (imageType === 'MRI 영상') {
-      const filePaths = files.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const filePaths = files.map(f => (f as any).customRelativePath || (f as any).webkitRelativePath || f.name).join('|');
       const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
       const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
       const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
@@ -606,8 +606,14 @@ export default function MRIViewer() {
       
       if (foundSeqs > 0) {
         toast({
-          title: "폴더 확인",
-          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${files.length}개 파일을 업로드합니다.`,
+          title: `폴더 ${foundSeqs}/4개 감지`,
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${files.length}개 DICOM 파일을 업로드합니다.`,
+        });
+      } else {
+        toast({
+          title: "경고",
+          description: `seq_0~seq_3 폴더가 감지되지 않았습니다. ${files.length}개 파일을 일반 업로드합니다.`,
+          variant: "default"
         });
       }
     }
@@ -653,7 +659,7 @@ export default function MRIViewer() {
 
     // MRI 영상인 경우 seq 폴더 확인 및 안내
     if (imageType === 'MRI 영상') {
-      const filePaths = dicomFiles.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const filePaths = dicomFiles.map(f => (f as any).customRelativePath || (f as any).webkitRelativePath || f.name).join('|');
       const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
       const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
       const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
@@ -663,13 +669,14 @@ export default function MRIViewer() {
       
       if (foundSeqs > 0) {
         toast({
-          title: "폴더 확인",
-          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${dicomFiles.length}개 파일을 업로드합니다.`,
+          title: `폴더 ${foundSeqs}/4개 감지`,
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${dicomFiles.length}개 DICOM 파일을 업로드합니다.`,
         });
       } else {
         toast({
-          title: "업로드 준비",
-          description: `${dicomFiles.length}개 파일을 업로드합니다.`,
+          title: "경고",
+          description: `seq_0~seq_3 폴더가 감지되지 않았습니다. ${dicomFiles.length}개 파일을 일반 업로드합니다.`,
+          variant: "default"
         });
       }
     }
