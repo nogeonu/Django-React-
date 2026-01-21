@@ -444,6 +444,13 @@ def orthanc_upload_dicom_series_folder(request):
             patient_name = patient_id or "UNKNOWN"
         
         logger.info(f"📁 DICOM 시리즈 폴더 업로드 시작: {len(files)}개 파일, 환자 ID: {patient_id}")
+        logger.info(f"  - 전달된 file_paths 개수: {len(file_paths)}")
+        
+        # 파일 경로 정보 확인
+        if len(file_paths) > 0:
+            logger.info(f"  - 파일 경로 샘플 (처음 5개): {file_paths[:5]}")
+        else:
+            logger.warning(f"  - ⚠️ file_paths가 비어있습니다. 파일 이름만 사용합니다.")
         
         client = OrthancClient()
         
@@ -454,6 +461,10 @@ def orthanc_upload_dicom_series_folder(request):
         for idx, file in enumerate(files):
             # 프론트엔드에서 전달한 경로 정보 사용 (있으면)
             file_path = file_paths[idx] if idx < len(file_paths) else file.name
+            
+            # 디버깅: 처음 10개 파일의 경로 로깅
+            if idx < 10:
+                logger.debug(f"  - 파일 {idx+1}: {file.name} → 경로: {file_path}")
             
             # seq_0, seq_1, seq_2, seq_3 패턴 찾기
             seq_match = re.search(r'seq[_\s]*(\d+)', file_path, re.IGNORECASE)
@@ -480,8 +491,16 @@ def orthanc_upload_dicom_series_folder(request):
             seq_groups[seq_num].append(file)
         
         logger.info(f"  - 발견된 시리즈: {sorted(seq_groups.keys())}")
+        total_files_in_groups = 0
         for seq_num, seq_files in seq_groups.items():
             logger.info(f"  - seq_{seq_num}: {len(seq_files)}개 파일")
+            total_files_in_groups += len(seq_files)
+        
+        # 파일 개수 검증
+        if total_files_in_groups != len(files):
+            logger.warning(f"  - ⚠️ 경고: 그룹화된 파일 수({total_files_in_groups})와 전체 파일 수({len(files)})가 일치하지 않습니다!")
+        else:
+            logger.info(f"  - ✅ 모든 파일이 시리즈별로 그룹화되었습니다: 총 {total_files_in_groups}개 파일")
         
         # 각 시리즈별로 업로드 및 시리즈 정보 추출
         uploaded_series = {}
@@ -507,9 +526,17 @@ def orthanc_upload_dicom_series_folder(request):
             
             logger.info(f"  📦 seq_{seq_num} 처리 시작: {len(seq_files)}개 파일, SeriesInstanceUID: {series_instance_uid}")
             
+            uploaded_count = 0
             for file_idx, file in enumerate(seq_files):
                 try:
+                    # 파일 읽기 (Django UploadedFile은 seek 가능)
+                    if hasattr(file, 'seek'):
+                        file.seek(0)  # 파일 포인터를 처음으로
                     file_data = file.read()
+                    
+                    if len(file_data) == 0:
+                        logger.warning(f"  ⚠️ seq_{seq_num} 파일 {file_idx+1}: 빈 파일 - {file.name}")
+                        continue
                     
                     # DICOM 파일 읽기 및 수정
                     try:
@@ -546,6 +573,11 @@ def orthanc_upload_dicom_series_folder(request):
                     instance_id = result['ID']
                     series_instances.append(instance_id)
                     all_uploaded_instances.append(instance_id)
+                    uploaded_count += 1
+                    
+                    # 진행 상황 로깅 (10개마다)
+                    if (file_idx + 1) % 10 == 0 or (file_idx + 1) == len(seq_files):
+                        logger.info(f"  📤 seq_{seq_num} 진행: {file_idx + 1}/{len(seq_files)} ({uploaded_count}개 업로드 완료)")
                     
                 except Exception as e:
                     error_msg = f"{file.name}: {str(e)}"
@@ -571,7 +603,9 @@ def orthanc_upload_dicom_series_folder(request):
                         'instances': series_instances,
                         'errors': series_errors
                     }
-                    logger.info(f"  ✅ seq_{seq_num}: {len(series_instances)}개 인스턴스 업로드 완료 (Series ID: {series_id})")
+                    logger.info(f"  ✅ seq_{seq_num}: {len(series_instances)}/{len(seq_files)}개 인스턴스 업로드 완료 (Series ID: {series_id})")
+                    if len(series_errors) > 0:
+                        logger.warning(f"  ⚠️ seq_{seq_num}: {len(series_errors)}개 파일 업로드 실패")
                 except Exception as e:
                     logger.warning(f"  ⚠️ seq_{seq_num} 시리즈 정보 추출 실패: {e}")
                     uploaded_series[seq_num] = {
@@ -583,15 +617,28 @@ def orthanc_upload_dicom_series_folder(request):
             else:
                 logger.error(f"  ❌ seq_{seq_num}: 모든 파일 업로드 실패")
         
+        # 최종 요약 로깅
+        total_expected = len(files)
+        total_uploaded = len(all_uploaded_instances)
+        logger.info(f"📊 업로드 완료 요약:")
+        logger.info(f"  - 전체 파일 수: {total_expected}개")
+        logger.info(f"  - 업로드 성공: {total_uploaded}개")
+        logger.info(f"  - 업로드 실패: {len(failed_files)}개")
+        logger.info(f"  - 시리즈 수: {len(uploaded_series)}개")
+        
+        if total_uploaded < total_expected:
+            logger.warning(f"  ⚠️ 일부 파일이 업로드되지 않았습니다: {total_uploaded}/{total_expected}")
+        
         return Response({
             'success': True,
             'uploaded_series': uploaded_series,
             'total_instances': len(all_uploaded_instances),
+            'total_files': len(files),  # 전체 파일 수 추가
             'failed_count': len(failed_files),
             'failed_files': failed_files,
             'patient_id': patient_id,
             'patient_name': patient_name,
-            'message': f'{len(uploaded_series)}개 시리즈 업로드 완료'
+            'message': f'{len(uploaded_series)}개 시리즈, {len(all_uploaded_instances)}/{len(files)}개 파일 업로드 완료'
         })
         
     except Exception as e:
