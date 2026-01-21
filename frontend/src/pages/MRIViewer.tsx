@@ -297,7 +297,7 @@ export default function MRIViewer() {
     try {
       console.log(`[fetchOrthancImages] 환자 ID로 이미지 요청: ${patientId}`);
       // 병렬 요청으로 성능 개선
-      const response = await fetch(`/api/mri/orthanc/patients/${patientId}/`, {
+      const response = await fetch(`${API_BASE_URL}/orthanc/patients/${patientId}/`, {
         cache: 'no-cache', // 캐시 비활성화 (최신 데이터 확인)
       });
 
@@ -705,7 +705,7 @@ export default function MRIViewer() {
       });
 
       const response = await fetch(
-        `/api/mri/segmentation/series/${firstImage.series_id}/segment/`,
+        `${API_BASE_URL}/segmentation/series/${firstImage.series_id}/segment/`,
         {
           method: 'POST',
           headers: {
@@ -778,7 +778,7 @@ export default function MRIViewer() {
         formData.append('patient_name', patientName);
         formData.append('image_type', imageType);
 
-        const response = await fetch('/api/mri/orthanc/upload-series-folder/', {
+        const response = await fetch(`${API_BASE_URL}/orthanc/upload-series-folder/`, {
           method: 'POST',
           body: formData
         });
@@ -847,8 +847,8 @@ export default function MRIViewer() {
 
           // 병리 이미지는 별도 엔드포인트 사용
           const uploadUrl = imageType === '병리 영상'
-            ? '/api/mri/pathology/upload/'
-            : '/api/mri/orthanc/upload/';
+            ? `${API_BASE_URL}/pathology/upload/`
+            : `${API_BASE_URL}/orthanc/upload/`;
 
           const response = await fetch(uploadUrl, {
             method: 'POST',
