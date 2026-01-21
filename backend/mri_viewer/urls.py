@@ -26,13 +26,13 @@ urlpatterns = [
     path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
     
     # MRI 세그멘테이션 API
-    path('segmentation/instances/<str:instance_id>/segment/', csrf_exempt(segmentation_views.mri_segmentation), name='mri-segmentation'),
-    path('segmentation/series/<str:series_id>/segment/', csrf_exempt(segmentation_views.segment_series), name='segment-series'),
+    path('segmentation/instances/<str:instance_id>/segment/', segmentation_views.mri_segmentation, name='mri-segmentation'),
+    path('segmentation/series/<str:series_id>/segment/', segmentation_views.segment_series, name='segment-series'),
     path('segmentation/instances/<str:seg_instance_id>/frames/', segmentation_views.get_segmentation_frames, name='get-segmentation-frames'),
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
     
     # 연구실 컴퓨터 추론 요청 API
-    path('segmentation/series/<str:series_id>/request-local/', csrf_exempt(segmentation_views.request_local_inference), name='request-local-inference'),
+    path('segmentation/series/<str:series_id>/request-local/', segmentation_views.request_local_inference, name='request-local-inference'),
     path('segmentation/status/<str:request_id>/', segmentation_views.check_inference_status, name='check-inference-status'),
     path('segmentation/requests/', segmentation_views.list_inference_requests, name='list-inference-requests'),
     

@@ -187,6 +187,13 @@ def segment_series(request, series_id):
     from pathlib import Path
     import sys
     
+    # CSRF 체크 우회: DRF의 SessionAuthentication이 CSRF를 요구하므로 비활성화
+    if hasattr(request, '_authenticator'):
+        # 인증 클래스의 enforce_csrf를 비활성화
+        for authenticator in getattr(request, '_authenticators', []):
+            if hasattr(authenticator, 'enforce_csrf'):
+                authenticator.enforce_csrf = False
+    
     try:
         logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
         
