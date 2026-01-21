@@ -424,7 +424,11 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.StudyTime = datetime.now().strftime("%H%M%S")
         ds.StudyID = str(uuid.uuid4())[:8]
         ds.StudyDescription = settings['study_description']
-        ds.AccessionNumber = ""  # Accession Number
+        # AccessionNumber: Study 식별 번호 (없으면 StudyID 기반 생성)
+        if not hasattr(ds, 'AccessionNumber') or not ds.AccessionNumber:
+            # StudyID를 기반으로 AccessionNumber 생성 (8자리)
+            study_id = ds.StudyID if hasattr(ds, 'StudyID') else str(uuid.uuid4())[:8]
+            ds.AccessionNumber = study_id
         ds.ReferringPhysicianName = ""  # Referring Physician Name
         
         ds.SeriesInstanceUID = series_instance_uid
@@ -512,6 +516,16 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
                                       str(image_orientation[3]), str(image_orientation[4]), str(image_orientation[5])]
         ds.SliceLocation = str(slice_location)
         ds.FrameOfReferenceUID = frame_of_reference_uid
+        
+        # 메타데이터 검증 로그 (첫 슬라이스에만)
+        if slice_idx == 0:
+            logger.info(f"📋 DICOM 메타데이터 확인 (첫 슬라이스):")
+            logger.info(f"  ✅ PixelSpacing: {ds.PixelSpacing}")
+            logger.info(f"  ✅ SliceThickness: {ds.SliceThickness}")
+            logger.info(f"  ✅ ImagePositionPatient: {ds.ImagePositionPatient}")
+            logger.info(f"  ✅ ImageOrientationPatient: {ds.ImageOrientationPatient}")
+            logger.info(f"  ✅ FrameOfReferenceUID: {ds.FrameOfReferenceUID}")
+            logger.info(f"  ✅ AccessionNumber: '{ds.AccessionNumber}'")
         
         # 픽셀 데이터 (numpy 배열을 직접 할당)
         ds.PixelData = slice_data.tobytes()
