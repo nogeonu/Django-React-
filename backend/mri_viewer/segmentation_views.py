@@ -74,6 +74,7 @@ def get_pipeline():
     return _pipeline
 
 
+@csrf_exempt
 @api_view(['POST'])
 def mri_segmentation(request, instance_id):
     """
@@ -167,6 +168,7 @@ def segmentation_health(request):
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+@csrf_exempt
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
@@ -406,6 +408,7 @@ def get_segmentation_frames(request, seg_instance_id):
 REQUEST_DIR = Path(os.getenv('INFERENCE_REQUEST_DIR', '/tmp/mri_inference_requests'))
 
 
+@csrf_exempt
 @api_view(['POST'])
 def request_local_inference(request, series_id):
     """
