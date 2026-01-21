@@ -146,14 +146,27 @@ class PCRPredictor:
         
         self.model_dir = None
         for path in possible_paths:
-            if os.path.exists(path) and os.path.exists(os.path.join(path, 'final_ensemble_scaler.pkl')):
-                self.model_dir = path
+            # 경로 정규화 (상대 경로를 절대 경로로 변환)
+            abs_path = os.path.abspath(os.path.expanduser(path))
+            scaler_file = os.path.join(abs_path, 'final_ensemble_scaler.pkl')
+            
+            print(f"🔍 경로 확인 중: {abs_path}")
+            print(f"   - 디렉토리 존재: {os.path.exists(abs_path)}")
+            print(f"   - Scaler 파일 존재: {os.path.exists(scaler_file)}")
+            
+            if os.path.exists(abs_path) and os.path.exists(scaler_file):
+                self.model_dir = abs_path
                 print(f"✅ 모델 디렉토리 찾음: {self.model_dir}")
                 break
         
         if not self.model_dir:
-            error_msg = f"❌ 모델 디렉토리를 찾을 수 없습니다. 시도한 경로: {possible_paths}"
+            # 모든 경로를 절대 경로로 변환하여 에러 메시지에 포함
+            abs_paths = [os.path.abspath(os.path.expanduser(p)) for p in possible_paths]
+            error_msg = f"❌ 모델 디렉토리를 찾을 수 없습니다. 시도한 경로: {abs_paths}"
             print(error_msg)
+            # 각 경로의 존재 여부 출력
+            for p in abs_paths:
+                print(f"   - {p}: 존재={os.path.exists(p)}")
             raise FileNotFoundError(error_msg)
         
         self.load_models()
