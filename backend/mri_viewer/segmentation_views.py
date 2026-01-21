@@ -77,6 +77,18 @@ def get_pipeline():
 @api_view(['POST'])
 def mri_segmentation(request, instance_id):
     """
+    단일 인스턴스 세그멘테이션 (CSRF 면제)
+    """
+    # CSRF 체크 우회를 위한 커스텀 인증 클래스
+    from rest_framework.authentication import SessionAuthentication
+    
+    class CSRFExemptSessionAuthentication(SessionAuthentication):
+        def enforce_csrf(self, request):
+            return  # CSRF 체크를 건너뜀
+    
+    # 뷰 레벨에서 인증 클래스 오버라이드
+    request.authenticators = [CSRFExemptSessionAuthentication()]
+    """
     MRI 세그멘테이션 실행 및 Orthanc에 저장 (단일 인스턴스 또는 4채널)
     
     POST /api/mri/segmentation/instances/<instance_id>/segment/
@@ -182,17 +194,21 @@ def segment_series(request, series_id):
         "use_local": true/false  // 연구실 컴퓨터 사용 여부 (기본: 자동 감지)
     }
     """
+    from rest_framework.authentication import SessionAuthentication
+    from rest_framework.permissions import AllowAny
     import tempfile
     import shutil
     from pathlib import Path
     import sys
     
-    # CSRF 체크 우회: DRF의 SessionAuthentication이 CSRF를 요구하므로 비활성화
-    if hasattr(request, '_authenticator'):
-        # 인증 클래스의 enforce_csrf를 비활성화
-        for authenticator in getattr(request, '_authenticators', []):
-            if hasattr(authenticator, 'enforce_csrf'):
-                authenticator.enforce_csrf = False
+    # CSRF 체크 우회: SessionAuthentication의 enforce_csrf를 비활성화
+    # 프론트엔드에서 CSRF 토큰 없이 호출 가능하도록 설정
+    class CSRFExemptSessionAuthentication(SessionAuthentication):
+        def enforce_csrf(self, request):
+            return  # CSRF 체크를 건너뜀
+    
+    # 뷰 레벨에서 인증 클래스 오버라이드
+    request.authenticators = [CSRFExemptSessionAuthentication()]
     
     try:
         logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
