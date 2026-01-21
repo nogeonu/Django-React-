@@ -213,7 +213,8 @@ def segment_series(request, series_id):
         # 연구실 컴퓨터 워커 사용 시
         if use_local and not force_gcp:
             logger.info("🏠 연구실 컴퓨터 워커를 통해 추론 요청 생성")
-            return request_local_inference(request, series_id)
+            # request_local_inference 로직을 인라인으로 처리 (csrf_exempt 충돌 방지)
+            return _create_local_inference_request(request, series_id, sequence_series_ids)
         
         # GCP에서 직접 실행 (기존 방식)
         logger.info("☁️ GCP 서버에서 직접 추론 실행")
@@ -404,6 +405,119 @@ def get_segmentation_frames(request, seg_instance_id):
 
 # 요청 디렉토리 (연구실 컴퓨터와 공유)
 REQUEST_DIR = Path(os.getenv('INFERENCE_REQUEST_DIR', '/tmp/mri_inference_requests'))
+
+
+def _create_local_inference_request(request, series_id, sequence_series_ids):
+    """
+    연구실 컴퓨터에서 추론 실행 요청 생성 (내부 함수)
+    DRF Request 객체를 직접 처리
+    """
+    try:
+        if len(sequence_series_ids) != 4:
+            return Response({
+                'success': False,
+                'error': '4개 시리즈가 필요합니다.'
+            }, status=400)
+        
+        # 요청 디렉토리 생성
+        REQUEST_DIR.mkdir(exist_ok=True, parents=True)
+        
+        # 요청 데이터 생성
+        request_data = {
+            'series_ids': sequence_series_ids,
+            'main_series_id': series_id,
+            'requested_at': timezone.now().isoformat(),
+            'status': 'pending',
+            'requested_by': getattr(request.user, 'username', 'anonymous') if hasattr(request, 'user') and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated else 'anonymous'
+        }
+        
+        # 요청 파일 저장 (타임스탬프 포함하여 중복 방지)
+        timestamp = int(timezone.now().timestamp() * 1000)
+        request_id = f"{series_id}_{timestamp}"
+        request_file = REQUEST_DIR / f"{request_id}.json"
+        
+        with open(request_file, 'w', encoding='utf-8') as f:
+            json.dump(request_data, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"✅ 추론 요청 생성: {request_file.name}")
+        logger.info(f"   - 시리즈: {sequence_series_ids}")
+        logger.info(f"   - 요청자: {request_data['requested_by']}")
+        
+        # 워커가 처리할 때까지 대기 (최대 5분)
+        import time
+        max_wait_time = 300  # 5분
+        check_interval = 2  # 2초마다 확인
+        elapsed_time = 0
+        
+        logger.info("⏳ 연구실 컴퓨터 워커가 요청을 처리할 때까지 대기 중...")
+        
+        while elapsed_time < max_wait_time:
+            time.sleep(check_interval)
+            elapsed_time += check_interval
+            
+            # 요청 상태 확인
+            try:
+                with open(request_file, 'r', encoding='utf-8') as f:
+                    current_data = json.load(f)
+                
+                current_status = current_data.get('status')
+                
+                if current_status == 'completed':
+                    # 완료됨 - 결과 반환
+                    result = current_data.get('result', {})
+                    logger.info(f"✅ 추론 완료! (소요 시간: {elapsed_time}초)")
+                    
+                    return Response({
+                        'success': True,
+                        'series_id': series_id,
+                        'request_id': request_id,
+                        'tumor_detected': result.get('tumor_detected'),
+                        'tumor_volume_voxels': result.get('tumor_volume_voxels'),
+                        'seg_instance_id': result.get('seg_instance_id'),
+                        'elapsed_time_seconds': result.get('elapsed_time_seconds'),
+                        'saved_to_orthanc': True,
+                        'processed_by': 'local_worker'
+                    })
+                
+                elif current_status == 'failed':
+                    # 실패
+                    result = current_data.get('result', {})
+                    error_msg = result.get('error', '알 수 없는 오류')
+                    logger.error(f"❌ 추론 실패: {error_msg}")
+                    
+                    return Response({
+                        'success': False,
+                        'error': error_msg,
+                        'request_id': request_id
+                    }, status=500)
+                
+                elif current_status == 'processing':
+                    # 처리 중
+                    logger.info(f"   처리 중... ({elapsed_time}초 경과)")
+                
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                # 파일이 아직 생성되지 않았거나 읽기 실패
+                pass
+            
+            # 진행률 표시 (30초마다)
+            if elapsed_time % 30 == 0:
+                logger.info(f"   대기 중... ({elapsed_time}/{max_wait_time}초)")
+        
+        # 타임아웃
+        logger.warning(f"⏱️ 요청 처리 타임아웃 ({max_wait_time}초 경과)")
+        return Response({
+            'success': False,
+            'error': f'요청 처리 시간 초과 (최대 {max_wait_time}초)',
+            'request_id': request_id,
+            'message': '연구실 컴퓨터 워커가 요청을 처리하지 못했습니다. 워커가 실행 중인지 확인하세요.'
+        }, status=504)
+        
+    except Exception as e:
+        logger.error(f"❌ 추론 요청 생성 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @api_view(['POST'])
