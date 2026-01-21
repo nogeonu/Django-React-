@@ -550,7 +550,7 @@ export default function MRIViewer() {
           } else if (entry.isDirectory) {
             // 폴더인 경우: 별도 배열에 추가 (나중에 일괄 처리)
             console.log(`📁 폴더 감지: ${entry.name}`);
-            folders.push(entry as FileSystemDirectoryEntry);
+            folders.push(entry as unknown as FileSystemDirectoryEntry);
           }
         } else {
           // FileSystemEntry를 지원하지 않는 경우: 기존 방식 사용
