@@ -490,8 +490,8 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     
     # 첫 번째와 마지막 source_image의 ImagePositionPatient 확인
     if len(source_images) > 0:
-        first_pos = source_images[0].ImagePositionPatient
-        last_pos = source_images[-1].ImagePositionPatient
+        first_pos = getattr(source_images[0], 'ImagePositionPatient', 'N/A')
+        last_pos = getattr(source_images[-1], 'ImagePositionPatient', 'N/A')
         logger.info(f"  - 첫 번째 슬라이스 ImagePositionPatient: {first_pos}")
         logger.info(f"  - 마지막 슬라이스 ImagePositionPatient: {last_pos}")
     
