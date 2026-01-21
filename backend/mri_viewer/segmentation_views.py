@@ -35,6 +35,9 @@ ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://34.42.223.43:8042')
 ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
+# Mosec 서비스 URL
+SEGMENTATION_MOSEC_URL = os.getenv('SEGMENTATION_MOSEC_URL', 'http://localhost:5006/inference')
+
 # 모델 경로 (우선순위: src/best_model.pth -> checkpoints/best_model.pth)
 MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "src" / "best_model.pth"
 if not MODEL_PATH.exists():
@@ -193,96 +196,117 @@ def segment_series(request, series_id):
 
 def _perform_segment_series_logic(request, series_id, sequence_series_ids):
     """
-    시리즈 세그멘테이션의 핵심 로직 (내부 helper 함수)
+    시리즈 세그멘테이션의 핵심 로직 (Mosec 서비스 사용)
+    Django는 Mosec에 series_ids만 전달하고, Mosec이 Orthanc에서 직접 다운로드하여 추론 후 저장
     """
     try:
         logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
-        
-        # 연구실 컴퓨터 사용 여부 확인
-        use_local = request.query_params.get('use_local', '').lower() == 'true'
-        force_gcp = request.query_params.get('force_gcp', '').lower() == 'true'
-        
-        if not use_local and not force_gcp:
-            use_local = os.getenv('USE_LOCAL_INFERENCE', 'false').lower() == 'true'
-        
-        # 연구실 컴퓨터 워커 사용 시
-        if use_local and not force_gcp:
-            logger.info("🏠 연구실 컴퓨터 워커를 통해 추론 요청 생성")
-            return _create_local_inference_request(request, series_id, sequence_series_ids)
-        
-        # GCP에서 직접 실행
-        logger.info("☁️ GCP 서버에서 직접 추론 실행")
+        logger.info("☁️ Mosec 서비스를 통한 추론 실행")
         
         client = OrthancClient()
-        temp_dir = tempfile.mkdtemp(prefix="mri_seg_")
         
-        try:
-            # 1. Orthanc에서 4개 시퀀스의 DICOM 파일 다운로드 및 저장
-            for seq_idx, seq_series_id in enumerate(sequence_series_ids):
-                seq_info = client.get(f"/series/{seq_series_id}")
-                seq_instances = seq_info.get("Instances", [])
-                
-                if len(seq_instances) == 0:
-                    return Response({
-                        "success": False,
-                        "error": f"시퀀스 {seq_idx+1}에 슬라이스가 없습니다."
-                    }, status=400)
-                
-                seq_dir = Path(temp_dir) / f"seq_{seq_idx:02d}"
-                seq_dir.mkdir(parents=True, exist_ok=True)
-                
-                for inst_idx, instance_id in enumerate(seq_instances):
-                    dicom_bytes = client.get_instance_file(instance_id)
-                    dicom_path = seq_dir / f"slice_{inst_idx:04d}.dcm"
-                    with open(dicom_path, 'wb') as f:
-                        f.write(dicom_bytes)
-                
-                logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_instances)}개 슬라이스 저장 완료")
+        # 1. Orthanc에서 4개 시퀀스의 Instance ID 수집
+        orthanc_instance_ids = []
+        for seq_idx, seq_series_id in enumerate(sequence_series_ids):
+            seq_info = client.get(f"/series/{seq_series_id}")
+            seq_instances = seq_info.get("Instances", [])
             
-            # 2. MAMA-MIA 모델 로드 (싱글톤 사용)
-            pipeline = get_pipeline()
-            if pipeline is None:
+            if len(seq_instances) == 0:
                 return Response({
                     "success": False,
-                    "error": "세그멘테이션 모델을 로드할 수 없습니다."
+                    "error": f"시퀀스 {seq_idx+1}에 슬라이스가 없습니다."
+                }, status=400)
+            
+            orthanc_instance_ids.append(seq_instances)
+            logger.info(f"✅ 시퀀스 {seq_idx+1}/4: {len(seq_instances)}개 슬라이스 ID 수집 완료")
+        
+        # 2. 세그멘테이션 시리즈 UID 생성
+        from pydicom.uid import generate_uid
+        seg_series_uid = generate_uid()
+        
+        # 3. Mosec에 요청 전송 (instance_ids만 전송)
+        logger.info(f"🚀 Mosec 서비스 호출 중... (4개 시퀀스, Orthanc API 사용)")
+        
+        payload = {
+            "orthanc_instance_ids": orthanc_instance_ids,
+            "orthanc_url": ORTHANC_URL,
+            "orthanc_auth": [ORTHANC_USER, ORTHANC_PASSWORD],
+            "seg_series_uid": seg_series_uid,
+            "original_series_id": series_id,
+            "start_instance_number": 1
+        }
+        
+        response = requests.post(
+            SEGMENTATION_MOSEC_URL,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=2400  # 40분 타임아웃 (대용량 처리 고려)
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"❌ Mosec 서비스 오류: {response.status_code} - {response.text}")
+            return Response({
+                'success': False,
+                'error': f'Mosec 서비스 오류: {response.status_code} - {response.text[:500]}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # 4. Mosec 응답 처리
+        try:
+            mosec_result = response.json()
+            logger.info(f"📥 Mosec 응답 수신: {type(mosec_result)}")
+            
+            if not isinstance(mosec_result, dict):
+                logger.error(f"❌ Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}")
+                return Response({
+                    'success': False,
+                    'error': f'Mosec 응답 형식 오류: 예상 dict, 실제 {type(mosec_result)}'
                 }, status=500)
             
-            # 3. 추론 실행
-            seg_dicom_path = Path(temp_dir) / "segmentation.dcm"
-            result = pipeline.predict(
-                image_path=temp_dir,
-                output_path=str(seg_dicom_path),
-                output_format="dicom"
-            )
+            # Mosec이 Orthanc에 저장한 seg_instance_id 확인
+            seg_instance_id = mosec_result.get('seg_instance_id')
+            tumor_ratio_percent = mosec_result.get('tumor_ratio_percent', 0.0)
+            tumor_pixel_count = mosec_result.get('tumor_pixel_count', 0)
             
-            logger.info(f"✅ 추론 완료: tumor_detected={result['tumor_detected']}")
+            # tumor_detected는 tumor_ratio_percent가 0보다 크면 True
+            tumor_detected = tumor_ratio_percent > 0.0
+            # tumor_volume_voxels는 tumor_pixel_count를 사용 (또는 계산)
+            tumor_volume_voxels = tumor_pixel_count
             
-            # 4. DICOM SEG를 Orthanc에 업로드
-            if not seg_dicom_path.exists():
-                raise Exception("세그멘테이션 결과 파일(DICOM SEG)이 생성되지 않았습니다.")
-                
-            with open(seg_dicom_path, 'rb') as f:
-                seg_dicom_bytes = f.read()
+            if not seg_instance_id:
+                logger.warning("⚠️ Mosec 응답에 seg_instance_id가 없습니다. Mosec이 Orthanc에 저장했는지 확인하세요.")
             
-            upload_result = client.upload_dicom(seg_dicom_bytes)
-            seg_instance_id = upload_result.get('ID')
-            
-            logger.info(f"✅ Orthanc 업로드 완료: {seg_instance_id}")
+            logger.info(f"✅ 세그멘테이션 완료: tumor_detected={tumor_detected}, tumor_ratio={tumor_ratio_percent:.2f}%, seg_instance_id={seg_instance_id}")
             
             return Response({
                 'success': True,
                 'series_id': series_id,
-                'tumor_detected': result['tumor_detected'],
-                'tumor_volume_voxels': result['tumor_volume_voxels'],
+                'tumor_detected': tumor_detected,
+                'tumor_volume_voxels': tumor_volume_voxels,
+                'tumor_ratio_percent': tumor_ratio_percent,
                 'seg_instance_id': seg_instance_id,
-                'saved_to_orthanc': True
+                'saved_to_orthanc': seg_instance_id is not None,
+                'processed_by': 'mosec'
             })
             
-        finally:
-            if temp_dir and Path(temp_dir).exists():
-                shutil.rmtree(temp_dir)
-                logger.info("🧹 임시 파일 정리 완료")
+        except Exception as e:
+            logger.error(f"❌ Mosec 응답 처리 실패: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'error': f'Mosec 응답 처리 실패: {str(e)}'
+            }, status=500)
     
+    except requests.exceptions.Timeout:
+        logger.error(f"❌ Mosec 서비스 타임아웃")
+        return Response({
+            'success': False,
+            'error': 'AI 분석 타임아웃 (40분 초과)'
+        }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.ConnectionError:
+        logger.error(f"❌ Mosec 서비스 연결 실패")
+        return Response({
+            'success': False,
+            'error': 'Mosec 서비스에 연결할 수 없습니다. 서비스가 실행 중인지 확인하세요.'
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         logger.error(f"❌ 세그멘테이션 로직 실패: {str(e)}", exc_info=True)
         return Response({
