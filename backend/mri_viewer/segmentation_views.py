@@ -434,7 +434,7 @@ def request_local_inference(request, series_id):
             'main_series_id': series_id,
             'requested_at': timezone.now().isoformat(),
             'status': 'pending',
-            'requested_by': request.user.username if hasattr(request, 'user') and request.user.is_authenticated else 'anonymous'
+            'requested_by': getattr(request.user, 'username', 'anonymous') if hasattr(request, 'user') and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated else 'anonymous'
         }
         
         # 요청 파일 저장 (타임스탬프 포함하여 중복 방지)

@@ -202,6 +202,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',  # 채팅 API 인증을 위해 필요
     ],
+    # CSRF 면제를 위한 설정 (연구실 컴퓨터 워커용 API)
+    'EXEMPT_VIEWS': [
+        'mri_viewer.segmentation_views.segment_series',
+        'mri_viewer.segmentation_views.request_local_inference',
+    ],
     'DEFAULT_THROTTLE_RATES': {
         'chat_messages': '1000/hour',  # 메시지 조회 throttle
         'chat_search': '100/hour',     # 메시지 검색 throttle
