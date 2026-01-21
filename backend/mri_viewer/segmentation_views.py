@@ -4,9 +4,11 @@ MRI 세그멘테이션 API Views (MAMA_MIA_DELIVERY_PKG 파이프라인 사용)
 - 추론: 새로운 MAMA_MIA 파이프라인 사용
 - 연구실 컴퓨터 추론: 로컬 환경에서 추론 실행 가능
 """
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 import requests
@@ -75,19 +77,9 @@ def get_pipeline():
 
 
 @api_view(['POST'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 def mri_segmentation(request, instance_id):
-    """
-    단일 인스턴스 세그멘테이션 (CSRF 면제)
-    """
-    # CSRF 체크 우회를 위한 커스텀 인증 클래스
-    from rest_framework.authentication import SessionAuthentication
-    
-    class CSRFExemptSessionAuthentication(SessionAuthentication):
-        def enforce_csrf(self, request):
-            return  # CSRF 체크를 건너뜀
-    
-    # 뷰 레벨에서 인증 클래스 오버라이드
-    request.authenticators = [CSRFExemptSessionAuthentication()]
     """
     MRI 세그멘테이션 실행 및 Orthanc에 저장 (단일 인스턴스 또는 4채널)
     
@@ -179,7 +171,15 @@ def segmentation_health(request):
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+# CSRF 체크를 건너뛰는 커스텀 인증 클래스
+class CSRFExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # CSRF 체크를 건너뜀
+
+
 @api_view(['POST'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 def segment_series(request, series_id):
     """
     시리즈 전체를 3D 세그멘테이션하고 Orthanc에 저장
@@ -194,28 +194,10 @@ def segment_series(request, series_id):
         "use_local": true/false  // 연구실 컴퓨터 사용 여부 (기본: 자동 감지)
     }
     """
-    from rest_framework.authentication import SessionAuthentication
-    from rest_framework.permissions import AllowAny
     import tempfile
     import shutil
     from pathlib import Path
     import sys
-    
-    # CSRF 체크 우회: SessionAuthentication의 enforce_csrf를 비활성화
-    # 프론트엔드에서 CSRF 토큰 없이 호출 가능하도록 설정
-    class CSRFExemptSessionAuthentication(SessionAuthentication):
-        def enforce_csrf(self, request):
-            return  # CSRF 체크를 건너뜀
-    
-    # 뷰 레벨에서 인증 클래스 오버라이드 (DRF가 요청을 처리하기 전에 설정)
-    if hasattr(request, '_authenticators'):
-        request._authenticators = [CSRFExemptSessionAuthentication()]
-    else:
-        # request가 아직 초기화되지 않은 경우
-        request.authenticators = [CSRFExemptSessionAuthentication()]
-    
-    # 또한 직접 enforce_csrf 호출 방지
-    request._dont_enforce_csrf_checks = True
     
     try:
         logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
