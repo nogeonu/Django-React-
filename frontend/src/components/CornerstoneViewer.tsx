@@ -795,22 +795,20 @@ export default function CornerstoneViewer({
           const element = viewportRef.current;
           if (element) {
             const elementRect = element.getBoundingClientRect();
-            const scaleX = width / elementRect.width;
-            const scaleY = height / elementRect.height;
-            const scale = Math.max(scaleX, scaleY);
-
+            
             // @ts-ignore
             const camera = viewport.getCamera();
             if (camera) {
               // 1:1 픽셀 비율로 zoom 설정
+              // parallelScale을 원본 이미지 높이의 절반으로 설정하면 1:1 픽셀 비율이 됨
               // @ts-ignore
               viewport.setCamera({
                 ...camera,
-                parallelScale: height / 2, // 원본 높이의 절반
+                parallelScale: height / 2, // 원본 높이의 절반 (1:1 픽셀)
               });
               viewport.render();
               setIsOriginalSize(true);
-              console.log('원본 크기 모드 활성화:', { width, height, scale });
+              console.log('원본 크기 모드 활성화:', { width, height, elementSize: elementRect });
             }
           }
         }
