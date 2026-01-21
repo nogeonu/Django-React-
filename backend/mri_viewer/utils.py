@@ -385,6 +385,51 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
     
     dicom_slices = []
     
+    # NIfTI 헤더의 추가 정보 추출 (descrip, cal_min, cal_max, intent_code 등) - 한 번만 추출
+    nifti_metadata = {}
+    if hasattr(header, 'get'):
+        try:
+            # descrip: 설명 텍스트 (80자 제한)
+            descrip = header.get('descrip', b'')
+            if isinstance(descrip, bytes):
+                descrip = descrip.decode('utf-8', errors='ignore').strip('\x00').strip()
+            elif isinstance(descrip, np.ndarray):
+                descrip = descrip.tobytes().decode('utf-8', errors='ignore').strip('\x00').strip()
+            else:
+                descrip = str(descrip).strip()
+            if descrip:
+                nifti_metadata['descrip'] = descrip[:80]  # 80자 제한
+        except Exception as e:
+            logger.debug(f"Failed to extract NIfTI descrip: {e}")
+        
+        try:
+            # cal_min, cal_max: 캘리브레이션 값
+            cal_min = header.get('cal_min', 0)
+            cal_max = header.get('cal_max', 0)
+            if cal_min != 0 or cal_max != 0:
+                nifti_metadata['cal_min'] = float(cal_min)
+                nifti_metadata['cal_max'] = float(cal_max)
+        except Exception as e:
+            logger.debug(f"Failed to extract NIfTI cal_min/cal_max: {e}")
+        
+        try:
+            # intent_code: 데이터 의도 코드
+            intent_code = header.get('intent_code', 0)
+            if intent_code != 0:
+                nifti_metadata['intent_code'] = int(intent_code)
+        except Exception as e:
+            logger.debug(f"Failed to extract NIfTI intent_code: {e}")
+    
+    # NIfTI 메타데이터 추출 완료 로그
+    if nifti_metadata:
+        logger.info(f"📋 NIfTI 헤더 추가 정보 추출:")
+        if nifti_metadata.get('descrip'):
+            logger.info(f"  - descrip: {nifti_metadata['descrip'][:50]}...")
+        if nifti_metadata.get('cal_min') is not None:
+            logger.info(f"  - cal_min: {nifti_metadata['cal_min']}, cal_max: {nifti_metadata.get('cal_max')}")
+        if nifti_metadata.get('intent_code'):
+            logger.info(f"  - intent_code: {nifti_metadata['intent_code']}")
+    
     for slice_idx in range(num_slices):
         # 슬라이스 추출
         slice_data = volume[:, :, slice_idx]
@@ -517,6 +562,32 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         ds.SliceLocation = str(slice_location)
         ds.FrameOfReferenceUID = frame_of_reference_uid
         
+        # NIfTI 헤더 정보를 DICOM에 보존 (모든 슬라이스에 동일하게 적용)
+        # ImageComments에 NIfTI 메타데이터 저장
+        comments_parts = []
+        
+        if nifti_metadata.get('descrip'):
+            comments_parts.append(f"NIfTI descrip: {nifti_metadata['descrip']}")
+        
+        if nifti_metadata.get('cal_min') is not None or nifti_metadata.get('cal_max') is not None:
+            comments_parts.append(f"NIfTI cal_min={nifti_metadata.get('cal_min', 'N/A')}, cal_max={nifti_metadata.get('cal_max', 'N/A')}")
+        
+        if nifti_metadata.get('intent_code'):
+            comments_parts.append(f"NIfTI intent_code={nifti_metadata['intent_code']}")
+        
+        if comments_parts:
+            ds.ImageComments = "\n".join(comments_parts)[:10240]  # DICOM LT 타입 제한 (10240자)
+        
+        # 첫 슬라이스에만 SeriesDescription에도 추가
+        if slice_idx == 0 and nifti_metadata.get('descrip'):
+            original_desc = ds.SeriesDescription
+            nifti_desc = nifti_metadata['descrip'][:30]  # 짧게 유지
+            if original_desc and original_desc != settings['series_description']:
+                ds.SeriesDescription = f"{original_desc} [{nifti_desc}]"
+            elif nifti_desc:
+                # 기존 설명이 기본값이면 NIfTI 정보 추가
+                ds.SeriesDescription = f"{settings['series_description']} [{nifti_desc}]"
+        
         # 메타데이터 검증 로그 (첫 슬라이스에만)
         if slice_idx == 0:
             logger.info(f"📋 DICOM 메타데이터 확인 (첫 슬라이스):")
@@ -526,6 +597,14 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             logger.info(f"  ✅ ImageOrientationPatient: {ds.ImageOrientationPatient}")
             logger.info(f"  ✅ FrameOfReferenceUID: {ds.FrameOfReferenceUID}")
             logger.info(f"  ✅ AccessionNumber: '{ds.AccessionNumber}'")
+            if nifti_metadata.get('descrip'):
+                logger.info(f"  ✅ NIfTI descrip 보존: '{nifti_metadata['descrip'][:50]}...'")
+            if nifti_metadata.get('cal_min') is not None or nifti_metadata.get('cal_max') is not None:
+                logger.info(f"  ✅ NIfTI cal_min/cal_max 보존: {nifti_metadata.get('cal_min')}/{nifti_metadata.get('cal_max')}")
+            if nifti_metadata.get('intent_code'):
+                logger.info(f"  ✅ NIfTI intent_code 보존: {nifti_metadata['intent_code']}")
+            if hasattr(ds, 'ImageComments') and ds.ImageComments:
+                logger.info(f"  ✅ ImageComments: '{ds.ImageComments[:100]}...'")
         
         # 픽셀 데이터 (numpy 배열을 직접 할당)
         ds.PixelData = slice_data.tobytes()
