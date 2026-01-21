@@ -207,8 +207,15 @@ def segment_series(request, series_id):
         def enforce_csrf(self, request):
             return  # CSRF 체크를 건너뜀
     
-    # 뷰 레벨에서 인증 클래스 오버라이드
-    request.authenticators = [CSRFExemptSessionAuthentication()]
+    # 뷰 레벨에서 인증 클래스 오버라이드 (DRF가 요청을 처리하기 전에 설정)
+    if hasattr(request, '_authenticators'):
+        request._authenticators = [CSRFExemptSessionAuthentication()]
+    else:
+        # request가 아직 초기화되지 않은 경우
+        request.authenticators = [CSRFExemptSessionAuthentication()]
+    
+    # 또한 직접 enforce_csrf 호출 방지
+    request._dont_enforce_csrf_checks = True
     
     try:
         logger.info(f"🔍 시리즈 3D 세그멘테이션 시작: series_id={series_id}")
