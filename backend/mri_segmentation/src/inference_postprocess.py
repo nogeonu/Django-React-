@@ -409,6 +409,25 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     logger.info(f"  - 검증: 첫 번째 이미지 FrameOfReferenceUID = {source_images[0].FrameOfReferenceUID}")
     logger.info(f"  - 검증: 마지막 이미지 FrameOfReferenceUID = {source_images[-1].FrameOfReferenceUID}")
     
+    # 소스 이미지에 필수 Study 메타데이터 확인 및 추가 (highdicom.Segmentation에서 필요할 수 있음)
+    logger.info(f"🔍 소스 이미지 Study 메타데이터 확인 중...")
+    for i, ds in enumerate(source_images):
+        # AccessionNumber 확인 및 추가
+        if not hasattr(ds, 'AccessionNumber') or not ds.AccessionNumber:
+            # StudyID를 기반으로 AccessionNumber 생성
+            if hasattr(ds, 'StudyID') and ds.StudyID:
+                ds.AccessionNumber = str(ds.StudyID)
+            else:
+                ds.AccessionNumber = "UNKNOWN"
+            if i == 0:  # 첫 번째 이미지만 로그
+                logger.info(f"  - AccessionNumber 추가: {ds.AccessionNumber}")
+        
+        # ReferringPhysicianName 확인 및 추가 (없으면 빈 문자열)
+        if not hasattr(ds, 'ReferringPhysicianName'):
+            ds.ReferringPhysicianName = ""
+    
+    logger.info(f"  - ✅ 모든 소스 이미지 Study 메타데이터 설정 완료")
+    
     # 2. Prepare Mask Data
     # CRITICAL: highdicom.Segmentation expects:
     #   - pixel_array shape: (Frames, Rows, Columns) where Frames = len(source_images)
