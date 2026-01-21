@@ -1252,8 +1252,11 @@ export default function MRIViewer() {
                     disabled={uploading}
                   >
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    {imageType === 'MRI 영상' ? '폴더 선택 (seq_0~seq_3, 여러 폴더 동시 선택 가능)' : imageType === '유방촬영술 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
+                    {imageType === 'MRI 영상' ? '폴더 선택 (한 번에 1개)' : imageType === '유방촬영술 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
                   </Button>
+                  <p className="text-[10px] text-gray-400 mt-2 text-center">
+                    {imageType === 'MRI 영상' && '💡 여러 폴더를 한 번에 업로드하려면 파일 탐색기에서 seq_0~seq_3 폴더를 모두 선택(Cmd+클릭) 후 드래그하세요'}
+                  </p>
                 </div>
               </CardContent>
             </Card>
