@@ -789,13 +789,24 @@ export default function MRIViewer() {
         try {
           data = JSON.parse(responseText);
         } catch (jsonError) {
-          errorMessages.push(`서버 응답 파싱 실패 (${response.status})`);
-          console.error(`❌ 응답 파싱 실패:`, responseText);
-          toast({
-            title: "업로드 실패",
-            description: `서버 응답을 파싱할 수 없습니다: ${responseText.substring(0, 100)}`,
-            variant: "destructive"
-          });
+          // HTML 응답이 오는 경우 (서버 에러 페이지)
+          if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+            errorMessages.push(`서버 에러 발생 (${response.status})`);
+            console.error(`❌ 서버가 HTML 에러 페이지를 반환했습니다:`, response.status);
+            toast({
+              title: "업로드 실패",
+              description: `서버에서 에러가 발생했습니다 (${response.status}). 서버 로그를 확인해주세요.`,
+              variant: "destructive"
+            });
+          } else {
+            errorMessages.push(`서버 응답 파싱 실패 (${response.status})`);
+            console.error(`❌ 응답 파싱 실패:`, responseText.substring(0, 200));
+            toast({
+              title: "업로드 실패",
+              description: `서버 응답을 파싱할 수 없습니다: ${responseText.substring(0, 100)}`,
+              variant: "destructive"
+            });
+          }
           return;
         }
 
@@ -808,10 +819,17 @@ export default function MRIViewer() {
           if (selectedPatient) fetchOrthancImages(selectedPatient);
         } else {
           const errorMsg = data.error || data.message || '업로드 실패';
+          const errorType = data.error_type || '';
           errorMessages.push(errorMsg);
+          console.error('업로드 실패 상세:', {
+            error: errorMsg,
+            error_type: errorType,
+            response_status: response.status,
+            data: data
+          });
           toast({
             title: "업로드 실패",
-            description: errorMsg,
+            description: errorType ? `${errorType}: ${errorMsg}` : errorMsg,
             variant: "destructive"
           });
         }
@@ -1085,11 +1103,29 @@ export default function MRIViewer() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
-                  {imageType === 'MRI 영상' 
-                    ? 'seq_0, seq_1, seq_2, seq_3 폴더를 각각 폴더 단위로 선택하세요. 각 폴더가 하나의 시리즈로 Orthanc에 저장됩니다. 여러 폴더를 드래그 앤 드롭하거나, 상위 폴더를 선택하면 내부의 모든 seq 폴더가 자동으로 포함됩니다.'
-                    : 'DICOM 파일을 서버로 전송합니다.'}
-                </p>
+                {imageType === 'MRI 영상' && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+                      💡 여러 폴더 업로드 방법
+                    </p>
+                    <div className="text-[10px] text-gray-300 space-y-1">
+                      <p className="font-bold">방법 1 (권장): 드래그 앤 드롭</p>
+                      <p className="pl-2">• seq_0, seq_1, seq_2, seq_3 폴더를 각각 드래그해서 위 영역에 놓으세요</p>
+                      <p className="pl-2">• 여러 폴더를 동시에 드래그 가능합니다</p>
+                      <p className="font-bold mt-2">방법 2: 상위 폴더 선택</p>
+                      <p className="pl-2">• 아래 버튼으로 상위 폴더(ISPY2_213913_DICOM_4CH)를 선택하면</p>
+                      <p className="pl-2">• 내부의 모든 seq 폴더가 자동으로 포함됩니다</p>
+                    </div>
+                    <p className="text-[9px] text-gray-400 mt-2">
+                      ⚠️ 파일 선택 다이얼로그는 브라우저 제한으로 하나의 폴더만 선택 가능합니다
+                    </p>
+                  </div>
+                )}
+                {imageType !== 'MRI 영상' && (
+                  <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
+                    DICOM 파일을 서버로 전송합니다.
+                  </p>
+                )}
 
                 {/* 드래그 앤 드롭 영역 */}
                 <div
@@ -1108,11 +1144,11 @@ export default function MRIViewer() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">
-                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? 'seq_0~seq_3 폴더를 드래그하세요 (여러 폴더 동시 가능)' : '파일을 드래그하세요'}
+                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? 'seq_0, seq_1, seq_2, seq_3 폴더를 드래그하세요' : '파일을 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {imageType === 'MRI 영상' 
-                          ? '각 폴더가 하나의 시리즈로 저장됩니다. 또는 상위 폴더 선택 시 자동 포함'
+                          ? '✨ 여러 폴더를 동시에 드래그 가능! 각 폴더가 하나의 시리즈로 저장됩니다'
                           : '또는 아래 버튼으로 파일 선택'}
                       </p>
                     </div>
@@ -1137,7 +1173,7 @@ export default function MRIViewer() {
                     disabled={uploading}
                   >
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    {imageType === 'MRI 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
+                    {imageType === 'MRI 영상' ? '상위 폴더 선택 (seq_0~seq_3 자동 포함)' : '파일 선택 및 업로드'}
                   </Button>
                 </div>
               </CardContent>

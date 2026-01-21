@@ -592,10 +592,15 @@ def orthanc_upload_dicom_series_folder(request):
         })
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"❌ DICOM 시리즈 폴더 업로드 실패: {str(e)}", exc_info=True)
+        logger.error(f"상세 에러:\n{error_traceback}")
         return Response({
             'success': False,
-            'error': str(e)
+            'error': f'업로드 중 오류가 발생했습니다: {str(e)}',
+            'error_type': type(e).__name__,
+            'traceback': error_traceback if logger.level <= logging.DEBUG else None
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
