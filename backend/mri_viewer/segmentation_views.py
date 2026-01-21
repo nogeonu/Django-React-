@@ -379,7 +379,7 @@ def _create_local_inference_request(request, series_id, sequence_series_ids):
         logger.info(f"✅ 추론 요청 생성: {request_file.name}")
         
         import time
-        max_wait_time = 300
+        max_wait_time = 600  # 10분 (다운로드 시간이 길 수 있음)
         check_interval = 2
         elapsed_time = 0
         
