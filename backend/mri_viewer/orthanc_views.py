@@ -413,6 +413,7 @@ def orthanc_upload_dicom_series_folder(request):
         
         # 여러 파일 가져오기
         files = request.FILES.getlist('files')
+        file_paths = request.data.getlist('file_paths')  # 프론트엔드에서 전달한 경로 정보
         patient_id = request.data.get('patient_id')
         patient_name = request.data.get('patient_name', None)
         image_type = request.data.get('image_type', None)
@@ -447,19 +448,21 @@ def orthanc_upload_dicom_series_folder(request):
         client = OrthancClient()
         
         # 파일들을 seq 폴더별로 그룹화
-        # 파일 이름에서 seq_0, seq_1 등의 패턴 추출
+        # 파일 경로 정보를 사용하여 seq_0, seq_1 등을 추출
         seq_groups = {}  # {seq_number: [files]}
         
-        for file in files:
-            file_name = file.name
+        for idx, file in enumerate(files):
+            # 프론트엔드에서 전달한 경로 정보 사용 (있으면)
+            file_path = file_paths[idx] if idx < len(file_paths) else file.name
+            
             # seq_0, seq_1, seq_2, seq_3 패턴 찾기
-            seq_match = re.search(r'seq[_\s]*(\d+)', file_name, re.IGNORECASE)
+            seq_match = re.search(r'seq[_\s]*(\d+)', file_path, re.IGNORECASE)
             if seq_match:
                 seq_num = int(seq_match.group(1))
             else:
                 # seq 패턴이 없으면 파일 경로에서 추출 시도
                 # 예: "ISPY2_213913_DICOM_4CH/seq_0/slice_0000.dcm"
-                path_parts = file_name.replace('\\', '/').split('/')
+                path_parts = file_path.replace('\\', '/').split('/')
                 seq_num = None
                 for part in path_parts:
                     seq_match = re.search(r'seq[_\s]*(\d+)', part, re.IGNORECASE)
@@ -470,7 +473,7 @@ def orthanc_upload_dicom_series_folder(request):
                 if seq_num is None:
                     # seq 패턴을 찾을 수 없으면 seq_0으로 기본값 설정
                     seq_num = 0
-                    logger.warning(f"seq 패턴을 찾을 수 없어 seq_0으로 설정: {file_name}")
+                    logger.warning(f"seq 패턴을 찾을 수 없어 seq_0으로 설정: {file_path}")
             
             if seq_num not in seq_groups:
                 seq_groups[seq_num] = []

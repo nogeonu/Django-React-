@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,9 +28,7 @@ import {
   Cpu,
   Plus,
   Settings2,
-  Maximize2,
-  X,
-  Folder
+  Maximize2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -156,30 +154,6 @@ export default function MRIViewer() {
   const [uploading, setUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]); // 업로드 대기 중인 파일들
-
-  // 업로드 대기 목록을 폴더별로 그룹화
-  const groupedPendingFolders = useMemo(() => {
-    const groups: Record<string, { count: number; files: File[] }> = {};
-    pendingFiles.forEach(file => {
-      const path = (file as any).webkitRelativePath || '';
-      const folderName = path.includes('/') ? path.split('/')[0] : '개별 파일';
-      if (!groups[folderName]) {
-        groups[folderName] = { count: 0, files: [] };
-      }
-      groups[folderName].count++;
-      groups[folderName].files.push(file);
-    });
-    return groups;
-  }, [pendingFiles]);
-
-  const removeFolderFromQueue = (folderName: string) => {
-    setPendingFiles(prev => prev.filter(file => {
-      const path = (file as any).webkitRelativePath || '';
-      const name = path.includes('/') ? path.split('/')[0] : '개별 파일';
-      return name !== folderName;
-    }));
-  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -592,13 +566,34 @@ export default function MRIViewer() {
       return;
     }
 
-    // 대기 목록에 추가
-    setPendingFiles(prev => [...prev, ...files]);
+    // 파일이 많으면 알림
+    if (files.length > 100) {
+      toast({
+        title: "업로드 준비",
+        description: `${files.length}개의 파일을 업로드합니다. 시간이 걸릴 수 있습니다...`,
+      });
+    }
 
-    toast({
-      title: "목록 추가됨",
-      description: `${files.length}개의 파일이 업로드 대기 목록에 추가되었습니다.`,
-    });
+    // MRI 영상인 경우 seq 폴더 확인 및 안내
+    if (imageType === 'MRI 영상') {
+      const filePaths = files.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
+      const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
+      const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
+      const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
+      
+      const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
+      
+      if (foundSeqs > 0) {
+        toast({
+          title: "폴더 확인",
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${files.length}개 파일을 업로드합니다.`,
+        });
+      }
+    }
+
+    // 바로 업로드
+    await uploadFiles(files);
   };
 
   const processFiles = async (files: FileList | File[]) => {
@@ -626,19 +621,26 @@ export default function MRIViewer() {
       return;
     }
 
-    // 대기 목록에 추가
-    setPendingFiles(prev => [...prev, ...fileArray]);
-
-    toast({
-      title: "목록 추가됨",
-      description: `${fileArray.length}개의 파일이 업로드 대기 목록에 추가되었습니다.`,
-    });
-  };
-
-  const uploadFilesAll = async () => {
-    if (pendingFiles.length === 0) return;
-    await uploadFiles(pendingFiles);
-    setPendingFiles([]); // 업로드 후 목록 비우기
+    // MRI 영상인 경우 seq 폴더 확인 및 안내
+    if (imageType === 'MRI 영상') {
+      const filePaths = fileArray.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
+      const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
+      const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
+      const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
+      
+      const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
+      
+      if (foundSeqs > 0) {
+        toast({
+          title: "폴더 확인",
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${fileArray.length}개 파일을 업로드합니다.`,
+        });
+      }
+    }
+    
+    // 바로 업로드
+    await uploadFiles(fileArray);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -763,9 +765,13 @@ export default function MRIViewer() {
       if (imageType === 'MRI 영상') {
         const formData = new FormData();
         files.forEach(file => {
-          // 폴더 구조 유지를 위해 상대 경로 포함 (서버에서 seq_0, seq_1 판별에 사용)
+          // 파일 추가 (webkitRelativePath는 파일 객체에 포함되어 있음)
+          formData.append('files', file);
+          // 경로 정보를 별도로 전달 (서버에서 seq_0, seq_1 판별에 사용)
           const relativePath = (file as any).webkitRelativePath || file.name;
-          formData.append('files', file, relativePath);
+          if (relativePath) {
+            formData.append('file_paths', relativePath);
+          }
         });
         formData.append('patient_id', selectedPatient);
         formData.append('patient_name', patientName);
@@ -1114,13 +1120,11 @@ export default function MRIViewer() {
                       💡 여러 폴더 업로드 방법
                     </p>
                     <div className="text-[10px] text-gray-300 space-y-1">
-                      <p className="font-bold">방법 1 (권장): 드래그 앤 드롭</p>
-                      <p className="pl-2">• seq_0, seq_1, seq_2, seq_3 폴더를 각각 드래그해서 위 영역에 놓으세요</p>
-                      <p className="pl-2">• 여러 폴더를 동시에 드래그 가능합니다</p>
-                      <p className="pl-2 font-bold text-blue-400">• 팁: 상위 폴더 하나만 드래그해도 내부의 모든 seq가 포함됩니다</p>
-                      <p className="font-bold mt-2">방법 2: 연속 폴더 추가</p>
-                      <p className="pl-2">• 아래 버튼으로 폴더를 하나ずつ 추가하여 목록을 만드세요</p>
-                      <p className="pl-2">• 목록이 완성되면 한 번에 업로드할 수 있습니다</p>
+                      <p className="font-bold">드래그 앤 드롭으로 업로드</p>
+                      <p className="pl-2">• 상위 폴더(ISPY2_213913_DICOM_4CH)를 드래그해서 위 영역에 놓으세요</p>
+                      <p className="pl-2">• 내부의 seq_0, seq_1, seq_2, seq_3 폴더의 모든 파일이 자동으로 포함됩니다</p>
+                      <p className="pl-2 font-bold text-blue-400">• 각 폴더가 하나의 시리즈로 Orthanc에 저장됩니다</p>
+                      <p className="pl-2">• 또는 seq_0, seq_1, seq_2, seq_3 폴더를 각각 드래그할 수도 있습니다</p>
                     </div>
                   </div>
                 )}
@@ -1128,55 +1132,6 @@ export default function MRIViewer() {
                   <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
                     DICOM 파일을 서버로 전송합니다.
                   </p>
-                )}
-
-                {/* 대기 목록 (Staging Area) */}
-                {pendingFiles.length > 0 && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-                        업로드 대기 목록 ({pendingFiles.length})
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPendingFiles([])}
-                        className="h-6 text-[9px] font-bold text-red-400 hover:text-red-300 hover:bg-red-400/10 p-0"
-                      >
-                        전체 비우기
-                      </Button>
-                    </div>
-
-                    {/* 그룹화된 폴더 목록 */}
-                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1 thin-scrollbar">
-                      {Object.entries(groupedPendingFolders).map(([folder, info]) => (
-                        <div key={folder} className="flex items-center justify-between bg-white/5 px-2 py-1 rounded-lg">
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <Folder className="w-3 h-3 text-blue-400 shrink-0" />
-                            <span className="text-[10px] text-gray-300 truncate font-medium">{folder}</span>
-                            <span className="text-[9px] text-gray-500 shrink-0">({info.count}장)</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeFolderFromQueue(folder)}
-                            className="h-5 w-5 text-gray-500 hover:text-red-400"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button
-                      className="w-full h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs"
-                      onClick={uploadFilesAll}
-                      disabled={uploading}
-                    >
-                      {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                      {pendingFiles.length}개 파일 일괄 업로드
-                    </Button>
-                  </div>
                 )}
 
                 {/* 드래그 앤 드롭 영역 */}
@@ -1196,11 +1151,11 @@ export default function MRIViewer() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">
-                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '폴더를 이곳에 드래그하여 추가하세요' : '파일을 드래그하세요'}
+                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '상위 폴더를 드래그하세요' : '파일을 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {imageType === 'MRI 영상'
-                          ? '✨ 여러 폴더를 동시에 드래그 가능! 목록에 담긴 후 일괄 업로드됩니다'
+                          ? '✨ 상위 폴더 드래그 시 내부의 모든 seq 폴더가 자동으로 포함되어 바로 업로드됩니다'
                           : '또는 아래 버튼으로 파일 선택'}
                       </p>
                     </div>
@@ -1225,7 +1180,7 @@ export default function MRIViewer() {
                     disabled={uploading}
                   >
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    {imageType === 'MRI 영상' ? '목록에 폴더 추가' : '파일 선택 및 업로드'}
+                    {imageType === 'MRI 영상' ? '상위 폴더 선택 (seq_0~seq_3 자동 포함)' : '파일 선택 및 업로드'}
                   </Button>
                 </div>
               </CardContent>
