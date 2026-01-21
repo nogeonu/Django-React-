@@ -1067,8 +1067,7 @@ export default function MRIViewer() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    webkitdirectory=""
-                    directory=""
+                    {...(imageType === 'MRI 영상' ? { webkitdirectory: '', directory: '' } as any : {})}
                     accept={imageType === '병리 영상' ? '.svs' : '.dicom,.dcm'}
                     onChange={handleFileUpload}
                     disabled={uploading}
