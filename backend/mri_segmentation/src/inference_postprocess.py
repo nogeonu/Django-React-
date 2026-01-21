@@ -340,14 +340,33 @@ def save_as_dicom_seg(mask, output_path, reference_dicom_path, prediction_label=
     # MONAI LoadImage sorts files spatially. InstanceNumber might be inconsistent or reversed.
     def get_z_position(ds):
         # Calculate projection onto slice normal to robustly handle tilted acquisitions
-        iop = ds.ImageOrientationPatient
+        # ImageOrientationPatient 및 ImagePositionPatient 확인 (기존 DICOM에 없을 수 있음)
+        if not hasattr(ds, 'ImageOrientationPatient') or not ds.ImageOrientationPatient:
+            # 기본값: RAS 좌표계
+            iop = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+            logger.warning(f"  ⚠️ ImageOrientationPatient가 없어 기본값 사용: {iop}")
+        else:
+            iop = ds.ImageOrientationPatient
+        
         # Row cosine (x) and Column cosine (y)
         row_cos = np.array(iop[:3])
         col_cos = np.array(iop[3:])
         # Slice normal (z) = cross product
         slice_norm = np.cross(row_cos, col_cos)
-        # Position
-        pos = np.array(ds.ImagePositionPatient)
+        
+        # ImagePositionPatient 확인
+        if not hasattr(ds, 'ImagePositionPatient') or not ds.ImagePositionPatient:
+            # 기본값: SliceLocation 또는 InstanceNumber 사용
+            if hasattr(ds, 'SliceLocation') and ds.SliceLocation:
+                pos = np.array([0.0, 0.0, float(ds.SliceLocation)])
+            elif hasattr(ds, 'InstanceNumber') and ds.InstanceNumber:
+                pos = np.array([0.0, 0.0, float(ds.InstanceNumber)])
+            else:
+                pos = np.array([0.0, 0.0, 0.0])
+            logger.warning(f"  ⚠️ ImagePositionPatient가 없어 기본값 사용: {pos}")
+        else:
+            pos = np.array(ds.ImagePositionPatient)
+        
         # Projection
         return np.dot(pos, slice_norm)
 
