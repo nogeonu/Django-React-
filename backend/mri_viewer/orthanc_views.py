@@ -1,7 +1,9 @@
 """
 Orthanc PACS 서버 연동 API Views
 """
-from rest_framework.decorators import api_view, parser_classes
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, parser_classes, authentication_classes, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,6 +14,12 @@ import requests
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# CSRF 체크를 건너뛰는 커스텀 인증 클래스
+class CSRFExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # CSRF 체크를 건너뜀
 
 
 @api_view(['GET'])
@@ -384,6 +392,8 @@ def orthanc_instance_file(request, instance_id):
 
 
 @api_view(['POST'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 @parser_classes([MultiPartParser, FormParser])
 def orthanc_upload_dicom_folder(request):
     """
@@ -484,6 +494,8 @@ def orthanc_upload_dicom_folder(request):
 
 
 @api_view(['POST'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 @parser_classes([MultiPartParser, FormParser])
 def orthanc_upload_dicom(request):
     """DICOM 또는 NIfTI 파일 업로드"""
