@@ -132,14 +132,16 @@ class PCRPredictor:
         
         # 여러 경로 시도
         possible_paths = [
-            # 1. ml_service에서 실행 중인 경우
-            os.path.join(os.path.dirname(os.path.dirname(current_file)), 'lis', 'models', 'saved'),
-            # 2. lis 앱에서 직접 실행 중인 경우
-            os.path.join(os.path.dirname(__file__), 'models', 'saved'),
-            # 3. 절대 경로 (서버 환경)
+            # 1. 절대 경로 (서버 환경) - 우선순위 높음
             '/srv/django-react/app/backend/lis/models/saved',
+            # 2. ml_service에서 실행 중인 경우
+            os.path.join(os.path.dirname(os.path.dirname(current_file)), 'lis', 'models', 'saved'),
+            # 3. lis 앱에서 직접 실행 중인 경우
+            os.path.join(os.path.dirname(__file__), 'models', 'saved'),
             # 4. 현재 작업 디렉토리 기준
             os.path.join(os.getcwd(), 'backend', 'lis', 'models', 'saved'),
+            # 5. 상대 경로 (ml_service 기준)
+            os.path.join(os.path.dirname(current_file), '..', 'lis', 'models', 'saved'),
         ]
         
         self.model_dir = None
