@@ -24,6 +24,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 30s
+          command_timeout: 5m
           script: |
             set -e
             APP_DIR="${{ secrets.APP_DIR }}"
@@ -50,6 +52,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 30s
+          command_timeout: 5m
           script: |
             APP_DIR="${{ secrets.APP_DIR }}"
             OCS_DIR="$APP_DIR/backend/ocs"
