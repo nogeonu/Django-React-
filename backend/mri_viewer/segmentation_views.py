@@ -74,7 +74,6 @@ def get_pipeline():
     return _pipeline
 
 
-@csrf_exempt
 @api_view(['POST'])
 def mri_segmentation(request, instance_id):
     """
@@ -168,7 +167,6 @@ def segmentation_health(request):
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
-@csrf_exempt
 @api_view(['POST'])
 def segment_series(request, series_id):
     """
@@ -408,7 +406,6 @@ def get_segmentation_frames(request, seg_instance_id):
 REQUEST_DIR = Path(os.getenv('INFERENCE_REQUEST_DIR', '/tmp/mri_inference_requests'))
 
 
-@csrf_exempt
 @api_view(['POST'])
 def request_local_inference(request, series_id):
     """
@@ -657,7 +654,6 @@ def list_inference_requests(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @api_view(['GET'])
 def get_pending_requests(request):
     """
@@ -705,7 +701,6 @@ def get_pending_requests(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @api_view(['GET'])
 def get_pending_inference(request):
     """
@@ -758,7 +753,6 @@ def get_pending_inference(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @api_view(['POST'])
 def complete_inference(request, request_id):
     """
@@ -814,7 +808,6 @@ def complete_inference(request, request_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @api_view(['POST'])
 def complete_inference_request(request, request_id):
     """
@@ -876,7 +869,6 @@ def complete_inference_request(request, request_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @api_view(['POST'])
 def update_request_status(request, request_id):
     """

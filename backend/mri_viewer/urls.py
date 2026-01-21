@@ -26,25 +26,25 @@ urlpatterns = [
     path('orthanc/patients/<str:patient_id>/segmentation/run/', orthanc_views.orthanc_run_segmentation, name='orthanc-run-segmentation'),
     
     # MRI 세그멘테이션 API
-    path('segmentation/instances/<str:instance_id>/segment/', segmentation_views.mri_segmentation, name='mri-segmentation'),
-    path('segmentation/series/<str:series_id>/segment/', segmentation_views.segment_series, name='segment-series'),
+    path('segmentation/instances/<str:instance_id>/segment/', csrf_exempt(segmentation_views.mri_segmentation), name='mri-segmentation'),
+    path('segmentation/series/<str:series_id>/segment/', csrf_exempt(segmentation_views.segment_series), name='segment-series'),
     path('segmentation/instances/<str:seg_instance_id>/frames/', segmentation_views.get_segmentation_frames, name='get-segmentation-frames'),
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
     
     # 연구실 컴퓨터 추론 요청 API
-    path('segmentation/series/<str:series_id>/request-local/', segmentation_views.request_local_inference, name='request-local-inference'),
+    path('segmentation/series/<str:series_id>/request-local/', csrf_exempt(segmentation_views.request_local_inference), name='request-local-inference'),
     path('segmentation/status/<str:request_id>/', segmentation_views.check_inference_status, name='check-inference-status'),
     path('segmentation/requests/', segmentation_views.list_inference_requests, name='list-inference-requests'),
     
     # HTTP API 방식 (공유 디렉토리 불필요)
-    path('segmentation/pending-requests/', segmentation_views.get_pending_requests, name='get-pending-requests'),
-    path('segmentation/complete-request/<str:request_id>/', segmentation_views.complete_inference_request, name='complete-inference-request'),
-    path('segmentation/update-status/<str:request_id>/', segmentation_views.update_request_status, name='update-request-status'),
+    path('segmentation/pending-requests/', csrf_exempt(segmentation_views.get_pending_requests), name='get-pending-requests'),
+    path('segmentation/complete-request/<str:request_id>/', csrf_exempt(segmentation_views.complete_inference_request), name='complete-inference-request'),
+    path('segmentation/update-status/<str:request_id>/', csrf_exempt(segmentation_views.update_request_status), name='update-request-status'),
     
     # 조원님 워커 호환용 API (HTTP_API_구현_계획.md 참고)
     # /api/inference/ 경로에서 직접 사용하므로 'inference/' 제거
-    path('pending', segmentation_views.get_pending_inference, name='get-pending-inference'),
-    path('<str:request_id>/complete', segmentation_views.complete_inference, name='complete-inference'),
+    path('pending', csrf_exempt(segmentation_views.get_pending_inference), name='get-pending-inference'),
+    path('<str:request_id>/complete', csrf_exempt(segmentation_views.complete_inference), name='complete-inference'),
     
     # 맘모그래피 AI 분석 API
     path('mammography/analyze/', mammography_views.mammography_ai_analysis, name='analyze-mammography'),
