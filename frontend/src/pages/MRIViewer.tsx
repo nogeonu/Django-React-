@@ -565,12 +565,35 @@ export default function MRIViewer() {
       return;
     }
 
-    // 파일이 많으면 알림
-    if (files.length > 100) {
-      toast({
-        title: "업로드 준비",
-        description: `${files.length}개의 파일을 업로드합니다. 시간이 걸릴 수 있습니다...`,
-      });
+    // MRI 영상인 경우 seq 폴더 확인
+    if (imageType === 'MRI 영상') {
+      const filePaths = files.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
+      const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
+      const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
+      const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
+      
+      const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
+      
+      if (foundSeqs > 0) {
+        toast({
+          title: "폴더 확인",
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${files.length}개 파일을 업로드합니다.`,
+        });
+      } else {
+        toast({
+          title: "업로드 준비",
+          description: `${files.length}개의 파일을 업로드합니다. seq_0~seq_3 폴더 구조가 아닐 수 있습니다.`,
+        });
+      }
+    } else {
+      // 파일이 많으면 알림
+      if (files.length > 100) {
+        toast({
+          title: "업로드 준비",
+          description: `${files.length}개의 파일을 업로드합니다. 시간이 걸릴 수 있습니다...`,
+        });
+      }
     }
 
     await uploadFiles(files);
@@ -599,6 +622,29 @@ export default function MRIViewer() {
         variant: "destructive"
       });
       return;
+    }
+    
+    // MRI 영상인 경우 seq 폴더 확인
+    if (imageType === 'MRI 영상') {
+      const filePaths = fileArray.map(f => (f as any).webkitRelativePath || f.name).join('|');
+      const hasSeq0 = /seq[_\s]*0/i.test(filePaths);
+      const hasSeq1 = /seq[_\s]*1/i.test(filePaths);
+      const hasSeq2 = /seq[_\s]*2/i.test(filePaths);
+      const hasSeq3 = /seq[_\s]*3/i.test(filePaths);
+      
+      const foundSeqs = [hasSeq0, hasSeq1, hasSeq2, hasSeq3].filter(Boolean).length;
+      
+      if (foundSeqs > 0) {
+        toast({
+          title: "폴더 확인",
+          description: `${foundSeqs}개 시리즈 폴더(seq_0~seq_3)가 감지되었습니다. ${fileArray.length}개 파일을 업로드합니다.`,
+        });
+      } else {
+        toast({
+          title: "업로드 준비",
+          description: `${fileArray.length}개의 파일을 업로드합니다. seq_0~seq_3 폴더 구조가 아닐 수 있습니다.`,
+        });
+      }
     }
     
     await uploadFiles(fileArray);
@@ -737,13 +783,19 @@ export default function MRIViewer() {
           body: formData
         });
 
+        // Response body는 한 번만 읽을 수 있으므로 text를 먼저 읽고 JSON 파싱 시도
+        const responseText = await response.text();
         let data;
         try {
-          data = await response.json();
+          data = JSON.parse(responseText);
         } catch (jsonError) {
-          const text = await response.text();
           errorMessages.push(`서버 응답 파싱 실패 (${response.status})`);
-          console.error(`❌ 응답 파싱 실패:`, text);
+          console.error(`❌ 응답 파싱 실패:`, responseText);
+          toast({
+            title: "업로드 실패",
+            description: `서버 응답을 파싱할 수 없습니다: ${responseText.substring(0, 100)}`,
+            variant: "destructive"
+          });
           return;
         }
 
@@ -785,13 +837,14 @@ export default function MRIViewer() {
             body: formData
           });
 
+          // Response body는 한 번만 읽을 수 있으므로 text를 먼저 읽고 JSON 파싱 시도
+          const responseText = await response.text();
           let data;
           try {
-            data = await response.json();
+            data = JSON.parse(responseText);
           } catch (jsonError) {
-            const text = await response.text();
             errorMessages.push(`${files[i].name}: 서버 응답 파싱 실패 (${response.status})`);
-            console.error(`❌ 파일 ${i + 1} 응답 파싱 실패:`, text);
+            console.error(`❌ 파일 ${i + 1} 응답 파싱 실패:`, responseText);
             continue;
           }
 
@@ -1033,7 +1086,9 @@ export default function MRIViewer() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-[10px] font-medium text-gray-400 leading-relaxed">
-                  DICOM 폴더를 서버로 전송합니다. seq_0, seq_1, seq_2, seq_3 구조의 폴더를 선택하세요.
+                  {imageType === 'MRI 영상' 
+                    ? 'DICOM 폴더를 서버로 전송합니다. 상위 폴더(예: ISPY2_213913_DICOM_4CH)를 선택하면 내부의 seq_0, seq_1, seq_2, seq_3 폴더의 모든 파일이 자동으로 포함됩니다. 또는 여러 폴더를 드래그 앤 드롭할 수 있습니다.'
+                    : 'DICOM 파일을 서버로 전송합니다.'}
                 </p>
 
                 {/* 드래그 앤 드롭 영역 */}
@@ -1053,10 +1108,12 @@ export default function MRIViewer() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">
-                        {isDragging ? '여기에 놓으세요!' : '폴더를 드래그하세요'}
+                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '폴더를 드래그하세요 (여러 폴더 가능)' : '파일을 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
-                        또는 아래 버튼으로 파일 선택 (Cmd+A로 전체 선택)
+                        {imageType === 'MRI 영상' 
+                          ? '또는 아래 버튼으로 상위 폴더 선택 (seq_0~seq_3 자동 포함)'
+                          : '또는 아래 버튼으로 파일 선택'}
                       </p>
                     </div>
                   </div>
@@ -1080,7 +1137,7 @@ export default function MRIViewer() {
                     disabled={uploading}
                   >
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    파일 선택 및 업로드
+                    {imageType === 'MRI 영상' ? '폴더 선택 및 업로드' : '파일 선택 및 업로드'}
                   </Button>
                 </div>
               </CardContent>
