@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 import requests
 import io
 import logging
@@ -653,6 +654,7 @@ def list_inference_requests(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(['GET'])
 def get_pending_requests(request):
     """
@@ -700,6 +702,7 @@ def get_pending_requests(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(['GET'])
 def get_pending_inference(request):
     """
@@ -752,6 +755,7 @@ def get_pending_inference(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(['POST'])
 def complete_inference(request, request_id):
     """
@@ -807,6 +811,7 @@ def complete_inference(request, request_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(['POST'])
 def complete_inference_request(request, request_id):
     """
@@ -868,6 +873,7 @@ def complete_inference_request(request, request_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(['POST'])
 def update_request_status(request, request_id):
     """
