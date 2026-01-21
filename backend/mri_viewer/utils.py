@@ -256,8 +256,9 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             volume_data = nii_img.get_fdata()  # 데이터를 메모리로 로드
             logger.info(f"Data loaded into memory, shape: {volume_data.shape}")
             
-            # 헤더도 미리 읽기
+            # 헤더와 affine도 미리 읽기
             header_data = nii_img.header
+            affine_data = nii_img.affine
             
             # 데이터와 헤더를 메모리에 로드했으므로 이제 파일 삭제 가능
             # 하지만 안전을 위해 함수 종료 전까지 유지
@@ -266,6 +267,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
             # 메모리에 로드된 데이터를 변수에 저장 (try 블록 밖에서 사용)
             volume = volume_data
             header = header_data
+            affine = affine_data
             
         except Exception as load_error:
             # 오류 발생 시 상세 정보 포함
@@ -297,6 +299,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         nii_img = nib.load(str(nifti_file))
         volume = nii_img.get_fdata()
         header = nii_img.header
+        affine = nii_img.affine
     else:
         raise ValueError(f"Unsupported nifti_file type: {type(nifti_file)}. Expected file path (str/Path) or file-like object (BytesIO)")
     
@@ -441,8 +444,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         # 슬라이스 위치 및 Spacing 정보 (affine 행렬에서 추출)
         try:
             # affine 행렬에서 spacing 추출
-            if affine is not None and affine.shape == (4, 4):
-                # spacing = sqrt(sum(affine[0:3, i]^2)) for i in [0, 1, 2]
+            if affine is not None and hasattr(affine, 'shape') and affine.shape == (4, 4):
                 spacing_x = np.sqrt(np.sum(affine[0:3, 0] ** 2))
                 spacing_y = np.sqrt(np.sum(affine[0:3, 1] ** 2))
                 spacing_z = np.sqrt(np.sum(affine[0:3, 2] ** 2))
@@ -466,7 +468,7 @@ def nifti_to_dicom_slices(nifti_file, patient_id=None, patient_name=None, image_
         
         # ImagePositionPatient 계산 (affine 행렬 사용)
         try:
-            if affine is not None and affine.shape == (4, 4):
+            if affine is not None and hasattr(affine, 'shape') and affine.shape == (4, 4):
                 # 첫 번째 슬라이스의 위치
                 first_slice_pos = affine @ np.array([0, 0, 0, 1])
                 # 현재 슬라이스의 위치 (z 방향으로 이동)
