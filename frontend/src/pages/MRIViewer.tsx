@@ -460,9 +460,14 @@ export default function MRIViewer() {
           // DICOM 파일만 허용 (NIfTI 제거)
           if (file.name.endsWith('.dicom') ||
             file.name.endsWith('.dcm')) {
-            // webkitRelativePath 설정 (서버에서 seq 폴더 판별에 사용)
+            // webkitRelativePath는 읽기 전용이므로 커스텀 속성 사용
             const relativePath = basePath ? `${basePath}/${file.name}` : file.name;
-            (file as any).webkitRelativePath = relativePath;
+            // Object.defineProperty로 커스텀 속성 추가
+            Object.defineProperty(file, 'customRelativePath', {
+              value: relativePath,
+              writable: false,
+              configurable: true
+            });
             files.push(file);
           }
           resolve();
@@ -1218,12 +1223,12 @@ export default function MRIViewer() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">
-                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '상위 폴더를 드래그하세요' : '파일을 드래그하세요'}
+                        {isDragging ? '여기에 놓으세요!' : imageType === 'MRI 영상' ? '폴더 4개를 드래그하세요 (seq_0~seq_3)' : '파일 또는 폴더를 드래그하세요'}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {imageType === 'MRI 영상'
-                          ? '✨ 상위 폴더 드래그 시 내부의 모든 seq 폴더가 자동으로 포함되어 바로 업로드됩니다'
-                          : '또는 아래 버튼으로 파일 선택'}
+                          ? '✨ 여러 폴더(최대 4개)를 동시에 드래그하여 업로드할 수 있습니다. 각 폴더 내부의 모든 DICOM 파일이 자동으로 포함됩니다.'
+                          : '또는 아래 버튼으로 파일/폴더 선택'}
                       </p>
                     </div>
                   </div>
