@@ -77,6 +77,12 @@ def get_pipeline():
 
 
 @api_view(['POST'])
+# CSRF 체크를 건너뛰는 커스텀 인증 클래스
+class CSRFExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # CSRF 체크를 건너뜀
+
+
 @authentication_classes([CSRFExemptSessionAuthentication])
 @permission_classes([AllowAny])
 def mri_segmentation(request, instance_id):
@@ -170,11 +176,6 @@ def segmentation_health(request):
             'error': str(e)
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-
-# CSRF 체크를 건너뛰는 커스텀 인증 클래스
-class CSRFExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return  # CSRF 체크를 건너뜀
 
 
 @api_view(['POST'])
