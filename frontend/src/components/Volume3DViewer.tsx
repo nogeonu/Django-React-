@@ -164,47 +164,73 @@ export default function Volume3DViewer({
         viewport.render();
 
         // 세그멘테이션 볼륨 로드 (있는 경우)
-        if (segmentationInstanceId && showSegmentation) {
+        if (showSegmentation && (segmentationInstanceId || _segmentationFrames.length > 0)) {
           try {
-            console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 시작...');
-            const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
-            const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
-              imageIds: [segImageId],
+            console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 시작...', {
+              hasInstanceId: !!segmentationInstanceId,
+              hasFrames: _segmentationFrames.length > 0,
             });
 
-            segmentationVolumeIdRef.current = segVolume.volumeId;
-            await segVolume.load();
+            let segImageIds: string[] = [];
+            
+            if (segmentationInstanceId) {
+              // DICOM SEG 파일에서 로드
+              const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
+              segImageIds = [segImageId];
+            } else if (_segmentationFrames.length > 0) {
+              // 세그멘테이션 프레임이 있으면 나중에 직접 볼륨 생성 (현재는 DICOM SEG 우선)
+              console.log('[Volume3DViewer] 세그멘테이션 프레임이 있지만 DICOM SEG 인스턴스 ID가 없습니다.');
+            }
 
-            // 세그멘테이션을 뷰포트에 추가
-            viewport.addVolumes([
-              {
-                volumeId: segVolume.volumeId,
-                callback: ({ volumeActor }) => {
-                  // @ts-ignore - Cornerstone3D volume property API
-                  const volumeProperty = volumeActor.getProperty();
-                  if (volumeProperty) {
-                    // @ts-ignore - VTK API types
-                    const scalarOpacity = volumeProperty.getScalarOpacity();
-                    if (scalarOpacity) {
-                      scalarOpacity.removeAllPoints();
-                      scalarOpacity.addPoint(0, 0.0);
-                      scalarOpacity.addPoint(1, segmentationOpacity);
+            if (segImageIds.length > 0) {
+              const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
+                imageIds: segImageIds,
+              });
+
+              segmentationVolumeIdRef.current = segVolume.volumeId;
+              await segVolume.load();
+              console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 완료:', segVolume.volumeId);
+
+              // 세그멘테이션을 뷰포트에 추가 (빨간색으로 표시)
+              viewport.addVolumes([
+                {
+                  volumeId: segVolume.volumeId,
+                  callback: ({ volumeActor }) => {
+                    // @ts-ignore - Cornerstone3D volume property API
+                    const volumeProperty = volumeActor.getProperty();
+                    if (volumeProperty) {
+                      // @ts-ignore - VTK API types
+                      const scalarOpacity = volumeProperty.getScalarOpacity();
+                      if (scalarOpacity) {
+                        scalarOpacity.removeAllPoints();
+                        scalarOpacity.addPoint(0, 0.0);
+                        scalarOpacity.addPoint(1, segmentationOpacity); // 종양 영역만 표시
+                      }
+                      // @ts-ignore - VTK API types
+                      const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                      if (rgbTransferFunction) {
+                        rgbTransferFunction.removeAllPoints();
+                        rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
+                        rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색 (두 번째 이미지처럼)
+                      }
+                      // @ts-ignore - VTK API types
+                      volumeProperty.setInterpolationTypeToNearest();
                     }
-                    // @ts-ignore - VTK API types
-                    const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
-                    if (rgbTransferFunction) {
-                      rgbTransferFunction.removeAllPoints();
-                      rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
-                      rgbTransferFunction.addRGBPoint(1, 1, 0, 0.5); // 핑크색
-                    }
-                    // @ts-ignore - VTK API types
-                    volumeProperty.setInterpolationTypeToNearest();
-                  }
+                  },
                 },
-              },
-            ]);
+              ]);
+              
+              // 세그멘테이션 추가 후 렌더링
+              viewport.render();
+              console.log('[Volume3DViewer] 세그멘테이션 볼륨 추가 및 렌더링 완료');
+            }
           } catch (segError) {
-            console.warn('Failed to load segmentation volume:', segError);
+            console.error('[Volume3DViewer] 세그멘테이션 볼륨 로드 실패:', segError);
+            console.error('[Volume3DViewer] 에러 상세:', {
+              segmentationInstanceId,
+              hasFrames: _segmentationFrames.length > 0,
+              errorMessage: segError instanceof Error ? segError.message : String(segError),
+            });
           }
         }
 
@@ -322,8 +348,8 @@ export default function Volume3DViewer({
           const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
           if (rgbTransferFunction) {
             rgbTransferFunction.removeAllPoints();
-            rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
-            rgbTransferFunction.addRGBPoint(1, 1, 0, 0.5);
+            rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
+            rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색
           }
         }
         viewport.render();
