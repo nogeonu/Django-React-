@@ -99,6 +99,13 @@ export default function Volume3DViewer({
           viewportId: viewportIdRef.current,
           type: Enums.ViewportType.VOLUME_3D,
           element: viewportRef.current,
+          defaultOptions: {
+            background: [0, 0, 0] as Types.Point3, // 검은색 배경
+            orientation: {
+              viewPlaneNormal: [0, 0, 1] as Types.Point3,
+              viewUp: [0, 1, 0] as Types.Point3,
+            },
+          },
         };
 
         renderingEngine.setViewports([viewportInput]);
@@ -297,19 +304,25 @@ export default function Volume3DViewer({
                     }
                     
                     // @ts-ignore - VTK API types
-                    volumeProperty.setInterpolationTypeToNearest();
+                    // 세그멘테이션은 binary 데이터이므로 Nearest가 맞지만, 
+                    // 부드러운 렌더링을 위해 Linear로 시도 (경계가 부드러워짐)
+                    volumeProperty.setInterpolationTypeToLinear();
                     
                     // 볼륨 렌더링 모드 설정 (3D Slicer처럼 세그멘테이션만 강조)
                     // @ts-ignore - VTK API types
-                    volumeProperty.setShade(true); // 약간의 쉐이딩으로 입체감 추가
+                    volumeProperty.setShade(true); // 쉐이딩으로 입체감 추가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setAmbient(0.6); // 주변광 (너무 밝지 않게)
+                    volumeProperty.setAmbient(0.7); // 주변광 증가 (더 밝게)
                     // @ts-ignore - VTK API types
-                    volumeProperty.setDiffuse(0.4); // 약간의 확산광
+                    volumeProperty.setDiffuse(0.5); // 확산광 증가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSpecular(0.2); // 약간의 반사광
+                    volumeProperty.setSpecular(0.3); // 반사광 증가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSpecularPower(20);
+                    volumeProperty.setSpecularPower(30); // 반사 강도 증가
+                    
+                    // 볼륨 렌더링 품질 향상
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setSampleDistance(0.5); // 샘플링 거리 감소 (더 고품질)
                     
                     console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
                   } else {
