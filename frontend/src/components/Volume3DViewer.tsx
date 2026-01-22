@@ -231,8 +231,26 @@ export default function Volume3DViewer({
             await segVolume.load();
             console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 완료:', segVolume.volumeId);
 
-            // 세그멘테이션을 뷰포트에 추가 (빨간색으로 표시)
-            viewport.addVolumes([
+            // 세그멘테이션 볼륨 정보 확인
+            try {
+              const segVolumeInfo = cache.getVolume(segVolume.volumeId);
+              console.log('[Volume3DViewer] 세그멘테이션 볼륨 정보:', {
+                volumeId: segVolume.volumeId,
+                dimensions: segVolumeInfo?.dimensions,
+                spacing: segVolumeInfo?.spacing,
+                origin: segVolumeInfo?.origin,
+                scalarData: segVolumeInfo?.scalarData ? {
+                  min: segVolumeInfo.scalarData.getMin(),
+                  max: segVolumeInfo.scalarData.getMax(),
+                  length: segVolumeInfo.scalarData.length,
+                } : null,
+              });
+            } catch (e) {
+              console.warn('[Volume3DViewer] 세그멘테이션 볼륨 정보 확인 실패:', e);
+            }
+
+            // 세그멘테이션만 뷰포트에 설정 (메인 볼륨 없이)
+            viewport.setVolumes([
               {
                 volumeId: segVolume.volumeId,
                 callback: ({ volumeActor }) => {
@@ -246,9 +264,10 @@ export default function Volume3DViewer({
                     const scalarOpacity = volumeProperty.getScalarOpacity();
                     if (scalarOpacity) {
                       scalarOpacity.removeAllPoints();
-                      // 배경(0)은 투명, 종양(255)은 불투명
+                      // 배경(0)은 투명, 종양(1 이상)은 불투명
                       scalarOpacity.addPoint(0, 0.0);
                       scalarOpacity.addPoint(1, segmentationOpacity);
+                      scalarOpacity.addPoint(128, segmentationOpacity);
                       scalarOpacity.addPoint(255, segmentationOpacity);
                       console.log('[Volume3DViewer] 투명도 설정 완료:', segmentationOpacity);
                     } else {
@@ -259,7 +278,7 @@ export default function Volume3DViewer({
                     const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
                     if (rgbTransferFunction) {
                       rgbTransferFunction.removeAllPoints();
-                      // 배경(0)은 투명하게, 종양(1 이상)은 분홍색/빨간색 (3D Slicer 스타일)
+                      // 배경(0)은 투명하게, 종양(1 이상)은 분홍색 (3D Slicer 스타일)
                       rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색 (투명하게 처리됨)
                       rgbTransferFunction.addRGBPoint(1, 1, 0, 1); // 종양: 분홍색 (magenta) - 3D Slicer 스타일
                       rgbTransferFunction.addRGBPoint(128, 1, 0, 1); // 중간값: 분홍색
@@ -292,10 +311,9 @@ export default function Volume3DViewer({
               },
             ]);
             
-            // 세그멘테이션 추가 후 렌더링
-            // 중요: addVolumes는 기존 볼륨에 추가하므로 메인 볼륨과 함께 표시됨
+            // 세그멘테이션만 렌더링
             viewport.render();
-            console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨 추가 및 렌더링 완료 (빨간색)');
+            console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨만 표시 완료 (분홍색)');
             
             // 디버깅: 뷰포트의 모든 액터 확인
             try {
