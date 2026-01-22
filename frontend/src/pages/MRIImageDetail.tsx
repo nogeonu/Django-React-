@@ -87,7 +87,8 @@ export default function MRIImageDetail() {
   const currentImage = currentImages[selectedImageIndex];
   
   // 세그멘테이션 인스턴스 ID 찾기 (Orthanc에 저장된 DICOM SEG 파일)
-  const segmentationInstanceId = currentImages.find(img => img.is_segmentation || img.modality === 'SEG')?.instance_id;
+  // 주의: SEG 파일은 별도의 시리즈이므로 allOrthancImages에서 찾아야 함 (currentImages는 MR 시리즈만 포함)
+  const segmentationInstanceId = allOrthancImages.find(img => img.is_segmentation || img.modality === 'SEG')?.instance_id;
   
   // 디버깅: 세그멘테이션 인스턴스 ID 확인
   useEffect(() => {
