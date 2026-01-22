@@ -133,6 +133,8 @@ export default function Volume3DViewer({
         console.log('[Volume3DViewer] 볼륨 로드 완료:', volume.volumeId);
 
         // 볼륨을 뷰포트에 설정
+        // 세그멘테이션이 있으면 메인 볼륨은 투명하게, 없으면 일반적으로 표시
+        const hasSegmentation = showSegmentation && segmentationInstanceId;
         viewport.setVolumes([
           {
             volumeId: volume.volumeId,
@@ -145,10 +147,19 @@ export default function Volume3DViewer({
                 const scalarOpacity = volumeProperty.getScalarOpacity();
                 if (scalarOpacity) {
                   scalarOpacity.removeAllPoints();
-                  scalarOpacity.addPoint(0, 0.0);
-                  scalarOpacity.addPoint(500, 0.2 * volumeOpacity);
-                  scalarOpacity.addPoint(1000, 0.4 * volumeOpacity);
-                  scalarOpacity.addPoint(2000, 0.6 * volumeOpacity);
+                  if (hasSegmentation) {
+                    // 세그멘테이션이 있으면 메인 볼륨을 거의 투명하게 (배경만 보이도록)
+                    scalarOpacity.addPoint(0, 0.0);
+                    scalarOpacity.addPoint(500, 0.05 * volumeOpacity);
+                    scalarOpacity.addPoint(1000, 0.1 * volumeOpacity);
+                    scalarOpacity.addPoint(2000, 0.15 * volumeOpacity);
+                  } else {
+                    // 세그멘테이션이 없으면 일반적으로 표시
+                    scalarOpacity.addPoint(0, 0.0);
+                    scalarOpacity.addPoint(500, 0.2 * volumeOpacity);
+                    scalarOpacity.addPoint(1000, 0.4 * volumeOpacity);
+                    scalarOpacity.addPoint(2000, 0.6 * volumeOpacity);
+                  }
                 }
                 // @ts-ignore - VTK API types
                 const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
@@ -250,12 +261,12 @@ export default function Volume3DViewer({
                     const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
                     if (rgbTransferFunction) {
                       rgbTransferFunction.removeAllPoints();
-                      // 배경(0)은 투명하게, 종양(1 이상)은 빨간색
+                      // 배경(0)은 투명하게, 종양(1 이상)은 분홍색/빨간색 (3D Slicer 스타일)
                       rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색 (투명하게 처리됨)
-                      rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색
-                      rgbTransferFunction.addRGBPoint(128, 1, 0, 0); // 중간값: 빨간색
-                      rgbTransferFunction.addRGBPoint(255, 1, 0, 0); // 종양: 빨간색
-                      console.log('[Volume3DViewer] 색상 설정 완료: 빨간색');
+                      rgbTransferFunction.addRGBPoint(1, 1, 0, 1); // 종양: 분홍색 (magenta) - 3D Slicer 스타일
+                      rgbTransferFunction.addRGBPoint(128, 1, 0, 1); // 중간값: 분홍색
+                      rgbTransferFunction.addRGBPoint(255, 1, 0, 1); // 종양: 분홍색
+                      console.log('[Volume3DViewer] 색상 설정 완료: 분홍색 (magenta)');
                     } else {
                       console.warn('[Volume3DViewer] rgbTransferFunction을 가져올 수 없습니다');
                     }
@@ -263,15 +274,17 @@ export default function Volume3DViewer({
                     // @ts-ignore - VTK API types
                     volumeProperty.setInterpolationTypeToNearest();
                     
-                    // 볼륨 렌더링 모드 설정 (중요: 오버레이가 제대로 보이도록)
+                    // 볼륨 렌더링 모드 설정 (3D Slicer처럼 세그멘테이션만 강조)
                     // @ts-ignore - VTK API types
-                    volumeProperty.setShade(false); // 세그멘테이션은 쉐이딩 없이
+                    volumeProperty.setShade(true); // 약간의 쉐이딩으로 입체감 추가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setAmbient(1.0); // 주변광 최대
+                    volumeProperty.setAmbient(0.6); // 주변광 (너무 밝지 않게)
                     // @ts-ignore - VTK API types
-                    volumeProperty.setDiffuse(0.0); // 확산광 없음
+                    volumeProperty.setDiffuse(0.4); // 약간의 확산광
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSpecular(0.0); // 반사광 없음
+                    volumeProperty.setSpecular(0.2); // 약간의 반사광
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setSpecularPower(20);
                     
                     console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
                   } else {
