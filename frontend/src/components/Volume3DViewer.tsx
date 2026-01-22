@@ -22,7 +22,6 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { RotateCw, Layers, Eye, EyeOff } from 'lucide-react';
 import { initCornerstone, createImageId } from '@/lib/cornerstone';
-import { Enums as ToolEnums } from '@cornerstonejs/tools';
 
 interface Volume3DViewerProps {
   instanceIds: string[]; // DICOM 인스턴스 ID 배열
