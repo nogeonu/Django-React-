@@ -813,7 +813,7 @@ export default function MRIImageDetail() {
                             );
                           })()}
                         </div>
-                      ) : (
+                      ) : viewMode === "3d" ? (
                         <div className="h-full">
                           {(() => {
                             const currentSeriesId = seriesGroups[selectedSeriesIndex]?.series_id;
