@@ -334,6 +334,42 @@ export default function Volume3DViewer({
             
             // 세그멘테이션만 렌더링
             viewport.render();
+            
+            // 카메라 위치 조정 (세그멘테이션 중심으로)
+            try {
+              const camera = viewport.getCamera();
+              if (camera) {
+                // 볼륨 중심으로 카메라 이동
+                const segVolumeInfo = cache.getVolume(segVolume.volumeId);
+                if (segVolumeInfo?.dimensions && segVolumeInfo?.spacing && segVolumeInfo?.origin) {
+                  const center = [
+                    segVolumeInfo.origin[0] + (segVolumeInfo.dimensions[0] * segVolumeInfo.spacing[0]) / 2,
+                    segVolumeInfo.origin[1] + (segVolumeInfo.dimensions[1] * segVolumeInfo.spacing[1]) / 2,
+                    segVolumeInfo.origin[2] + (segVolumeInfo.dimensions[2] * segVolumeInfo.spacing[2]) / 2,
+                  ];
+                  
+                  const focalPoint = center;
+                  const position = [
+                    center[0] + 300,
+                    center[1] + 300,
+                    center[2] + 300,
+                  ];
+                  
+                  viewport.setCamera({
+                    focalPoint: focalPoint as Types.Point3,
+                    position: position as Types.Point3,
+                    viewUp: [0, 1, 0] as Types.Point3,
+                  });
+                  
+                  console.log('[Volume3DViewer] 카메라 위치 조정 완료:', { focalPoint, position });
+                }
+              }
+            } catch (e) {
+              console.warn('[Volume3DViewer] 카메라 위치 조정 실패:', e);
+            }
+            
+            // 최종 렌더링
+            viewport.render();
             console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨만 표시 완료 (분홍색)');
             
             // 디버깅: 뷰포트의 모든 액터 확인
@@ -359,6 +395,17 @@ export default function Volume3DViewer({
                     spacing: volumeInfo?.spacing,
                     origin: volumeInfo?.origin,
                   });
+                  
+                  // 스칼라 데이터 범위 확인
+                  // @ts-ignore
+                  if (volumeInfo?.scalarData) {
+                    // @ts-ignore
+                    const scalarData = volumeInfo.scalarData;
+                    console.log(`[Volume3DViewer] 액터 ${idx} 스칼라 데이터 범위:`, {
+                      min: scalarData.getMin ? scalarData.getMin() : 'N/A',
+                      max: scalarData.getMax ? scalarData.getMax() : 'N/A',
+                    });
+                  }
                 } catch (e) {
                   console.warn(`[Volume3DViewer] 액터 ${idx} 볼륨 정보 확인 실패:`, e);
                 }
