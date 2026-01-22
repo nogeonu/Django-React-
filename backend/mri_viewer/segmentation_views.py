@@ -380,6 +380,215 @@ def get_segmentation_frames(request, seg_instance_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+def get_segmentation_volume_instances(request, seg_instance_id):
+    """
+    DICOM SEG 파일의 각 프레임을 개별 DICOM 인스턴스로 변환하여 Orthanc에 업로드하고 인스턴스 ID 목록 반환
+    3D 볼륨 렌더링을 위해 사용
+    """
+    try:
+        logger.info(f"🔍 DICOM SEG → 개별 인스턴스 변환 시작: {seg_instance_id}")
+        client = OrthancClient()
+        
+        # 1. DICOM SEG 파일 로드
+        seg_dicom_bytes = client.get_instance_file(seg_instance_id)
+        dicom_data = io.BytesIO(seg_dicom_bytes)
+        ds = pydicom.dcmread(dicom_data, force=True)
+        
+        # 2. 원본 DICOM 정보 가져오기 (참조용)
+        study_instance_uid = getattr(ds, 'StudyInstanceUID', None)
+        if not study_instance_uid:
+            return Response({
+                'success': False,
+                'error': 'StudyInstanceUID not found in SEG file'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 원본 시리즈의 첫 번째 인스턴스 가져오기 (메타데이터 참조용)
+        reference_dicom = None
+        try:
+            # StudyInstanceUID로 Study 찾기
+            studies_response = requests.get(f"{client.base_url}/studies", auth=client.auth)
+            studies_response.raise_for_status()
+            all_studies = studies_response.json()
+            
+            study_id = None
+            for study in all_studies:
+                study_id_str = study if isinstance(study, str) else study.get('ID', study)
+                study_info_response = requests.get(
+                    f"{client.base_url}/studies/{study_id_str}",
+                    auth=client.auth
+                )
+                if study_info_response.status_code == 200:
+                    study_info = study_info_response.json()
+                    tags = study_info.get('MainDicomTags', {})
+                    if tags.get('StudyInstanceUID') == study_instance_uid:
+                        study_id = study_id_str
+                        break
+            
+            if study_id:
+                # Study의 Series 목록 가져오기
+                series_response = requests.get(
+                    f"{client.base_url}/studies/{study_id}/series",
+                    auth=client.auth
+                )
+                if series_response.status_code == 200:
+                    series_list = series_response.json()
+                    
+                    # SEG가 아닌 원본 시리즈 찾기
+                    for series_id in series_list:
+                        series_info_response = requests.get(
+                            f"{client.base_url}/series/{series_id}",
+                            auth=client.auth
+                        )
+                        if series_info_response.status_code == 200:
+                            series_info = series_info_response.json()
+                            modality = series_info.get('MainDicomTags', {}).get('Modality', '')
+                            if modality != 'SEG':
+                                instances = series_info.get('Instances', [])
+                                if instances:
+                                    reference_instance_id = instances[0]
+                                    ref_bytes = client.get_instance_file(reference_instance_id)
+                                    reference_dicom = pydicom.dcmread(io.BytesIO(ref_bytes), force=True)
+                                    break
+        except Exception as e:
+            logger.warning(f"원본 DICOM 참조 실패, 기본값 사용: {e}")
+        
+        # 3. 프레임 데이터 추출
+        num_frames = getattr(ds, 'NumberOfFrames', 1)
+        rows = ds.Rows
+        cols = ds.Columns
+        
+        try:
+            pixel_array = ds.pixel_array
+            if pixel_array.ndim == 2:
+                pixel_array = pixel_array[np.newaxis, ...]
+        except:
+            pixel_data = np.frombuffer(ds.PixelData, dtype=np.uint8)
+            if ds.BitsAllocated == 1:
+                pixel_array = np.unpackbits(pixel_data).reshape(num_frames, rows, cols)
+            else:
+                pixel_array = pixel_data.reshape(num_frames, rows, cols)
+        
+        # 4. 각 프레임을 개별 DICOM 인스턴스로 변환
+        instance_ids = []
+        from pydicom.dataset import FileDataset, FileMetaDataset
+        from pydicom.uid import generate_uid, ExplicitVRLittleEndian
+        
+        for frame_idx in range(num_frames):
+            frame_data = (pixel_array[frame_idx] > 0).astype(np.uint8) * 255
+            
+            # 새 DICOM 인스턴스 생성
+            file_meta = FileMetaDataset()
+            file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+            file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'  # CT Image Storage
+            file_meta.MediaStorageSOPInstanceUID = generate_uid()
+            file_meta.ImplementationClassUID = generate_uid()
+            
+            new_ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
+            
+            # 원본 DICOM에서 메타데이터 복사 (있는 경우)
+            if reference_dicom:
+                new_ds.PatientName = getattr(reference_dicom, 'PatientName', 'Anonymous')
+                new_ds.PatientID = getattr(reference_dicom, 'PatientID', 'Unknown')
+                new_ds.PatientBirthDate = getattr(reference_dicom, 'PatientBirthDate', '')
+                new_ds.PatientSex = getattr(reference_dicom, 'PatientSex', '')
+                new_ds.StudyInstanceUID = getattr(reference_dicom, 'StudyInstanceUID', study_instance_uid)
+                new_ds.StudyDate = getattr(reference_dicom, 'StudyDate', '')
+                new_ds.StudyTime = getattr(reference_dicom, 'StudyTime', '')
+                new_ds.StudyID = getattr(reference_dicom, 'StudyID', '')
+                new_ds.AccessionNumber = getattr(reference_dicom, 'AccessionNumber', '')
+                
+                # ImagePositionPatient, ImageOrientationPatient 등 복사 (있는 경우)
+                if hasattr(reference_dicom, 'ImagePositionPatient') and hasattr(reference_dicom, 'ImageOrientationPatient'):
+                    # Z 위치를 프레임 인덱스에 따라 조정
+                    pos = np.array(reference_dicom.ImagePositionPatient)
+                    slice_thickness = float(getattr(reference_dicom, 'SliceThickness', 1.0))
+                    iop = np.array(reference_dicom.ImageOrientationPatient)
+                    # 슬라이스 노말 계산
+                    row_cos = iop[:3]
+                    col_cos = iop[3:6]
+                    slice_normal = np.cross(row_cos, col_cos)
+                    # 프레임 인덱스에 따라 위치 조정
+                    new_pos = pos + slice_normal * slice_thickness * frame_idx
+                    new_ds.ImagePositionPatient = new_pos.tolist()
+                    new_ds.ImageOrientationPatient = iop.tolist()
+                
+                if hasattr(reference_dicom, 'PixelSpacing'):
+                    new_ds.PixelSpacing = reference_dicom.PixelSpacing
+                if hasattr(reference_dicom, 'SliceThickness'):
+                    new_ds.SliceThickness = reference_dicom.SliceThickness
+                if hasattr(reference_dicom, 'SpacingBetweenSlices'):
+                    new_ds.SpacingBetweenSlices = reference_dicom.SpacingBetweenSlices
+            else:
+                # 기본값
+                new_ds.PatientName = getattr(ds, 'PatientName', 'Anonymous')
+                new_ds.PatientID = getattr(ds, 'PatientID', 'Unknown')
+                new_ds.StudyInstanceUID = study_instance_uid
+                new_ds.StudyDate = getattr(ds, 'StudyDate', '')
+                new_ds.StudyTime = getattr(ds, 'StudyTime', '')
+            
+            # 시리즈 정보 (세그멘테이션 전용 시리즈)
+            seg_series_uid = getattr(ds, 'SeriesInstanceUID', generate_uid())
+            new_ds.SeriesInstanceUID = f"{seg_series_uid}_volume"  # 볼륨 렌더링용 시리즈
+            new_ds.SeriesNumber = '9998'
+            new_ds.SeriesDescription = 'AI Tumor Segmentation (Volume Rendering)'
+            new_ds.Modality = 'MR'  # MRI로 표시 (볼륨 렌더링 호환성)
+            
+            # SOP Instance 정보
+            new_ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.4'  # MR Image Storage
+            new_ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+            new_ds.InstanceNumber = str(frame_idx + 1)
+            
+            # 픽셀 데이터
+            new_ds.Rows = rows
+            new_ds.Columns = cols
+            new_ds.SamplesPerPixel = 1
+            new_ds.PhotometricInterpretation = 'MONOCHROME2'
+            new_ds.BitsAllocated = 8
+            new_ds.BitsStored = 8
+            new_ds.HighBit = 7
+            new_ds.PixelRepresentation = 0
+            new_ds.PixelData = frame_data.tobytes()
+            
+            # DICOM 인코딩 설정
+            new_ds.is_little_endian = True
+            new_ds.is_implicit_VR = False
+            
+            # Orthanc에 업로드
+            dicom_bytes = io.BytesIO()
+            new_ds.save_as(dicom_bytes, write_like_original=False)
+            dicom_bytes.seek(0)
+            
+            # Orthanc 업로드
+            upload_response = requests.post(
+                f"{client.base_url}/instances",
+                data=dicom_bytes.read(),
+                headers={'Content-Type': 'application/dicom'},
+                auth=client.auth
+            )
+            upload_response.raise_for_status()
+            uploaded_id = upload_response.json()['ID']
+            instance_ids.append(uploaded_id)
+            
+            logger.debug(f"프레임 {frame_idx + 1}/{num_frames} 변환 완료: {uploaded_id}")
+        
+        logger.info(f"✅ DICOM SEG → {len(instance_ids)}개 인스턴스 변환 완료")
+        
+        return Response({
+            'success': True,
+            'num_frames': len(instance_ids),
+            'instance_ids': instance_ids,
+            'series_instance_uid': f"{seg_series_uid}_volume",
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ DICOM SEG → 인스턴스 변환 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 # ============================================================
 # 연구실 컴퓨터 추론 요청 API
 # ============================================================

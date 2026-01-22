@@ -163,22 +163,41 @@ export default function Volume3DViewer({
         viewport.render();
 
         // 세그멘테이션 볼륨 로드 (있는 경우)
-        // 우선순위: 1) segmentationInstanceId (DICOM SEG 파일), 2) segmentationFrames (base64 마스크)
+        // DICOM SEG 파일의 각 프레임을 개별 인스턴스로 변환하여 볼륨 생성
         if (showSegmentation && segmentationInstanceId) {
-          // 방법 1: DICOM SEG 파일 직접 로드 (multi-frame이므로 제한적)
           try {
-            console.log('[Volume3DViewer] 🎯 DICOM SEG 파일 로드 시작...', {
+            console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 로드 시작...', {
               segmentationInstanceId,
             });
             
-            const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
+            // 1. DICOM SEG 파일의 각 프레임을 개별 DICOM 인스턴스로 변환
+            const volumeInstancesResponse = await fetch(
+              `/api/mri/segmentation/instances/${segmentationInstanceId}/volume-instances/`
+            );
+            const volumeInstancesData = await volumeInstancesResponse.json();
+            
+            if (!volumeInstancesData.success || !volumeInstancesData.instance_ids || volumeInstancesData.instance_ids.length === 0) {
+              throw new Error('세그멘테이션 볼륨 인스턴스 변환 실패');
+            }
+            
+            console.log('[Volume3DViewer] 세그멘테이션 인스턴스 변환 완료:', {
+              count: volumeInstancesData.instance_ids.length,
+              instance_ids: volumeInstancesData.instance_ids.slice(0, 5), // 처음 5개만 로그
+            });
+            
+            // 2. 각 인스턴스를 imageId로 변환
+            const segImageIds = volumeInstancesData.instance_ids.map((id: string) =>
+              createImageId(`/api/mri/orthanc/instances/${id}/file`)
+            );
+            
+            // 3. 볼륨 로드
             const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
-              imageIds: [segImageId],
+              imageIds: segImageIds,
             });
 
             segmentationVolumeIdRef.current = segVolume.volumeId;
             await segVolume.load();
-            console.log('[Volume3DViewer] DICOM SEG 볼륨 로드 완료:', segVolume.volumeId);
+            console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 완료:', segVolume.volumeId);
 
             // 세그멘테이션을 뷰포트에 추가 (빨간색으로 표시)
             viewport.addVolumes([
