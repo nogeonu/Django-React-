@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw, Download, ArrowLeft, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
-import Cornerstone3DMPRViewer from "@/components/Cornerstone3DMPRViewer";
 
 interface Patient {
   id: number;
@@ -29,9 +28,6 @@ export default function Visualization3D() {
   const [error, setError] = useState<string | null>(null);
   const [patientSearchTerm, setPatientSearchTerm] = useState<string>("");
   const [showPatientList, setShowPatientList] = useState<boolean>(false);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [maskUrls, setMaskUrls] = useState<string[]>([]);
-  const [useCornerstone, setUseCornerstone] = useState<boolean>(true);
 
   // 환자 목록 불러오기
   const { data: patients = [] } = useQuery({
@@ -63,51 +59,7 @@ export default function Visualization3D() {
     }
   }, [patientId]);
 
-  // 3D 시각화 데이터 가져오기 (Cornerstone3D용)
-  const fetchCornerstoneData = async () => {
-    if (!patientId) return;
-    setLoading(true);
-    try {
-      // 1. 환자의 의료 이미지 목록 가져오기
-      const response = await apiRequest("GET", `/api/medical-images/?patient_id=${patientId}`);
-      const images = response.results || response || [];
-
-      // 날짜순으로 정렬
-      const sortedImages = [...images].sort((a, b) =>
-        new Date(a.taken_date).getTime() - new Date(b.taken_date).getTime()
-      );
-
-      const imgs: string[] = [];
-      const masks: string[] = [];
-
-      sortedImages.forEach((img: any) => {
-        imgs.push(img.image_url);
-        // 세그멘테이션 결과 찾기
-        const segResult = img.analysis_results?.find((r: any) =>
-          r.analysis_type === 'BREAST_MRI_SEGMENTATION'
-        );
-        if (segResult && segResult.results?.mask_url) {
-          masks.push(segResult.results.mask_url);
-        } else {
-          // 마스크가 없는 경우 빈 URL 또는 null (Cornerstone에서 처리 필요)
-          masks.push("");
-        }
-      });
-
-      setImageUrls(imgs);
-      setMaskUrls(masks);
-
-      if (imgs.length === 0) {
-        setError("환자의 이미지가 없습니다.");
-      }
-    } catch (err: any) {
-      setError("데이터를 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 3D 시각화 생성 (기존 Plotly 방식)
+  // 3D 시각화 생성
   const generateVisualization = async () => {
     if (!patientId) {
       toast({
@@ -115,11 +67,6 @@ export default function Visualization3D() {
         description: "환자 ID를 입력해주세요.",
         variant: "destructive",
       });
-      return;
-    }
-
-    if (useCornerstone) {
-      fetchCornerstoneData();
       return;
     }
 
@@ -288,26 +235,9 @@ export default function Visualization3D() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="slices">슬라이스 탐색기 (Plotly)</SelectItem>
-                  <SelectItem value="voxel">복셀 기반 (Plotly)</SelectItem>
-                  <SelectItem value="mesh">메쉬 기반 (Plotly)</SelectItem>
-                  <SelectItem value="cornerstone">인터랙티브 3D (Cornerstone)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-sm font-medium mb-2 block">렌더링 엔진</label>
-              <Select value={useCornerstone ? "cornerstone" : "plotly"} onValueChange={(v) => {
-                setUseCornerstone(v === "cornerstone");
-                if (v === "cornerstone") setVisualizationType("cornerstone");
-                else setVisualizationType("slices");
-              }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="plotly">Plotly (기본)</SelectItem>
-                  <SelectItem value="cornerstone">Cornerstone3D (고성능)</SelectItem>
+                  <SelectItem value="slices">슬라이스 탐색기</SelectItem>
+                  <SelectItem value="voxel">복셀 기반 (점 마커)</SelectItem>
+                  <SelectItem value="mesh">메쉬 기반</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -345,29 +275,7 @@ export default function Visualization3D() {
         </Card>
       )}
 
-      {useCornerstone && imageUrls.length > 0 && (
-        <Card className="shadow-2xl border-blue-100">
-          <CardHeader className="bg-blue-50/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-blue-800">Cornerstone3D 인터랙티브 뷰</CardTitle>
-                <CardDescription>
-                  환자 ID: {patientId} | 슬라이스: {imageUrls.length}개 | 세그멘테이션 포함
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Cornerstone3DMPRViewer
-              imageUrls={imageUrls}
-              maskUrls={maskUrls}
-              patientId={patientId || ""}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {!useCornerstone && htmlContent && (
+      {htmlContent && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
