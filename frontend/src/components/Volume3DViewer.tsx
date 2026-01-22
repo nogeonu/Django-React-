@@ -571,7 +571,7 @@ export default function Volume3DViewer({
       <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-xs">
-            {instanceIds.length} slices
+            {instanceIds?.length || 0} slices
           </Badge>
           {segmentationInstanceId && (
             <Button
@@ -639,8 +639,23 @@ export default function Volume3DViewer({
           </div>
         )}
 
+        {/* 에러 메시지 */}
+        {error && !isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80">
+            <div className="text-center bg-red-900/90 text-white p-6 rounded-lg max-w-md">
+              <p className="text-lg font-bold mb-2">3D 뷰 로드 실패</p>
+              <p className="text-sm mb-4">{error}</p>
+              {!instanceIds || instanceIds.length === 0 ? (
+                <p className="text-xs text-yellow-300">
+                  AI 분석을 먼저 실행하여 세그멘테이션 데이터를 생성해주세요.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
+
         {/* 사용 안내 */}
-        {!isLoading && (
+        {!isLoading && !error && (
           <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs p-2 rounded">
             <p>🖱️ 왼쪽 클릭 + 드래그: 회전</p>
             <p>🖱️ 오른쪽 클릭 + 드래그: 줌</p>
