@@ -163,12 +163,14 @@ export default function Volume3DViewer({
         // 렌더링 (볼륨 설정 후 즉시)
         viewport.render();
 
-        // 세그멘테이션 볼륨 로드 (있는 경우)
+        // 세그멘테이션 볼륨 로드 (있는 경우) - Orthanc에 저장된 DICOM SEG 파일 사용
         if (showSegmentation && (segmentationInstanceId || _segmentationFrames.length > 0)) {
           try {
-            console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 시작...', {
+            console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 로드 시작...', {
+              segmentationInstanceId,
               hasInstanceId: !!segmentationInstanceId,
               hasFrames: _segmentationFrames.length > 0,
+              showSegmentation,
             });
 
             let segImageIds: string[] = [];

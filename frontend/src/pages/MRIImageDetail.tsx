@@ -86,8 +86,21 @@ export default function MRIImageDetail() {
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
   const currentImage = currentImages[selectedImageIndex];
   
-  // 세그멘테이션 인스턴스 ID 찾기
-  const segmentationInstanceId = currentImages.find(img => img.is_segmentation)?.instance_id;
+  // 세그멘테이션 인스턴스 ID 찾기 (Orthanc에 저장된 DICOM SEG 파일)
+  const segmentationInstanceId = currentImages.find(img => img.is_segmentation || img.modality === 'SEG')?.instance_id;
+  
+  // 디버깅: 세그멘테이션 인스턴스 ID 확인
+  useEffect(() => {
+    if (segmentationInstanceId) {
+      console.log('[MRIImageDetail] ✅ 세그멘테이션 인스턴스 ID 발견:', segmentationInstanceId);
+    } else {
+      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음. currentImages:', currentImages.map(img => ({
+        instance_id: img.instance_id,
+        is_segmentation: img.is_segmentation,
+        modality: img.modality,
+      })));
+    }
+  }, [segmentationInstanceId, currentImages]);
 
   useEffect(() => {
     if (patientId) {
