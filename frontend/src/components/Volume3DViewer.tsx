@@ -34,6 +34,7 @@ interface Volume3DViewerProps {
 export default function Volume3DViewer({
   instanceIds,
   segmentationInstanceId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   segmentationFrames: _segmentationFrames = [], // 향후 세그멘테이션 마스킹 정보 직접 사용 예정
 }: Volume3DViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
