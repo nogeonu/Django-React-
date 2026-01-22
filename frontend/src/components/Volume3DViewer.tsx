@@ -49,6 +49,15 @@ export default function Volume3DViewer({
   const viewportIdRef = useRef<string>(`viewport_${uniqueId.current}`);
   const toolGroupIdRef = useRef<string>(`toolGroup_${uniqueId.current}`);
 
+  // 디버깅: props 확인
+  useEffect(() => {
+    console.log('[Volume3DViewer] 🔍 Props 확인:', {
+      instanceIds: instanceIds?.length || 0,
+      segmentationInstanceId: segmentationInstanceId || 'undefined',
+      segmentationFrames: segmentationFrames?.length || 0,
+    });
+  }, [instanceIds, segmentationInstanceId, segmentationFrames]);
+
   // Cornerstone 초기화
   useEffect(() => {
     const initialize = async () => {

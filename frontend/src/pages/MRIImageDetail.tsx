@@ -95,13 +95,20 @@ export default function MRIImageDetail() {
     if (segmentationInstanceId) {
       console.log('[MRIImageDetail] ✅ 세그멘테이션 인스턴스 ID 발견:', segmentationInstanceId);
     } else {
-      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음. currentImages:', currentImages.map(img => ({
-        instance_id: img.instance_id,
-        is_segmentation: img.is_segmentation,
-        modality: img.modality,
-      })));
+      // allOrthancImages에서 SEG 파일 찾기 시도
+      const segInAll = allOrthancImages.find(img => img.is_segmentation || img.modality === 'SEG');
+      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음.', {
+        allOrthancImages_count: allOrthancImages.length,
+        segInAllOrthancImages: segInAll ? segInAll.instance_id : 'not found',
+        allModalities: [...new Set(allOrthancImages.map(img => img.modality))],
+        allImages: allOrthancImages.map(img => ({
+          instance_id: img.instance_id.substring(0, 8) + '...',
+          modality: img.modality,
+          is_segmentation: img.is_segmentation,
+        })).slice(0, 10), // 처음 10개만
+      });
     }
-  }, [segmentationInstanceId, currentImages]);
+  }, [segmentationInstanceId, allOrthancImages]);
 
   useEffect(() => {
     if (patientId) {
