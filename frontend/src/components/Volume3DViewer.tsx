@@ -27,12 +27,14 @@ import { Enums as ToolEnums } from '@cornerstonejs/tools';
 interface Volume3DViewerProps {
   instanceIds: string[]; // DICOM 인스턴스 ID 배열
   segmentationInstanceId?: string; // 세그멘테이션 인스턴스 ID (선택)
+  segmentationFrames?: Array<{ index: number; mask_base64: string }>; // 세그멘테이션 프레임 (base64 마스크)
   patientId?: string;
 }
 
 export default function Volume3DViewer({
   instanceIds,
   segmentationInstanceId,
+  segmentationFrames = [], // 향후 세그멘테이션 마스킹 정보 직접 사용 예정
 }: Volume3DViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -97,16 +99,21 @@ export default function Volume3DViewer({
 
         const viewport = renderingEngine.getViewport(viewportIdRef.current) as Types.IVolumeViewport;
 
-        // 이미지 ID 생성
-        const imageIds = instanceIds.map(id => createImageId(id));
+        // 이미지 ID 생성 (CornerstoneViewer와 동일한 형식 사용)
+        const imageIds = instanceIds.map(id => createImageId(`/api/mri/orthanc/instances/${id}/file`));
+        
+        console.log('[Volume3DViewer] 이미지 ID 생성:', imageIds.length, '개');
 
         // 볼륨 로드
+        console.log('[Volume3DViewer] 볼륨 로드 시작...');
         const volume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
           imageIds,
         });
 
         volumeIdRef.current = volume.volumeId;
+        console.log('[Volume3DViewer] 볼륨 로딩 중...');
         await volume.load();
+        console.log('[Volume3DViewer] 볼륨 로드 완료:', volume.volumeId);
 
         // 볼륨을 뷰포트에 설정
         viewport.setVolumes([
@@ -151,11 +158,15 @@ export default function Volume3DViewer({
             },
           },
         ]);
+        
+        // 렌더링 (볼륨 설정 후 즉시)
+        viewport.render();
 
         // 세그멘테이션 볼륨 로드 (있는 경우)
         if (segmentationInstanceId && showSegmentation) {
           try {
-            const segImageId = createImageId(segmentationInstanceId);
+            console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 시작...');
+            const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
             const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
               imageIds: [segImageId],
             });
@@ -196,8 +207,10 @@ export default function Volume3DViewer({
           }
         }
 
-        // 렌더링
+        // 최종 렌더링
+        console.log('[Volume3DViewer] 최종 렌더링 시작...');
         viewport.render();
+        console.log('[Volume3DViewer] 렌더링 완료');
 
         // 도구 그룹 설정
         const toolGroup = ToolGroupManager.createToolGroup(toolGroupIdRef.current);
@@ -214,7 +227,13 @@ export default function Volume3DViewer({
 
         setIsLoading(false);
       } catch (error) {
-        console.error('Failed to load volume:', error);
+        console.error('[Volume3DViewer] 볼륨 로드 실패:', error);
+        console.error('[Volume3DViewer] 에러 상세:', {
+          instanceIds,
+          segmentationInstanceId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
         setIsLoading(false);
       }
     };

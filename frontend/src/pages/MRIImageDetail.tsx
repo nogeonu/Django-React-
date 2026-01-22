@@ -786,11 +786,35 @@ export default function MRIImageDetail() {
                         </div>
                       ) : (
                         <div className="h-full">
-                          <Volume3DViewer
-                            instanceIds={currentImages.filter(img => !img.is_segmentation).map(img => img.instance_id)}
-                            segmentationInstanceId={segmentationInstanceId}
-                            patientId={patientId}
-                          />
+                          {(() => {
+                            const currentSeriesId = seriesGroups[selectedSeriesIndex]?.series_id;
+                            const frames = currentSeriesId ? segmentationFrames[currentSeriesId] : undefined;
+                            const mappedFrames = frames && frames.length > 0 
+                              ? frames.map((frame: any, idx: number) => ({
+                                  index: idx,
+                                  mask_base64: frame.mask_base64 || frame.mask || ''
+                                }))
+                              : [];
+                            
+                            return (
+                              <Volume3DViewer
+                                instanceIds={currentImages.filter(img => !img.is_segmentation).map(img => img.instance_id)}
+                                segmentationInstanceId={segmentationInstanceId}
+                                segmentationFrames={mappedFrames}
+                                patientId={patientId}
+                              />
+                            );
+                          })()}
+                          {currentImages.length === 0 && (
+                            <div className="flex items-center justify-center h-full text-gray-400">
+                              <p>DICOM 이미지가 없습니다</p>
+                            </div>
+                          )}
+                          {currentImages.filter(img => !img.is_segmentation).length === 0 && (
+                            <div className="flex items-center justify-center h-full text-yellow-400">
+                              <p>⚠️ DICOM 이미지를 찾을 수 없습니다. 세그멘테이션만 있습니다.</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
