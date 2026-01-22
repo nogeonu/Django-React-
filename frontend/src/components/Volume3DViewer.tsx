@@ -244,9 +244,10 @@ export default function Volume3DViewer({
                     const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
                     if (rgbTransferFunction) {
                       rgbTransferFunction.removeAllPoints();
-                      // 배경(0)은 검은색, 종양(1 이상)은 빨간색
-                      rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
+                      // 배경(0)은 투명하게, 종양(1 이상)은 빨간색
+                      rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색 (투명하게 처리됨)
                       rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색
+                      rgbTransferFunction.addRGBPoint(128, 1, 0, 0); // 중간값: 빨간색
                       rgbTransferFunction.addRGBPoint(255, 1, 0, 0); // 종양: 빨간색
                       console.log('[Volume3DViewer] 색상 설정 완료: 빨간색');
                     } else {
@@ -255,6 +256,17 @@ export default function Volume3DViewer({
                     
                     // @ts-ignore - VTK API types
                     volumeProperty.setInterpolationTypeToNearest();
+                    
+                    // 볼륨 렌더링 모드 설정 (중요: 오버레이가 제대로 보이도록)
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setShade(false); // 세그멘테이션은 쉐이딩 없이
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setAmbient(1.0); // 주변광 최대
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setDiffuse(0.0); // 확산광 없음
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setSpecular(0.0); // 반사광 없음
+                    
                     console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
                   } else {
                     console.error('[Volume3DViewer] volumeProperty를 가져올 수 없습니다');
@@ -264,8 +276,20 @@ export default function Volume3DViewer({
             ]);
             
             // 세그멘테이션 추가 후 렌더링
+            // 중요: addVolumes는 기존 볼륨에 추가하므로 메인 볼륨과 함께 표시됨
             viewport.render();
             console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨 추가 및 렌더링 완료 (빨간색)');
+            
+            // 디버깅: 뷰포트의 모든 액터 확인
+            try {
+              const actors = viewport.getActors();
+              console.log('[Volume3DViewer] 뷰포트 액터 목록:', {
+                count: actors.length,
+                volumeIds: actors.map(a => a.uid),
+              });
+            } catch (e) {
+              console.warn('[Volume3DViewer] 액터 목록 확인 실패:', e);
+            }
             
             // 디버깅: 볼륨 정보 확인
             try {

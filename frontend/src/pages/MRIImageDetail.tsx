@@ -87,7 +87,7 @@ export default function MRIImageDetail() {
   const currentImage = currentImages[selectedImageIndex];
   
   // 세그멘테이션 인스턴스 ID 찾기 (Orthanc에 저장된 DICOM SEG 파일)
-  // 주의: SEG 파일은 별도의 시리즈이므로 allOrthancImages에서 찾아야 함 (currentImages는 MR 시리즈만 포함)
+  // 주의: SEG 파일은 별도의 시리즈(9999)에 있으므로 allOrthancImages에서 찾아야 함
   const segmentationInstanceId = allOrthancImages.find(img => img.is_segmentation || img.modality === 'SEG')?.instance_id;
   
   // 디버깅: 세그멘테이션 인스턴스 ID 확인
@@ -95,20 +95,13 @@ export default function MRIImageDetail() {
     if (segmentationInstanceId) {
       console.log('[MRIImageDetail] ✅ 세그멘테이션 인스턴스 ID 발견:', segmentationInstanceId);
     } else {
-      // allOrthancImages에서 SEG 파일 찾기 시도
-      const segInAll = allOrthancImages.find(img => img.is_segmentation || img.modality === 'SEG');
-      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음.', {
-        allOrthancImages_count: allOrthancImages.length,
-        segInAllOrthancImages: segInAll ? segInAll.instance_id : 'not found',
-        allModalities: [...new Set(allOrthancImages.map(img => img.modality))],
-        allImages: allOrthancImages.map(img => ({
-          instance_id: img.instance_id.substring(0, 8) + '...',
-          modality: img.modality,
-          is_segmentation: img.is_segmentation,
-        })).slice(0, 10), // 처음 10개만
-      });
+      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음. currentImages:', currentImages.map(img => ({
+        instance_id: img.instance_id,
+        is_segmentation: img.is_segmentation,
+        modality: img.modality,
+      })));
     }
-  }, [segmentationInstanceId, allOrthancImages]);
+  }, [segmentationInstanceId, currentImages]);
 
   useEffect(() => {
     if (patientId) {
