@@ -239,12 +239,17 @@ export default function Volume3DViewer({
                 dimensions: segVolumeInfo?.dimensions,
                 spacing: segVolumeInfo?.spacing,
                 origin: segVolumeInfo?.origin,
-                scalarData: segVolumeInfo?.scalarData ? {
-                  min: segVolumeInfo.scalarData.getMin(),
-                  max: segVolumeInfo.scalarData.getMax(),
-                  length: segVolumeInfo.scalarData.length,
-                } : null,
               });
+              // @ts-ignore - scalarData는 내부 속성
+              if (segVolumeInfo?.scalarData) {
+                // @ts-ignore
+                const scalarData = segVolumeInfo.scalarData;
+                console.log('[Volume3DViewer] 세그멘테이션 스칼라 데이터 범위:', {
+                  min: scalarData.getMin ? scalarData.getMin() : 'N/A',
+                  max: scalarData.getMax ? scalarData.getMax() : 'N/A',
+                  length: scalarData.length || 'N/A',
+                });
+              }
             } catch (e) {
               console.warn('[Volume3DViewer] 세그멘테이션 볼륨 정보 확인 실패:', e);
             }
@@ -264,9 +269,11 @@ export default function Volume3DViewer({
                     const scalarOpacity = volumeProperty.getScalarOpacity();
                     if (scalarOpacity) {
                       scalarOpacity.removeAllPoints();
-                      // 배경(0)은 투명, 종양(1 이상)은 불투명
-                      scalarOpacity.addPoint(0, 0.0);
-                      scalarOpacity.addPoint(1, segmentationOpacity);
+                      // 배경(0)은 투명, 종양(0보다 큰 모든 값)은 불투명
+                      // 세그멘테이션 데이터는 0 또는 255일 수 있음
+                      scalarOpacity.addPoint(0, 0.0); // 배경: 완전 투명
+                      scalarOpacity.addPoint(0.5, 0.0); // 중간값도 투명 (안전장치)
+                      scalarOpacity.addPoint(1, segmentationOpacity); // 1 이상: 불투명
                       scalarOpacity.addPoint(128, segmentationOpacity);
                       scalarOpacity.addPoint(255, segmentationOpacity);
                       console.log('[Volume3DViewer] 투명도 설정 완료:', segmentationOpacity);
@@ -278,8 +285,9 @@ export default function Volume3DViewer({
                     const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
                     if (rgbTransferFunction) {
                       rgbTransferFunction.removeAllPoints();
-                      // 배경(0)은 투명하게, 종양(1 이상)은 분홍색 (3D Slicer 스타일)
+                      // 배경(0)은 투명하게, 종양(0보다 큰 모든 값)은 분홍색 (3D Slicer 스타일)
                       rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색 (투명하게 처리됨)
+                      rgbTransferFunction.addRGBPoint(0.5, 0, 0, 0); // 중간값도 검은색 (안전장치)
                       rgbTransferFunction.addRGBPoint(1, 1, 0, 1); // 종양: 분홍색 (magenta) - 3D Slicer 스타일
                       rgbTransferFunction.addRGBPoint(128, 1, 0, 1); // 중간값: 분홍색
                       rgbTransferFunction.addRGBPoint(255, 1, 0, 1); // 종양: 분홍색
