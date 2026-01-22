@@ -20,8 +20,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { RotateCw, ZoomIn, ZoomOut, Layers, Eye, EyeOff } from 'lucide-react';
+import { RotateCw, Layers, Eye, EyeOff } from 'lucide-react';
 import { initCornerstone, createImageId } from '@/lib/cornerstone';
+import { Enums as ToolEnums } from '@cornerstonejs/tools';
 
 interface Volume3DViewerProps {
   instanceIds: string[]; // DICOM 인스턴스 ID 배열
@@ -32,7 +33,6 @@ interface Volume3DViewerProps {
 export default function Volume3DViewer({
   instanceIds,
   segmentationInstanceId,
-  patientId,
 }: Volume3DViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -82,6 +82,11 @@ export default function Volume3DViewer({
         renderingEngineRef.current = renderingEngine;
 
         // Viewport 생성
+        if (!viewportRef.current) {
+          setIsLoading(false);
+          return;
+        }
+
         const viewportInput = {
           viewportId: viewportIdRef.current,
           type: Enums.ViewportType.VOLUME_3D,
@@ -109,20 +114,40 @@ export default function Volume3DViewer({
             volumeId: volume.volumeId,
             callback: ({ volumeActor }) => {
               // 볼륨 렌더링 설정
+              // @ts-ignore - Cornerstone3D volume property API
               const volumeProperty = volumeActor.getProperty();
-              volumeProperty.setScalarOpacity(0, volumeOpacity);
-              volumeProperty.setRGBTransferFunction(0, [
-                { value: 0, opacity: 0.0, rgb: [0, 0, 0] },
-                { value: 500, opacity: 0.2, rgb: [0.5, 0.5, 0.5] },
-                { value: 1000, opacity: 0.4, rgb: [1, 1, 1] },
-                { value: 2000, opacity: 0.6, rgb: [1, 0.9, 0.8] },
-              ]);
-              volumeProperty.setInterpolationTypeToLinear();
-              volumeProperty.setShade(true);
-              volumeProperty.setAmbient(0.2);
-              volumeProperty.setDiffuse(0.7);
-              volumeProperty.setSpecular(0.3);
-              volumeProperty.setSpecularPower(10);
+              if (volumeProperty) {
+                // @ts-ignore - VTK API types
+                const scalarOpacity = volumeProperty.getScalarOpacity();
+                if (scalarOpacity) {
+                  scalarOpacity.removeAllPoints();
+                  scalarOpacity.addPoint(0, 0.0);
+                  scalarOpacity.addPoint(500, 0.2 * volumeOpacity);
+                  scalarOpacity.addPoint(1000, 0.4 * volumeOpacity);
+                  scalarOpacity.addPoint(2000, 0.6 * volumeOpacity);
+                }
+                // @ts-ignore - VTK API types
+                const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                if (rgbTransferFunction) {
+                  rgbTransferFunction.removeAllPoints();
+                  rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
+                  rgbTransferFunction.addRGBPoint(500, 0.5, 0.5, 0.5);
+                  rgbTransferFunction.addRGBPoint(1000, 1, 1, 1);
+                  rgbTransferFunction.addRGBPoint(2000, 1, 0.9, 0.8);
+                }
+                // @ts-ignore - VTK API types
+                volumeProperty.setInterpolationTypeToLinear();
+                // @ts-ignore - VTK API types
+                volumeProperty.setShade(true);
+                // @ts-ignore - VTK API types
+                volumeProperty.setAmbient(0.2);
+                // @ts-ignore - VTK API types
+                volumeProperty.setDiffuse(0.7);
+                // @ts-ignore - VTK API types
+                volumeProperty.setSpecular(0.3);
+                // @ts-ignore - VTK API types
+                volumeProperty.setSpecularPower(10);
+              }
             },
           },
         ]);
@@ -143,14 +168,26 @@ export default function Volume3DViewer({
               {
                 volumeId: segVolume.volumeId,
                 callback: ({ volumeActor }) => {
+                  // @ts-ignore - Cornerstone3D volume property API
                   const volumeProperty = volumeActor.getProperty();
-                  // 세그멘테이션은 빨간색/핑크색으로 표시
-                  volumeProperty.setScalarOpacity(0, segmentationOpacity);
-                  volumeProperty.setRGBTransferFunction(0, [
-                    { value: 0, opacity: 0.0, rgb: [0, 0, 0] },
-                    { value: 1, opacity: segmentationOpacity, rgb: [1, 0, 0.5] }, // 핑크색
-                  ]);
-                  volumeProperty.setInterpolationTypeToNearest();
+                  if (volumeProperty) {
+                    // @ts-ignore - VTK API types
+                    const scalarOpacity = volumeProperty.getScalarOpacity();
+                    if (scalarOpacity) {
+                      scalarOpacity.removeAllPoints();
+                      scalarOpacity.addPoint(0, 0.0);
+                      scalarOpacity.addPoint(1, segmentationOpacity);
+                    }
+                    // @ts-ignore - VTK API types
+                    const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                    if (rgbTransferFunction) {
+                      rgbTransferFunction.removeAllPoints();
+                      rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
+                      rgbTransferFunction.addRGBPoint(1, 1, 0, 0.5); // 핑크색
+                    }
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setInterpolationTypeToNearest();
+                  }
                 },
               },
             ]);
@@ -168,10 +205,10 @@ export default function Volume3DViewer({
           toolGroup.addViewport(viewportIdRef.current, renderingEngineId);
           // 3D 볼륨 뷰포트는 기본적으로 마우스로 회전 가능
           toolGroup.setToolActive(ZoomTool.toolName, {
-            bindings: [{ mouseButton: Enums.MouseBindings.Secondary }],
+            bindings: [{ mouseButton: ToolEnums.MouseBindings.Secondary }],
           });
           toolGroup.setToolActive(PanTool.toolName, {
-            bindings: [{ mouseButton: Enums.MouseBindings.Auxiliary }],
+            bindings: [{ mouseButton: ToolEnums.MouseBindings.Auxiliary }],
           });
         }
 
@@ -221,8 +258,19 @@ export default function Volume3DViewer({
 
       const volumeActor = viewport.getActor(volumeIdRef.current);
       if (volumeActor) {
+        // @ts-ignore - Cornerstone3D volume property API
         const volumeProperty = volumeActor.getProperty();
-        volumeProperty.setScalarOpacity(0, volumeOpacity);
+        if (volumeProperty) {
+          // @ts-ignore - VTK API types
+          const scalarOpacity = volumeProperty.getScalarOpacity();
+          if (scalarOpacity) {
+            scalarOpacity.removeAllPoints();
+            scalarOpacity.addPoint(0, 0.0);
+            scalarOpacity.addPoint(500, 0.2 * volumeOpacity);
+            scalarOpacity.addPoint(1000, 0.4 * volumeOpacity);
+            scalarOpacity.addPoint(2000, 0.6 * volumeOpacity);
+          }
+        }
         viewport.render();
       }
     } catch (error) {
@@ -240,12 +288,24 @@ export default function Volume3DViewer({
 
       const volumeActor = viewport.getActor(segmentationVolumeIdRef.current);
       if (volumeActor) {
+        // @ts-ignore - Cornerstone3D volume property API
         const volumeProperty = volumeActor.getProperty();
-        volumeProperty.setScalarOpacity(0, segmentationOpacity);
-        volumeProperty.setRGBTransferFunction(0, [
-          { value: 0, opacity: 0.0, rgb: [0, 0, 0] },
-          { value: 1, opacity: segmentationOpacity, rgb: [1, 0, 0.5] },
-        ]);
+        if (volumeProperty) {
+          // @ts-ignore - VTK API types
+          const scalarOpacity = volumeProperty.getScalarOpacity();
+          if (scalarOpacity) {
+            scalarOpacity.removeAllPoints();
+            scalarOpacity.addPoint(0, 0.0);
+            scalarOpacity.addPoint(1, segmentationOpacity);
+          }
+          // @ts-ignore - VTK API types
+          const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+          if (rgbTransferFunction) {
+            rgbTransferFunction.removeAllPoints();
+            rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
+            rgbTransferFunction.addRGBPoint(1, 1, 0, 0.5);
+          }
+        }
         viewport.render();
       }
     } catch (error) {
