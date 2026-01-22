@@ -181,6 +181,12 @@ export default function Volume3DViewer({
 
         // 세그멘테이션 볼륨 로드 (있는 경우)
         // DICOM SEG 파일의 각 프레임을 개별 인스턴스로 변환하여 볼륨 생성
+        console.log('[Volume3DViewer] 🔍 세그멘테이션 로드 조건 확인:', {
+          showSegmentation,
+          segmentationInstanceId,
+          hasSegmentationInstanceId: !!segmentationInstanceId,
+        });
+        
         if (showSegmentation && segmentationInstanceId) {
           try {
             console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 로드 시작...', {
@@ -285,22 +291,30 @@ export default function Volume3DViewer({
               const actors = viewport.getActors();
               console.log('[Volume3DViewer] 뷰포트 액터 목록:', {
                 count: actors.length,
-                volumeIds: actors.map(a => a.uid),
+                actors: actors.map(a => ({
+                  uid: a.uid,
+                  actorType: a.actorType,
+                })),
+              });
+              
+              // 각 액터의 볼륨 정보 확인
+              actors.forEach((actor, idx) => {
+                try {
+                  // @ts-ignore
+                  const volumeId = actor.uid;
+                  const volumeInfo = cache.getVolume(volumeId);
+                  console.log(`[Volume3DViewer] 액터 ${idx} 볼륨 정보:`, {
+                    volumeId,
+                    dimensions: volumeInfo?.dimensions,
+                    spacing: volumeInfo?.spacing,
+                    origin: volumeInfo?.origin,
+                  });
+                } catch (e) {
+                  console.warn(`[Volume3DViewer] 액터 ${idx} 볼륨 정보 확인 실패:`, e);
+                }
               });
             } catch (e) {
               console.warn('[Volume3DViewer] 액터 목록 확인 실패:', e);
-            }
-            
-            // 디버깅: 볼륨 정보 확인
-            try {
-              const volumeInfo = cache.getVolume(segVolume.volumeId);
-              console.log('[Volume3DViewer] 세그멘테이션 볼륨 정보:', {
-                volumeId: segVolume.volumeId,
-                dimensions: volumeInfo?.dimensions,
-                spacing: volumeInfo?.spacing,
-              });
-            } catch (e) {
-              console.warn('[Volume3DViewer] 볼륨 정보 확인 실패:', e);
             }
           } catch (segError) {
             console.error('[Volume3DViewer] ❌ 세그멘테이션 볼륨 로드 실패:', segError);
@@ -309,11 +323,18 @@ export default function Volume3DViewer({
               errorMessage: segError instanceof Error ? segError.message : String(segError),
               errorStack: segError instanceof Error ? segError.stack : undefined,
             });
-            
             // 사용자에게 에러 표시
             alert(`세그멘테이션 볼륨 로드 실패: ${segError instanceof Error ? segError.message : String(segError)}\n\n브라우저 콘솔을 확인하세요.`);
           }
-        } else if (showSegmentation && segmentationFrames.length > 0) {
+        } else {
+          console.warn('[Volume3DViewer] ⚠️ 세그멘테이션 로드 조건 불만족:', {
+            showSegmentation,
+            segmentationInstanceId,
+          });
+        }
+        
+        // Fallback: segmentationFrames 사용 (향후 구현)
+        if (showSegmentation && !segmentationInstanceId && segmentationFrames.length > 0) {
           // 방법 2: segmentationFrames 사용 (향후 구현)
           try {
             console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 생성 시작...', {

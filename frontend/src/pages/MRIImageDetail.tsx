@@ -92,16 +92,29 @@ export default function MRIImageDetail() {
   
   // 디버깅: 세그멘테이션 인스턴스 ID 확인
   useEffect(() => {
-    if (segmentationInstanceId) {
-      console.log('[MRIImageDetail] ✅ 세그멘테이션 인스턴스 ID 발견:', segmentationInstanceId);
-    } else {
-      console.log('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음. currentImages:', currentImages.map(img => ({
+    console.log('[MRIImageDetail] 🔍 세그멘테이션 인스턴스 ID 검색 중...', {
+      allOrthancImagesCount: allOrthancImages.length,
+      allOrthancImages: allOrthancImages.map(img => ({
         instance_id: img.instance_id,
         is_segmentation: img.is_segmentation,
         modality: img.modality,
+        series_description: img.series_description,
+      })),
+    });
+    
+    if (segmentationInstanceId) {
+      console.log('[MRIImageDetail] ✅ 세그멘테이션 인스턴스 ID 발견:', segmentationInstanceId);
+    } else {
+      console.warn('[MRIImageDetail] ⚠️ 세그멘테이션 인스턴스 ID 없음');
+      const segImages = allOrthancImages.filter(img => img.is_segmentation || img.modality === 'SEG');
+      console.log('[MRIImageDetail] SEG 파일 후보:', segImages.map(img => ({
+        instance_id: img.instance_id,
+        is_segmentation: img.is_segmentation,
+        modality: img.modality,
+        series_description: img.series_description,
       })));
     }
-  }, [segmentationInstanceId, currentImages]);
+  }, [segmentationInstanceId, allOrthancImages]);
 
   useEffect(() => {
     if (patientId) {
