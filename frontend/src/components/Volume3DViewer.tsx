@@ -304,25 +304,33 @@ export default function Volume3DViewer({
                     }
                     
                     // @ts-ignore - VTK API types
-                    // 세그멘테이션은 binary 데이터이므로 Nearest가 맞지만, 
-                    // 부드러운 렌더링을 위해 Linear로 시도 (경계가 부드러워짐)
+                    // 세그멘테이션은 binary 데이터이지만, 부드러운 렌더링을 위해 Linear 사용
+                    // Nearest는 픽셀화가 심하므로 Linear로 변경
                     volumeProperty.setInterpolationTypeToLinear();
                     
                     // 볼륨 렌더링 모드 설정 (3D Slicer처럼 세그멘테이션만 강조)
                     // @ts-ignore - VTK API types
                     volumeProperty.setShade(true); // 쉐이딩으로 입체감 추가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setAmbient(0.7); // 주변광 증가 (더 밝게)
+                    volumeProperty.setAmbient(0.8); // 주변광 증가 (더 밝게)
                     // @ts-ignore - VTK API types
-                    volumeProperty.setDiffuse(0.5); // 확산광 증가
+                    volumeProperty.setDiffuse(0.6); // 확산광 증가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSpecular(0.3); // 반사광 증가
+                    volumeProperty.setSpecular(0.4); // 반사광 증가
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSpecularPower(30); // 반사 강도 증가
+                    volumeProperty.setSpecularPower(40); // 반사 강도 증가
                     
                     // 볼륨 렌더링 품질 향상
                     // @ts-ignore - VTK API types
-                    volumeProperty.setSampleDistance(0.5); // 샘플링 거리 감소 (더 고품질)
+                    if (volumeProperty.setSampleDistance) {
+                      volumeProperty.setSampleDistance(0.25); // 샘플링 거리 더 감소 (최고 품질)
+                    }
+                    
+                    // 렌더링 품질 설정
+                    // @ts-ignore - VTK API types
+                    if (volumeProperty.setRenderMode) {
+                      volumeProperty.setRenderMode(1); // 고품질 렌더링 모드
+                    }
                     
                     console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
                   } else {
