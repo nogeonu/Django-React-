@@ -391,7 +391,12 @@ def get_segmentation_volume_instances(request, seg_instance_id):
     """
     try:
         logger.info(f"🔍 DICOM SEG → 개별 인스턴스 변환 시작: {seg_instance_id}")
-        client = OrthancClient()
+        # OrthancClient는 환경 변수에서 ORTHANC_URL을 읽지만, 명시적으로 전달하여 일관성 유지
+        client = OrthancClient(
+            base_url=ORTHANC_URL,
+            username=ORTHANC_USER,
+            password=ORTHANC_PASSWORD
+        )
         
         # 1. DICOM SEG 파일 로드
         seg_dicom_bytes = client.get_instance_file(seg_instance_id)
