@@ -132,63 +132,61 @@ export default function Volume3DViewer({
         await volume.load();
         console.log('[Volume3DViewer] 볼륨 로드 완료:', volume.volumeId);
 
-        // 볼륨을 뷰포트에 설정
-        // 세그멘테이션이 있으면 메인 볼륨은 투명하게, 없으면 일반적으로 표시
+        // 세그멘테이션이 있으면 메인 볼륨을 완전히 숨기고 세그멘테이션만 표시
         const hasSegmentation = showSegmentation && segmentationInstanceId;
-        viewport.setVolumes([
-          {
-            volumeId: volume.volumeId,
-            callback: ({ volumeActor }) => {
-              // 볼륨 렌더링 설정
-              // @ts-ignore - Cornerstone3D volume property API
-              const volumeProperty = volumeActor.getProperty();
-              if (volumeProperty) {
-                // @ts-ignore - VTK API types
-                const scalarOpacity = volumeProperty.getScalarOpacity();
-                if (scalarOpacity) {
-                  scalarOpacity.removeAllPoints();
-                  if (hasSegmentation) {
-                    // 세그멘테이션이 있으면 메인 볼륨을 거의 투명하게 (배경만 보이도록)
-                    scalarOpacity.addPoint(0, 0.0);
-                    scalarOpacity.addPoint(500, 0.05 * volumeOpacity);
-                    scalarOpacity.addPoint(1000, 0.1 * volumeOpacity);
-                    scalarOpacity.addPoint(2000, 0.15 * volumeOpacity);
-                  } else {
-                    // 세그멘테이션이 없으면 일반적으로 표시
+        
+        if (!hasSegmentation) {
+          // 세그멘테이션이 없을 때만 메인 볼륨 표시
+          viewport.setVolumes([
+            {
+              volumeId: volume.volumeId,
+              callback: ({ volumeActor }) => {
+                // 볼륨 렌더링 설정
+                // @ts-ignore - Cornerstone3D volume property API
+                const volumeProperty = volumeActor.getProperty();
+                if (volumeProperty) {
+                  // @ts-ignore - VTK API types
+                  const scalarOpacity = volumeProperty.getScalarOpacity();
+                  if (scalarOpacity) {
+                    scalarOpacity.removeAllPoints();
                     scalarOpacity.addPoint(0, 0.0);
                     scalarOpacity.addPoint(500, 0.2 * volumeOpacity);
                     scalarOpacity.addPoint(1000, 0.4 * volumeOpacity);
                     scalarOpacity.addPoint(2000, 0.6 * volumeOpacity);
                   }
+                  // @ts-ignore - VTK API types
+                  const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                  if (rgbTransferFunction) {
+                    rgbTransferFunction.removeAllPoints();
+                    rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
+                    rgbTransferFunction.addRGBPoint(500, 0.5, 0.5, 0.5);
+                    rgbTransferFunction.addRGBPoint(1000, 1, 1, 1);
+                    rgbTransferFunction.addRGBPoint(2000, 1, 0.9, 0.8);
+                  }
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setInterpolationTypeToLinear();
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setShade(true);
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setAmbient(0.2);
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setDiffuse(0.7);
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setSpecular(0.3);
+                  // @ts-ignore - VTK API types
+                  volumeProperty.setSpecularPower(10);
                 }
-                // @ts-ignore - VTK API types
-                const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
-                if (rgbTransferFunction) {
-                  rgbTransferFunction.removeAllPoints();
-                  rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
-                  rgbTransferFunction.addRGBPoint(500, 0.5, 0.5, 0.5);
-                  rgbTransferFunction.addRGBPoint(1000, 1, 1, 1);
-                  rgbTransferFunction.addRGBPoint(2000, 1, 0.9, 0.8);
-                }
-                // @ts-ignore - VTK API types
-                volumeProperty.setInterpolationTypeToLinear();
-                // @ts-ignore - VTK API types
-                volumeProperty.setShade(true);
-                // @ts-ignore - VTK API types
-                volumeProperty.setAmbient(0.2);
-                // @ts-ignore - VTK API types
-                volumeProperty.setDiffuse(0.7);
-                // @ts-ignore - VTK API types
-                volumeProperty.setSpecular(0.3);
-                // @ts-ignore - VTK API types
-                volumeProperty.setSpecularPower(10);
-              }
+              },
             },
-          },
-        ]);
-        
-        // 렌더링 (볼륨 설정 후 즉시)
-        viewport.render();
+          ]);
+          
+          // 렌더링 (볼륨 설정 후 즉시)
+          viewport.render();
+        } else {
+          // 세그멘테이션이 있으면 메인 볼륨은 표시하지 않음 (세그멘테이션만 표시)
+          console.log('[Volume3DViewer] 세그멘테이션이 있으므로 메인 볼륨은 숨김 (세그멘테이션만 표시)');
+          viewport.render();
+        }
 
         // 세그멘테이션 볼륨 로드 (있는 경우)
         // DICOM SEG 파일의 각 프레임을 개별 인스턴스로 변환하여 볼륨 생성
