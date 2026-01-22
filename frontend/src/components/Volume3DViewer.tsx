@@ -579,7 +579,8 @@ export default function Volume3DViewer({
         viewport.render();
         console.log('[Volume3DViewer] 렌더링 완료');
 
-        // 도구 그룹 설정 (3D 볼륨 뷰포트용)
+        // 3D 볼륨 뷰포트는 기본적으로 마우스 상호작용이 활성화되어 있음
+        // ToolGroup 없이도 작동하지만, 명시적으로 설정하여 확실하게 함
         try {
           // 기존 도구 그룹이 있으면 제거
           const existingToolGroup = ToolGroupManager.getToolGroup(toolGroupIdRef.current);
@@ -592,40 +593,39 @@ export default function Volume3DViewer({
             ToolGroupManager.destroyToolGroup(toolGroupIdRef.current);
           }
 
-          // 새 도구 그룹 생성
+          // 새 도구 그룹 생성 (최소한의 설정)
           const toolGroup = ToolGroupManager.createToolGroup(toolGroupIdRef.current);
           if (toolGroup) {
-            // 도구 추가
-            toolGroup.addTool(ZoomTool.toolName);
-            toolGroup.addTool(PanTool.toolName);
-            toolGroup.addTool(WindowLevelTool.toolName);
-
-            // 3D 볼륨 뷰포트는 기본적으로 왼쪽 클릭 + 드래그로 회전 가능 (별도 도구 불필요)
-            // 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그
-            toolGroup.setToolActive(ZoomTool.toolName, {
-              bindings: [
-                { mouseButton: ToolEnums.MouseBindings.Secondary }, // 오른쪽 클릭 + 드래그
-              ],
-            });
-            
-            // 팬: 중간 클릭 (휠 클릭)
-            toolGroup.setToolActive(PanTool.toolName, {
-              bindings: [{ mouseButton: ToolEnums.MouseBindings.Auxiliary }], // 중간 클릭
-            });
-
-            // Window/Level은 3D 볼륨 뷰포트에서 비활성화 (회전과 충돌 방지)
-            // 필요시 Ctrl + 왼쪽 클릭으로 활성화 가능
-            // toolGroup.setToolActive(WindowLevelTool.toolName, {
-            //   bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }],
-            // });
-
-            // 뷰포트에 도구 그룹 연결
+            // 뷰포트에 도구 그룹 연결 (기본 상호작용 활성화)
             toolGroup.addViewport(viewportIdRef.current, renderingEngineId);
             
-            console.log('[Volume3DViewer] ✅ 도구 그룹 설정 완료 (회전: 왼쪽 클릭 + 드래그, 줌: 휠/오른쪽 클릭)');
+            // 3D 볼륨 뷰포트는 기본적으로 다음 상호작용이 활성화됨:
+            // - 왼쪽 클릭 + 드래그: 회전
+            // - 마우스 휠: 줌
+            // - 오른쪽 클릭 + 드래그: 줌
+            // - 중간 클릭 + 드래그: 팬
+            
+            console.log('[Volume3DViewer] ✅ 도구 그룹 연결 완료 (기본 상호작용 활성화)');
+            console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그');
+            console.log('[Volume3DViewer] 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그');
+            console.log('[Volume3DViewer] 팬: 중간 클릭 + 드래그');
           }
         } catch (toolError) {
           console.error('[Volume3DViewer] 도구 그룹 설정 실패:', toolError);
+        }
+        
+        // viewport element에 직접 이벤트 리스너 추가 (확실하게 하기 위해)
+        if (viewportRef.current) {
+          const element = viewportRef.current;
+          
+          // 포인터 이벤트 활성화 확인
+          element.style.pointerEvents = 'auto';
+          element.style.cursor = 'grab';
+          
+          console.log('[Volume3DViewer] viewport element 스타일 설정 완료:', {
+            pointerEvents: element.style.pointerEvents,
+            cursor: element.style.cursor,
+          });
         }
 
         setIsLoading(false);
@@ -815,7 +815,12 @@ export default function Volume3DViewer({
         <div
           ref={viewportRef}
           className="w-full h-full"
-          style={{ minHeight: '600px' }}
+          style={{ 
+            minHeight: '600px',
+            pointerEvents: 'auto',
+            cursor: 'grab',
+            touchAction: 'none', // 모바일 터치 제스처 방지
+          }}
         />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80">
