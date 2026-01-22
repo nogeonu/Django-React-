@@ -548,7 +548,14 @@ def get_segmentation_volume_instances(request, seg_instance_id):
             new_ds.BitsStored = 8
             new_ds.HighBit = 7
             new_ds.PixelRepresentation = 0
+            
+            # 종양 영역을 255로, 배경을 0으로 설정 (이미 처리됨)
+            # frame_data는 이미 (pixel_array[frame_idx] > 0).astype(np.uint8) * 255로 처리됨
             new_ds.PixelData = frame_data.tobytes()
+            
+            # Window/Level 설정 (볼륨 렌더링을 위해)
+            new_ds.WindowCenter = 127.5
+            new_ds.WindowWidth = 255.0
             
             # DICOM 인코딩 설정
             new_ds.is_little_endian = True

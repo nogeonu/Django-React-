@@ -41,7 +41,7 @@ export default function Volume3DViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [showSegmentation, setShowSegmentation] = useState(true);
   const [volumeOpacity, setVolumeOpacity] = useState(0.7);
-  const [segmentationOpacity, setSegmentationOpacity] = useState(0.8);
+  const [segmentationOpacity, setSegmentationOpacity] = useState(1.0); // 종양을 더 선명하게 보이도록 1.0으로 설정
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const volumeIdRef = useRef<string | null>(null);
   const segmentationVolumeIdRef = useRef<string | null>(null);
@@ -204,27 +204,43 @@ export default function Volume3DViewer({
               {
                 volumeId: segVolume.volumeId,
                 callback: ({ volumeActor }) => {
+                  console.log('[Volume3DViewer] 세그멘테이션 볼륨 액터 콜백 실행');
                   // @ts-ignore - Cornerstone3D volume property API
                   const volumeProperty = volumeActor.getProperty();
                   if (volumeProperty) {
+                    console.log('[Volume3DViewer] 볼륨 속성 설정 시작...');
+                    
                     // @ts-ignore - VTK API types
                     const scalarOpacity = volumeProperty.getScalarOpacity();
                     if (scalarOpacity) {
                       scalarOpacity.removeAllPoints();
+                      // 배경(0)은 투명, 종양(255)은 불투명
                       scalarOpacity.addPoint(0, 0.0);
-                      scalarOpacity.addPoint(0.5, 0.0);
-                      scalarOpacity.addPoint(1, segmentationOpacity); // 종양 영역만 표시
+                      scalarOpacity.addPoint(1, segmentationOpacity);
+                      scalarOpacity.addPoint(255, segmentationOpacity);
+                      console.log('[Volume3DViewer] 투명도 설정 완료:', segmentationOpacity);
+                    } else {
+                      console.warn('[Volume3DViewer] scalarOpacity를 가져올 수 없습니다');
                     }
+                    
                     // @ts-ignore - VTK API types
                     const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
                     if (rgbTransferFunction) {
                       rgbTransferFunction.removeAllPoints();
+                      // 배경(0)은 검은색, 종양(1 이상)은 빨간색
                       rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
-                      rgbTransferFunction.addRGBPoint(0.5, 0, 0, 0); // 중간값: 검은색
                       rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색
+                      rgbTransferFunction.addRGBPoint(255, 1, 0, 0); // 종양: 빨간색
+                      console.log('[Volume3DViewer] 색상 설정 완료: 빨간색');
+                    } else {
+                      console.warn('[Volume3DViewer] rgbTransferFunction을 가져올 수 없습니다');
                     }
+                    
                     // @ts-ignore - VTK API types
                     volumeProperty.setInterpolationTypeToNearest();
+                    console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
+                  } else {
+                    console.error('[Volume3DViewer] volumeProperty를 가져올 수 없습니다');
                   }
                 },
               },
@@ -233,12 +249,28 @@ export default function Volume3DViewer({
             // 세그멘테이션 추가 후 렌더링
             viewport.render();
             console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨 추가 및 렌더링 완료 (빨간색)');
+            
+            // 디버깅: 볼륨 정보 확인
+            try {
+              const volumeInfo = cache.getVolume(segVolume.volumeId);
+              console.log('[Volume3DViewer] 세그멘테이션 볼륨 정보:', {
+                volumeId: segVolume.volumeId,
+                dimensions: volumeInfo?.dimensions,
+                spacing: volumeInfo?.spacing,
+              });
+            } catch (e) {
+              console.warn('[Volume3DViewer] 볼륨 정보 확인 실패:', e);
+            }
           } catch (segError) {
-            console.error('[Volume3DViewer] DICOM SEG 파일 로드 실패:', segError);
+            console.error('[Volume3DViewer] ❌ 세그멘테이션 볼륨 로드 실패:', segError);
             console.error('[Volume3DViewer] 에러 상세:', {
               segmentationInstanceId,
               errorMessage: segError instanceof Error ? segError.message : String(segError),
+              errorStack: segError instanceof Error ? segError.stack : undefined,
             });
+            
+            // 사용자에게 에러 표시
+            alert(`세그멘테이션 볼륨 로드 실패: ${segError instanceof Error ? segError.message : String(segError)}\n\n브라우저 콘솔을 확인하세요.`);
           }
         } else if (showSegmentation && segmentationFrames.length > 0) {
           // 방법 2: segmentationFrames 사용 (향후 구현)
