@@ -31,6 +31,7 @@ urlpatterns = [
     path('segmentation/series/<str:series_id>/segment/', segmentation_views.segment_series, name='segment-series'),
     path('segmentation/instances/<str:seg_instance_id>/frames/', segmentation_views.get_segmentation_frames, name='get-segmentation-frames'),
     path('segmentation/instances/<str:seg_instance_id>/volume-instances/', segmentation_views.get_segmentation_volume_instances, name='get-segmentation-volume-instances'),
+    path('segmentation/instances/<str:seg_instance_id>/3d-data/', segmentation_views.get_segmentation_3d_data, name='get-segmentation-3d-data'),
     path('segmentation/health/', segmentation_views.segmentation_health, name='segmentation-health'),
     
     # 연구실 컴퓨터 추론 요청 API

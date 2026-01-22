@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import CornerstoneViewer from "@/components/CornerstoneViewer";
 import Volume3DViewer from "@/components/Volume3DViewer";
+import Tumor3DViewer from "@/components/Tumor3DViewer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface OrthancImage {
@@ -80,7 +81,7 @@ export default function MRIImageDetail() {
   const [segmentationStartIndex, setSegmentationStartIndex] = useState<{[seriesId: string]: number}>({});
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
   const [hasSegmentationFile, setHasSegmentationFile] = useState(false);  // SEG 파일 존재 여부
-  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");  // 2D 또는 3D 뷰 모드
+  const [viewMode, setViewMode] = useState<"2d" | "3d" | "tumor3d">("2d");  // 2D, 3D, 또는 종양 3D 뷰 모드
 
   // 현재 선택된 Series의 이미지들
   const currentImages = seriesGroups[selectedSeriesIndex]?.images || [];
@@ -765,10 +766,11 @@ export default function MRIImageDetail() {
                   <div className="relative h-full flex flex-col">
                     {/* 뷰 모드 탭 */}
                     <div className="p-4 border-b border-gray-800">
-                      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "2d" | "3d")}>
-                        <TabsList className="grid w-full grid-cols-2">
+                      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "2d" | "3d" | "tumor3d")}>
+                        <TabsList className="grid w-full grid-cols-3">
                           <TabsTrigger value="2d">2D 슬라이스 뷰</TabsTrigger>
                           <TabsTrigger value="3d">3D 볼륨 뷰</TabsTrigger>
+                          <TabsTrigger value="tumor3d">종양 3D 뷰</TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
@@ -843,7 +845,13 @@ export default function MRIImageDetail() {
                             </div>
                           )}
                         </div>
-                      )}
+                      ) : viewMode === "tumor3d" ? (
+                        <div className="h-full">
+                          <Tumor3DViewer
+                            segmentationInstanceId={segmentationInstanceId}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     
                     {isFullscreen && (
