@@ -35,9 +35,6 @@ ORTHANC_URL = os.getenv('ORTHANC_URL', 'http://34.42.223.43:8042')
 ORTHANC_USER = os.getenv('ORTHANC_USER', 'admin')
 ORTHANC_PASSWORD = os.getenv('ORTHANC_PASSWORD', 'admin123')
 
-# Mosec 서비스 URL
-SEGMENTATION_MOSEC_URL = os.getenv('SEGMENTATION_MOSEC_URL', 'http://localhost:5006/inference')
-
 # 모델 경로 (우선순위: src/best_model.pth -> checkpoints/best_model.pth)
 MODEL_PATH = Path(__file__).parent.parent / "mri_segmentation" / "src" / "best_model.pth"
 if not MODEL_PATH.exists():

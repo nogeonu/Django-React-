@@ -13,7 +13,7 @@ from rest_framework import status
 logger = logging.getLogger(__name__)
 
 # Mosec 서비스 URL
-PATHOLOGY_MOSEC_URL = "http://localhost:5008/inference"
+
 
 
 @api_view(['POST'])
