@@ -321,16 +321,8 @@ export default function Volume3DViewer({
                     volumeProperty.setSpecularPower(40); // 반사 강도 증가
                     
                     // 볼륨 렌더링 품질 향상
-                    // @ts-ignore - VTK API types
-                    if (volumeProperty.setSampleDistance) {
-                      volumeProperty.setSampleDistance(0.25); // 샘플링 거리 더 감소 (최고 품질)
-                    }
-                    
-                    // 렌더링 품질 설정
-                    // @ts-ignore - VTK API types
-                    if (volumeProperty.setRenderMode) {
-                      volumeProperty.setRenderMode(1); // 고품질 렌더링 모드
-                    }
+                    // Note: setSampleDistance와 setRenderMode는 VTK VolumeProperty에 직접 존재하지 않을 수 있음
+                    // 대신 조명과 interpolation 설정으로 품질 향상
                     
                     console.log('[Volume3DViewer] 볼륨 속성 설정 완료');
                   } else {
