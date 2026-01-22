@@ -39,6 +39,7 @@ export default function Volume3DViewer({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showSegmentation, setShowSegmentation] = useState(true);
   const [volumeOpacity, setVolumeOpacity] = useState(0.7);
   const [segmentationOpacity, setSegmentationOpacity] = useState(1.0); // 종양을 더 선명하게 보이도록 1.0으로 설정
