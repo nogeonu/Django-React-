@@ -453,7 +453,9 @@ export default function MRIImageDetail() {
 
       toast({
         title: "시리즈 세그멘테이션 완료",
-        description: `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료. 병변 탐지 버튼으로 오버레이를 확인하세요.`,
+        description: data.successful_slices !== undefined && data.total_slices !== undefined
+          ? `${data.successful_slices}/${data.total_slices} 슬라이스 분석 완료. 병변 탐지 버튼으로 오버레이를 확인하세요.`
+          : `분석 완료. 병변 탐지 버튼으로 오버레이를 확인하세요.`,
       });
     } catch (error) {
       console.error('시리즈 세그멘테이션 오류:', error);

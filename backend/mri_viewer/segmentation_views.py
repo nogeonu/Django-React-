@@ -266,17 +266,26 @@ def _perform_segment_series_logic(request, series_id, sequence_series_ids):
             seg_instance_id = mosec_result.get('seg_instance_id')
             tumor_ratio_percent = mosec_result.get('tumor_ratio_percent', 0.0)
             tumor_pixel_count = mosec_result.get('tumor_pixel_count', 0)
-            
+
+            # 슬라이스 정보 (Mosec 응답에서 가져오거나, orthanc_instance_ids에서 계산)
+            total_slices = mosec_result.get('total_slices', 0)
+            successful_slices = mosec_result.get('successful_slices', 0)
+
+            # total_slices가 없으면 orthanc_instance_ids에서 계산
+            if total_slices == 0 and orthanc_instance_ids:
+                total_slices = len(orthanc_instance_ids[0]) if orthanc_instance_ids else 0
+                successful_slices = total_slices  # Mosec 성공 시 모든 슬라이스 처리 완료로 가정
+
             # tumor_detected는 tumor_ratio_percent가 0보다 크면 True
             tumor_detected = tumor_ratio_percent > 0.0
             # tumor_volume_voxels는 tumor_pixel_count를 사용 (또는 계산)
             tumor_volume_voxels = tumor_pixel_count
-            
+
             if not seg_instance_id:
                 logger.warning("⚠️ Mosec 응답에 seg_instance_id가 없습니다. Mosec이 Orthanc에 저장했는지 확인하세요.")
-            
-            logger.info(f"✅ 세그멘테이션 완료: tumor_detected={tumor_detected}, tumor_ratio={tumor_ratio_percent:.2f}%, seg_instance_id={seg_instance_id}")
-            
+
+            logger.info(f"✅ 세그멘테이션 완료: tumor_detected={tumor_detected}, tumor_ratio={tumor_ratio_percent:.2f}%, seg_instance_id={seg_instance_id}, slices={successful_slices}/{total_slices}")
+
             return Response({
                 'success': True,
                 'series_id': series_id,
@@ -285,7 +294,9 @@ def _perform_segment_series_logic(request, series_id, sequence_series_ids):
                 'tumor_ratio_percent': tumor_ratio_percent,
                 'seg_instance_id': seg_instance_id,
                 'saved_to_orthanc': seg_instance_id is not None,
-                'processed_by': 'mosec'
+                'processed_by': 'mosec',
+                'total_slices': total_slices,
+                'successful_slices': successful_slices
             })
             
         except Exception as e:
