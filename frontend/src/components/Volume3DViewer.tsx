@@ -34,8 +34,7 @@ interface Volume3DViewerProps {
 export default function Volume3DViewer({
   instanceIds,
   segmentationInstanceId,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  segmentationFrames: _segmentationFrames = [], // 향후 세그멘테이션 마스킹 정보 직접 사용 예정
+  segmentationFrames = [], // 세그멘테이션 프레임 (base64 마스크 이미지들)
 }: Volume3DViewerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -163,76 +162,181 @@ export default function Volume3DViewer({
         // 렌더링 (볼륨 설정 후 즉시)
         viewport.render();
 
-        // 세그멘테이션 볼륨 로드 (있는 경우) - Orthanc에 저장된 DICOM SEG 파일 사용
-        if (showSegmentation && (segmentationInstanceId || _segmentationFrames.length > 0)) {
+        // 세그멘테이션 볼륨 로드 (있는 경우) - segmentationFrames의 base64 마스크 이미지 사용
+        if (showSegmentation && segmentationFrames.length > 0) {
           try {
-            console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 로드 시작...', {
-              segmentationInstanceId,
-              hasInstanceId: !!segmentationInstanceId,
-              hasFrames: _segmentationFrames.length > 0,
+            console.log('[Volume3DViewer] 🎯 세그멘테이션 볼륨 생성 시작...', {
+              framesCount: segmentationFrames.length,
               showSegmentation,
             });
 
-            let segImageIds: string[] = [];
-            
-            if (segmentationInstanceId) {
-              // DICOM SEG 파일에서 로드
-              const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
-              segImageIds = [segImageId];
-            } else if (_segmentationFrames.length > 0) {
-              // 세그멘테이션 프레임이 있으면 나중에 직접 볼륨 생성 (현재는 DICOM SEG 우선)
-              console.log('[Volume3DViewer] 세그멘테이션 프레임이 있지만 DICOM SEG 인스턴스 ID가 없습니다.');
+            // base64 마스크 이미지들을 로드하여 3D 배열 생성
+            const maskSlices: number[][] = [];
+            let maskWidth = 0;
+            let maskHeight = 0;
+
+            for (const frame of segmentationFrames.sort((a, b) => a.index - b.index)) {
+              try {
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                  img.onload = resolve;
+                  img.onerror = reject;
+                  img.src = `data:image/png;base64,${frame.mask_base64}`;
+                });
+
+                // Canvas를 사용하여 이미지 데이터 추출
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) continue;
+
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                if (maskWidth === 0) {
+                  maskWidth = canvas.width;
+                  maskHeight = canvas.height;
+                }
+
+                // 그레이스케일로 변환 (빨간색 채널만 사용)
+                const slice: number[] = [];
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                  const r = imageData.data[i];
+                  const g = imageData.data[i + 1];
+                  const b = imageData.data[i + 2];
+                  const a = imageData.data[i + 3];
+                  // 마스크가 있는 픽셀은 1, 없으면 0
+                  const maskValue = (r > 0 || g > 0 || b > 0) && a > 0 ? 1 : 0;
+                  slice.push(maskValue);
+                }
+                maskSlices.push(slice);
+              } catch (frameError) {
+                console.warn(`[Volume3DViewer] 프레임 ${frame.index} 로드 실패:`, frameError);
+              }
             }
 
-            if (segImageIds.length > 0) {
-              const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
-                imageIds: segImageIds,
+            if (maskSlices.length > 0 && maskWidth > 0 && maskHeight > 0) {
+              console.log('[Volume3DViewer] 세그멘테이션 마스크 배열 생성 완료:', {
+                depth: maskSlices.length,
+                height: maskHeight,
+                width: maskWidth,
               });
 
-              segmentationVolumeIdRef.current = segVolume.volumeId;
-              await segVolume.load();
-              console.log('[Volume3DViewer] 세그멘테이션 볼륨 로드 완료:', segVolume.volumeId);
-
-              // 세그멘테이션을 뷰포트에 추가 (빨간색으로 표시)
-              viewport.addVolumes([
-                {
-                  volumeId: segVolume.volumeId,
-                  callback: ({ volumeActor }) => {
-                    // @ts-ignore - Cornerstone3D volume property API
-                    const volumeProperty = volumeActor.getProperty();
-                    if (volumeProperty) {
-                      // @ts-ignore - VTK API types
-                      const scalarOpacity = volumeProperty.getScalarOpacity();
-                      if (scalarOpacity) {
-                        scalarOpacity.removeAllPoints();
-                        scalarOpacity.addPoint(0, 0.0);
-                        scalarOpacity.addPoint(1, segmentationOpacity); // 종양 영역만 표시
-                      }
-                      // @ts-ignore - VTK API types
-                      const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
-                      if (rgbTransferFunction) {
-                        rgbTransferFunction.removeAllPoints();
-                        rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
-                        rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색 (두 번째 이미지처럼)
-                      }
-                      // @ts-ignore - VTK API types
-                      volumeProperty.setInterpolationTypeToNearest();
-                    }
-                  },
-                },
-              ]);
+              // 백엔드 API를 통해 세그멘테이션 프레임들을 개별 DICOM 인스턴스로 변환
+              // 또는 DICOM SEG 파일의 각 프레임을 개별 이미지로 제공하는 API 사용
+              console.log('[Volume3DViewer] ⚠️ segmentationFrames를 직접 볼륨으로 변환하는 기능은 아직 구현되지 않았습니다.');
+              console.log('[Volume3DViewer] 💡 DICOM SEG 파일을 사용하거나, 백엔드에서 프레임을 개별 인스턴스로 제공하는 API가 필요합니다.');
               
-              // 세그멘테이션 추가 후 렌더링
-              viewport.render();
-              console.log('[Volume3DViewer] 세그멘테이션 볼륨 추가 및 렌더링 완료');
+              // 임시: segmentationInstanceId가 있으면 그것을 사용
+              if (segmentationInstanceId) {
+                console.log('[Volume3DViewer] segmentationInstanceId를 사용하여 DICOM SEG 로드 시도...');
+                try {
+                  const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
+                  const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
+                    imageIds: [segImageId],
+                  });
+
+                  segmentationVolumeIdRef.current = segVolume.volumeId;
+                  await segVolume.load();
+                  console.log('[Volume3DViewer] DICOM SEG 볼륨 로드 완료:', segVolume.volumeId);
+
+                  // 세그멘테이션을 뷰포트에 추가 (빨간색으로 표시)
+                  viewport.addVolumes([
+                    {
+                      volumeId: segVolume.volumeId,
+                      callback: ({ volumeActor }) => {
+                        // @ts-ignore - Cornerstone3D volume property API
+                        const volumeProperty = volumeActor.getProperty();
+                        if (volumeProperty) {
+                          // @ts-ignore - VTK API types
+                          const scalarOpacity = volumeProperty.getScalarOpacity();
+                          if (scalarOpacity) {
+                            scalarOpacity.removeAllPoints();
+                            scalarOpacity.addPoint(0, 0.0);
+                            scalarOpacity.addPoint(0.5, 0.0);
+                            scalarOpacity.addPoint(1, segmentationOpacity); // 종양 영역만 표시
+                          }
+                          // @ts-ignore - VTK API types
+                          const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                          if (rgbTransferFunction) {
+                            rgbTransferFunction.removeAllPoints();
+                            rgbTransferFunction.addRGBPoint(0, 0, 0, 0); // 배경: 검은색
+                            rgbTransferFunction.addRGBPoint(0.5, 0, 0, 0); // 중간값: 검은색
+                            rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 종양: 빨간색
+                          }
+                          // @ts-ignore - VTK API types
+                          volumeProperty.setInterpolationTypeToNearest();
+                        }
+                      },
+                    },
+                  ]);
+                  
+                  // 세그멘테이션 추가 후 렌더링
+                  viewport.render();
+                  console.log('[Volume3DViewer] ✅ 세그멘테이션 볼륨 추가 및 렌더링 완료 (빨간색)');
+                } catch (volError) {
+                  console.error('[Volume3DViewer] DICOM SEG 볼륨 로드 실패:', volError);
+                }
+              } else {
+                console.warn('[Volume3DViewer] ⚠️ segmentationInstanceId도 없어서 세그멘테이션을 표시할 수 없습니다.');
+              }
+            } else {
+              console.warn('[Volume3DViewer] 세그멘테이션 마스크 데이터가 없습니다.');
             }
           } catch (segError) {
-            console.error('[Volume3DViewer] 세그멘테이션 볼륨 로드 실패:', segError);
+            console.error('[Volume3DViewer] 세그멘테이션 볼륨 생성 실패:', segError);
             console.error('[Volume3DViewer] 에러 상세:', {
-              segmentationInstanceId,
-              hasFrames: _segmentationFrames.length > 0,
+              framesCount: segmentationFrames.length,
               errorMessage: segError instanceof Error ? segError.message : String(segError),
+              errorStack: segError instanceof Error ? segError.stack : undefined,
             });
+          }
+        } else if (showSegmentation && segmentationInstanceId) {
+          // DICOM SEG 파일 직접 로드 시도 (fallback)
+          try {
+            console.log('[Volume3DViewer] ⚠️ DICOM SEG 파일 직접 로드 시도 (segmentationFrames 없음)...');
+            const segImageId = createImageId(`/api/mri/orthanc/instances/${segmentationInstanceId}/file`);
+            const segVolume = await volumeLoader.createAndCacheVolume('cornerstoneStreamingImageVolume', {
+              imageIds: [segImageId],
+            });
+
+            segmentationVolumeIdRef.current = segVolume.volumeId;
+            await segVolume.load();
+            console.log('[Volume3DViewer] DICOM SEG 볼륨 로드 완료:', segVolume.volumeId);
+
+            viewport.addVolumes([
+              {
+                volumeId: segVolume.volumeId,
+                callback: ({ volumeActor }) => {
+                  // @ts-ignore - Cornerstone3D volume property API
+                  const volumeProperty = volumeActor.getProperty();
+                  if (volumeProperty) {
+                    // @ts-ignore - VTK API types
+                    const scalarOpacity = volumeProperty.getScalarOpacity();
+                    if (scalarOpacity) {
+                      scalarOpacity.removeAllPoints();
+                      scalarOpacity.addPoint(0, 0.0);
+                      scalarOpacity.addPoint(1, segmentationOpacity);
+                    }
+                    // @ts-ignore - VTK API types
+                    const rgbTransferFunction = volumeProperty.getRGBTransferFunction();
+                    if (rgbTransferFunction) {
+                      rgbTransferFunction.removeAllPoints();
+                      rgbTransferFunction.addRGBPoint(0, 0, 0, 0);
+                      rgbTransferFunction.addRGBPoint(1, 1, 0, 0); // 빨간색
+                    }
+                    // @ts-ignore - VTK API types
+                    volumeProperty.setInterpolationTypeToNearest();
+                  }
+                },
+              },
+            ]);
+            
+            viewport.render();
+            console.log('[Volume3DViewer] DICOM SEG 볼륨 추가 완료');
+          } catch (segError) {
+            console.error('[Volume3DViewer] DICOM SEG 파일 로드 실패:', segError);
           }
         }
 
@@ -294,7 +398,7 @@ export default function Volume3DViewer({
         cache.removeVolumeLoadObject(segmentationVolumeIdRef.current);
       }
     };
-  }, [isInitialized, instanceIds, segmentationInstanceId, showSegmentation, volumeOpacity, segmentationOpacity]);
+  }, [isInitialized, instanceIds, segmentationInstanceId, segmentationFrames, showSegmentation, volumeOpacity, segmentationOpacity]);
 
   // 볼륨 투명도 업데이트
   useEffect(() => {
