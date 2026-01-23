@@ -14,6 +14,7 @@ class Order(models.Model):
         ('prescription', '처방전'),
         ('lab_test', '검사'),
         ('imaging', '영상촬영'),
+        ('tissue_exam', '조직검사'),
     ]
     
     STATUS_CHOICES = [

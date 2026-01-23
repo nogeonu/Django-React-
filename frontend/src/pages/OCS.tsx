@@ -635,6 +635,7 @@ export default function OCS() {
                 <SelectItem value="prescription">처방전</SelectItem>
                 <SelectItem value="lab_test">검사</SelectItem>
                 <SelectItem value="imaging">영상촬영</SelectItem>
+                <SelectItem value="tissue_exam">조직검사</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1036,6 +1037,11 @@ function OrderCard({
                   )}
                 </div>
               )}
+              {order.order_type === "tissue_exam" && (
+                <div>
+                  촬영 유형: {order.order_data?.imaging_type || "없음"} | 부위: {order.order_data?.body_part || "없음"}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1261,7 +1267,8 @@ function OrderCard({
             {/* 검사실은 검사 주문의 경우 완료 처리 버튼 숨김 (결과 입력으로 대체) */}
             {order.status === "processing" && 
              !(order.order_type === "imaging" && user?.department === "영상의학과") &&
-             !(order.order_type === "lab_test" && user?.department === "검사실") && (
+             !(order.order_type === "lab_test" && user?.department === "검사실") &&
+             !(order.order_type === "tissue_exam" && user?.department === "검사실") && (
               (order.target_department === "admin" && user?.department === "원무과") ||
               (order.target_department === "radiology" && (user?.department === "방사선과" || user?.department === "영상의학과"))
             ) && (
@@ -2058,18 +2065,23 @@ function CreateOrderForm({
         body_part: imagingData.body_part,
         contrast: imagingData.contrast || false,
       };
-      // 병리 이미지인 경우 검사실로 전달 (공백 유무 모두 체크)
-      const isPathology = 
-        imagingData.imaging_type === "병리이미지" || 
-        imagingData.imaging_type === "병리 이미지" ||
-        imagingData.body_part === "병리이미지" ||
-        imagingData.body_part === "병리 이미지";
-      
-      if (isPathology) {
-        department = "lab";
-      } else {
-        department = "radiology";
+      department = "radiology";
+    } else if (orderType === "tissue_exam") {
+      // 촬영 유형 필수 체크
+      if (!imagingData.imaging_type || !imagingData.imaging_type.trim()) {
+        alert("촬영 유형을 선택해주세요.");
+        return;
       }
+      // 촬영 부위 필수 체크
+      if (!imagingData.body_part || !imagingData.body_part.trim()) {
+        alert("촬영 부위를 입력해주세요.");
+        return;
+      }
+      orderData = {
+        imaging_type: imagingData.imaging_type,
+        body_part: imagingData.body_part,
+      };
+      department = "lab";
     }
 
     onSubmit({
@@ -2124,6 +2136,9 @@ function CreateOrderForm({
           if (value === "prescription") setTargetDepartment("admin");
           else if (value === "lab_test") setTargetDepartment("lab");
           else if (value === "imaging") setTargetDepartment("radiology");
+          else if (value === "tissue_exam") setTargetDepartment("lab");
+          // 주문 유형 변경 시 imagingData 초기화
+          setImagingData({ imaging_type: "", body_part: "", contrast: false });
         }}>
           <SelectTrigger>
             <SelectValue />
@@ -2133,6 +2148,7 @@ function CreateOrderForm({
             <SelectItem value="prescription">처방전</SelectItem>
             <SelectItem value="lab_test">검사</SelectItem>
             <SelectItem value="imaging">영상촬영</SelectItem>
+            <SelectItem value="tissue_exam">조직검사</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -2413,7 +2429,6 @@ function CreateOrderForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="유방촬영술">유방촬영술</SelectItem>
-              <SelectItem value="병리이미지">병리이미지</SelectItem>
               <SelectItem value="MRI">MRI</SelectItem>
             </SelectContent>
           </Select>
@@ -2431,6 +2446,28 @@ function CreateOrderForm({
             />
             <Label htmlFor="contrast">조영제 사용</Label>
           </div>
+        </div>
+      )}
+
+      {orderType === "tissue_exam" && (
+        <div className="space-y-2">
+          <Label>촬영 정보</Label>
+          <Select
+            value={imagingData.imaging_type}
+            onValueChange={(value) => setImagingData({ ...imagingData, imaging_type: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="촬영 유형" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="병리 이미지 촬영">병리 이미지 촬영</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="촬영 부위"
+            value={imagingData.body_part}
+            onChange={(e) => setImagingData({ ...imagingData, body_part: e.target.value })}
+          />
         </div>
       )}
 

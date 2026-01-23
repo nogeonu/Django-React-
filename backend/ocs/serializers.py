@@ -246,24 +246,24 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError("검사 주문에는 검사명이 필요합니다.")
         
         elif order_type == 'imaging':
-            # 병리 이미지인 경우 검사실로 전달 가능
-            imaging_type = order_data.get('imaging_type', '')
-            body_part = order_data.get('body_part', '')
-            is_pathology = (imaging_type == '병리이미지' or imaging_type == '병리 이미지' or body_part == '병리이미지' or body_part == '병리 이미지')
-            
-            if is_pathology:
-                # 병리 이미지는 검사실로 전달
-                if target_department != 'lab':
-                    raise serializers.ValidationError("병리 이미지 촬영 의뢰는 검사실로 전달되어야 합니다.")
-            else:
-                # 일반 영상 촬영은 방사선과로 전달
-                if target_department != 'radiology':
-                    raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
+            # 일반 영상 촬영은 방사선과로 전달
+            if target_department != 'radiology':
+                raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
             
             if 'imaging_type' not in order_data or not order_data.get('imaging_type'):
                 raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형(imaging_type)이 필요합니다. (예: MRI, CT, X-RAY, 초음파)")
             if 'body_part' not in order_data or not order_data.get('body_part'):
                 raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 부위(body_part)가 필요합니다.")
+        
+        elif order_type == 'tissue_exam':
+            # 조직검사는 검사실로 전달
+            if target_department != 'lab':
+                raise serializers.ValidationError("조직검사 의뢰는 검사실로 전달되어야 합니다.")
+            
+            if 'imaging_type' not in order_data or not order_data.get('imaging_type'):
+                raise serializers.ValidationError("조직검사 의뢰에는 촬영 유형(imaging_type)이 필요합니다.")
+            if 'body_part' not in order_data or not order_data.get('body_part'):
+                raise serializers.ValidationError("조직검사 의뢰에는 촬영 부위(body_part)가 필요합니다.")
         
         return data
     
