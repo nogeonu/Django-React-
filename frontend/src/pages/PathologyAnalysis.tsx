@@ -450,21 +450,63 @@ export default function PathologyAnalysis() {
               
               {/* 분석 결과 표시 */}
               {analysisResult && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <h4 className="font-semibold text-green-800 mb-2">분석 결과</h4>
-                  <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">결과:</span> {analysisResult.class_name}</p>
-                    <p><span className="font-medium">신뢰도:</span> {(analysisResult.confidence * 100).toFixed(2)}%</p>
+                <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <h4 className="font-bold text-lg text-green-800">분석 결과</h4>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-700 min-w-[80px]">결과:</span>
+                      <Badge variant={analysisResult.class_name === 'Tumor' ? 'destructive' : 'default'} className="text-base px-3 py-1">
+                        {analysisResult.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-700 min-w-[80px]">신뢰도:</span>
+                      <span className="text-base font-bold text-green-700">
+                        {(analysisResult.confidence * 100).toFixed(2)}%
+                      </span>
+                    </div>
                     {analysisResult.num_patches && (
-                      <p><span className="font-medium">패치 수:</span> {analysisResult.num_patches}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-700 min-w-[80px]">패치 수:</span>
+                        <span className="text-base">{analysisResult.num_patches.toLocaleString()}개</span>
+                      </div>
+                    )}
+                    {analysisResult.elapsed_time_seconds && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-700 min-w-[80px]">소요 시간:</span>
+                        <span className="text-base">
+                          {Math.floor(analysisResult.elapsed_time_seconds / 60)}분 {Math.floor(analysisResult.elapsed_time_seconds % 60)}초
+                        </span>
+                      </div>
                     )}
                     {analysisResult.image_url && (
-                      <p>
-                        <span className="font-medium">이미지:</span>{' '}
-                        <a href={analysisResult.image_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                          결과 이미지 보기
-                        </a>
-                      </p>
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <p className="font-semibold text-gray-700 mb-2">결과 이미지:</p>
+                        <div className="flex gap-2">
+                          <a 
+                            href={analysisResult.image_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                          >
+                            <Scan className="h-4 w-4" />
+                            결과 이미지 보기
+                          </a>
+                          {analysisResult.viewer_url && (
+                            <a 
+                              href={analysisResult.viewer_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                            >
+                              뷰어에서 보기
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
