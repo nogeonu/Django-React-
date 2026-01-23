@@ -22,6 +22,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { RotateCw, Layers, Eye, EyeOff } from 'lucide-react';
 import { initCornerstone, createImageId } from '@/lib/cornerstone';
+import { Enums as ToolEnums } from '@cornerstonejs/tools';
 
 interface Volume3DViewerProps {
   instanceIds: string[]; // DICOM 인스턴스 ID 배열
@@ -592,20 +593,31 @@ export default function Volume3DViewer({
             ToolGroupManager.destroyToolGroup(toolGroupIdRef.current);
           }
 
-          // 새 도구 그룹 생성 (최소한의 설정)
+          // 새 도구 그룹 생성
           const toolGroup = ToolGroupManager.createToolGroup(toolGroupIdRef.current);
           if (toolGroup) {
-            // 뷰포트에 도구 그룹 연결 (기본 상호작용 활성화)
+            // 도구 추가
+            toolGroup.addTool(ZoomTool.toolName);
+            toolGroup.addTool(PanTool.toolName);
+            
+            // 3D 볼륨 뷰포트는 기본적으로 왼쪽 클릭 + 드래그로 회전 가능
+            // 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그
+            toolGroup.setToolActive(ZoomTool.toolName, {
+              bindings: [
+                { mouseButton: ToolEnums.MouseBindings.Secondary }, // 오른쪽 클릭 + 드래그
+              ],
+            });
+            
+            // 팬: 중간 클릭 (휠 클릭) + 드래그
+            toolGroup.setToolActive(PanTool.toolName, {
+              bindings: [{ mouseButton: ToolEnums.MouseBindings.Auxiliary }], // 중간 클릭
+            });
+
+            // 뷰포트에 도구 그룹 연결
             toolGroup.addViewport(viewportIdRef.current, renderingEngineId);
             
-            // 3D 볼륨 뷰포트는 기본적으로 다음 상호작용이 활성화됨:
-            // - 왼쪽 클릭 + 드래그: 회전
-            // - 마우스 휠: 줌
-            // - 오른쪽 클릭 + 드래그: 줌
-            // - 중간 클릭 + 드래그: 팬
-            
-            console.log('[Volume3DViewer] ✅ 도구 그룹 연결 완료 (기본 상호작용 활성화)');
-            console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그');
+            console.log('[Volume3DViewer] ✅ 도구 그룹 설정 완료');
+            console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그 (기본 동작)');
             console.log('[Volume3DViewer] 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그');
             console.log('[Volume3DViewer] 팬: 중간 클릭 + 드래그');
           }
