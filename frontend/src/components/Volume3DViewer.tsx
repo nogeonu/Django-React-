@@ -689,12 +689,34 @@ export default function Volume3DViewer({
         }
       }
 
-      // 볼륨 캐시 정리
+      // 볼륨 캐시 정리 (존재하는 경우에만 제거)
       if (volumeIdRef.current) {
-        cache.removeVolumeLoadObject(volumeIdRef.current);
+        try {
+          // 볼륨이 캐시에 존재하는지 확인
+          const volume = cache.getVolume(volumeIdRef.current);
+          if (volume) {
+            cache.removeVolumeLoadObject(volumeIdRef.current);
+            console.log('[Volume3DViewer] 볼륨 캐시 제거 완료:', volumeIdRef.current);
+          } else {
+            console.log('[Volume3DViewer] 볼륨이 이미 캐시에서 제거됨:', volumeIdRef.current);
+          }
+        } catch (error) {
+          console.warn('[Volume3DViewer] 볼륨 캐시 제거 실패 (무시):', error);
+        }
       }
       if (segmentationVolumeIdRef.current) {
-        cache.removeVolumeLoadObject(segmentationVolumeIdRef.current);
+        try {
+          // 세그멘테이션 볼륨이 캐시에 존재하는지 확인
+          const segVolume = cache.getVolume(segmentationVolumeIdRef.current);
+          if (segVolume) {
+            cache.removeVolumeLoadObject(segmentationVolumeIdRef.current);
+            console.log('[Volume3DViewer] 세그멘테이션 볼륨 캐시 제거 완료:', segmentationVolumeIdRef.current);
+          } else {
+            console.log('[Volume3DViewer] 세그멘테이션 볼륨이 이미 캐시에서 제거됨:', segmentationVolumeIdRef.current);
+          }
+        } catch (error) {
+          console.warn('[Volume3DViewer] 세그멘테이션 볼륨 캐시 제거 실패 (무시):', error);
+        }
       }
     };
   }, [isInitialized, instanceIds, segmentationInstanceId, segmentationFrames, showSegmentation, volumeOpacity, segmentationOpacity]);
