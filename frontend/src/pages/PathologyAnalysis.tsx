@@ -3,6 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Scan, 
   Brain,
@@ -29,6 +37,13 @@ interface Order {
   created_at: string;
 }
 
+// 교육원 워커 wsi/ 폴더에 있는 사용 가능한 파일 목록
+const AVAILABLE_WSI_FILES = [
+  { value: 'tumor_083.tif', label: 'tumor_083.tif (종양)' },
+  { value: 'normal_059.tif', label: 'normal_059.tif (정상)' },
+  { value: 'normal_103.tif', label: 'normal_103.tif (정상)' },
+] as const;
+
 export default function PathologyAnalysis() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -37,6 +52,7 @@ export default function PathologyAnalysis() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [selectedFilename, setSelectedFilename] = useState<string>('tumor_083.tif'); // 기본값
 
   useEffect(() => {
     loadOrders();
@@ -102,37 +118,15 @@ export default function PathologyAnalysis() {
         throw new Error('환자 ID를 찾을 수 없습니다.');
       }
 
-      // Orthanc에서 해당 환자의 병리 이미지 찾기
-      let instanceId = null;
-      let filename = '';
+      // 사용자가 선택한 파일명 사용 (교육원 워커 wsi/ 폴더에 있는 파일)
+      const filename = selectedFilename;
       
-      try {
-        const imagesResponse = await fetch(`/api/mri/pathology/images/?patient_id=${patientId}`);
-        const imagesData = await imagesResponse.json();
-        
-        if (imagesData.success && imagesData.images && imagesData.images.length > 0) {
-          // 가장 최근 병리 이미지 사용
-          const latestImage = imagesData.images[0];
-          instanceId = latestImage.instance_id;
-          // series_description에서 filename 추출: "Pathology WSI - filename.svs"
-          const seriesDesc = latestImage.series_description || '';
-          if (seriesDesc.includes(' - ')) {
-            filename = seriesDesc.split(' - ')[1];
-          } else {
-            filename = latestImage.file_name || `pathology_${patientId}.svs`;
-          }
-        } else {
-          // 병리 이미지가 없으면 환자 ID 기반으로 filename 생성
-          filename = `pathology_${patientId}.svs`;
-        }
-      } catch (error) {
-        console.warn('병리 이미지 조회 실패, 기본 filename 사용:', error);
-        filename = `pathology_${patientId}.svs`;
-      }
-
       if (!filename) {
-        throw new Error('병리 이미지 파일명을 찾을 수 없습니다.');
+        throw new Error('분석할 파일을 선택해주세요.');
       }
+      
+      // instance_id는 참고용으로만 사용 (실제 파일은 교육원 워커가 wsi/ 폴더에서 찾음)
+      const instanceId = `pathology_${selectedOrder.id}`;
       
       toast({
         title: "병리 이미지 분석 시작",
@@ -329,10 +323,31 @@ export default function PathologyAnalysis() {
                 </p>
               </div>
             </div>
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t space-y-4">
+              <div>
+                <Label className="mb-2 block">분석할 파일 선택 (교육원 워커 wsi/ 폴더)</Label>
+                <Select
+                  value={selectedFilename}
+                  onValueChange={(value) => setSelectedFilename(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="파일 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AVAILABLE_WSI_FILES.map((file) => (
+                      <SelectItem key={file.value} value={file.value}>
+                        {file.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  교육원 워커가 wsi/ 폴더에서 찾을 파일명입니다.
+                </p>
+              </div>
               <Button 
                 onClick={handleAnalyze}
-                disabled={analyzing || selectedOrder.status === 'completed'}
+                disabled={analyzing || selectedOrder.status === 'completed' || !selectedFilename}
                 className="w-full bg-primary hover:bg-primary/90"
               >
                 {analyzing ? (
