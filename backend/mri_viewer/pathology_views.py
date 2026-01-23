@@ -308,23 +308,94 @@ def complete_request(request, request_id):
 @csrf_exempt
 def complete_task(request):
     """
-    교육원 조원 요청 형식: POST /api/pathology/complete/
-    Body: {"task_id": 101, "result": "Tumor", "confidence": 0.9923}
+    교육원 조원 요청 형식에 맞춘 결과 수신
+    
+    Tumor 판정: multipart/form-data (JSON + 이미지 파일)
+    Normal 판정: application/json (JSON만)
+    
+    JSON 필드:
+    - task_id: 작업 ID (필수)
+    - result: "Tumor" 또는 "Normal" (필수)
+    - confidence: 확신도 0.0 ~ 1.0 (필수)
+    - num_patches: 분석한 패치 개수 (선택)
+    - top_attention_patches: 상위 attention 패치 인덱스 배열 (선택)
+    - viewer_url: 뷰어 URL (선택)
+    
+    이미지 파일 (Tumor 판정 시만):
+    - {task_id}_overlay.png (우선) 또는 {task_id}_mask.png
     """
     try:
-        task_id = request.data.get('task_id')
+        # Content-Type 확인
+        content_type = request.content_type or ''
+        is_multipart = 'multipart/form-data' in content_type
+        
+        # JSON 데이터 추출
+        if is_multipart:
+            # multipart/form-data: request.data에서 직접 가져오기
+            task_id = request.data.get('task_id')
+            result_label = request.data.get('result')
+            confidence = float(request.data.get('confidence', 0.0))
+            num_patches = request.data.get('num_patches', 0)
+            top_attention_patches = request.data.get('top_attention_patches', [])
+            viewer_url = request.data.get('viewer_url', '')
+            
+            # 이미지 파일 처리 (Tumor 판정 시만)
+            image_file = None
+            image_filename = None
+            if result_label == "Tumor":
+                # 우선순위: overlay > mask
+                overlay_key = f'{task_id}_overlay.png'
+                mask_key = f'{task_id}_mask.png'
+                
+                if overlay_key in request.FILES:
+                    image_file = request.FILES[overlay_key]
+                    image_filename = f'{task_id}_overlay.png'
+                    logger.info(f"📸 오버레이 이미지 수신: {image_filename}")
+                elif mask_key in request.FILES:
+                    image_file = request.FILES[mask_key]
+                    image_filename = f'{task_id}_mask.png'
+                    logger.info(f"📸 마스크 이미지 수신: {image_filename}")
+                else:
+                    # 다른 키로 올 수도 있음 (예: 'image', 'overlay', 'mask')
+                    for key in request.FILES.keys():
+                        if 'overlay' in key.lower() or key.endswith('_overlay.png'):
+                            image_file = request.FILES[key]
+                            image_filename = f'{task_id}_overlay.png'
+                            logger.info(f"📸 오버레이 이미지 수신 (키: {key}): {image_filename}")
+                            break
+                    if not image_file:
+                        for key in request.FILES.keys():
+                            if 'mask' in key.lower() or key.endswith('_mask.png'):
+                                image_file = request.FILES[key]
+                                image_filename = f'{task_id}_mask.png'
+                                logger.info(f"📸 마스크 이미지 수신 (키: {key}): {image_filename}")
+                                break
+        else:
+            # application/json: request.data에서 직접 가져오기
+            task_id = request.data.get('task_id')
+            result_label = request.data.get('result')
+            confidence = float(request.data.get('confidence', 0.0))
+            num_patches = request.data.get('num_patches', 0)
+            top_attention_patches = request.data.get('top_attention_patches', [])
+            viewer_url = request.data.get('viewer_url', '')
+            image_file = None
+            image_filename = None
+        
+        # 필수 필드 검증
         if not task_id:
             return Response({'error': 'task_id가 필요합니다'}, status=400)
+        if not result_label:
+            return Response({'error': 'result가 필요합니다 ("Tumor" 또는 "Normal")'}, status=400)
+        if result_label not in ['Tumor', 'Normal']:
+            return Response({'error': 'result는 "Tumor" 또는 "Normal"이어야 합니다'}, status=400)
         
+        # 요청 파일 찾기
         request_file = PATHOLOGY_REQUEST_DIR / f"{task_id}.json"
         if not request_file.exists():
             return Response({'error': '요청을 찾을 수 없습니다'}, status=404)
         
         with open(request_file, 'r', encoding='utf-8') as f:
             d = json.load(f)
-        
-        result_label = request.data.get('result')  # "Tumor" or "Normal"
-        confidence = request.data.get('confidence', 0.0)
         
         # 결과 형식 변환
         class_id = 1 if result_label == "Tumor" else 0
@@ -334,6 +405,30 @@ def complete_task(request):
             "Tumor": confidence if result_label == "Tumor" else 1.0 - confidence
         }
         
+        # 이미지 파일 저장 (Tumor 판정 시만)
+        image_url = None
+        if image_file and result_label == "Tumor":
+            try:
+                # 저장 디렉토리 생성: media/pathology_results/{task_id}/
+                save_dir = os.path.join(settings.MEDIA_ROOT, 'pathology_results', str(task_id))
+                os.makedirs(save_dir, exist_ok=True)
+                
+                # 파일 저장
+                file_path = os.path.join(save_dir, image_filename)
+                with open(file_path, 'wb') as f:
+                    for chunk in image_file.chunks():
+                        f.write(chunk)
+                
+                # URL 생성
+                relative_path = os.path.join('pathology_results', str(task_id), image_filename)
+                image_url = f"{settings.MEDIA_URL}{relative_path}".replace('\\', '/')
+                
+                logger.info(f"✅ 이미지 저장 완료: {file_path}, URL: {image_url}")
+            except Exception as e:
+                logger.error(f"❌ 이미지 저장 실패: {str(e)}", exc_info=True)
+                # 이미지 저장 실패해도 결과는 저장
+        
+        # 결과 저장
         d['status'] = 'completed'
         d['result'] = {
             'success': True,
@@ -341,8 +436,10 @@ def complete_task(request):
             'class_name': class_name,
             'confidence': confidence,
             'probabilities': probabilities,
-            'num_patches': request.data.get('num_patches', 0),
-            'top_attention_patches': request.data.get('top_attention_patches', [])
+            'num_patches': num_patches,
+            'top_attention_patches': top_attention_patches,
+            'viewer_url': viewer_url if viewer_url else None,
+            'image_url': image_url  # 이미지 URL 추가
         }
         d['completed_at'] = timezone.now().isoformat()
         
@@ -350,7 +447,10 @@ def complete_task(request):
             json.dump(d, f, indent=2, ensure_ascii=False)
         
         logger.info(f"✅ 추론 완료 결과 저장: {task_id} - {class_name} ({confidence:.4f})")
-        return Response({'success': True})
+        if image_url:
+            logger.info(f"   📸 이미지 URL: {image_url}")
+        
+        return Response({'success': True, 'message': '결과 저장 완료'})
     except Exception as e:
         logger.error(f"❌ 결과 업로드 실패: {str(e)}", exc_info=True)
         return Response({'error': str(e)}, status=500)
@@ -491,58 +591,6 @@ def complete_request(request, request_id):
     except Exception as e:
         logger.error(f"❌ 결과 업로드 실패: {str(e)}", exc_info=True)
         return Response({'success': False, 'error': str(e)}, status=500)
-
-
-@api_view(['POST'])
-@csrf_exempt
-def complete_task(request):
-    """
-    교육원 조원 요청 형식: POST /api/pathology/complete/
-    Body: {"task_id": 101, "result": "Tumor", "confidence": 0.9923}
-    """
-    try:
-        task_id = request.data.get('task_id')
-        if not task_id:
-            return Response({'error': 'task_id가 필요합니다'}, status=400)
-        
-        request_file = PATHOLOGY_REQUEST_DIR / f"{task_id}.json"
-        if not request_file.exists():
-            return Response({'error': '요청을 찾을 수 없습니다'}, status=404)
-        
-        with open(request_file, 'r', encoding='utf-8') as f:
-            d = json.load(f)
-        
-        result_label = request.data.get('result')  # "Tumor" or "Normal"
-        confidence = request.data.get('confidence', 0.0)
-        
-        # 결과 형식 변환
-        class_id = 1 if result_label == "Tumor" else 0
-        class_name = result_label
-        probabilities = {
-            "Normal": 1.0 - confidence if result_label == "Tumor" else confidence,
-            "Tumor": confidence if result_label == "Tumor" else 1.0 - confidence
-        }
-        
-        d['status'] = 'completed'
-        d['result'] = {
-            'success': True,
-            'class_id': class_id,
-            'class_name': class_name,
-            'confidence': confidence,
-            'probabilities': probabilities,
-            'num_patches': request.data.get('num_patches', 0),
-            'top_attention_patches': request.data.get('top_attention_patches', [])
-        }
-        d['completed_at'] = timezone.now().isoformat()
-        
-        with open(request_file, 'w', encoding='utf-8') as f:
-            json.dump(d, f, indent=2, ensure_ascii=False)
-        
-        logger.info(f"✅ 추론 완료 결과 저장: {task_id} - {class_name} ({confidence:.4f})")
-        return Response({'success': True})
-    except Exception as e:
-        logger.error(f"❌ 결과 업로드 실패: {str(e)}", exc_info=True)
-        return Response({'error': str(e)}, status=500)
 
 
 @api_view(['POST'])
