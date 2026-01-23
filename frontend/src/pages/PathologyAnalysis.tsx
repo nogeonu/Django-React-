@@ -145,6 +145,7 @@ export default function PathologyAnalysis() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 포함 (인증 정보)
         body: JSON.stringify({
           instance_id: instanceId || `pathology_${selectedOrder.id}`, // 참고용
           filename: filename // 교육원 워커가 wsi/ 폴더에서 찾을 파일명
