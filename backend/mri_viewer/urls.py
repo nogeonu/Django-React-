@@ -49,11 +49,11 @@ urlpatterns = [
     path('<str:request_id>/complete', csrf_exempt(segmentation_views.complete_inference), name='complete-inference'),
     
     # 맘모그래피 AI 분석 API
-    path('mammography/analyze/', mammography_views.mammography_ai_analysis, name='analyze-mammography'),
+    path('mammography/analyze/', csrf_exempt(mammography_views.mammography_ai_analysis), name='analyze-mammography'),
     path('mammography/health/', mammography_views.mammography_health, name='mammography-health'),
-    
+
     # 병리 이미지 AI 분석 API
-    path('pathology/analyze/', pathology_views.pathology_ai_analysis, name='analyze-pathology'),
+    path('pathology/analyze/', csrf_exempt(pathology_views.pathology_ai_analysis), name='analyze-pathology'),
     path('pathology/health/', pathology_views.pathology_ai_health, name='pathology-health'),
     
     # 병리 이미지 업로드 API
