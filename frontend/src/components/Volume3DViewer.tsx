@@ -857,7 +857,14 @@ export default function Volume3DViewer({
               
               // 카메라 가져오기
               const camera = viewport.getCamera();
-              if (!camera || camera.parallelScale === undefined) return;
+              if (!camera) return;
+              
+              // parallelScale이 undefined인지 확인
+              const currentScale = camera.parallelScale;
+              if (currentScale === undefined || currentScale === null) {
+                console.warn('[Volume3DViewer] camera.parallelScale이 정의되지 않음');
+                return;
+              }
               
               // 마우스 휠 델타에 따라 줌 조정
               // deltaY > 0: 아래로 스크롤 (줌 아웃)
@@ -866,7 +873,6 @@ export default function Volume3DViewer({
               
               // parallelScale을 조정하여 줌 효과 구현
               // parallelScale이 작을수록 더 가까이 보임 (줌 인)
-              const currentScale = camera.parallelScale;
               const newParallelScale = currentScale * zoomFactor;
               
               // 최소/최대 줌 제한 (너무 가까이/멀리 가지 않도록)
