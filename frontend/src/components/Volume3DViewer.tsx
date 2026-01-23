@@ -848,20 +848,10 @@ export default function Volume3DViewer({
             cursor: 'grab',
             touchAction: 'none', // 모바일 터치 제스처 방지
           }}
-          onWheel={(e) => {
+          onWheel={() => {
             // 마우스 휠 줌을 위한 이벤트 핸들러
-            // Cornerstone3D가 이벤트를 처리하도록 함
-            if (!renderingEngineRef.current) return;
-            
-            try {
-              const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current) as Types.IVolumeViewport;
-              if (!viewport) return;
-              
-              // ZoomTool이 마우스 휠 이벤트를 처리하도록 함
-              // 이벤트는 Cornerstone3D의 이벤트 시스템을 통해 처리됨
-            } catch (error) {
-              console.warn('[Volume3DViewer] Wheel event handling error:', error);
-            }
+            // Cornerstone3D의 ZoomTool이 자동으로 마우스 휠 이벤트를 처리함
+            // 이 핸들러는 이벤트가 뷰포트에 전달되도록 보장함
           }}
         />
         {isLoading && (
