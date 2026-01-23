@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/api";
 
 interface Patient {
-  id: string;
+  id: number;
+  patient_id: string;
   name: string;
   birth_date: string;
   gender: string;
@@ -58,7 +59,7 @@ export default function PatientRegistrationModal({ isOpen, onClose, onSuccess, p
       setFormData({
         name: patient.name || "",
         birth_date: patient.birth_date || "",
-        gender: patient.gender || "",
+        gender: patient.gender === "M" ? "남성" : patient.gender === "F" ? "여성" : patient.gender || "",
         phone: patient.phone || "",
         address: patient.address || "",
         emergency_contact: patient.emergency_contact || "",
@@ -92,14 +93,18 @@ export default function PatientRegistrationModal({ isOpen, onClose, onSuccess, p
 
     try {
       console.log(`${isEdit ? '환자 수정' : '환자 등록'} 요청 데이터:`, formData);
-      
+      const payload = {
+        ...formData,
+        gender: formData.gender === "남성" ? "M" : formData.gender === "여성" ? "F" : formData.gender,
+      };
+
       let result;
       if (isEdit && patient) {
         // 수정 모드: PUT 요청
-        result = await apiRequest("PUT", `/api/lung_cancer/patients/${patient.id}/`, formData);
+        result = await apiRequest("PUT", `/api/lung_cancer/patients/${patient.id}/`, payload);
       } else {
         // 등록 모드: POST 요청
-        result = await apiRequest("POST", "/api/lung_cancer/patients/register/", formData);
+        result = await apiRequest("POST", "/api/lung_cancer/patients/register/", payload);
       }
       
       console.log("응답 데이터:", result);

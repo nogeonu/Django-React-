@@ -110,6 +110,12 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    location /media/ {
+        alias /srv/django-react/app/backend/media/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
     location / {
         try_files $uri /index.html;
     }

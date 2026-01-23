@@ -1,13 +1,18 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework.authentication import SessionAuthentication
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.db import models
-from .models import Patient, LungCancerPatient, LungRecord, LungResult, MedicalRecord
+from django.db import models, connections
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import requests
+from .models import Patient, LungRecord, LungResult, MedicalRecord
+from patients.models import Appointment
 from .serializers import (
     PatientSerializer, 
-    LungCancerPatientSerializer,
     LungRecordSerializer, 
     LungResultSerializer,
     LungCancerPredictionSerializer,
@@ -28,24 +33,21 @@ import seaborn as sns
 from io import BytesIO
 import base64
 
-# 모델 로드
-current_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_dir, 'ml_model', 'lung_cancer_model.pkl')
-feature_path = os.path.join(current_dir, 'ml_model', 'feature_names.pkl')
+# Flask ML Service URL (로컬 개발)
+ML_SERVICE_URL = os.environ.get('ML_SERVICE_URL', 'http://localhost:5002')
 
-# 모델 파일이 존재하는지 확인
-if os.path.exists(model_path) and os.path.exists(feature_path):
-    model = joblib.load(model_path)
-    feature_names = joblib.load(feature_path)
-    model_loaded = True
-else:
-    model = None
-    feature_names = None
-    model_loaded = False
-
+@method_decorator(csrf_exempt, name='dispatch')
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    lookup_field = 'patient_id'
+    lookup_value_regex = '[^/]+'
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'patient_id', 'phone']
+    ordering_fields = ['created_at', 'name']
+    ordering = ['-created_at']
     
     def get_serializer_class(self):
         """요청에 따라 적절한 시리얼라이저 반환"""
@@ -56,55 +58,141 @@ class PatientViewSet(viewsets.ModelViewSet):
         return PatientSerializer
     
     def perform_destroy(self, instance):
-        """환자 삭제 시 관련 데이터도 함께 삭제"""
-        from django.db import connections
+        """
+        환자 삭제 시 관련 데이터도 함께 삭제
+        
+        주의: patient_user(계정)은 삭제하지 않음
+        - 의료 기록은 법적으로 보존 의무가 있음
+        - 환자가 재방문 시 과거 기록 참조 가능
+        - 계정은 is_active=False로 비활성화만 함
+        """
+        from django.db import transaction, connections
+        
+        patient_identifier = instance.patient_id
+        patient_pk = instance.id
+        print(f"=== 환자 정보 삭제 시작: {patient_identifier} (PK: {patient_pk}) ===")
         
         try:
-            # hospital_db 데이터베이스 연결 사용
-            with connections['default'].cursor() as cursor:
-                print(f"환자 {instance.id} 삭제 시작...")
-                
-                # 1. LungResult 삭제
-                cursor.execute("""
-                    DELETE lr FROM lung_result lr
-                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
-                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
-                    WHERE lcp.patient_id = %s
-                """, [instance.id])
-                print(f"LungResult 삭제: {cursor.rowcount}개")
-                
-                # 2. LungRecord 삭제
-                cursor.execute("""
-                    DELETE lrec FROM lung_record lrec
-                    JOIN lung_cancer_patient lcp ON lrec.lung_cancer_patient_id = lcp.id
-                    WHERE lcp.patient_id = %s
-                """, [instance.id])
-                print(f"LungRecord 삭제: {cursor.rowcount}개")
-                
-                # 3. LungCancerPatient 삭제
-                cursor.execute("""
-                    DELETE FROM lung_cancer_patient WHERE patient_id = %s
-                """, [instance.id])
-                print(f"LungCancerPatient 삭제: {cursor.rowcount}개")
-                
-                # 4. Patient 삭제
-                cursor.execute("""
-                    DELETE FROM patient WHERE id = %s
-                """, [instance.id])
-                print(f"Patient 삭제: {cursor.rowcount}개")
-            
-            print(f"환자 {instance.id} 삭제 완료")
-            
-        except Exception as e:
-            print(f"환자 삭제 중 오류: {e}")
-            # 오류가 발생해도 Patient는 삭제 시도
-            try:
+            with transaction.atomic():
+                # Raw SQL을 사용하여 직접 삭제 (테이블 이름 혼동 방지)
                 with connections['default'].cursor() as cursor:
-                    cursor.execute("DELETE FROM patient WHERE id = %s", [instance.id])
-                    print(f"환자 {instance.id} 강제 삭제 완료: {cursor.rowcount}개")
-            except Exception as final_error:
-                print(f"최종 삭제 실패: {final_error}")
-                raise
+                    # 1. LungResult 삭제
+                    cursor.execute("""
+                        DELETE FROM lung_result 
+                        WHERE lung_record_id IN (
+                            SELECT id FROM lung_record WHERE patient_id = %s
+                        )
+                    """, [patient_identifier])
+                    lung_result_count = cursor.rowcount
+                    print(f"1. LungResult 삭제: {lung_result_count}개")
+                    
+                    # 2. LungRecord 삭제
+                    cursor.execute("""
+                        DELETE FROM lung_record WHERE patient_id = %s
+                    """, [patient_identifier])
+                    lung_record_count = cursor.rowcount
+                    print(f"2. LungRecord 삭제: {lung_record_count}개")
+                    
+                    # 3. MedicalRecord 삭제 (medical_record 테이블)
+                    cursor.execute("""
+                        DELETE FROM medical_record WHERE patient_id = %s
+                    """, [patient_identifier])
+                    medical_record_count = cursor.rowcount
+                    print(f"3. MedicalRecord 삭제: {medical_record_count}개")
+                    
+                    # 4. OCS 관련 데이터 삭제 (주문 삭제 전에 하위 데이터 먼저 삭제)
+                    # 4-1. 영상 분석 결과 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_imaginganalysisresult 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    imaging_analysis_count = cursor.rowcount
+                    print(f"4-1. 영상 분석 결과 삭제: {imaging_analysis_count}개")
+                    
+                    # 4-2. 알림 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_notification 
+                        WHERE related_order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    notification_count = cursor.rowcount
+                    print(f"4-2. 알림 삭제: {notification_count}개")
+                    
+                    # 4-3. 주문 상태 이력 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_orderstatushistory 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    status_history_count = cursor.rowcount
+                    print(f"4-3. 주문 상태 이력 삭제: {status_history_count}개")
+                    
+                    # 4-4. 약물 상호작용 검사 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_druginteractioncheck 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    drug_check_count = cursor.rowcount
+                    print(f"4-4. 약물 상호작용 검사 삭제: {drug_check_count}개")
+                    
+                    # 4-5. 알레르기 검사 삭제
+                    cursor.execute("""
+                        DELETE FROM ocs_allergycheck 
+                        WHERE order_id IN (
+                            SELECT id FROM ocs_order WHERE patient_id = %s
+                        )
+                    """, [patient_pk])
+                    allergy_check_count = cursor.rowcount
+                    print(f"4-5. 알레르기 검사 삭제: {allergy_check_count}개")
+                    
+                    # 4-6. OCS 주문 삭제 (ocs_order 테이블)
+                    cursor.execute("""
+                        DELETE FROM ocs_order WHERE patient_id = %s
+                    """, [patient_pk])
+                    ocs_order_count = cursor.rowcount
+                    print(f"4-6. OCS 주문 삭제: {ocs_order_count}개")
+                    
+                    # 5. patients_appointment 삭제 (있을 경우)
+                    cursor.execute("""
+                        DELETE FROM patients_appointment WHERE patient_id = %s
+                    """, [patient_pk])
+                    appointment_count = cursor.rowcount
+                    print(f"5. Appointment 삭제: {appointment_count}개")
+                    
+                    # 6. patient_user 계정 비활성화 (삭제하지 않음)
+                    # 의료 기록 보존을 위해 계정은 유지하되 비활성화만 함
+                    cursor.execute("""
+                        UPDATE patient_user 
+                        SET is_active = 0 
+                        WHERE patient_id = %s
+                    """, [patient_identifier])
+                    user_deactivated = cursor.rowcount
+                    print(f"6. PatientUser 비활성화: {user_deactivated}개")
+                    
+                    # 7. patients_patient 삭제 (Raw SQL로 직접 삭제)
+                    cursor.execute("""
+                        DELETE FROM patients_patient WHERE patient_id = %s
+                    """, [patient_identifier])
+                    patient_count = cursor.rowcount
+                    print(f"7. Patient 정보 삭제: {patient_count}개")
+                
+                print(f"=== 환자 정보 삭제 완료: {patient_identifier} ===")
+                print(f"※ 참고: 계정(patient_user)은 비활성화만 되었습니다 (의료 기록 보존)")
+
+        except Exception as e:
+            error_msg = f"환자 삭제 중 오류 발생: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            # 에러를 다시 발생시켜 클라이언트에 전달
+            from rest_framework.exceptions import APIException
+            raise APIException(detail=error_msg)
     
     @action(detail=False, methods=['post'])
     def register(self, request):
@@ -112,31 +200,9 @@ class PatientViewSet(viewsets.ModelViewSet):
         serializer = PatientRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                # 환자 ID 자동 생성
-                from datetime import datetime
-                current_year = datetime.now().year
-                last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
-                if last_patient:
-                    last_number = int(last_patient.id[-3:])
-                    new_number = last_number + 1
-                else:
-                    new_number = 1
-                patient_id = f'P{current_year}{new_number:03d}'
-                
-                # 나이 계산
-                birth_date = serializer.validated_data['birth_date']
-                today = datetime.now().date()
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
-                # 환자 데이터 저장
-                patient_data = serializer.validated_data.copy()
-                patient_data['id'] = patient_id
-                patient_data['age'] = age
-                
-                patient = Patient.objects.create(**patient_data)
-                
+                patient = serializer.save()
                 return Response({
-                    'patient_id': patient.id,
+                    'patient_id': patient.patient_id,
                     'name': patient.name,
                     'age': patient.age,
                     'gender': patient.gender,
@@ -152,125 +218,142 @@ class PatientViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def predict(self, request):
-        """폐암 예측 API"""
-        if not model_loaded:
-            return Response({
-                'error': 'ML 모델이 로드되지 않았습니다. 모델 파일을 확인해주세요.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        """폐암 예측 API - Flask ML Service 호출"""
         serializer = LungCancerPredictionSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                # 환자 ID 자동 생성
+                # patient_id가 제공되면 기존 환자 사용, 아니면 새 환자 생성
                 from datetime import datetime
-                current_year = datetime.now().year
-                last_patient = Patient.objects.filter(id__startswith=f'P{current_year}').order_by('-id').first()
-                if last_patient:
-                    last_number = int(last_patient.id[-3:])
-                    new_number = last_number + 1
+                patient_id = serializer.validated_data.get('patient_id')
+                
+                if patient_id:
+                    # 기존 환자 조회
+                    try:
+                        patient = Patient.objects.get(patient_id=patient_id)
+                        age = patient.age
+                    except Patient.DoesNotExist:
+                        return Response({
+                            'error': f'환자 ID {patient_id}를 찾을 수 없습니다.'
+                        }, status=status.HTTP_404_NOT_FOUND)
                 else:
-                    new_number = 1
-                patient_id = f'P{current_year}{new_number:03d}'
+                    # 새 환자 생성
+                    generated_id = Patient.generate_patient_id()
+                    birth_date = serializer.validated_data.get('birth_date')
+                    patient = Patient.objects.create(
+                        patient_id=generated_id,
+                        name=serializer.validated_data.get('name', ''),
+                        birth_date=birth_date,
+                        gender=serializer.validated_data['gender'],
+                        phone=serializer.validated_data.get('phone', ''),
+                        address=serializer.validated_data.get('address', ''),
+                        emergency_contact=serializer.validated_data.get('emergency_contact', ''),
+                        blood_type=serializer.validated_data.get('blood_type', ''),
+                        medical_history=serializer.validated_data.get('medical_history', ''),
+                        allergies=serializer.validated_data.get('allergies', ''),
+                    )
+                    patient_id = patient.patient_id
+                    age = patient.age or 0
                 
-                # 나이 계산
-                birth_date = serializer.validated_data['birth_date']
-                today = datetime.now().date()
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
-                # 1. Patient 테이블에 기본 환자 정보 저장
-                patient_data = {
-                    'id': patient_id,
-                    'name': serializer.validated_data['name'],
-                    'birth_date': birth_date,
-                    'gender': serializer.validated_data['gender'],
-                    'phone': serializer.validated_data.get('phone', ''),
-                    'address': serializer.validated_data.get('address', ''),
-                    'emergency_contact': serializer.validated_data.get('emergency_contact', ''),
-                    'blood_type': serializer.validated_data.get('blood_type', ''),
-                    'age': age,
-                }
-                
-                patient = Patient.objects.create(**patient_data)
-                
-                # 2. LungCancerPatient 테이블에 폐암 관련 정보 저장
-                lung_cancer_data = {
-                    'patient': patient,
-                    'smoking': serializer.validated_data['smoking'],
-                    'yellow_fingers': serializer.validated_data['yellow_fingers'],
-                    'anxiety': serializer.validated_data['anxiety'],
-                    'peer_pressure': serializer.validated_data['peer_pressure'],
-                    'chronic_disease': serializer.validated_data['chronic_disease'],
-                    'fatigue': serializer.validated_data['fatigue'],
-                    'allergy': serializer.validated_data['allergy'],
-                    'wheezing': serializer.validated_data['wheezing'],
-                    'alcohol_consuming': serializer.validated_data['alcohol_consuming'],
-                    'coughing': serializer.validated_data['coughing'],
-                    'shortness_of_breath': serializer.validated_data['shortness_of_breath'],
-                    'swallowing_difficulty': serializer.validated_data['swallowing_difficulty'],
-                    'chest_pain': serializer.validated_data['chest_pain'],
-                }
-                
-                lung_cancer_patient = LungCancerPatient.objects.create(**lung_cancer_data)
-                
-                # 3. 예측 수행을 위한 증상 데이터 준비
-                symptoms_dict = lung_cancer_patient.get_symptoms_dict()
-                features = pd.DataFrame([symptoms_dict])
-                features = features[feature_names]  # 특성 순서 맞추기
-                
-                prediction_proba = model.predict_proba(features)[0]
-                prediction = model.predict(features)[0]
-                
-                # 4. 예측 결과를 LungCancerPatient에 저장
-                lung_cancer_patient.prediction = 'YES' if prediction == 1 else 'NO'
-                lung_cancer_patient.prediction_probability = float(prediction_proba[1])
-                lung_cancer_patient.save()
-                
-                # 5. LungRecord에 검사 기록 저장
-                lung_record = LungRecord.objects.create(
-                    lung_cancer_patient=lung_cancer_patient,
-                    smoking=lung_cancer_patient.smoking,
-                    yellow_fingers=lung_cancer_patient.yellow_fingers,
-                    anxiety=lung_cancer_patient.anxiety,
-                    peer_pressure=lung_cancer_patient.peer_pressure,
-                    chronic_disease=lung_cancer_patient.chronic_disease,
-                    fatigue=lung_cancer_patient.fatigue,
-                    allergy=lung_cancer_patient.allergy,
-                    wheezing=lung_cancer_patient.wheezing,
-                    alcohol_consuming=lung_cancer_patient.alcohol_consuming,
-                    coughing=lung_cancer_patient.coughing,
-                    shortness_of_breath=lung_cancer_patient.shortness_of_breath,
-                    swallowing_difficulty=lung_cancer_patient.swallowing_difficulty,
-                    chest_pain=lung_cancer_patient.chest_pain,
+                # 2. Flask ML Service를 통해 예측 수행
+                ml_response = requests.post(
+                    f'{ML_SERVICE_URL}/predict',
+                    json={
+                        'gender': serializer.validated_data['gender'],
+                        'age': age,
+                        'smoking': serializer.validated_data['smoking'],
+                        'yellow_fingers': serializer.validated_data['yellow_fingers'],
+                        'anxiety': serializer.validated_data['anxiety'],
+                        'peer_pressure': serializer.validated_data['peer_pressure'],
+                        'chronic_disease': serializer.validated_data['chronic_disease'],
+                        'fatigue': serializer.validated_data['fatigue'],
+                        'allergy': serializer.validated_data['allergy'],
+                        'wheezing': serializer.validated_data['wheezing'],
+                        'alcohol_consuming': serializer.validated_data['alcohol_consuming'],
+                        'coughing': serializer.validated_data['coughing'],
+                        'shortness_of_breath': serializer.validated_data['shortness_of_breath'],
+                        'swallowing_difficulty': serializer.validated_data['swallowing_difficulty'],
+                        'chest_pain': serializer.validated_data['chest_pain'],
+                    },
+                    timeout=10
                 )
                 
-                # 6. LungResult에 검사 결과 저장
-                LungResult.objects.create(
-                    lung_record=lung_record,
-                    prediction='양성' if lung_cancer_patient.prediction == 'YES' else '음성',
-                    risk_score=lung_cancer_patient.prediction_probability * 100,
-                )
+                if ml_response.status_code != 200:
+                    return Response({
+                        'error': f'ML 서비스 오류: {ml_response.json().get("error", "알 수 없는 오류")}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
-                # 7. 위험도 계산
-                probability_percent = lung_cancer_patient.prediction_probability * 100
-                if probability_percent >= 70:
-                    risk_level = '높음'
-                    risk_message = '폐암 위험도가 높습니다. 즉시 전문의 상담을 권장합니다.'
-                elif probability_percent >= 40:
-                    risk_level = '중간'
-                    risk_message = '폐암 위험도가 중간입니다. 정기적인 검진을 권장합니다.'
-                else:
-                    risk_level = '낮음'
-                    risk_message = '폐암 위험도가 낮습니다. 건강한 생활 습관을 유지하세요.'
+                ml_result = ml_response.json()
                 
+                # 3. LungRecord에 검사 기록 저장 (raw SQL 사용)
+                db_saved = False
+                try:
+                    now = datetime.now()
+                    with connections['default'].cursor() as cursor:
+                        sql = """
+                            INSERT INTO lung_record (
+                                patient_id, gender, age, smoking, yellow_fingers, anxiety, peer_pressure,
+                                chronic_disease, fatigue, allergy, wheezing, alcohol_consuming,
+                                coughing, shortness_of_breath, swallowing_difficulty, chest_pain,
+                                patient_fk_id,
+                                created_at, updated_at
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s
+                            )
+                        """
+                        cursor.execute(sql, [
+                            patient_id,
+                            serializer.validated_data['gender'],
+                            age,
+                            serializer.validated_data['smoking'],
+                            serializer.validated_data['yellow_fingers'],
+                            serializer.validated_data['anxiety'],
+                            serializer.validated_data['peer_pressure'],
+                            serializer.validated_data['chronic_disease'],
+                            serializer.validated_data['fatigue'],
+                            serializer.validated_data['allergy'],
+                            serializer.validated_data['wheezing'],
+                            serializer.validated_data['alcohol_consuming'],
+                            serializer.validated_data['coughing'],
+                            serializer.validated_data['shortness_of_breath'],
+                            serializer.validated_data['swallowing_difficulty'],
+                            serializer.validated_data['chest_pain'],
+                            patient.id,
+                            now,
+                            now,
+                        ])
+                        lung_record_id = cursor.lastrowid
+                        print(f"[폐암 예측] LungRecord 저장 성공: ID={lung_record_id}, patient_id={patient_id}")
+                    
+                    # 4. LungResult에 검사 결과 저장 (raw SQL 사용)
+                    prediction_label = '양성' if ml_result['prediction'] == 'YES' else '음성'
+                    with connections['default'].cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO lung_result (lung_record_id, prediction, risk_score, created_at) 
+                            VALUES (%s, %s, %s, %s)
+                        """, [lung_record_id, prediction_label, ml_result['probability'], now])
+                        print(f"[폐암 예측] LungResult 저장 성공: lung_record_id={lung_record_id}")
+                    
+                    db_saved = True
+                except Exception as db_error:
+                    print(f"[폐암 예측] DB 저장 실패: {str(db_error)}")
+                    # DB 저장 실패해도 예측 결과는 반환
+                
+                # 7. 결과 반환
                 return Response({
-                    'patient_id': patient.id,
-                    'prediction': lung_cancer_patient.prediction,
-                    'probability': round(probability_percent, 2),
-                    'risk_level': risk_level,
-                    'risk_message': risk_message,
-                    'symptoms': symptoms_dict
+                    'patient_id': patient_id,
+                    'prediction': ml_result['prediction'],
+                    'probability': ml_result['probability'],
+                    'risk_level': ml_result['risk_level'],
+                    'risk_message': ml_result['risk_message'],
+                    'symptoms': ml_result['symptoms'],
+                    'external_db_saved': db_saved
                 }, status=status.HTTP_201_CREATED)
                 
+            except requests.exceptions.RequestException as e:
+                return Response({
+                    'error': f'ML 서비스 연결 실패: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             except Exception as e:
                 return Response({
                     'error': f'예측 중 오류가 발생했습니다: {str(e)}'
@@ -279,28 +362,60 @@ class PatientViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['get'])
-    def medical_records(self, request, pk=None):
+    def medical_records(self, request, *args, **kwargs):
         """특정 환자의 진료 기록 조회 API"""
         try:
-            patient = self.get_object()
-            # 해당 환자의 모든 진료 기록을 최신순으로 조회
+            lookup_kwarg = self.lookup_url_kwarg or self.lookup_field
+            patient_identifier = kwargs.get(lookup_kwarg) or self.kwargs.get(lookup_kwarg)
+            if not patient_identifier:
+                return Response({'error': '환자 식별자가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+            patient = Patient.objects.get(patient_id=patient_identifier)
             medical_records = MedicalRecord.objects.filter(
-                patient_id=patient.id
+                patient_id=patient.patient_id
             ).order_by('-reception_start_time')
-            
             serializer = MedicalRecordSerializer(medical_records, many=True)
             return Response({
                 'patient': PatientSerializer(patient).data,
                 'medical_records': serializer.data
             })
         except Patient.DoesNotExist:
-            return Response({
-                'error': '환자를 찾을 수 없습니다.'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': '환자를 찾을 수 없습니다.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({
                 'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def prediction_candidates(self, request):
+        """호흡기내과 진료 이력이 있는 환자 목록"""
+        department = request.query_params.get('department', '호흡기내과')
+        try:
+            with connections['default'].cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT p.patient_id
+                    FROM patients_patient AS p
+                    JOIN medical_record AS m
+                        ON m.patient_id COLLATE utf8mb4_unicode_ci = p.patient_id COLLATE utf8mb4_unicode_ci
+                    WHERE m.department = %s
+                    ORDER BY p.name ASC
+                    """,
+                    [department],
+                )
+                patient_ids = [row[0] for row in cursor.fetchall()]
+
+            if not patient_ids:
+                return Response({'patients': []})
+
+            patients = Patient.objects.filter(patient_id__in=patient_ids).order_by('name')
+            serializer = self.get_serializer(patients, many=True)
+            return Response({'patients': serializer.data})
+        except Exception as e:
+            return Response(
+                {'error': f'환자 목록을 불러오는 중 오류가 발생했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 class LungRecordViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = LungRecord.objects.all()
@@ -314,23 +429,63 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
     def statistics(self, request):
         """폐암 예측 결과 통계"""
         try:
-            results = LungResult.objects.all()
-            
-            total_count = results.count()
-            positive_count = results.filter(prediction='양성').count()
-            negative_count = results.filter(prediction='음성').count()
-            
-            # 성별 통계
-            male_results = results.filter(lung_record__lung_cancer_patient__patient__gender__in=['M', '남성', '1'])
-            female_results = results.filter(lung_record__lung_cancer_patient__patient__gender__in=['F', '여성', '0'])
-            
-            male_positive = male_results.filter(prediction='양성').count()
-            male_negative = male_results.filter(prediction='음성').count()
-            female_positive = female_results.filter(prediction='양성').count()
-            female_negative = female_results.filter(prediction='음성').count()
-            
-            # 평균 위험도
-            avg_risk_score = results.aggregate(avg_risk=models.Avg('risk_score'))['avg_risk'] or 0
+            with connections['default'].cursor() as cursor:
+                # 전체 통계
+                cursor.execute("SELECT COUNT(*) FROM lung_result")
+                total_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM lung_result WHERE prediction = '양성'")
+                positive_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM lung_result WHERE prediction = '음성'")
+                negative_count = cursor.fetchone()[0]
+                
+                # 성별 통계 (lung_record의 gender 사용)
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1')
+                """)
+                male_total = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1') AND lr.prediction = '양성'
+                """)
+                male_positive = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('M', '남성', '1') AND lr.prediction = '음성'
+                """)
+                male_negative = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0')
+                """)
+                female_total = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0') AND lr.prediction = '양성'
+                """)
+                female_positive = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM lung_result lr
+                    JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+                    WHERE lrec.gender IN ('F', '여성', '0') AND lr.prediction = '음성'
+                """)
+                female_negative = cursor.fetchone()[0]
+                
+                # 평균 위험도
+                cursor.execute("SELECT AVG(risk_score) FROM lung_result")
+                avg_risk_score = cursor.fetchone()[0] or 0
             
             return Response({
                 'total_patients': total_count,
@@ -339,16 +494,16 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
                 'positive_rate': round((positive_count / total_count * 100), 2) if total_count > 0 else 0,
                 'gender_statistics': {
                     'male': {
-                        'total': male_results.count(),
+                        'total': male_total,
                         'positive': male_positive,
                         'negative': male_negative,
-                        'positive_rate': round((male_positive / male_results.count() * 100), 2) if male_results.count() > 0 else 0
+                        'positive_rate': round((male_positive / male_total * 100), 2) if male_total > 0 else 0
                     },
                     'female': {
-                        'total': female_results.count(),
+                        'total': female_total,
                         'positive': female_positive,
                         'negative': female_negative,
-                        'positive_rate': round((female_positive / female_results.count() * 100), 2) if female_results.count() > 0 else 0
+                        'positive_rate': round((female_positive / female_total * 100), 2) if female_total > 0 else 0
                     }
                 },
                 'average_risk_score': round(float(avg_risk_score), 2)
@@ -361,21 +516,28 @@ class LungResultViewSet(viewsets.ReadOnlyModelViewSet):
 def visualization_data(request):
     """시각화 데이터 API"""
     try:
-        results = LungResult.objects.all()
+        # raw SQL로 데이터 조회 (lung_record의 gender, age 사용)
+        with connections['default'].cursor() as cursor:
+            cursor.execute("""
+                SELECT lr.prediction, lr.risk_score, lrec.gender, lrec.age, lr.created_at
+                FROM lung_result lr
+                JOIN lung_record lrec ON lr.lung_record_id = lrec.id
+            """)
+            rows = cursor.fetchall()
         
-        if not results.exists():
+        if not rows:
             return JsonResponse({'error': '데이터가 없습니다.'}, status=404)
         
         # 데이터 준비
         data = []
-        for result in results:
+        for row in rows:
+            prediction, risk_score, gender, age, created_at = row
             data.append({
-                'name': result.lung_record.lung_cancer_patient.patient.name,
-                'gender': result.lung_record.lung_cancer_patient.patient.gender,
-                'age': result.lung_record.lung_cancer_patient.patient.age,
-                'prediction': 'YES' if result.prediction == '양성' else 'NO',
-                'probability': float(result.risk_score) / 100,
-                'created_at': result.created_at.isoformat() if result.created_at else None
+                'gender': gender,
+                'age': age,
+                'prediction': 'YES' if prediction == '양성' else 'NO',
+                'probability': float(risk_score) / 100 if risk_score else 0,
+                'created_at': created_at.isoformat() if created_at else None
             })
         
         # 통계 계산
@@ -392,10 +554,14 @@ def visualization_data(request):
         df['age_decade'] = (df['age'] // 10) * 10
         age_prediction = pd.crosstab(df['age_decade'], df['prediction'])
         
+        # DataFrame을 dict로 변환 (JSON 직렬화 가능한 형식)
+        gender_dict = gender_prediction.to_dict('index')
+        age_dict = age_prediction.to_dict('index')
+        
         return JsonResponse({
             'prediction_distribution': prediction_counts.to_dict(),
-            'gender_distribution': gender_prediction.to_dict(),
-            'age_distribution': age_prediction.to_dict(),
+            'gender_distribution': gender_dict,
+            'age_distribution': age_dict,
             'total_patients': len(df),
             'average_age': round(df['age'].mean(), 1),
             'average_risk': round(df['probability'].mean() * 100, 2)
@@ -407,9 +573,12 @@ def visualization_data(request):
         }, status=500)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class MedicalRecordViewSet(viewsets.ModelViewSet):
     queryset = MedicalRecord.objects.all()
     serializer_class = MedicalRecordSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -423,16 +592,49 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         serializer = MedicalRecordCreateSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                patient = Patient.objects.get(id=serializer.validated_data['patient_id'])
-                medical_record = MedicalRecord.objects.create(
-                    patient_id=serializer.validated_data['patient_id'],
-                    name=serializer.validated_data['name'],
-                    department=serializer.validated_data['department'],
-                    notes=serializer.validated_data.get('notes', '')
-                )
+                from django.contrib.auth.models import User
+                
+                patient = Patient.objects.get(patient_id=serializer.validated_data['patient_id'])
+                
+                # 담당 의사 조회
+                doctor = None
+                doctor_id = serializer.validated_data.get('doctor_id')
+                if doctor_id:
+                    try:
+                        doctor = User.objects.get(id=doctor_id)
+                    except User.DoesNotExist:
+                        return Response({
+                            'error': '존재하지 않는 의사입니다.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # managed=False이므로 raw SQL 사용
+                from django.utils import timezone
+                now = timezone.now()
+                with connections['default'].cursor() as cursor:
+                    sql = """
+                        INSERT INTO medical_record (
+                            patient_id, patient_fk_id, name, department, doctor_fk_id,
+                            status, notes, reception_start_time, is_treatment_completed
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                    """
+                    cursor.execute(sql, [
+                        serializer.validated_data['patient_id'],
+                        patient.id,
+                        serializer.validated_data['name'],
+                        serializer.validated_data['department'],
+                        doctor.id if doctor else None,
+                        '접수완료',
+                        serializer.validated_data.get('notes', ''),
+                        now,
+                        False,
+                    ])
+                    record_id = cursor.lastrowid
+                
                 return Response({
                     'message': '진료기록이 성공적으로 생성되었습니다.',
-                    'record_id': medical_record.id
+                    'record_id': record_id
                 }, status=status.HTTP_201_CREATED)
             except Patient.DoesNotExist:
                 return Response({
@@ -449,10 +651,39 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         """진료 완료 처리 API"""
         try:
             medical_record = self.get_object()
-            medical_record.complete_treatment()
+            
+            # 프론트엔드에서 전송된 추가 정보
+            examination_result = request.data.get('examination_result', '')
+            treatment_note = request.data.get('treatment_note', '')
+            
+            # notes 업데이트 (기존 notes + 검사 결과 + 진료 메모)
+            updated_notes = medical_record.notes or ''
+            if examination_result or treatment_note:
+                if updated_notes:
+                    updated_notes += '\n'
+                if examination_result:
+                    updated_notes += f'검사 결과: {examination_result}'
+                if examination_result and treatment_note:
+                    updated_notes += '\n'
+                if treatment_note:
+                    updated_notes += f'진료 메모: {treatment_note}'
+            
+            # managed=False이므로 raw SQL 사용
+            from django.utils import timezone
+            now = timezone.now()
+            with connections['default'].cursor() as cursor:
+                cursor.execute("""
+                    UPDATE medical_record 
+                    SET status = %s, 
+                        is_treatment_completed = %s, 
+                        treatment_end_time = %s,
+                        notes = %s
+                    WHERE id = %s
+                """, ['진료완료', True, now, updated_notes, pk])
+            
             return Response({
                 'message': '진료가 완료되었습니다.',
-                'treatment_end_time': medical_record.treatment_end_time
+                'treatment_end_time': now
             }, status=status.HTTP_200_OK)
         except MedicalRecord.DoesNotExist:
             return Response({
@@ -500,28 +731,17 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def search_patients(self, request):
-        """환자 검색 API - 호흡기내과 환자만 검색"""
+        """환자 검색 API - 전체 환자 검색 (진료접수용)"""
         query = request.query_params.get('query', request.query_params.get('q', '')).strip()
         if not query:
             return Response({'patients': []})
         
         try:
-            # 호흡기내과 진료 기록이 있는 환자들만 검색
-            from django.db.models import Q
-            from .models import MedicalRecord
-            
-            # 호흡기내과 환자 ID 목록 가져오기
-            respiratory_patient_ids = MedicalRecord.objects.filter(
-                department='호흡기내과'
-            ).values_list('patient_id', flat=True).distinct()
-            
-            # 해당 환자들 중 이름으로 검색
             patients = Patient.objects.filter(
-                Q(id__in=respiratory_patient_ids) &
-                Q(name__icontains=query)
-            ).order_by('name')[:10]  # 최대 10명만 반환, 이름순 정렬
+                name__icontains=query
+            ).order_by('name')[:10]
             
-            print(f"검색어: '{query}', 호흡기내과 환자 결과: {patients.count()}명")
+            print(f"검색어: '{query}', 환자 결과: {patients.count()}명")
             
             serializer = PatientSerializer(patients, many=True)
             return Response({'patients': serializer.data})
@@ -529,26 +749,56 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             print(f"환자 검색 오류: {e}")
             return Response({'patients': [], 'error': str(e)})
     
-    @action(detail=True, methods=['get'])
-    def medical_records(self, request, pk=None):
-        """특정 환자의 진료 기록 조회 API"""
+    @action(detail=False, methods=['get'])
+    def dashboard_statistics(self, request):
+        """대시보드 통계 API - medical_record + Appointment 테이블 기반"""
+        from eventeye.doctor_utils import get_department
+        from django.utils import timezone
+        
         try:
-            patient = self.get_object()
-            # 해당 환자의 모든 진료 기록을 최신순으로 조회
-            medical_records = MedicalRecord.objects.filter(
-                patient_id=patient.id
-            ).order_by('-reception_start_time')
+            # managed=False이므로 raw SQL 사용
+            with connections['default'].cursor() as cursor:
+                # 총 진료 기록 수
+                cursor.execute("SELECT COUNT(*) FROM medical_record")
+                total_records = cursor.fetchone()[0]
+                
+                # 대기 중인 환자 수 (접수완료 상태)
+                cursor.execute("SELECT COUNT(*) FROM medical_record WHERE status = '접수완료'")
+                waiting_count = cursor.fetchone()[0]
+                
+                # 진료 완료 환자 수
+                cursor.execute("SELECT COUNT(*) FROM medical_record WHERE is_treatment_completed = 1")
+                completed_count = cursor.fetchone()[0]
+                
+            # 오늘 예약 수 (Appointment 모델 사용, 부서별 필터링)
+                today = timezone.now().date()
+            today_appointments = Appointment.objects.filter(
+                start_time__date=today
+            ).exclude(status='cancelled')
             
-            serializer = MedicalRecordSerializer(medical_records, many=True)
+            # 부서별 필터링
+            # 원무과 또는 superuser: 모든 부서 예약 합계 표시
+            # 외과: 외과 예약만 표시
+            # 호흡기내과: 호흡기내과 예약만 표시
+            if request.user.is_authenticated:
+                user_department = get_department(request.user.id)
+                # 원무과나 superuser가 아니면 자신의 부서 예약만 필터링
+                if user_department and user_department != "원무과" and not request.user.is_superuser:
+                    today_appointments = today_appointments.filter(doctor_department=user_department)
+                    logger.info(f"대시보드 통계: {user_department} 부서 필터링 적용, 오늘 예약 수: {today_appointments.count()}")
+            
+            today_exams = today_appointments.count()
+            
             return Response({
-                'patient': PatientSerializer(patient).data,
-                'medical_records': serializer.data
+                'total_records': total_records,
+                'waiting_count': waiting_count,
+                'completed_count': completed_count,
+                'today_exams': today_exams,
             })
-        except Patient.DoesNotExist:
-            return Response({
-                'error': '환자를 찾을 수 없습니다.'
-            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"대시보드 통계 오류: {e}", exc_info=True)
             return Response({
-                'error': f'진료 기록 조회 중 오류가 발생했습니다: {str(e)}'
+                'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

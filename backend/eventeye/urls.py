@@ -6,7 +6,8 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from . import auth_views
-from django.http import JsonResponse
+from . import github_views
+from django.http import JsonResponse, HttpResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -20,6 +21,11 @@ def api_root(request):
             'medical_images': '/api/medical-images/',
             'dashboard': '/api/dashboard/',
             'lung_cancer': '/api/lung_cancer/',
+            'mri_viewer': '/api/mri/',
+            'ocs': '/api/ocs/',
+            'chatbot': '/api/chat/',
+            'messenger': '/api/messenger/',
+            'lis': '/api/lis/',
             'admin': '/admin/',
             'swagger': '/swagger/',
             'redoc': '/redoc/'
@@ -40,7 +46,12 @@ schema_view = get_schema_view(
     permission_classes=[permissions.AllowAny],
 )
 
+def favicon_view(request):
+    """favicon.ico 요청 처리 - 204 No Content 반환"""
+    return HttpResponse(status=204)
+
 urlpatterns = [
+    path('favicon.ico', favicon_view, name='favicon'),
     path('', api_root, name='root'),
     path('admin/', admin.site.urls),
     path('api/', api_root, name='api-root'),
@@ -49,11 +60,21 @@ urlpatterns = [
     path('api/dashboard/', include('dashboard.urls')),
     path('api/lung_cancer/', include('lung_cancer.urls')),
     path('api/literature/', include('literature.urls')),
+    path('api/mri/', include('mri_viewer.urls')),
+    path('api/inference/', include('mri_viewer.urls')),  # 조원님 워커 호환용
+    path('api/ocs/', include('ocs.urls')),
+    path('api/chat/', include('chatbot.urls')),
+    path('api/messenger/', include('chat.urls')),
+    path('api/lis/', include('lis.urls')),
     # Auth endpoints
     path('api/auth/login', auth_views.login, name='login'),
     path('api/auth/me', auth_views.me, name='me'),
     path('api/auth/logout', auth_views.logout, name='logout'),
     path('api/auth/register', auth_views.register, name='register'),
+    path('api/auth/doctors/', auth_views.list_doctors, name='doctor-list'),
+    
+    # GitHub API Proxy
+    path('api/github/latest-release', github_views.get_latest_release, name='github-latest-release'),
     
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

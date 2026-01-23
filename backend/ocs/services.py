@@ -1,0 +1,454 @@
+"""
+OCS 서비스 로직
+"""
+from django.utils import timezone
+from django.db.models import Q
+from django.conf import settings
+from .models import Order, DrugInteractionCheck, AllergyCheck, OrderStatusHistory, Notification, ImagingAnalysisResult
+from patients.models import Patient
+from eventeye.doctor_utils import get_department
+import logging
+import os
+import requests
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+# 외부 약물 검색 API 설정
+DRUG_API_BASE_URL = getattr(settings, 'DRUG_API_BASE_URL', 'http://34.42.223.43:8002')
+
+
+def check_drug_interactions(order):
+    """약물 상호작용 체크 (외부 FastAPI 서버 사용)"""
+    if order.order_type != 'prescription':
+        return None
+    
+    medications = order.order_data.get('medications', [])
+    if not medications:
+        return None
+    
+    # item_seq 추출 (약물 검색에서 선택한 경우)
+    item_seqs = []
+    checked_drugs = []
+    
+    for med in medications:
+        item_seq = med.get('item_seq')
+        drug_name = med.get('name', '')
+        
+        if item_seq:
+            item_seqs.append(str(item_seq))
+        checked_drugs.append({
+            'name': drug_name,
+            'item_seq': item_seq,
+        })
+    
+    # item_seq가 2개 미만이면 상호작용 검사 불가 (하드코딩된 방식으로 대체)
+    if len(item_seqs) < 2:
+        logger.warning(f"약물 상호작용 검사: item_seq가 부족함 ({len(item_seqs)}개). 약물명 기반 검사 시도.")
+        # item_seq가 없으면 약물명만으로 검사할 수 없으므로 None 반환
+        return None
+    
+    # 외부 FastAPI 서버를 통한 약물 상호작용 검사
+    try:
+        response = requests.post(
+            f"{DRUG_API_BASE_URL}/drugs/check-interactions",
+            json={'item_seqs': item_seqs},
+            timeout=15
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        interactions_data = result.get('interactions', [])
+        
+        if interactions_data:
+            # DrugInteractionCheck 형식으로 변환
+            interactions = []
+            severities = []
+            
+            for inter in interactions_data:
+                severity_map = {
+                    'CRITICAL': 'severe',
+                    'HIGH': 'moderate',
+                    'MEDIUM': 'moderate',
+                    'INFO': 'mild',
+                }
+                severity = severity_map.get(inter.get('severity', 'MEDIUM'), 'moderate')
+                severities.append(severity)
+                
+                interactions.append({
+                    'drug1': inter.get('drug_name_a', ''),
+                    'drug2': inter.get('drug_name_b', ''),
+                    'item_seq_a': inter.get('item_seq_a', ''),
+                    'item_seq_b': inter.get('item_seq_b', ''),
+                    'severity': severity,
+                    'description': inter.get('warning_message', ''),
+                    'interaction_type': inter.get('interaction_type', ''),
+                    'ai_analysis': inter.get('ai_analysis'),
+                })
+            
+        # 가장 심각한 상호작용의 심각도 결정
+        if 'severe' in severities:
+                overall_severity = 'severe'
+        elif 'moderate' in severities:
+                overall_severity = 'moderate'
+        else:
+                overall_severity = 'mild'
+        
+        return DrugInteractionCheck.objects.create(
+            order=order,
+            checked_drugs=checked_drugs,
+            interactions=interactions,
+                severity=overall_severity
+        )
+    
+        logger.info(f"약물 상호작용 검사 완료: 상호작용 없음 (order: {order.id})")
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"약물 상호작용 검사 API 오류: {e}")
+        # API 오류 시에도 주문은 생성되도록 None 반환 (경고만 로그)
+        return None
+    except Exception as e:
+        logger.error(f"약물 상호작용 검사 오류: {e}", exc_info=True)
+    return None
+
+
+def check_allergies(order):
+    """알레르기 체크"""
+    patient = order.patient
+    
+    # 환자 알레르기 정보 가져오기
+    patient_allergies = []
+    if patient.allergies:
+        # 알레르기 정보를 파싱 (예: "페니실린, 아스피린" 형식)
+        allergies_text = patient.allergies.strip()
+        if allergies_text:
+            patient_allergies = [a.strip().lower() for a in allergies_text.split(',')]
+    
+    if not patient_allergies:
+        # 알레르기 없으면 체크 불필요
+        return None
+    
+    # 주문 항목 추출
+    order_items = []
+    warnings = []
+    has_risk = False
+    
+    if order.order_type == 'prescription':
+        medications = order.order_data.get('medications', [])
+        for med in medications:
+            med_name = med.get('name', '').lower()
+            order_items.append(med_name)
+            
+            # 알레르기 체크
+            for allergy in patient_allergies:
+                if allergy in med_name or med_name in allergy:
+                    warnings.append({
+                        'item': med_name,
+                        'allergy': allergy,
+                        'description': f'{med_name}은(는) 환자의 알레르기 항목({allergy})과 관련이 있습니다.'
+                    })
+                    has_risk = True
+    
+    elif order.order_type == 'lab_test':
+        test_items = order.order_data.get('test_items', [])
+        for test in test_items:
+            test_name = test.get('name', '').lower()
+            order_items.append(test_name)
+            
+            # 검사 항목 중 알레르기 관련 체크 (예: 조영제 검사)
+            for allergy in patient_allergies:
+                if 'contrast' in test_name and allergy in ['iodine', 'iodinated']:
+                    warnings.append({
+                        'item': test_name,
+                        'allergy': allergy,
+                        'description': f'{test_name} 검사는 조영제를 사용하며, 환자가 요오드 알레르기가 있습니다.'
+                    })
+                    has_risk = True
+    
+    if warnings or has_risk:
+        return AllergyCheck.objects.create(
+            order=order,
+            patient_allergies=patient_allergies,
+            order_items=order_items,
+            warnings=warnings,
+            has_allergy_risk=has_risk
+        )
+    
+    return None
+
+
+def validate_order(order):
+    """주문 검증 (약물 상호작용 + 알레르기)"""
+    validation_passed = True
+    validation_notes = []
+    
+    # 약물 상호작용 체크
+    if order.order_type == 'prescription':
+        interaction_check = check_drug_interactions(order)
+        if interaction_check and interaction_check.severity == 'severe':
+            validation_passed = False
+            validation_notes.append(f"심각한 약물 상호작용이 발견되었습니다: {interaction_check.interactions}")
+        elif interaction_check:
+            validation_notes.append(f"약물 상호작용 경고: {interaction_check.interactions}")
+    
+    # 알레르기 체크
+    allergy_check = check_allergies(order)
+    if allergy_check and allergy_check.has_allergy_risk:
+        validation_passed = False
+        validation_notes.append(f"알레르기 위험이 발견되었습니다: {allergy_check.warnings}")
+    
+    order.validation_passed = validation_passed
+    order.validation_notes = '\n'.join(validation_notes)
+    order.save()
+    
+    return validation_passed, validation_notes
+
+
+def create_notification(user, notification_type, title, message, related_order=None, related_resource_type=None, related_resource_id=None):
+    """알림 생성"""
+    # DB 제약 조건: related_resource_type과 related_resource_id는 NOT NULL이므로 None이면 빈 문자열로 변환
+    return Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        related_order=related_order,
+        related_resource_type=related_resource_type or '',
+        related_resource_id=related_resource_id or ''
+    )
+
+
+def notify_department_users(department_name, notification_type, title, message, related_order=None, exclude_user=None):
+    """특정 부서의 모든 사용자에게 알림 전송"""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    # 부서에 속한 사용자 조회
+    users = User.objects.filter(is_active=True)
+    notifications = []
+    
+    for user in users:
+        user_dept = get_department(user.id)
+        if user_dept == department_name and (exclude_user is None or user.id != exclude_user.id):
+            notification = create_notification(
+                user=user,
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                related_order=related_order
+            )
+            notifications.append(notification)
+    
+    logger.info(f"Created {len(notifications)} notifications for department {department_name}")
+    return notifications
+
+
+def update_order_status(order, new_status, changed_by=None, notes=''):
+    """주문 상태 업데이트 및 이력 기록, 알림 생성"""
+    old_status = order.status
+    order.status = new_status
+    
+    # 완료일 설정
+    if new_status == 'completed' and not order.completed_at:
+        order.completed_at = timezone.now()
+    
+    order.save()
+    
+    # 상태 이력 기록
+    OrderStatusHistory.objects.create(
+        order=order,
+        status=new_status,
+        changed_by=changed_by,
+        notes=notes or f"상태 변경: {old_status} → {new_status}"
+    )
+    
+    logger.info(f"Order {order.id} status changed: {old_status} → {new_status} by {changed_by}")
+    
+    # 주문 생성 시 (pending 상태)에도 대상 부서에 알림 생성
+    if new_status == 'pending' and old_status != 'pending':
+        # 주문 생성 시 대상 부서에 알림
+        target_dept_map = {
+            'pharmacy': '약국',
+            'lab': '검사실',
+            'radiology': '방사선과',
+            'admin': '원무과'
+        }
+        target_dept_kr = target_dept_map.get(order.target_department, order.target_department)
+        
+        if target_dept_kr in ['방사선과', '검사실', '약국', '원무과']:
+            notify_department_users(
+                department_name=target_dept_kr,
+                notification_type='order_created',
+                title=f'새 주문 생성: {order.patient.name}',
+                message=f'{order.patient.name}님의 {order.get_order_type_display()} 주문이 생성되었습니다.',
+                related_order=order,
+                exclude_user=changed_by
+            )
+            logger.info(f"Notification sent to {target_dept_kr} for new order {order.id}")
+    
+    # 알림 생성
+    if new_status == 'completed' and order.order_type == 'imaging':
+        # 영상 촬영 완료 → 영상의학과에 알림
+        patient_name = order.patient.name
+        imaging_type = order.order_data.get('imaging_type', '영상')
+        body_part = order.order_data.get('body_part', '')
+        
+        notify_department_users(
+            department_name="영상의학과",
+            notification_type='imaging_uploaded',
+            title=f'영상 업로드 완료: {patient_name}',
+            message=f'{patient_name}님의 {imaging_type} 촬영이 완료되어 업로드되었습니다. {body_part} 부위 영상을 분석해주세요.',
+            related_order=order,
+            exclude_user=changed_by
+        )
+        logger.info(f"Notification sent to 영상의학과 for order {order.id}")
+    
+    elif (new_status == 'processing' and 
+          order.order_type == 'imaging' and 
+          order.target_department == 'radiology' and
+          old_status == 'processing'):
+        # 방사선과가 'processing' 상태에서 완료 처리 → 영상의학과에 알림 (판독 대기)
+        # (처리 시작 시에는 알림 없음, 완료 처리 시에만 알림)
+        patient_name = order.patient.name
+        imaging_type = order.order_data.get('imaging_type', '영상')
+        body_part = order.order_data.get('body_part', '')
+        
+        notify_department_users(
+            department_name="영상의학과",
+            notification_type='imaging_uploaded',
+            title=f'영상 업로드 완료: {patient_name}',
+            message=f'{patient_name}님의 {imaging_type} 촬영이 완료되어 업로드되었습니다. {body_part} 부위 영상을 분석해주세요.',
+            related_order=order,
+            exclude_user=changed_by
+        )
+        logger.info(f"Notification sent to 영상의학과 for order {order.id} (radiology completed, awaiting analysis)")
+    
+    elif new_status == 'sent':
+        # 주문 전달 시 대상 부서에 알림
+        target_dept_map = {
+            'pharmacy': '약국',
+            'lab': '검사실',
+            'radiology': '방사선과',
+            'admin': '원무과'
+        }
+        target_dept_kr = target_dept_map.get(order.target_department, order.target_department)
+        
+        if target_dept_kr in ['방사선과', '검사실', '약국', '원무과']:
+            notify_department_users(
+                department_name=target_dept_kr,
+                notification_type='order_sent',
+                title=f'새 주문 도착: {order.patient.name}',
+                message=f'{order.patient.name}님의 {order.get_order_type_display()} 주문이 전달되었습니다.',
+                related_order=order,
+                exclude_user=changed_by
+            )
+            logger.info(f"Notification sent to {target_dept_kr} for order {order.id}")
+
+
+def create_imaging_analysis_result(order, analyzed_by, analysis_result, findings='', recommendations='', confidence_score=None, heatmap_image_file=None, heatmap_image_files=None):
+    """영상 분석 결과 생성 및 의사에게 알림
+    
+    Args:
+        order: 주문 객체
+        analyzed_by: 분석자 (User)
+        analysis_result: 분석 결과 (dict/JSON)
+        findings: 소견
+        recommendations: 권고사항
+        confidence_score: 신뢰도
+        heatmap_image_file: heatmap 이미지 파일 (UploadedFile, optional, 하위 호환성)
+        heatmap_image_files: heatmap 이미지 파일 리스트 (여러 장 지원)
+    """
+    # 여러 파일이 제공되면 우선 사용, 없으면 단일 파일 사용
+    files_to_save = []
+    if heatmap_image_files and len(heatmap_image_files) > 0:
+        files_to_save = heatmap_image_files
+    elif heatmap_image_file:
+        files_to_save = [heatmap_image_file]
+    
+    # heatmap 이미지 저장 (여러 장 지원)
+    heatmap_image_urls = []
+    if files_to_save:
+        try:
+            # 저장 디렉토리 생성: media/imaging_analysis/{order_id}/
+            save_dir = os.path.join(settings.MEDIA_ROOT, 'imaging_analysis', str(order.id))
+            os.makedirs(save_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            for idx, file in enumerate(files_to_save):
+                try:
+                    # 파일명 생성: heatmap_{timestamp}_{index}_{original_filename}
+                    original_filename = file.name
+                    file_ext = os.path.splitext(original_filename)[1] or '.png'
+                    filename = f'heatmap_{timestamp}_{idx+1}{file_ext}'
+                    
+                    # 파일 저장
+                    file_path = os.path.join(save_dir, filename)
+                    with open(file_path, 'wb') as f:
+                        for chunk in file.chunks():
+                            f.write(chunk)
+                    
+                    # URL 생성
+                    relative_path = os.path.join('imaging_analysis', str(order.id), filename)
+                    image_url = f"{settings.MEDIA_URL}{relative_path}".replace('\\', '/')
+                    heatmap_image_urls.append(image_url)
+                    
+                    logger.info(f"Heatmap image {idx+1}/{len(files_to_save)} saved: {file_path}, URL: {image_url}")
+                except Exception as e:
+                    logger.error(f"Failed to save heatmap image {idx+1}: {str(e)}", exc_info=True)
+                    # 개별 파일 저장 실패해도 계속 진행
+            
+            # analysis_result에 이미지 URL들 추가
+            if not isinstance(analysis_result, dict):
+                analysis_result = {}
+            
+            if len(heatmap_image_urls) > 0:
+                # 첫 번째 이미지를 메인 이미지로 (하위 호환성)
+                analysis_result['heatmap_image_url'] = heatmap_image_urls[0]
+                analysis_result['heatmap_image_path'] = os.path.join('imaging_analysis', str(order.id), f'heatmap_{timestamp}_1.png')
+                # 여러 이미지 URL 리스트
+                analysis_result['heatmap_image_urls'] = heatmap_image_urls
+                analysis_result['heatmap_image_count'] = len(heatmap_image_urls)
+            
+            logger.info(f"Total {len(heatmap_image_urls)} heatmap images saved for order {order.id}")
+        except Exception as e:
+            logger.error(f"Failed to save heatmap images: {str(e)}", exc_info=True)
+            # 이미지 저장 실패해도 분석 결과는 저장
+    
+    # 분석 결과 저장
+    analysis, created = ImagingAnalysisResult.objects.update_or_create(
+        order=order,
+        defaults={
+            'analyzed_by': analyzed_by,
+            'analysis_result': analysis_result,
+            'findings': findings,
+            'recommendations': recommendations,
+            'confidence_score': confidence_score
+        }
+    )
+    
+    # 영상 분석 결과 입력 시 주문 상태를 'completed'로 변경
+    # (방사선과가 완료해도 'processing' 상태였던 것을 이제 완료 처리)
+    if order.status != 'completed':
+        update_order_status(order, 'completed', analyzed_by, '영상 분석 완료')
+        logger.info(f"Order {order.id} status updated to 'completed' after imaging analysis")
+    
+    # 의사(주문 생성자)에게 알림
+    doctor = order.doctor
+    patient_name = order.patient.name
+    imaging_type = order.order_data.get('imaging_type', '영상')
+    
+    create_notification(
+        user=doctor,
+        notification_type='imaging_analysis_complete',
+        title=f'영상 분석 완료: {patient_name}',
+        message=f'{patient_name}님의 {imaging_type} 영상 분석이 완료되었습니다. 결과를 확인해주세요.',
+        related_order=order,
+        related_resource_type='imaging_analysis',
+        related_resource_id=str(analysis.id)
+    )
+    
+    logger.info(f"Imaging analysis result created for order {order.id}, notification sent to doctor {doctor.id}")
+    
+    return analysis
