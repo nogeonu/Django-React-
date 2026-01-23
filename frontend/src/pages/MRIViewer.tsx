@@ -131,11 +131,11 @@ export default function MRIViewer() {
 
   // URL 파라미터에서 imageType 읽기
   const urlImageType = searchParams.get('imageType');
-  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '병리 영상' || urlImageType === '유방촬영술 영상')
-    ? urlImageType as '유방촬영술 영상' | '병리 영상' | 'MRI 영상'
+  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '유방촬영술 영상')
+    ? urlImageType as '유방촬영술 영상' | 'MRI 영상'
     : '유방촬영술 영상';
 
-  const [imageType, setImageType] = useState<'유방촬영술 영상' | '병리 영상' | 'MRI 영상'>(initialImageType);
+  const [imageType, setImageType] = useState<'유방촬영술 영상' | 'MRI 영상'>(initialImageType);
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -1060,7 +1060,6 @@ export default function MRIViewer() {
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-none shadow-xl">
                     <SelectItem value="유방촬영술 영상" className="rounded-lg">유방촬영술 영상</SelectItem>
-                    <SelectItem value="병리 영상" className="rounded-lg">병리 영상</SelectItem>
                     <SelectItem value="MRI 영상" className="rounded-lg">MRI 영상</SelectItem>
                   </SelectContent>
                 </Select>
