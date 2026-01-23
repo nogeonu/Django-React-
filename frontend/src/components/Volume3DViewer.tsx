@@ -633,7 +633,6 @@ export default function Volume3DViewer({
             
             // 마우스 휠 줌이 작동하는지 확인하기 위한 디버깅
             if (viewportRef.current) {
-              const element = viewportRef.current;
               console.log('[Volume3DViewer] viewport element 준비 완료, 마우스 휠 이벤트 대기 중...');
             }
           }
