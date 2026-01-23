@@ -61,6 +61,7 @@ urlpatterns = [
     path('api/lung_cancer/', include('lung_cancer.urls')),
     path('api/literature/', include('literature.urls')),
     path('api/mri/', include('mri_viewer.urls')),
+    path('api/pathology/', include('mri_viewer.pathology_urls')),  # 교육원 조원 워커용 (병리 이미지 전용)
     path('api/inference/', include('mri_viewer.urls')),  # 조원님 워커 호환용
     path('api/ocs/', include('ocs.urls')),
     path('api/chat/', include('chatbot.urls')),
