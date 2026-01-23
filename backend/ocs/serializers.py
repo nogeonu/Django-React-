@@ -106,8 +106,20 @@ class OrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("검사 주문에는 검사 유형(test_type) 또는 검사 항목(test_items)이 필요합니다.")
         
         elif order_type == 'imaging':
-            if target_department != 'radiology':
-                raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
+            # 병리 이미지인 경우 검사실로 전달 가능
+            imaging_type = order_data.get('imaging_type', '')
+            body_part = order_data.get('body_part', '')
+            is_pathology = (imaging_type == '병리 이미지' or body_part == '병리 이미지')
+            
+            if is_pathology:
+                # 병리 이미지는 검사실로 전달
+                if target_department != 'lab':
+                    raise serializers.ValidationError("병리 이미지 촬영 의뢰는 검사실로 전달되어야 합니다.")
+            else:
+                # 일반 영상 촬영은 방사선과로 전달
+                if target_department != 'radiology':
+                    raise serializers.ValidationError("영상 촬영 의뢰는 방사선과로 전달되어야 합니다.")
+            
             if 'imaging_type' not in order_data:
                 raise serializers.ValidationError("영상 촬영 의뢰에는 촬영 유형이 필요합니다.")
         

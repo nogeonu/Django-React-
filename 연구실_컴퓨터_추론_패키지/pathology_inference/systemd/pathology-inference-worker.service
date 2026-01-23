@@ -1,0 +1,25 @@
+[Unit]
+Description=Pathology Image Inference Worker (HTTP API)
+After=network.target
+
+[Service]
+Type=simple
+User=your_username
+WorkingDirectory=/home/your_username/연구실_컴퓨터_추론_패키지/pathology_inference
+Environment="PATH=/home/your_username/연구실_컴퓨터_추론_패키지/pathology_inference/venv/bin"
+Environment="DJANGO_API_URL=http://34.42.223.43/api/pathology"
+Environment="ORTHANC_URL=http://34.42.223.43:8042"
+Environment="ORTHANC_USER=admin"
+Environment="ORTHANC_PASSWORD=admin123"
+Environment="DEVICE=cuda"
+Environment="POLL_INTERVAL=30"
+Environment="MODEL_PATH=src/best_model.pth"
+Environment="SVS_STORAGE_DIR=/home/shrjsdn908/pathology_images"
+ExecStart=/home/your_username/연구실_컴퓨터_추론_패키지/pathology_inference/venv/bin/python local_inference_worker_http.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

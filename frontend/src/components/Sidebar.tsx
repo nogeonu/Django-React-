@@ -42,6 +42,7 @@ const departmentNavigation = {
   검사실: [
     { name: "검사실 대시보드", href: "/laboratory-dashboard", icon: Activity },
     { name: "AI 분석", href: "/laboratory-ai-analysis", icon: Brain },
+    { name: "병리이미지분석", href: "/pathology-analysis", icon: Scan },
     { name: "처방전달시스템", href: "/ocs", icon: FileText },
   ],
 };

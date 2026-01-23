@@ -2058,7 +2058,12 @@ function CreateOrderForm({
         body_part: imagingData.body_part,
         contrast: imagingData.contrast || false,
       };
-      department = "radiology";
+      // 병리 이미지인 경우 검사실로 전달
+      if (imagingData.imaging_type === "병리 이미지" || imagingData.body_part === "병리 이미지") {
+        department = "lab";
+      } else {
+        department = "radiology";
+      }
     }
 
     onSubmit({

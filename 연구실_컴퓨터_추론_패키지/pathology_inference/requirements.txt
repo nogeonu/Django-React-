@@ -1,0 +1,13 @@
+# HTTP API 워커 의존성
+requests>=2.31.0
+torch>=2.0.0
+numpy>=1.24.0
+tqdm>=4.65.0
+
+# 병리 이미지 처리 (필요시 추가)
+# openslide-python>=1.2.0  # WSI 파일 처리
+# PIL>=10.0.0  # 이미지 처리
+
+# CLAM 모델 의존성 (필요시 추가)
+# timm>=0.9.0  # Vision Transformer
+# transformers>=4.30.0  # H-optimus-0
