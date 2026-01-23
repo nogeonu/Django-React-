@@ -1306,6 +1306,25 @@ function OrderCard({
                 {order.lab_test_result ? "결과 수정" : "결과 입력"}
               </Button>
             )}
+            {/* 검사실: 조직검사 결과 입력 (processing 상태에서 표시) */}
+            {order.order_type === "tissue_exam" && 
+             order.status === "processing" && 
+             user?.department === "검사실" && (
+              <Button
+                onClick={() => {
+                  toast({
+                    title: "병리 이미지 분석",
+                    description: "병리이미지분석 페이지에서 AI 분석을 진행해주세요.",
+                  });
+                }}
+                size="sm"
+                variant="default"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Scan className="mr-2 h-4 w-4" />
+                병리 이미지 분석으로 이동
+              </Button>
+            )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "imaging" && 
              (order.status === "processing" || order.status === "completed") && 

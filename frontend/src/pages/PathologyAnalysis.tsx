@@ -60,10 +60,15 @@ export default function PathologyAnalysis() {
     try {
       const data = await getOrdersApi();
       // 병리 이미지 주문만 필터링
-      // 1. 조직검사(tissue_exam) 주문
-      // 2. 영상촬영(imaging) 타입이고 촬영정보가 병리 이미지인 주문
+      // 1. 조직검사(tissue_exam) 주문 중 처리 중(processing) 상태만
+      // 2. 영상촬영(imaging) 타입이고 촬영정보가 병리 이미지인 주문 (처리 중 상태만)
       const pathologyOrders = data.filter((order: Order) => {
-        // 조직검사 주문
+        // 처리 중 상태가 아니면 제외
+        if (order.status !== 'processing') {
+          return false;
+        }
+        
+        // 조직검사 주문 (검사실에서 처리시작 누른 것만)
         if (order.order_type === 'tissue_exam') {
           return true;
         }
