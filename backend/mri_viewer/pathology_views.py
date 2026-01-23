@@ -136,50 +136,16 @@ def _create_local_inference_request(request, instance_id, filename):
         
         logger.info(f"✅ 추론 요청 생성: {request_file.name}")
         
-        import time
-        max_wait_time = 600  # 10분 (추론 시간 고려)
-        check_interval = 2
-        elapsed_time = 0
-        
-        while elapsed_time < max_wait_time:
-            time.sleep(check_interval)
-            elapsed_time += check_interval
-            
-            try:
-                with open(request_file, 'r', encoding='utf-8') as f:
-                    current_data = json.load(f)
-                
-                current_status = current_data.get('status')
-                if current_status == 'completed':
-                    result = current_data.get('result', {})
-                    return Response({
-                        'success': True,
-                        'instance_id': instance_id,
-                        'request_id': request_id,
-                        'class_id': result.get('class_id'),
-                        'class_name': result.get('class_name'),
-                        'confidence': result.get('confidence'),
-                        'probabilities': result.get('probabilities'),
-                        'num_patches': result.get('num_patches'),
-                        'top_attention_patches': result.get('top_attention_patches', []),
-                        'elapsed_time_seconds': result.get('elapsed_time_seconds'),
-                        'processed_by': 'local_worker'
-                    })
-                elif current_status == 'failed':
-                    result = current_data.get('result', {})
-                    return Response({
-                        'success': False,
-                        'error': result.get('error', '알 수 없는 오류'),
-                        'request_id': request_id
-                    }, status=500)
-            except:
-                pass
-        
+        # 즉시 응답 반환 (비동기 처리)
+        # 워커가 결과를 완료하면 별도로 조회하는 방식
+        # 동기 폴링 방식은 타임아웃 발생하므로 제거
         return Response({
-            'success': False,
-            'error': f'요청 처리 시간 초과 (최대 {max_wait_time}초)',
-            'request_id': request_id
-        }, status=504)
+            'success': True,
+            'message': '분석 요청이 생성되었습니다. 교육원 워커에서 처리 중입니다.',
+            'request_id': request_id,
+            'status': 'pending',
+            'filename': filename
+        }, status=status.HTTP_202_ACCEPTED)
         
     except Exception as e:
         logger.error(f"❌ 추론 요청 생성 실패: {str(e)}", exc_info=True)
