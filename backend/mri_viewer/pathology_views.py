@@ -9,9 +9,16 @@ import requests
 from pathlib import Path
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import AllowAny
+
+# CSRF 체크를 건너뛰는 커스텀 인증 클래스
+class CSRFExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # CSRF 체크를 건너뜀
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +31,8 @@ PATHOLOGY_REQUEST_DIR = Path(os.getenv('PATHOLOGY_INFERENCE_REQUEST_DIR', '/tmp/
 
 
 @api_view(['POST'])
-@csrf_exempt
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
 def pathology_ai_analysis(request):
     """
     병리 이미지 AI 분석 (CLAM)
