@@ -13,7 +13,7 @@
 | 포트 | 서비스 | 바인딩 | 용도 | 상태 |
 |------|--------|--------|------|------|
 | **80** | Nginx | 0.0.0.0 | HTTP 웹 서버 (프론트엔드 + API 프록시) | ✅ 실행 중 |
-| **8000** | Gunicorn + Daphne | 127.0.0.1 | Django 메인 애플리케이션 서버 (WSGI + ASGI) | ✅ 실행 중 |
+| **8000** | Daphne (ASGI) | 127.0.0.1 | Django 메인 애플리케이션 서버 (WebSocket 지원) | ✅ 실행 중 |
 | **8001** | Gunicorn | 0.0.0.0 | 챗봇 서버 (chat_django) | ✅ 실행 중 |
 | **8002** | Uvicorn | 0.0.0.0 | ASGI 서버 (WebSocket 지원) | ✅ 실행 중 |
 
@@ -69,13 +69,14 @@
 - **상태**: ✅ 실행 중 (4개 워커 프로세스)
 
 ### 2. Django 메인 서버 (포트 8000)
-- **서비스**: Gunicorn (WSGI) + Daphne (ASGI)
+- **서비스**: Daphne (ASGI 서버)
 - **바인딩**: 127.0.0.1:8000 (로컬 전용)
-- **Gunicorn 워커 수**: 3
-- **Daphne**: WebSocket 지원을 위한 ASGI 서버
+- **용도**: WebSocket 지원을 위한 ASGI 서버 (채팅 실시간 통신)
 - **경로**: `/srv/django-react/app/backend`
-- **systemd 서비스**: `gunicorn.service`
+- **애플리케이션**: `eventeye.asgi:application`
+- **systemd 서비스**: `daphne.service`
 - **상태**: ✅ 실행 중
+- **참고**: Gunicorn 서비스는 비활성화되어 있음 (WebSocket 지원을 위해 Daphne로 전환)
 
 ### 3. 챗봇 서버 (포트 8001)
 - **서비스**: Gunicorn
@@ -167,9 +168,10 @@
 
 ## ⚠️ 주의사항
 
-1. **포트 5002**: Python 프로세스가 실행 중이지만 용도가 불명확합니다. 확인이 필요합니다.
-2. **MySQL 외부 접근**: 포트 3306이 0.0.0.0에 바인딩되어 있어 외부에서 접근 가능합니다. 보안을 위해 방화벽 규칙을 확인하세요.
-3. **챗봇 서버**: 포트 8001이 외부에 직접 노출되어 있습니다. Nginx를 통한 프록시 설정을 권장합니다.
+1. **Gunicorn 서비스**: Django 메인 서버는 더 이상 Gunicorn을 사용하지 않습니다. WebSocket 지원을 위해 Daphne(ASGI)로 전환되었습니다. Gunicorn 서비스는 비활성화(disabled) 상태입니다.
+2. **포트 5002**: Python 프로세스가 실행 중이지만 용도가 불명확합니다. 확인이 필요합니다.
+3. **MySQL 외부 접근**: 포트 3306이 0.0.0.0에 바인딩되어 있어 외부에서 접근 가능합니다. 보안을 위해 방화벽 규칙을 확인하세요.
+4. **챗봇 서버**: 포트 8001이 외부에 직접 노출되어 있습니다. Nginx를 통한 프록시 설정을 권장합니다.
 
 ---
 
@@ -178,17 +180,20 @@
 ### 서비스 상태 확인
 ```bash
 # 모든 서비스 상태 확인
-sudo systemctl status gunicorn nginx mysql redis-server dl-service mammography-mosec pathology-mosec
+sudo systemctl status daphne nginx mysql redis-server dl-service mammography-mosec pathology-mosec
 
 # 특정 서비스 상태 확인
-sudo systemctl status gunicorn
-sudo systemctl status dl-service
+sudo systemctl status daphne  # Django 메인 서버 (ASGI)
+sudo systemctl status dl-service  # MRI 세그멘테이션
+
+# 참고: Gunicorn은 더 이상 사용하지 않음 (비활성화 상태)
+sudo systemctl status gunicorn  # disabled 상태
 ```
 
 ### 서비스 재시작
 ```bash
-# Django 메인 서버
-sudo systemctl restart gunicorn
+# Django 메인 서버 (Daphne)
+sudo systemctl restart daphne
 
 # Nginx
 sudo systemctl restart nginx
@@ -197,6 +202,8 @@ sudo systemctl restart nginx
 sudo systemctl restart dl-service
 sudo systemctl restart mammography-mosec
 sudo systemctl restart pathology-mosec
+
+# 참고: Gunicorn은 더 이상 사용하지 않음 (Daphne로 전환됨)
 ```
 
 ### 포트 사용 확인
@@ -240,3 +247,25 @@ ASGI 서버 (포트 8002)
 
 **최종 업데이트**: 2026-01-23  
 **확인 방법**: GCP SSH 접속 후 `sudo ss -tlnp` 및 `sudo systemctl status` 명령어로 검증 완료
+
+---
+
+## 📌 중요 변경사항
+
+### Gunicorn → Daphne 전환 (2026-01-23 확인)
+
+**Django 메인 서버 (포트 8000)**:
+- ❌ **Gunicorn**: 비활성화됨 (disabled)
+- ✅ **Daphne**: 활성화됨 (enabled, 실행 중)
+
+**전환 이유**:
+- WebSocket 지원 필요 (채팅 실시간 통신)
+- Django Channels를 통한 비동기 통신
+- ASGI 프로토콜 지원
+
+**현재 상태**:
+- Gunicorn 서비스: `inactive (dead)`, `disabled`
+- Daphne 서비스: `active (running)`, `enabled`
+- 포트 8000: Daphne가 사용 중
+
+**참고**: 챗봇 서버(포트 8001)는 여전히 Gunicorn을 사용 중입니다.
