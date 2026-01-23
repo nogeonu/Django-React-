@@ -61,18 +61,22 @@ export default function PathologyAnalysis() {
   }, []);
 
   // 결과 폴링 함수
-  const startPollingResult = async (requestId: string) => {
+  const startPollingResult = (requestId: string) => {
     const maxAttempts = 1500; // 50분 = 3000초 / 2초 간격
     let attempts = 0;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
     
     const poll = async () => {
-      if (attempts >= maxAttempts) {
-        toast({
-          title: "분석 시간 초과",
-          description: "분석이 50분을 초과했습니다. 나중에 다시 확인해주세요.",
-          variant: "destructive",
-        });
-        setPendingRequestId(null);
+      if (isCancelled || attempts >= maxAttempts) {
+        if (attempts >= maxAttempts && !isCancelled) {
+          toast({
+            title: "분석 시간 초과",
+            description: "분석이 50분을 초과했습니다. 나중에 다시 확인해주세요.",
+            variant: "destructive",
+          });
+          setPendingRequestId(null);
+        }
         return;
       }
       
@@ -108,20 +112,38 @@ export default function PathologyAnalysis() {
         } else {
           // pending 또는 processing 상태면 계속 폴링
           attempts++;
-          setTimeout(poll, 2000); // 2초마다 확인
+          if (!isCancelled) {
+            timeoutId = setTimeout(poll, 2000); // 2초마다 확인
+          }
         }
       } catch (error: any) {
         console.error('결과 조회 오류:', error);
         attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000);
+        if (attempts < maxAttempts && !isCancelled) {
+          timeoutId = setTimeout(poll, 2000);
         }
       }
     };
     
     // 첫 폴링 시작
-    setTimeout(poll, 2000);
+    timeoutId = setTimeout(poll, 2000);
+    
+    // 정리 함수 반환
+    return () => {
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   };
+  
+  // 컴포넌트 언마운트 시 폴링 정리
+  useEffect(() => {
+    return () => {
+      // 컴포넌트 언마운트 시 폴링 중지
+      setPendingRequestId(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (searchTerm.trim()) {
