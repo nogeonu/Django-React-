@@ -75,10 +75,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                     order_type='imaging'
                 )
             elif user_department == "검사실":
-                # 검사실: 검사 주문만 (lab_test 타입이고 target_department가 'lab')
+                # 검사실: 검사 주문과 조직검사 주문 (lab_test, tissue_exam 타입이고 target_department가 'lab')
                 queryset = queryset.filter(
                     target_department='lab',
-                    order_type='lab_test'
+                    order_type__in=['lab_test', 'tissue_exam']
                 )
             elif user_department in ["호흡기내과", "외과", "영상의학과"]:
                 # 의사: 자신이 생성한 주문 또는 자신의 환자 주문
@@ -618,6 +618,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # 'sent' 상태에서 바로 완료 처리하는 경우는 처리 시작으로 변경
                 update_order_status(order, 'processing', request.user, '처리 시작')
             logger.info(f"Lab test order {order.id} completed by lab, status remains 'processing' (awaiting result input)")
+        elif order.order_type == 'tissue_exam' and order.target_department == 'lab':
+            # 조직검사 주문의 경우: 검사실이 완료해도 '처리중' 상태 유지 (병리 이미지 분석 대기)
+            # 검사실이 AI 분석을 완료해야 진짜 완료
+            if order.status == 'processing':
+                update_order_status(order, 'processing', request.user, '조직검사 완료 (병리 이미지 분석 대기중)')
+            else:
+                # 'sent' 상태에서 바로 완료 처리하는 경우는 처리 시작으로 변경
+                update_order_status(order, 'processing', request.user, '처리 시작')
+            logger.info(f"Tissue exam order {order.id} completed by lab, status remains 'processing' (awaiting pathology analysis)")
         else:
             # 다른 주문 유형은 일반적으로 완료 처리
             update_order_status(order, 'completed', request.user, '처리 완료')
