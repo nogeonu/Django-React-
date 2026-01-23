@@ -2407,7 +2407,6 @@ function CreateOrderForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="유방촬영술">유방촬영술</SelectItem>
-              <SelectItem value="병리이미지">병리이미지</SelectItem>
               <SelectItem value="MRI">MRI</SelectItem>
             </SelectContent>
           </Select>
