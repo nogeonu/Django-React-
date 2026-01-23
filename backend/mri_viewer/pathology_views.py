@@ -79,40 +79,12 @@ def pathology_ai_analysis(request):
             logger.info(f"📁 filename: {filename} (교육원 워커가 wsi/ 폴더에서 찾을 파일)")
             return _create_local_inference_request(request, instance_id, filename)
         
-        # Mosec 서비스 호출 (파일 경로만 전달)
-        payload = {
-            "svs_file_path": original_svs_path
-        }
-        
-        logger.info(f"🚀 Mosec 서비스 호출: {PATHOLOGY_MOSEC_URL}")
-        
-        response = requests.post(
-            PATHOLOGY_MOSEC_URL,
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=300  # 5분 타임아웃 (WSI 처리 시간 고려)
+        # Mosec 서비스 호출은 현재 사용하지 않음 (교육원 워커 사용)
+        # 필요시 아래 코드를 활성화
+        return Response(
+            {'error': 'USE_LOCAL_INFERENCE 환경 변수를 true로 설정해주세요. 교육원 워커를 사용합니다.'},
+            status=status.HTTP_400_BAD_REQUEST
         )
-        
-        if response.status_code != 200:
-            logger.error(f"❌ Mosec 서비스 오류: {response.status_code} - {response.text}")
-            return Response(
-                {'error': f'Mosec 서비스 오류: {response.status_code}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        # 응답 파싱
-        mosec_result = response.json()
-        logger.info(f"📥 Mosec 응답 내용: {mosec_result}")
-        
-        # 결과 추출
-        if 'results' in mosec_result:
-            result = mosec_result['results']
-        else:
-            result = mosec_result
-        
-        logger.info(f"✅ 병리 이미지 분석 완료: {result.get('class_name', 'Unknown')}")
-        
-        return Response(result, status=status.HTTP_200_OK)
         
     except requests.exceptions.Timeout:
         logger.error(f"❌ Mosec 서비스 타임아웃")
