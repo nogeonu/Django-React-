@@ -16,6 +16,7 @@ import {
   ZoomTool,
   PanTool,
   WindowLevelTool,
+  TrackballRotateTool,
 } from '@cornerstonejs/tools';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -60,6 +61,7 @@ export default function Volume3DViewer({
         addTool(ZoomTool);
         addTool(PanTool);
         addTool(WindowLevelTool);
+        addTool(TrackballRotateTool); // 3D 볼륨 뷰포트 회전을 위한 필수 도구
 
         setIsInitialized(true);
       } catch (error) {
@@ -599,8 +601,13 @@ export default function Volume3DViewer({
             // 도구 추가
             toolGroup.addTool(ZoomTool.toolName);
             toolGroup.addTool(PanTool.toolName);
+            toolGroup.addTool(TrackballRotateTool.toolName); // 3D 회전을 위한 필수 도구
             
-            // 3D 볼륨 뷰포트는 기본적으로 왼쪽 클릭 + 드래그로 회전 가능
+            // 회전: 왼쪽 클릭 + 드래그 (TrackballRotateTool)
+            toolGroup.setToolActive(TrackballRotateTool.toolName, {
+              bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }], // 왼쪽 클릭
+            });
+            
             // 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그
             toolGroup.setToolActive(ZoomTool.toolName, {
               bindings: [
@@ -616,8 +623,8 @@ export default function Volume3DViewer({
             // 뷰포트에 도구 그룹 연결
             toolGroup.addViewport(viewportIdRef.current, renderingEngineId);
             
-            console.log('[Volume3DViewer] ✅ 도구 그룹 설정 완료');
-            console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그 (기본 동작)');
+            console.log('[Volume3DViewer] ✅ 도구 그룹 설정 완료 (TrackballRotateTool 포함)');
+            console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그');
             console.log('[Volume3DViewer] 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그');
             console.log('[Volume3DViewer] 팬: 중간 클릭 + 드래그');
           }
