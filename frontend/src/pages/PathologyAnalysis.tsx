@@ -20,7 +20,7 @@ interface Order {
   patient_name: string;
   patient_id: string;
   patient_number?: string;
-  order_type: string;
+  order_type: 'prescription' | 'lab_test' | 'imaging' | 'tissue_exam';
   order_data?: {
     imaging_type?: string;
     body_part?: string;
@@ -59,12 +59,24 @@ export default function PathologyAnalysis() {
     setLoadingOrders(true);
     try {
       const data = await getOrdersApi();
-      // 병리 이미지 주문만 필터링 (영상촬영 타입이고 촬영정보가 병리 이미지)
-      const pathologyOrders = data.filter((order: Order) => 
-        order.order_type === 'imaging' &&
-        (order.order_data?.imaging_type === '병리이미지' || 
-         order.order_data?.body_part === '병리 이미지')
-      );
+      // 병리 이미지 주문만 필터링
+      // 1. 조직검사(tissue_exam) 주문
+      // 2. 영상촬영(imaging) 타입이고 촬영정보가 병리 이미지인 주문
+      const pathologyOrders = data.filter((order: Order) => {
+        // 조직검사 주문
+        if (order.order_type === 'tissue_exam') {
+          return true;
+        }
+        // 영상촬영 주문 중 병리 이미지
+        if (order.order_type === 'imaging') {
+          return (
+            order.order_data?.imaging_type === '병리이미지' || 
+            order.order_data?.imaging_type === '병리 이미지' ||
+            order.order_data?.body_part === '병리 이미지'
+          );
+        }
+        return false;
+      });
       setOrders(pathologyOrders);
       setFilteredOrders(pathologyOrders);
     } catch (error: any) {
