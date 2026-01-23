@@ -62,7 +62,7 @@ import { useNavigate } from "react-router-dom";
 
 interface Order {
   id: string;
-  order_type: "prescription" | "lab_test" | "imaging";
+  order_type: "prescription" | "lab_test" | "imaging" | "tissue_exam";
   patient: string;
   patient_name: string;
   patient_number?: string;  // optional로 변경 (API에서 제공하지 않을 수도 있음)
