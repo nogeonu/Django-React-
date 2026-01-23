@@ -104,6 +104,7 @@ const ORDER_TYPE_LABELS = {
   prescription: "처방전",
   lab_test: "검사",
   imaging: "영상촬영",
+  tissue_exam: "조직검사",
 };
 
 const STATUS_LABELS = {
