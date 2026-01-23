@@ -156,17 +156,32 @@ def process_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
     
     Args:
         request_data: 요청 데이터 딕셔너리
+            - id: 요청 ID (task_id)
+            - filename: wsi/ 폴더에서 찾을 파일명 (예: "tumor_083.tif")
     
     Returns:
         처리 결과 딕셔너리
     """
-    request_id = request_data.get('request_id')
-    instance_id = request_data.get('instance_id')
+    request_id = request_data.get('id')  # 교육원 조원 API 형식: 'id'
+    filename = request_data.get('filename')  # 필수: wsi/ 폴더에서 찾을 파일명
+    
+    if not filename:
+        logger.error(f"❌ filename이 없습니다: {request_data}")
+        return {
+            'success': False,
+            'error': 'filename이 필요합니다.',
+            'class_id': None,
+            'class_name': None,
+            'confidence': 0.0,
+            'probabilities': {},
+            'num_patches': 0,
+            'top_attention_patches': []
+        }
     
     try:
         logger.info(f"📋 요청 처리 시작: {request_id}")
-        logger.info(f"   - 요청 시간: {request_data.get('requested_at')}")
-        logger.info(f"   - Instance ID: {instance_id}")
+        logger.info(f"   - 파일명: {filename}")
+        logger.info(f"   - wsi/ 폴더에서 파일 찾는 중...")
         
         # 상태를 'processing'으로 변경
         started_at = datetime.now().isoformat()
@@ -177,7 +192,7 @@ def process_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
         from local_inference import run_inference_local
         
         result = run_inference_local(
-            instance_id=instance_id,
+            filename=filename,  # wsi/ 폴더에서 찾을 파일명
             device=DEVICE
         )
         

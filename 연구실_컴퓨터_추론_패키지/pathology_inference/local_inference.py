@@ -114,24 +114,27 @@ def get_svs_file_path(instance_id: str) -> Optional[str]:
         return None
 
 
-def run_inference_local(instance_id: str, device: str = "cuda") -> Dict[str, Any]:
+def run_inference_local(filename: str, device: str = "cuda") -> Dict[str, Any]:
     """
-    병리 이미지 로컬 추론 실행
+    병리 이미지 로컬 추론 실행 (교육원 워커용)
     
     Args:
-        instance_id: Orthanc instance ID
+        filename: wsi/ 폴더에서 찾을 파일명 (예: "tumor_083.tif" 또는 "2024/01/case1.tif")
         device: 'cuda' or 'cpu'
     
     Returns:
         추론 결과 딕셔너리
     """
     try:
-        # 1. 원본 SVS 파일 경로 찾기
-        svs_file_path = get_svs_file_path(instance_id)
-        if not svs_file_path:
+        # 1. wsi/ 폴더에서 파일 찾기
+        WSI_DIR = Path(os.getenv("WSI_DIR", "wsi"))  # 기본값: 현재 디렉토리의 wsi/ 폴더
+        svs_file_path = WSI_DIR / filename
+        
+        if not svs_file_path.exists():
+            logger.error(f"❌ 파일을 찾을 수 없습니다: {svs_file_path}")
             return {
                 'success': False,
-                'error': '원본 SVS 파일을 찾을 수 없습니다.',
+                'error': f'파일을 찾을 수 없습니다: {filename} (wsi/ 폴더 확인 필요)',
                 'class_id': None,
                 'class_name': None,
                 'confidence': 0.0,
@@ -140,12 +143,14 @@ def run_inference_local(instance_id: str, device: str = "cuda") -> Dict[str, Any
                 'top_attention_patches': []
             }
         
+        logger.info(f"✅ 파일 발견: {svs_file_path}")
+        
         # 2. CLAM 모델로 추론 실행
         logger.info(f"🚀 추론 시작: {svs_file_path}")
         
         # CLAM 모델 추론 (실제 구현 필요)
         # 여기서는 인터페이스만 정의하고, 실제 모델 코드는 별도로 통합 필요
-        result = run_clam_inference(svs_file_path, device)
+        result = run_clam_inference(str(svs_file_path), device)
         
         return result
         
@@ -235,13 +240,13 @@ def run_clam_inference(svs_file_path: str, device: str = "cuda") -> Dict[str, An
 def main():
     """명령줄 인터페이스"""
     parser = argparse.ArgumentParser(description="병리 이미지 로컬 추론")
-    parser.add_argument("--instance-id", required=True, help="Orthanc instance ID")
+    parser.add_argument("--filename", required=True, help="wsi/ 폴더에서 찾을 파일명 (예: tumor_083.tif)")
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"], help="디바이스")
     
     args = parser.parse_args()
     
     # 추론 실행
-    result = run_inference_local(args.instance_id, args.device)
+    result = run_inference_local(args.filename, args.device)
     
     # 결과 출력
     if result.get('success'):
