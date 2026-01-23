@@ -134,37 +134,23 @@ export default function PathologyAnalysis() {
       });
 
       // 교육원 워커로 API 신호 전송
-      // 타임아웃: 50분 (3000초) - 병리 이미지 분석은 시간이 오래 걸림
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000 * 1000); // 50분
-      
-      try {
-        const response = await fetch('/api/pathology/analyze/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // 쿠키 포함 (인증 정보)
-          signal: controller.signal, // 타임아웃 제어
-          body: JSON.stringify({
-            instance_id: instanceId || `pathology_${selectedOrder.id}`, // 참고용
-            filename: filename // 교육원 워커가 wsi/ 폴더에서 찾을 파일명
-          }),
-        });
-        
-        clearTimeout(timeoutId);
+      // 백엔드는 즉시 응답 반환 (202 Accepted) - 타임아웃 불필요
+      const response = await fetch('/api/pathology/analyze/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // 쿠키 포함 (인증 정보)
+        body: JSON.stringify({
+          instance_id: instanceId || `pathology_${selectedOrder.id}`, // 참고용
+          filename: filename // 교육원 워커가 wsi/ 폴더에서 찾을 파일명
+        }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || `서버 오류 (${response.status})`);
-        }
-      } catch (error: any) {
-        clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-          throw new Error('요청 시간 초과 (50분)');
-        }
-        throw error;
+      if (!response.ok) {
+        throw new Error(data.error || `서버 오류 (${response.status})`);
       }
 
       toast({
