@@ -130,7 +130,16 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     """주문 생성 Serializer (간소화)"""
     patient_id = serializers.CharField(write_only=True, required=False, help_text="환자 ID (patient_id 또는 patient 필드 사용)")
     patient = serializers.PrimaryKeyRelatedField(queryset=Patient.objects.all(), required=False, allow_null=True)
-    
+    # order_type 오버라이드: 모델 choices와 무관하게 API에서 tissue_exam 허용 (배포/마이그레이션 지연 대응)
+    order_type = serializers.ChoiceField(
+        choices=[
+            ('prescription', '처방전'),
+            ('lab_test', '검사'),
+            ('imaging', '영상촬영'),
+            ('tissue_exam', '조직검사'),
+        ]
+    )
+
     class Meta:
         model = Order
         fields = [
