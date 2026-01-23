@@ -414,12 +414,7 @@ export default function MRIViewer() {
           filtered = allOrthancImages.filter(img => img.modality === 'MR');
           console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
           break;
-        case '병리 영상':
-          // 병리 영상: SM (Slide Microscopy) 모달리티만
-          filtered = allOrthancImages.filter(img => img.modality === 'SM');
-          console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
-          console.log(`[filterImagesByType] 병리 영상 모달리티:`, filtered.map(img => img.modality));
-          break;
+        // 병리 영상은 검사실에서만 처리하므로 방사선과에서는 제거됨
         default:
           filtered = allOrthancImages;
           console.log(`[filterImagesByType] 알 수 없는 영상 유형 "${imageType}" - 전체 이미지 표시: ${filtered.length}개`);
@@ -928,10 +923,8 @@ export default function MRIViewer() {
           formData.append('patient_name', patientName); // 환자 이름 추가
           formData.append('image_type', imageType); // 영상 유형 전달
 
-          // 병리 이미지는 별도 엔드포인트 사용
-          const uploadUrl = imageType === '병리 영상'
-            ? `${API_BASE_URL}/pathology/upload/`
-            : `${API_BASE_URL}/orthanc/upload/`;
+          // 병리 이미지는 검사실에서만 처리하므로 방사선과에서는 제거됨
+          const uploadUrl = `${API_BASE_URL}/orthanc/upload/`;
 
           const response = await fetch(uploadUrl, {
             method: 'POST',
@@ -1239,7 +1232,7 @@ export default function MRIViewer() {
                     type="file"
                     multiple
                     {...(imageType === 'MRI 영상' || imageType === '유방촬영술 영상' ? { webkitdirectory: '', directory: '' } as any : {})}
-                    accept={imageType === '병리 영상' ? '.svs' : imageType === 'MRI 영상' ? '' : '.dicom,.dcm'}
+                    accept={imageType === 'MRI 영상' ? '' : '.dicom,.dcm'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"

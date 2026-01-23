@@ -84,8 +84,15 @@ export default function Sidebar({ isSidebarOpen }: SidebarProps) {
     if (user.role === 'admin_staff') {
       departmentMenuItems = adminNavigation;
     } else if (user.role === 'medical_staff') {
-      const deptMenu = departmentNavigation[user.department as keyof typeof departmentNavigation];
+      // department 값 정규화 (공백 제거, 대소문자 무시)
+      const normalizedDept = user.department?.trim();
+      const deptMenu = departmentNavigation[normalizedDept as keyof typeof departmentNavigation];
       departmentMenuItems = deptMenu || departmentNavigation['외과'];
+      
+      // 디버깅용 로그 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development' && normalizedDept === '검사실' && !deptMenu) {
+        console.warn('검사실 메뉴를 찾을 수 없습니다. department 값:', normalizedDept, '사용 가능한 키:', Object.keys(departmentNavigation));
+      }
     }
   } else {
     departmentMenuItems = departmentNavigation['외과'];
