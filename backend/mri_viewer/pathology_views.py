@@ -24,6 +24,7 @@ PATHOLOGY_REQUEST_DIR = Path(os.getenv('PATHOLOGY_INFERENCE_REQUEST_DIR', '/tmp/
 
 
 @api_view(['POST'])
+@csrf_exempt
 def pathology_ai_analysis(request):
     """
     병리 이미지 AI 분석 (CLAM)
