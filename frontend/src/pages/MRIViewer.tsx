@@ -125,17 +125,23 @@ export default function MRIViewer() {
   const params = useParams<{ patientId?: string }>();
   const [searchParams] = useSearchParams();
   const isRadiologyTech = user?.department === '방사선과'; // 방사선과 = 촬영 담당
+  const isImagingDept = user?.department === '영상의학과'; // 영상의학과
+  const shouldExcludePathology = isRadiologyTech || isImagingDept; // 방사선과와 영상의학과만 병리 영상 제외
 
   // 페이지 제목 결정: 방사선과는 "영상 업로드", 영상의학과/외과는 "영상 판독"
   const pageTitle = isRadiologyTech ? '영상 업로드' : '영상 판독';
 
   // URL 파라미터에서 imageType 읽기
   const urlImageType = searchParams.get('imageType');
-  const initialImageType = (urlImageType === 'MRI 영상' || urlImageType === '유방촬영술 영상')
-    ? urlImageType as '유방촬영술 영상' | 'MRI 영상'
+  const availableImageTypes = shouldExcludePathology 
+    ? ['유방촬영술 영상', 'MRI 영상'] as const
+    : ['유방촬영술 영상', '병리 영상', 'MRI 영상'] as const;
+  
+  const initialImageType = (urlImageType && availableImageTypes.includes(urlImageType as any))
+    ? urlImageType as typeof availableImageTypes[number]
     : '유방촬영술 영상';
 
-  const [imageType, setImageType] = useState<'유방촬영술 영상' | 'MRI 영상'>(initialImageType);
+  const [imageType, setImageType] = useState<typeof availableImageTypes[number]>(initialImageType);
   const [systemPatients, setSystemPatients] = useState<SystemPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetailInfo | null>(null);
@@ -414,7 +420,12 @@ export default function MRIViewer() {
           filtered = allOrthancImages.filter(img => img.modality === 'MR');
           console.log(`[filterImagesByType] MRI 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
           break;
-        // 병리 영상은 검사실에서만 처리하므로 방사선과에서는 제거됨
+        case '병리 영상':
+          // 병리 영상: SM (Slide Microscopy) 모달리티만
+          filtered = allOrthancImages.filter(img => img.modality === 'SM');
+          console.log(`[filterImagesByType] 병리 영상 필터링 결과: ${filtered.length}개 (전체 ${allOrthancImages.length}개 중)`);
+          console.log(`[filterImagesByType] 병리 영상 모달리티:`, filtered.map(img => img.modality));
+          break;
         default:
           filtered = allOrthancImages;
           console.log(`[filterImagesByType] 알 수 없는 영상 유형 "${imageType}" - 전체 이미지 표시: ${filtered.length}개`);
@@ -923,8 +934,10 @@ export default function MRIViewer() {
           formData.append('patient_name', patientName); // 환자 이름 추가
           formData.append('image_type', imageType); // 영상 유형 전달
 
-          // 병리 이미지는 검사실에서만 처리하므로 방사선과에서는 제거됨
-          const uploadUrl = `${API_BASE_URL}/orthanc/upload/`;
+          // 병리 이미지는 별도 엔드포인트 사용
+          const uploadUrl = imageType === '병리 영상'
+            ? `${API_BASE_URL}/pathology/upload/`
+            : `${API_BASE_URL}/orthanc/upload/`;
 
           const response = await fetch(uploadUrl, {
             method: 'POST',
@@ -1047,12 +1060,15 @@ export default function MRIViewer() {
             <CardContent className="p-6 space-y-6">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">영상 유형 선택</Label>
-                <Select value={imageType} onValueChange={(value) => setImageType(value as '유방촬영술 영상' | '병리 영상' | 'MRI 영상')}>
+                <Select value={imageType} onValueChange={(value) => setImageType(value as typeof availableImageTypes[number])}>
                   <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none font-bold text-sm focus:ring-2 focus:ring-blue-600/20">
                     <SelectValue placeholder="영상 유형을 선택하세요" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-none shadow-xl">
                     <SelectItem value="유방촬영술 영상" className="rounded-lg">유방촬영술 영상</SelectItem>
+                    {!shouldExcludePathology && (
+                      <SelectItem value="병리 영상" className="rounded-lg">병리 영상</SelectItem>
+                    )}
                     <SelectItem value="MRI 영상" className="rounded-lg">MRI 영상</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1232,7 +1248,7 @@ export default function MRIViewer() {
                     type="file"
                     multiple
                     {...(imageType === 'MRI 영상' || imageType === '유방촬영술 영상' ? { webkitdirectory: '', directory: '' } as any : {})}
-                    accept={imageType === 'MRI 영상' ? '' : '.dicom,.dcm'}
+                    accept={imageType === '병리 영상' ? '.svs' : imageType === 'MRI 영상' ? '' : '.dicom,.dcm'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="hidden"
