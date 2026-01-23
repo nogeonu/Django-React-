@@ -847,10 +847,49 @@ export default function Volume3DViewer({
             cursor: 'grab',
             touchAction: 'none', // 모바일 터치 제스처 방지
           }}
-          onWheel={() => {
-            // 마우스 휠 줌을 위한 이벤트 핸들러
-            // Cornerstone3D의 ZoomTool이 자동으로 마우스 휠 이벤트를 처리함
-            // 이 핸들러는 이벤트가 뷰포트에 전달되도록 보장함
+          onWheel={(e) => {
+            // 마우스 휠 줌 직접 구현
+            if (!renderingEngineRef.current) return;
+            
+            try {
+              const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current) as Types.IVolumeViewport;
+              if (!viewport) return;
+              
+              // 카메라 가져오기
+              const camera = viewport.getCamera();
+              if (!camera) return;
+              
+              // 마우스 휠 델타에 따라 줌 조정
+              // deltaY > 0: 아래로 스크롤 (줌 아웃)
+              // deltaY < 0: 위로 스크롤 (줌 인)
+              const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9; // 10%씩 줌 인/아웃
+              
+              // parallelScale을 조정하여 줌 효과 구현
+              // parallelScale이 작을수록 더 가까이 보임 (줌 인)
+              const newParallelScale = camera.parallelScale * zoomFactor;
+              
+              // 최소/최대 줌 제한 (너무 가까이/멀리 가지 않도록)
+              const minScale = 1;
+              const maxScale = 10000;
+              const clampedScale = Math.max(minScale, Math.min(maxScale, newParallelScale));
+              
+              // 카메라 업데이트
+              viewport.setCamera({
+                ...camera,
+                parallelScale: clampedScale,
+              });
+              
+              viewport.render();
+              
+              console.log('[Volume3DViewer] 마우스 휠 줌:', {
+                deltaY: e.deltaY,
+                zoomFactor,
+                oldScale: camera.parallelScale,
+                newScale: clampedScale,
+              });
+            } catch (error) {
+              console.warn('[Volume3DViewer] 마우스 휠 줌 처리 실패:', error);
+            }
           }}
         />
         {isLoading && (
