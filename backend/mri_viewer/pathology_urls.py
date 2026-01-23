@@ -9,6 +9,7 @@ from . import pathology_views, pathology_upload_views
 urlpatterns = [
     # 병리 이미지 AI 분석 API
     path('analyze/', csrf_exempt(pathology_views.pathology_ai_analysis), name='analyze-pathology'),
+    path('result/<str:request_id>/', pathology_views.get_analysis_result, name='pathology-result'),
     path('health/', pathology_views.pathology_ai_health, name='pathology-health'),
     
     # 병리 이미지 업로드 API

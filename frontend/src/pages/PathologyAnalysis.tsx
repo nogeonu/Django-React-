@@ -53,10 +53,75 @@ export default function PathologyAnalysis() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedFilename, setSelectedFilename] = useState<string>('tumor_083.tif'); // 기본값
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null); // 진행 중인 요청 ID
+  const [analysisResult, setAnalysisResult] = useState<any>(null); // 분석 결과
 
   useEffect(() => {
     loadOrders();
   }, []);
+
+  // 결과 폴링 함수
+  const startPollingResult = async (requestId: string) => {
+    const maxAttempts = 1500; // 50분 = 3000초 / 2초 간격
+    let attempts = 0;
+    
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        toast({
+          title: "분석 시간 초과",
+          description: "분석이 50분을 초과했습니다. 나중에 다시 확인해주세요.",
+          variant: "destructive",
+        });
+        setPendingRequestId(null);
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/pathology/result/${requestId}/`, {
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error('결과 조회 실패');
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'completed') {
+          setAnalysisResult(data.result);
+          setPendingRequestId(null);
+          
+          toast({
+            title: "분석 완료!",
+            description: `결과: ${data.result.class_name} (신뢰도: ${(data.result.confidence * 100).toFixed(2)}%)`,
+          });
+          
+          // 주문 목록 새로고침
+          loadOrders();
+        } else if (data.status === 'failed') {
+          setPendingRequestId(null);
+          toast({
+            title: "분석 실패",
+            description: data.error || "분석 중 오류가 발생했습니다.",
+            variant: "destructive",
+          });
+        } else {
+          // pending 또는 processing 상태면 계속 폴링
+          attempts++;
+          setTimeout(poll, 2000); // 2초마다 확인
+        }
+      } catch (error: any) {
+        console.error('결과 조회 오류:', error);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 2000);
+        }
+      }
+    };
+    
+    // 첫 폴링 시작
+    setTimeout(poll, 2000);
+  };
 
   useEffect(() => {
     if (searchTerm.trim()) {
@@ -153,10 +218,24 @@ export default function PathologyAnalysis() {
         throw new Error(data.error || `서버 오류 (${response.status})`);
       }
 
-      toast({
-        title: "분석 요청 완료",
-        description: "교육원 워커에서 분석을 진행 중입니다. 결과는 나중에 확인할 수 있습니다.",
-      });
+      // request_id 저장하고 폴링 시작
+      if (data.request_id) {
+        setPendingRequestId(data.request_id);
+        setAnalysisResult(null);
+        
+        toast({
+          title: "분석 요청 완료",
+          description: "교육원 워커에서 분석을 진행 중입니다. 결과를 확인하는 중...",
+        });
+        
+        // 결과 폴링 시작
+        startPollingResult(data.request_id);
+      } else {
+        toast({
+          title: "분석 요청 완료",
+          description: "교육원 워커에서 분석을 진행 중입니다.",
+        });
+      }
 
       // 주문 목록 새로고침
       loadOrders();
@@ -346,9 +425,42 @@ export default function PathologyAnalysis() {
                   교육원 워커가 wsi/ 폴더에서 찾을 파일명입니다.
                 </p>
               </div>
+              
+              {/* 분석 결과 표시 */}
+              {analysisResult && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="font-semibold text-green-800 mb-2">분석 결과</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">결과:</span> {analysisResult.class_name}</p>
+                    <p><span className="font-medium">신뢰도:</span> {(analysisResult.confidence * 100).toFixed(2)}%</p>
+                    {analysisResult.num_patches && (
+                      <p><span className="font-medium">패치 수:</span> {analysisResult.num_patches}</p>
+                    )}
+                    {analysisResult.image_url && (
+                      <p>
+                        <span className="font-medium">이미지:</span>{' '}
+                        <a href={analysisResult.image_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                          결과 이미지 보기
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* 진행 중 표시 */}
+              {pendingRequestId && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <p className="text-sm text-blue-800">교육원 워커에서 분석 중입니다... (약 50분 소요)</p>
+                  </div>
+                </div>
+              )}
+              
               <Button 
                 onClick={handleAnalyze}
-                disabled={analyzing || selectedOrder.status === 'completed' || !selectedFilename}
+                disabled={analyzing || selectedOrder.status === 'completed' || !selectedFilename || !!pendingRequestId}
                 className="w-full bg-primary hover:bg-primary/90"
               >
                 {analyzing ? (

@@ -171,6 +171,68 @@ def pathology_ai_health(request):
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+@api_view(['GET'])
+@authentication_classes([CSRFExemptSessionAuthentication])
+@permission_classes([AllowAny])
+def get_analysis_result(request, request_id):
+    """
+    추론 결과 조회 API
+    
+    GET /api/pathology/result/<request_id>/
+    
+    Returns:
+        - status: pending, processing, completed, failed
+        - result: 추론 결과 (completed인 경우)
+    """
+    try:
+        request_file = PATHOLOGY_REQUEST_DIR / f"{request_id}.json"
+        if not request_file.exists():
+            return Response({
+                'success': False,
+                'error': '요청을 찾을 수 없습니다'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        with open(request_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        response_data = {
+            'success': True,
+            'request_id': request_id,
+            'status': data.get('status', 'pending'),
+            'filename': data.get('filename'),
+            'requested_at': data.get('requested_at'),
+            'started_at': data.get('started_at'),
+            'completed_at': data.get('completed_at'),
+        }
+        
+        # 완료된 경우 결과 포함
+        if data.get('status') == 'completed':
+            result = data.get('result', {})
+            response_data['result'] = {
+                'class_id': result.get('class_id'),
+                'class_name': result.get('class_name'),
+                'confidence': result.get('confidence'),
+                'probabilities': result.get('probabilities'),
+                'num_patches': result.get('num_patches'),
+                'top_attention_patches': result.get('top_attention_patches', []),
+                'elapsed_time_seconds': result.get('elapsed_time_seconds'),
+                'image_url': result.get('image_url'),
+                'viewer_url': result.get('viewer_url'),
+            }
+        elif data.get('status') == 'failed':
+            result = data.get('result', {})
+            response_data['error'] = result.get('error', '알 수 없는 오류')
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        logger.error(f"❌ 결과 조회 실패: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 # ============================================================
 # 교육원 컴퓨터 추론 요청 API
 # ============================================================
