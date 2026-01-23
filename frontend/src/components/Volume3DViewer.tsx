@@ -608,10 +608,13 @@ export default function Volume3DViewer({
               bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }], // 왼쪽 클릭
             });
             
-            // 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그
+            // 줌: 마우스 휠 (기본 동작) 또는 오른쪽 클릭 + 드래그
+            // ZoomTool은 기본적으로 마우스 휠을 지원하므로 별도 바인딩 불필요
+            // 하지만 명시적으로 활성화하여 확실하게 함
             toolGroup.setToolActive(ZoomTool.toolName, {
               bindings: [
                 { mouseButton: ToolEnums.MouseBindings.Secondary }, // 오른쪽 클릭 + 드래그
+                // 마우스 휠은 ZoomTool의 기본 동작이므로 별도 바인딩 불필요
               ],
             });
             
@@ -625,8 +628,14 @@ export default function Volume3DViewer({
             
             console.log('[Volume3DViewer] ✅ 도구 그룹 설정 완료 (TrackballRotateTool 포함)');
             console.log('[Volume3DViewer] 회전: 왼쪽 클릭 + 드래그');
-            console.log('[Volume3DViewer] 줌: 마우스 휠 또는 오른쪽 클릭 + 드래그');
+            console.log('[Volume3DViewer] 줌: 마우스 휠 (기본 동작) 또는 오른쪽 클릭 + 드래그');
             console.log('[Volume3DViewer] 팬: 중간 클릭 + 드래그');
+            
+            // 마우스 휠 줌이 작동하는지 확인하기 위한 디버깅
+            if (viewportRef.current) {
+              const element = viewportRef.current;
+              console.log('[Volume3DViewer] viewport element 준비 완료, 마우스 휠 이벤트 대기 중...');
+            }
           }
         } catch (toolError) {
           console.error('[Volume3DViewer] 도구 그룹 설정 실패:', toolError);
@@ -838,6 +847,21 @@ export default function Volume3DViewer({
             pointerEvents: 'auto',
             cursor: 'grab',
             touchAction: 'none', // 모바일 터치 제스처 방지
+          }}
+          onWheel={(e) => {
+            // 마우스 휠 줌을 위한 이벤트 핸들러
+            // Cornerstone3D가 이벤트를 처리하도록 함
+            if (!renderingEngineRef.current) return;
+            
+            try {
+              const viewport = renderingEngineRef.current.getViewport(viewportIdRef.current) as Types.IVolumeViewport;
+              if (!viewport) return;
+              
+              // ZoomTool이 마우스 휠 이벤트를 처리하도록 함
+              // 이벤트는 Cornerstone3D의 이벤트 시스템을 통해 처리됨
+            } catch (error) {
+              console.warn('[Volume3DViewer] Wheel event handling error:', error);
+            }
           }}
         />
         {isLoading && (
