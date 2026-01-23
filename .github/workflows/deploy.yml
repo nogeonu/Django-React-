@@ -93,6 +93,7 @@ jobs:
             echo 'Group=shrjsdn908' | sudo tee -a /etc/systemd/system/daphne.service
             echo 'WorkingDirectory=/srv/django-react/app/backend' | sudo tee -a /etc/systemd/system/daphne.service
             echo 'Environment=PATH=/srv/django-react/app/backend/.venv/bin' | sudo tee -a /etc/systemd/system/daphne.service
+            echo 'Environment="USE_LOCAL_INFERENCE=true"' | sudo tee -a /etc/systemd/system/daphne.service
             echo 'ExecStart=/srv/django-react/app/backend/.venv/bin/daphne -b 127.0.0.1 -p 8000 eventeye.asgi:application' | sudo tee -a /etc/systemd/system/daphne.service
             echo 'Restart=always' | sudo tee -a /etc/systemd/system/daphne.service
             echo '' | sudo tee -a /etc/systemd/system/daphne.service
