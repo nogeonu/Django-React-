@@ -1370,29 +1370,21 @@ function OrderCard({
              user?.department === "검사실" && (
               <Button
                 onClick={async () => {
-                  // 주문 상세 정보를 다시 가져와서 pathology_analysis 확인
+                  // 무조건 다이얼로그를 열고, 다이얼로그 내에서 데이터 로드
+                  setSelectedOrderForPathology(order);
+                  setShowPathologyInputDialog(true);
+                  
+                  // 주문 상세 정보를 가져와서 pathology_analysis 확인
                   try {
                     const response = await fetch(`/api/ocs/orders/${order.id}/`, {
                       credentials: 'include',
                     });
                     if (response.ok) {
                       const orderDetail = await response.json();
-                      if (orderDetail.pathology_analysis) {
-                        // 병리 분석 결과가 있으면 입력 다이얼로그 열기
-                        setSelectedOrderForPathology(orderDetail);
-                        setShowPathologyInputDialog(true);
-                      } else {
-                        // 분석 결과가 없으면 병리이미지분석 페이지로 이동
-                        navigate('/pathology-analysis');
-                      }
-                    } else {
-                      // API 오류 시 병리이미지분석 페이지로 이동
-                      navigate('/pathology-analysis');
+                      setSelectedOrderForPathology(orderDetail);
                     }
                   } catch (error) {
                     console.error('주문 상세 조회 실패:', error);
-                    // 오류 시 병리이미지분석 페이지로 이동
-                    navigate('/pathology-analysis');
                   }
                 }}
                 size="sm"
@@ -1724,7 +1716,7 @@ function OrderCard({
       {/* 검사 결과 입력 다이얼로그 */}
       
       {/* 병리 분석 결과 입력 다이얼로그 (검사실용) */}
-      {showPathologyInputDialog && selectedOrderForPathology && selectedOrderForPathology.pathology_analysis && (
+      {showPathologyInputDialog && selectedOrderForPathology && (
         <Dialog open={showPathologyInputDialog} onOpenChange={setShowPathologyInputDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1733,95 +1725,118 @@ function OrderCard({
                 {selectedOrderForPathology.patient_name}님의 병리 분석 결과를 확인하고 메모를 추가한 후 의사에게 전달하세요.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-6">
-              {/* AI 분석 결과 표시 */}
-              <div className="border rounded-lg p-4 bg-purple-50">
-                <h3 className="font-semibold mb-4">AI 분석 결과</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? 'destructive' : 'default'} className="text-lg px-4 py-2">
-                      {selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
-                    </Badge>
-                    <span className="text-sm text-gray-600">
-                      신뢰도: {(selectedOrderForPathology.pathology_analysis.confidence * 100).toFixed(2)}%
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <Label>클래스별 확률</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {Object.entries(selectedOrderForPathology.pathology_analysis.probabilities).map(([className, prob]: [string, any]) => (
-                        <div key={className} className="bg-white p-2 rounded">
-                          <div className="text-sm font-medium">{className}</div>
-                          <div className="text-lg font-bold">{(prob * 100).toFixed(2)}%</div>
-                        </div>
-                      ))}
+            {selectedOrderForPathology.pathology_analysis ? (
+              <div className="space-y-6">
+                {/* AI 분석 결과 표시 */}
+                <div className="border rounded-lg p-4 bg-purple-50">
+                  <h3 className="font-semibold mb-4">AI 분석 결과</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? 'destructive' : 'default'} className="text-lg px-4 py-2">
+                        {selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
+                      </Badge>
+                      <span className="text-sm text-gray-600">
+                        신뢰도: {(selectedOrderForPathology.pathology_analysis.confidence * 100).toFixed(2)}%
+                      </span>
                     </div>
-                  </div>
-
-                  {selectedOrderForPathology.pathology_analysis.image_url && (
+                    
                     <div>
-                      <Label>분석 이미지</Label>
-                      <div className="mt-2">
-                        <img 
-                          src={selectedOrderForPathology.pathology_analysis.image_url} 
-                          alt="병리 이미지"
-                          className="max-w-full rounded border"
-                        />
+                      <Label>클래스별 확률</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {Object.entries(selectedOrderForPathology.pathology_analysis.probabilities).map(([className, prob]: [string, any]) => (
+                          <div key={className} className="bg-white p-2 rounded">
+                            <div className="text-sm font-medium">{className}</div>
+                            <div className="text-lg font-bold">{(prob * 100).toFixed(2)}%</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
+
+                    {selectedOrderForPathology.pathology_analysis.image_url && (
+                      <div>
+                        <Label>분석 이미지</Label>
+                        <div className="mt-2">
+                          <img 
+                            src={selectedOrderForPathology.pathology_analysis.image_url} 
+                            alt="병리 이미지"
+                            className="max-w-full rounded border"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 소견 입력 */}
+                <div>
+                  <Label>소견</Label>
+                  <Textarea
+                    value={pathologyFindings}
+                    onChange={(e) => setPathologyFindings(e.target.value)}
+                    placeholder="AI 분석 결과를 바탕으로 소견을 입력하세요..."
+                    rows={4}
+                  />
+                </div>
+
+                {/* 권고사항 입력 */}
+                <div>
+                  <Label>권고사항</Label>
+                  <Textarea
+                    value={pathologyRecommendations}
+                    onChange={(e) => setPathologyRecommendations(e.target.value)}
+                    placeholder="권고사항을 입력하세요..."
+                    rows={3}
+                  />
                 </div>
               </div>
-
-              {/* 소견 입력 */}
-              <div>
-                <Label>소견</Label>
-                <Textarea
-                  value={pathologyFindings}
-                  onChange={(e) => setPathologyFindings(e.target.value)}
-                  placeholder="AI 분석 결과를 바탕으로 소견을 입력하세요..."
-                  rows={4}
-                />
-              </div>
-
-              {/* 권고사항 입력 */}
-              <div>
-                <Label>권고사항</Label>
-                <Textarea
-                  value={pathologyRecommendations}
-                  onChange={(e) => setPathologyRecommendations(e.target.value)}
-                  placeholder="권고사항을 입력하세요..."
-                  rows={3}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => {
-                setShowPathologyInputDialog(false);
-                setPathologyFindings('');
-                setPathologyRecommendations('');
-              }}>
-                취소
-              </Button>
-              <Button 
-                onClick={() => {
-                  if (onInputPathologyResult) {
-                    onInputPathologyResult({
-                      findings: pathologyFindings,
-                      recommendations: pathologyRecommendations,
-                    });
+            ) : (
+              <div className="space-y-4 py-8 text-center">
+                <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500" />
+                <h3 className="text-lg font-semibold">분석 결과가 없습니다</h3>
+                <p className="text-sm text-gray-600">
+                  병리 이미지 분석을 먼저 완료해주세요.
+                </p>
+                <Button
+                  onClick={() => {
                     setShowPathologyInputDialog(false);
-                    setPathologyFindings('');
-                    setPathologyRecommendations('');
-                  }
-                }}
-                disabled={isInputtingPathologyResult}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {isInputtingPathologyResult ? "전달 중..." : "완료 전달"}
-              </Button>
-            </div>
+                    navigate('/pathology-analysis');
+                  }}
+                  className="mt-4"
+                >
+                  병리 이미지 분석 페이지로 이동
+                </Button>
+              </div>
+            )}
+            {selectedOrderForPathology.pathology_analysis && (
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => {
+                  setShowPathologyInputDialog(false);
+                  setPathologyFindings('');
+                  setPathologyRecommendations('');
+                  setSelectedOrderForPathology(null);
+                }}>
+                  취소
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (onInputPathologyResult && selectedOrderForPathology) {
+                      onInputPathologyResult({
+                        findings: pathologyFindings,
+                        recommendations: pathologyRecommendations,
+                      });
+                      setShowPathologyInputDialog(false);
+                      setPathologyFindings('');
+                      setPathologyRecommendations('');
+                      setSelectedOrderForPathology(null);
+                    }
+                  }}
+                  disabled={isInputtingPathologyResult}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {isInputtingPathologyResult ? "전달 중..." : "완료 전달"}
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}
