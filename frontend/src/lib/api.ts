@@ -277,6 +277,14 @@ export const inputLabResultApi = async (orderId: string, data: {
   return res.data;
 };
 
+export const inputPathologyResultApi = async (orderId: string, data: {
+  findings?: string;
+  recommendations?: string;
+}) => {
+  const res = await apiClient.post(`/api/ocs/orders/${orderId}/input_pathology_result/`, data);
+  return res.data;
+};
+
 // 약물 검색 및 상호작용 검사 API
 export interface Drug {
   item_seq: string;

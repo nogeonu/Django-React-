@@ -673,7 +673,8 @@ def fail_task(request):
 @permission_classes([IsAuthenticated])
 def save_pathology_result(request):
     """
-    병리 분석 결과를 OCS Order에 저장하고 의사에게 알림 전송
+    병리 분석 결과를 OCS Order에 저장 (알림 없이, 상태 변경 없이)
+    검사실에서 결과 입력 및 전달은 input_pathology_result API 사용
     
     Request Body:
         {
@@ -689,7 +690,7 @@ def save_pathology_result(request):
         }
     """
     try:
-        if not PathologyAnalysisResult or not Order or not Notification:
+        if not PathologyAnalysisResult or not Order:
             return Response(
                 {'error': 'OCS 모델을 불러올 수 없습니다'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -705,7 +706,7 @@ def save_pathology_result(request):
         except Order.DoesNotExist:
             return Response({'error': '주문을 찾을 수 없습니다'}, status=status.HTTP_404_NOT_FOUND)
         
-        # 이미 분석 결과가 있으면 업데이트, 없으면 생성
+        # 이미 분석 결과가 있으면 업데이트, 없으면 생성 (알림 없이, 상태 변경 없이)
         pathology_analysis, created = PathologyAnalysisResult.objects.update_or_create(
             order=order,
             defaults={
@@ -721,24 +722,10 @@ def save_pathology_result(request):
             }
         )
         
-        # Order 상태를 completed로 변경
-        if order.status != 'completed':
-            order.status = 'completed'
-            order.completed_at = timezone.now()
-            order.save()
+        # 주문 상태는 변경하지 않음 (검사실에서 결과 입력 시 변경)
+        # 알림도 보내지 않음 (검사실에서 전달 시 보냄)
         
-        # 주문을 생성한 의사에게 알림 전송 (새로 생성된 경우에만)
-        if order.doctor and created:
-            Notification.objects.create(
-                user=order.doctor,
-                notification_type='pathology_completed',
-                title='병리 분석 완료',
-                message=f'{order.patient.name}님의 병리 분석이 완료되었습니다. 결과: {pathology_analysis.class_name} (신뢰도: {pathology_analysis.confidence*100:.1f}%)',
-                related_order=order
-            )
-            logger.info(f"✅ 병리 분석 완료 알림 전송: order_id={order_id}, doctor={order.doctor.username}")
-        
-        logger.info(f"✅ 병리 분석 결과 저장 완료: order_id={order_id}, class_name={request.data.get('class_name')}")
+        logger.info(f"✅ 병리 분석 결과 저장 완료 (알림 없음): order_id={order_id}, class_name={request.data.get('class_name')}")
         
         return Response({
             'success': True,

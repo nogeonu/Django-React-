@@ -344,6 +344,74 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=True, methods=['post'])
+    def input_pathology_result(self, request, pk=None):
+        """병리 분석 결과 입력 및 전달 (검사실용)"""
+        order = self.get_object()
+        
+        # 조직검사 주문인지 확인
+        if order.order_type != 'tissue_exam':
+            return Response(
+                {'error': '조직검사 주문만 결과를 입력할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 검사실만 결과 입력 가능
+        user = request.user
+        user_department = get_department(user.id) if user else None
+        
+        if user_department != "검사실":
+            raise PermissionDenied("검사실만 병리 분석 결과를 입력할 수 있습니다.")
+        
+        # 처리 중 상태인지 확인
+        if order.status != 'processing':
+            return Response(
+                {'error': '처리 중인 주문만 결과를 입력할 수 있습니다. 먼저 처리 시작을 해주세요.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 병리 분석 결과가 있는지 확인
+        if not hasattr(order, 'pathology_analysis') or not order.pathology_analysis:
+            return Response(
+                {'error': '병리 분석 결과가 없습니다. 먼저 병리이미지분석 페이지에서 분석을 완료해주세요.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # 병리 분석 결과 업데이트 (메모 추가)
+            pathology_result = order.pathology_analysis
+            pathology_result.findings = request.data.get('findings', pathology_result.findings)
+            pathology_result.recommendations = request.data.get('recommendations', pathology_result.recommendations)
+            pathology_result.analyzed_by = user  # 검사한 사람으로 업데이트
+            pathology_result.save()
+            
+            # 주문 상태를 완료로 변경
+            update_order_status(order, 'completed', user, '병리 분석 결과 입력 완료')
+            order.completed_at = timezone.now()
+            order.save()
+            
+            # 의사에게 알림 전송
+            from .services import create_notification
+            create_notification(
+                user=order.doctor,
+                notification_type='pathology_completed',
+                title='병리 분석 결과 입력 완료',
+                message=f'{order.patient.name}님의 병리 분석 결과가 입력되었습니다. 결과: {pathology_result.class_name} (신뢰도: {pathology_result.confidence*100:.1f}%)',
+                related_order=order
+            )
+            
+            logger.info(f"Pathology result input for order {order.id} by {user}")
+            
+            serializer = PathologyAnalysisResultSerializer(pathology_result)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Pathology result input failed: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'병리 분석 결과 입력 중 오류가 발생했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=True, methods=['get'])
     def download_prescription_pdf(self, request, pk=None):
         """처방전 PDF 다운로드 (원무과용)"""
