@@ -1,5 +1,5 @@
-# CDSS (Clinical Decision Support System) 최종 발표 PPT 구성안
-## 차세대 지능형 의료지원 시스템 구축 프로젝트
+# AI 기반 유방암 의료지원 플랫폼 (CDSS) 구축 - 최종 발표 PPT 구성안
+## 차세대 지능형 임상 의사결정 지원 시스템
 ### 부트캠프 최종 프로젝트 발표용
 
 **총 슬라이드 수**: 42장  
@@ -27,12 +27,13 @@
 ## 📑 슬라이드별 상세 내용
 
 ### 슬라이드 1: 표지
-**제목**: CDSS (Clinical Decision Support System)  
-**부제**: 차세대 지능형 의료지원 시스템 구축 프로젝트  
+**제목**: AI 기반 유방암 의료지원 플랫폼 (CDSS) 구축  
+**부제**: 차세대 지능형 임상 의사결정 지원 시스템  
 **부트캠프 최종 프로젝트**
 
 **내용**:
-- **프로젝트명**: CDSS - Clinical Decision Support System
+- **프로젝트명**: AI 기반 유방암 의료지원 플랫폼 (CDSS)
+- **영문명**: AI-based Breast Cancer Clinical Decision Support System
 - **목적**: AI 기반 의료진 의사결정 지원 및 통합 의료 정보 시스템 구축
 - **프로젝트 기간**: 약 5-6주
 - **기술 스택**: Django, React, PyTorch, GCP, MSA Architecture
@@ -104,7 +105,8 @@
 **제목**: 프로젝트 개요
 
 **프로젝트 정보**:
-- **프로젝트명**: CDSS (Clinical Decision Support System)
+- **프로젝트명**: AI 기반 유방암 의료지원 플랫폼 (CDSS)
+- **영문명**: AI-based Breast Cancer Clinical Decision Support System
 - **아키텍처**: MSA (Microservices Architecture) 기반
 - **개발 기간**: 약 5-6주
 - **배포 환경**: GCP (Google Cloud Platform)

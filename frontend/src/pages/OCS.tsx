@@ -831,15 +831,15 @@ function OrderCard({
 
   // 병리 결과 입력 다이얼로그 열 때 기존 결과 로드
   useEffect(() => {
-    if (showPathologyInputDialog && order.pathology_analysis) {
-      setPathologyFindings(order.pathology_analysis.findings || '');
-      setPathologyRecommendations(order.pathology_analysis.recommendations || '');
+    if (showPathologyInputDialog && selectedOrderForPathology?.pathology_analysis) {
+      setPathologyFindings(selectedOrderForPathology.pathology_analysis.findings || '');
+      setPathologyRecommendations(selectedOrderForPathology.pathology_analysis.recommendations || '');
     } else if (showPathologyInputDialog) {
       // 새로 입력하는 경우 초기화
       setPathologyFindings('');
       setPathologyRecommendations('');
     }
-  }, [showPathologyInputDialog, order.pathology_analysis]);
+  }, [showPathologyInputDialog, selectedOrderForPathology]);
 
   const [heatmapImages, setHeatmapImages] = useState<File[]>([]);  // 여러 이미지 지원
   const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map());  // instanceId -> previewUrl
@@ -1369,13 +1369,29 @@ function OrderCard({
              order.status === "processing" && 
              user?.department === "검사실" && (
               <Button
-                onClick={() => {
-                  // 병리 분석 결과가 있으면 입력 다이얼로그 열기, 없으면 병리이미지분석 페이지로 이동
-                  if (order.pathology_analysis) {
-                    setShowPathologyInputDialog(true);
-                    setSelectedOrderForPathology(order);
-                  } else {
-                    // 분석 페이지로 이동
+                onClick={async () => {
+                  // 주문 상세 정보를 다시 가져와서 pathology_analysis 확인
+                  try {
+                    const response = await fetch(`/api/ocs/orders/${order.id}/`, {
+                      credentials: 'include',
+                    });
+                    if (response.ok) {
+                      const orderDetail = await response.json();
+                      if (orderDetail.pathology_analysis) {
+                        // 병리 분석 결과가 있으면 입력 다이얼로그 열기
+                        setSelectedOrderForPathology(orderDetail);
+                        setShowPathologyInputDialog(true);
+                      } else {
+                        // 분석 결과가 없으면 병리이미지분석 페이지로 이동
+                        navigate('/pathology-analysis');
+                      }
+                    } else {
+                      // API 오류 시 병리이미지분석 페이지로 이동
+                      navigate('/pathology-analysis');
+                    }
+                  } catch (error) {
+                    console.error('주문 상세 조회 실패:', error);
+                    // 오류 시 병리이미지분석 페이지로 이동
                     navigate('/pathology-analysis');
                   }
                 }}
@@ -1384,7 +1400,7 @@ function OrderCard({
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 <Scan className="mr-2 h-4 w-4" />
-                {order.pathology_analysis ? '결과 입력 및 전달' : '분석 결과 입력'}
+                결과 입력 및 전달
               </Button>
             )}
             {/* 검사실: completed 상태에서 결과만 보기 */}
@@ -1708,13 +1724,13 @@ function OrderCard({
       {/* 검사 결과 입력 다이얼로그 */}
       
       {/* 병리 분석 결과 입력 다이얼로그 (검사실용) */}
-      {showPathologyInputDialog && order.pathology_analysis && (
+      {showPathologyInputDialog && selectedOrderForPathology && selectedOrderForPathology.pathology_analysis && (
         <Dialog open={showPathologyInputDialog} onOpenChange={setShowPathologyInputDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>병리 분석 결과 입력 및 전달</DialogTitle>
               <DialogDescription>
-                {order.patient_name}님의 병리 분석 결과를 확인하고 메모를 추가한 후 의사에게 전달하세요.
+                {selectedOrderForPathology.patient_name}님의 병리 분석 결과를 확인하고 메모를 추가한 후 의사에게 전달하세요.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6">
@@ -1723,18 +1739,18 @@ function OrderCard({
                 <h3 className="font-semibold mb-4">AI 분석 결과</h3>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Badge variant={order.pathology_analysis.class_name === 'Tumor' ? 'destructive' : 'default'} className="text-lg px-4 py-2">
-                      {order.pathology_analysis.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
+                    <Badge variant={selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? 'destructive' : 'default'} className="text-lg px-4 py-2">
+                      {selectedOrderForPathology.pathology_analysis.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
                     </Badge>
                     <span className="text-sm text-gray-600">
-                      신뢰도: {(order.pathology_analysis.confidence * 100).toFixed(2)}%
+                      신뢰도: {(selectedOrderForPathology.pathology_analysis.confidence * 100).toFixed(2)}%
                     </span>
                   </div>
                   
                   <div>
                     <Label>클래스별 확률</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      {Object.entries(order.pathology_analysis.probabilities).map(([className, prob]: [string, any]) => (
+                      {Object.entries(selectedOrderForPathology.pathology_analysis.probabilities).map(([className, prob]: [string, any]) => (
                         <div key={className} className="bg-white p-2 rounded">
                           <div className="text-sm font-medium">{className}</div>
                           <div className="text-lg font-bold">{(prob * 100).toFixed(2)}%</div>
@@ -1743,12 +1759,12 @@ function OrderCard({
                     </div>
                   </div>
 
-                  {order.pathology_analysis.image_url && (
+                  {selectedOrderForPathology.pathology_analysis.image_url && (
                     <div>
                       <Label>분석 이미지</Label>
                       <div className="mt-2">
                         <img 
-                          src={order.pathology_analysis.image_url} 
+                          src={selectedOrderForPathology.pathology_analysis.image_url} 
                           alt="병리 이미지"
                           className="max-w-full rounded border"
                         />
