@@ -667,3 +667,86 @@ def fail_task(request):
         logger.error(f"❌ 실패 처리 실패: {str(e)}", exc_info=True)
         return Response({'error': str(e)}, status=500)
 
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def save_pathology_result(request):
+    """
+    병리 분석 결과를 OCS Order에 저장하고 의사에게 알림 전송
+    
+    Request Body:
+        {
+            "order_id": "uuid",
+            "class_id": 1,
+            "class_name": "Tumor",
+            "confidence": 0.95,
+            "probabilities": {"Normal": 0.05, "Tumor": 0.95},
+            "filename": "tumor_083.tif",
+            "image_url": "/media/pathology_results/...",
+            "findings": "종양 조직이 관찰됨",
+            "recommendations": "추가 검사 권장"
+        }
+    """
+    try:
+        if not PathologyAnalysisResult or not Order or not Notification:
+            return Response(
+                {'error': 'OCS 모델을 불러올 수 없습니다'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        order_id = request.data.get('order_id')
+        if not order_id:
+            return Response({'error': 'order_id가 필요합니다'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Order 확인
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({'error': '주문을 찾을 수 없습니다'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # 이미 분석 결과가 있으면 업데이트, 없으면 생성
+        pathology_analysis, created = PathologyAnalysisResult.objects.update_or_create(
+            order=order,
+            defaults={
+                'analyzed_by': request.user,
+                'class_id': request.data.get('class_id'),
+                'class_name': request.data.get('class_name'),
+                'confidence': request.data.get('confidence'),
+                'probabilities': request.data.get('probabilities', {}),
+                'filename': request.data.get('filename', ''),
+                'image_url': request.data.get('image_url', ''),
+                'findings': request.data.get('findings', ''),
+                'recommendations': request.data.get('recommendations', ''),
+            }
+        )
+        
+        # Order 상태를 completed로 변경
+        if order.status != 'completed':
+            order.status = 'completed'
+            order.completed_at = timezone.now()
+            order.save()
+        
+        # 주문을 생성한 의사에게 알림 전송 (새로 생성된 경우에만)
+        if order.doctor and created:
+            Notification.objects.create(
+                user=order.doctor,
+                notification_type='pathology_completed',
+                title='병리 분석 완료',
+                message=f'{order.patient.name}님의 병리 분석이 완료되었습니다. 결과: {pathology_analysis.class_name} (신뢰도: {pathology_analysis.confidence*100:.1f}%)',
+                related_order=order
+            )
+            logger.info(f"✅ 병리 분석 완료 알림 전송: order_id={order_id}, doctor={order.doctor.username}")
+        
+        logger.info(f"✅ 병리 분석 결과 저장 완료: order_id={order_id}, class_name={request.data.get('class_name')}")
+        
+        return Response({
+            'success': True,
+            'message': '분석 결과가 저장되었습니다',
+            'created': created,
+            'analysis_id': str(pathology_analysis.id)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 병리 분석 결과 저장 실패: {str(e)}", exc_info=True)
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
