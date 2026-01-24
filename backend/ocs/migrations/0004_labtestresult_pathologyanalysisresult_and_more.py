@@ -61,66 +61,7 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
             },
         ),
-        migrations.RenameIndex(
-            model_name='notification',
-            new_name='ocs_notific_user_id_916063_idx',
-            old_name='ocs_notific_user_id_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='notification',
-            new_name='ocs_notific_user_id_5f6483_idx',
-            old_name='ocs_notific_user_cr_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='notification',
-            new_name='ocs_notific_notific_c3a3d9_idx',
-            old_name='ocs_notific_type_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='order',
-            new_name='ocs_order_patient_4124cc_idx',
-            old_name='ocs_order_patient_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='order',
-            new_name='ocs_order_doctor__cd300e_idx',
-            old_name='ocs_order_doctor_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='order',
-            new_name='ocs_order_target__efe302_idx',
-            old_name='ocs_order_target_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='order',
-            new_name='ocs_order_priorit_0fa20a_idx',
-            old_name='ocs_order_priority_idx',
-        ),
-        migrations.AlterField(
-            model_name='allergycheck',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-        ),
-        migrations.AlterField(
-            model_name='druginteractioncheck',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-        ),
-        migrations.AlterField(
-            model_name='imaginganalysisresult',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-        ),
-        migrations.AlterField(
-            model_name='notification',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-        ),
-        migrations.AlterField(
-            model_name='order',
-            name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
-        ),
+        # RenameIndex, AlterField 제거: DB에 인덱스/스키마가 이미 다를 수 있음
         migrations.AddField(
             model_name='pathologyanalysisresult',
             name='analyzed_by',
@@ -131,5 +72,4 @@ class Migration(migrations.Migration):
             name='order',
             field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='pathology_analysis', to='ocs.order', verbose_name='주문'),
         ),
-        # LabTestResult의 input_by와 order 필드는 이미 위에서 CreateModel에 포함됨
     ]
