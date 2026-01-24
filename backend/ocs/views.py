@@ -16,12 +16,13 @@ from datetime import timedelta
 import requests
 import logging
 
-from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult, PathologyAnalysisResult
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderListSerializer,
     OrderStatusHistorySerializer, DrugInteractionCheckSerializer, AllergyCheckSerializer,
     NotificationSerializer, ImagingAnalysisResultSerializer, ImagingAnalysisResultCreateSerializer,
-    LabTestResultSerializer, LabTestResultCreateSerializer
+    LabTestResultSerializer, LabTestResultCreateSerializer,
+    PathologyAnalysisResultSerializer, PathologyAnalysisResultCreateSerializer
 )
 from .services import validate_order, update_order_status, check_drug_interactions, check_allergies, create_imaging_analysis_result
 from eventeye.doctor_utils import get_department
@@ -36,7 +37,7 @@ DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://127.0.0.1:8002
 
 class OrderViewSet(viewsets.ModelViewSet):
     """OCS 주문 관리 ViewSet"""
-    queryset = Order.objects.select_related('patient', 'doctor', 'imaging_analysis').prefetch_related(
+    queryset = Order.objects.select_related('patient', 'doctor', 'imaging_analysis', 'pathology_analysis').prefetch_related(
         'status_history', 'drug_interaction_checks', 'allergy_checks'
     ).all()
     authentication_classes = [SessionAuthentication]
@@ -994,6 +995,50 @@ class ImagingAnalysisResultViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': f'분석 데이터를 가져오는데 실패했습니다: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PathologyAnalysisResultViewSet(viewsets.ModelViewSet):
+    """병리 분석 결과 ViewSet"""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'analyzed_by']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """권한별로 필터링"""
+        queryset = PathologyAnalysisResult.objects.select_related(
+            'order', 'order__patient', 'order__doctor', 'analyzed_by'
+        ).all()
+        
+        user = self.request.user
+        user_department = get_department(user.id) if user else None
+        
+        # 검사실은 자신이 분석한 결과만
+        if user_department == "검사실":
+            queryset = queryset.filter(analyzed_by=user)
+        # 의사는 자신이 생성한 주문의 분석 결과만
+        elif user_department in ["외과", "호흡기내과"]:
+            queryset = queryset.filter(order__doctor=user)
+        # 원무과는 모든 결과 조회 가능
+        elif user_department == "원무과" or user.is_superuser:
+            pass  # 모든 결과
+        else:
+            queryset = queryset.filter(order__doctor=user)
+        
+        return queryset
+    
+    def get_serializer_class(self):
+        """액션별로 다른 Serializer 사용"""
+        if self.action == 'create':
+            return PathologyAnalysisResultCreateSerializer
+        return PathologyAnalysisResultSerializer
+    
+    def perform_create(self, serializer):
+        """병리 분석 결과 생성 시 분석자 자동 설정"""
+        serializer.save(analyzed_by=self.request.user)
 
 
 # 약물 검색 및 상호작용 검사 API

@@ -95,6 +95,34 @@ export default function PathologyAnalysis() {
           setAnalysisResult(data.result);
           setPendingRequestId(null);
           
+          // 분석 결과를 OCS Order에 저장
+          if (selectedOrder) {
+            try {
+              await fetch('/api/mri/pathology/save-result/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  order_id: selectedOrder.id,
+                  class_id: data.result.class_id,
+                  class_name: data.result.class_name,
+                  confidence: data.result.confidence,
+                  probabilities: data.result.probabilities,
+                  filename: selectedFilename,
+                  image_url: data.result.image_url || '',
+                  findings: data.result.class_name === 'Tumor' ? '종양 조직이 관찰되었습니다.' : '정상 조직입니다.',
+                  recommendations: data.result.class_name === 'Tumor' ? '추가 검사 및 치료 계획 수립이 필요합니다.' : '정기 검진을 권장합니다.',
+                }),
+              });
+              console.log('✅ 분석 결과 저장 완료');
+            } catch (saveError) {
+              console.error('분석 결과 저장 실패:', saveError);
+              // 저장 실패해도 분석 결과는 표시
+            }
+          }
+          
           toast({
             title: "분석 완료!",
             description: `결과: ${data.result.class_name} (신뢰도: ${(data.result.confidence * 100).toFixed(2)}%)`,

@@ -55,6 +55,7 @@ urlpatterns = [
     # 병리 이미지 AI 분석 API
     path('pathology/analyze/', csrf_exempt(pathology_views.pathology_ai_analysis), name='analyze-pathology'),
     path('pathology/health/', pathology_views.pathology_ai_health, name='pathology-health'),
+    path('pathology/save-result/', pathology_views.save_pathology_result, name='save-pathology-result'),
     
     # 병리 이미지 업로드 API
     path('pathology/upload/', csrf_exempt(pathology_upload_views.upload_pathology_image), name='upload-pathology'),

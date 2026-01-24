@@ -14,7 +14,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 # CSRF 체크를 건너뛰는 커스텀 인증 클래스
 class CSRFExemptSessionAuthentication(SessionAuthentication):
@@ -28,6 +28,14 @@ PATHOLOGY_MOSEC_URL = os.getenv('PATHOLOGY_MOSEC_URL', 'http://127.0.0.1:5008/in
 
 # 교육원 컴퓨터 추론 요청 디렉토리
 PATHOLOGY_REQUEST_DIR = Path(os.getenv('PATHOLOGY_INFERENCE_REQUEST_DIR', '/tmp/pathology_inference_requests'))
+
+# OCS 모델 import (병리 분석 결과 저장용)
+try:
+    from ocs.models import PathologyAnalysisResult, Order
+except ImportError:
+    PathologyAnalysisResult = None
+    Order = None
+    logger.warning("OCS 모델을 불러올 수 없습니다. 병리 분석 결과 저장 기능이 비활성화됩니다.")
 
 
 

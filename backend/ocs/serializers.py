@@ -2,7 +2,7 @@
 OCS Serializers
 """
 from rest_framework import serializers
-from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult
+from .models import Order, OrderStatusHistory, DrugInteractionCheck, AllergyCheck, Notification, ImagingAnalysisResult, LabTestResult, PathologyAnalysisResult
 from patients.models import Patient
 
 
@@ -53,6 +53,9 @@ class OrderSerializer(serializers.ModelSerializer):
     # 영상 분석 결과 (영상촬영 주문인 경우)
     imaging_analysis = serializers.SerializerMethodField()
     
+    # 병리 분석 결과 (조직검사 주문인 경우)
+    pathology_analysis = serializers.SerializerMethodField()
+    
     class Meta:
         model = Order
         fields = [
@@ -63,7 +66,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'completed_at',
             'status_history', 'drug_interaction_checks', 'allergy_checks',
             'imaging_analysis',
-            'lab_test_result'
+            'lab_test_result',
+            'pathology_analysis'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
     
@@ -79,6 +83,17 @@ class OrderSerializer(serializers.ModelSerializer):
             try:
                 if hasattr(obj, 'lab_test_result') and obj.lab_test_result:
                     return LabTestResultSerializer(obj.lab_test_result).data
+            except Exception:
+                # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
+                pass
+        return None
+    
+    def get_pathology_analysis(self, obj):
+        """병리 분석 결과 가져오기"""
+        if obj.order_type == 'tissue_exam':
+            try:
+                if hasattr(obj, 'pathology_analysis') and obj.pathology_analysis:
+                    return PathologyAnalysisResultSerializer(obj.pathology_analysis).data
             except Exception:
                 # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
                 pass
@@ -415,4 +430,33 @@ class LabTestResultCreateSerializer(serializers.ModelSerializer):
         fields = [
             'order', 'test_results', 'ai_findings', 'ai_confidence_score',
             'ai_report_image', 'ai_prediction', 'notes'
+        ]
+
+
+class PathologyAnalysisResultSerializer(serializers.ModelSerializer):
+    """병리 분석 결과 Serializer"""
+    analyzed_by_name = serializers.CharField(source='analyzed_by.get_full_name', read_only=True)
+    order_patient_name = serializers.CharField(source='order.patient.name', read_only=True)
+    order_patient_id = serializers.CharField(source='order.patient.patient_id', read_only=True)
+    
+    class Meta:
+        model = PathologyAnalysisResult
+        fields = [
+            'id', 'order', 'analyzed_by', 'analyzed_by_name',
+            'order_patient_name', 'order_patient_id',
+            'class_id', 'class_name', 'confidence', 'probabilities',
+            'filename', 'image_url', 'findings', 'recommendations',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PathologyAnalysisResultCreateSerializer(serializers.ModelSerializer):
+    """병리 분석 결과 생성 Serializer"""
+    
+    class Meta:
+        model = PathologyAnalysisResult
+        fields = [
+            'order', 'class_id', 'class_name', 'confidence', 'probabilities',
+            'filename', 'image_url', 'findings', 'recommendations'
         ]

@@ -298,3 +298,47 @@ class LabTestResult(models.Model):
     
     def __str__(self):
         return f"{self.order.patient.name} - {self.order.get_order_type_display()} 검사 결과"
+
+
+class PathologyAnalysisResult(models.Model):
+    """병리 이미지 분석 결과 (조직검사)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='pathology_analysis',
+        verbose_name='주문'
+    )
+    analyzed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pathology_analyses',
+        verbose_name='분석자'
+    )
+    # 분석 결과
+    class_id = models.IntegerField(verbose_name='클래스 ID')  # 0: Normal, 1: Tumor
+    class_name = models.CharField(max_length=50, verbose_name='클래스 이름')  # 'Normal' or 'Tumor'
+    confidence = models.FloatField(verbose_name='신뢰도')  # 0.0 ~ 1.0
+    probabilities = models.JSONField(default=dict, verbose_name='클래스별 확률')  # {"Normal": 0.2, "Tumor": 0.8}
+    
+    # 원본 이미지 정보
+    filename = models.CharField(max_length=500, verbose_name='파일명')
+    image_url = models.TextField(blank=True, verbose_name='이미지 URL')
+    
+    # 추가 소견
+    findings = models.TextField(blank=True, verbose_name='소견')
+    recommendations = models.TextField(blank=True, verbose_name='권고사항')
+    
+    # 메타데이터
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='분석일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일')
+    
+    class Meta:
+        verbose_name = '병리 분석 결과'
+        verbose_name_plural = '병리 분석 결과들'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.order.patient.name} - 병리 분석 ({self.class_name})"
