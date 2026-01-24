@@ -62,10 +62,6 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
             },
         ),
-        migrations.RunPython(
-            create_labtestresult_if_not_exists,
-            reverse_create_labtestresult,
-        ),
         migrations.CreateModel(
             name='PathologyAnalysisResult',
             fields=[
