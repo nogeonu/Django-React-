@@ -775,6 +775,8 @@ function OrderCard({
   onViewAnalysis,
   onInputLabResult,
   isInputtingLabResult,
+  onInputPathologyResult,
+  isInputtingPathologyResult,
 }: {
   order: Order;
   user: any;
