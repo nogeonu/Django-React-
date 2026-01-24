@@ -1347,6 +1347,25 @@ function OrderCard({
                 {order.pathology_analysis ? '분석 결과 보기' : '분석 결과 입력'}
               </Button>
             )}
+            {/* 의사: 병리 분석 결과 조회 (completed 상태이고 결과가 있을 때) */}
+            {order.order_type === "tissue_exam" && 
+             order.status === "completed" && 
+             order.pathology_analysis &&
+             user?.department !== "검사실" && 
+             user?.department !== "원무과" && (
+              <Button
+                onClick={() => {
+                  setShowPathologyResultDialog(true);
+                  setSelectedOrderForPathology(order);
+                }}
+                size="sm"
+                variant="default"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                병리 결과 확인
+              </Button>
+            )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
             {order.order_type === "imaging" && 
              (order.status === "processing" || order.status === "completed") && 

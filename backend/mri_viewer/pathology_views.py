@@ -31,10 +31,11 @@ PATHOLOGY_REQUEST_DIR = Path(os.getenv('PATHOLOGY_INFERENCE_REQUEST_DIR', '/tmp/
 
 # OCS 모델 import (병리 분석 결과 저장용)
 try:
-    from ocs.models import PathologyAnalysisResult, Order
+    from ocs.models import PathologyAnalysisResult, Order, Notification
 except ImportError:
     PathologyAnalysisResult = None
     Order = None
+    Notification = None
     logger.warning("OCS 모델을 불러올 수 없습니다. 병리 분석 결과 저장 기능이 비활성화됩니다.")
 
 

@@ -1037,8 +1037,36 @@ class PathologyAnalysisResultViewSet(viewsets.ModelViewSet):
         return PathologyAnalysisResultSerializer
     
     def perform_create(self, serializer):
-        """병리 분석 결과 생성 시 분석자 자동 설정"""
-        serializer.save(analyzed_by=self.request.user)
+        """병리 분석 결과 생성 시 분석자 자동 설정 및 의사에게 알림"""
+        order = serializer.validated_data['order']
+        
+        # 검사실만 분석 결과 생성 가능
+        user = self.request.user
+        user_department = get_department(user.id) if user else None
+        
+        if user_department != "검사실" and not user.is_superuser:
+            raise PermissionDenied("검사실만 병리 분석 결과를 입력할 수 있습니다.")
+        
+        # 분석 결과 저장
+        pathology_result = serializer.save(analyzed_by=user)
+        
+        # 주문을 생성한 의사에게 알림 전송
+        if order.doctor:
+            Notification.objects.create(
+                user=order.doctor,
+                notification_type='pathology_completed',
+                title='병리 분석 완료',
+                message=f'{order.patient.name}님의 병리 분석이 완료되었습니다. 결과: {pathology_result.class_name}',
+                related_order=order
+            )
+            logger.info(f"병리 분석 완료 알림 전송: order={order.id}, doctor={order.doctor.username}")
+        
+        # 주문 상태를 completed로 변경
+        if order.status != 'completed':
+            order.status = 'completed'
+            order.completed_at = timezone.now()
+            order.save()
+            logger.info(f"주문 상태 변경: order={order.id}, status=completed")
 
 
 # 약물 검색 및 상호작용 검사 API
