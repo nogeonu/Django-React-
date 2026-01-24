@@ -40,36 +40,32 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
-        migrations.CreateModel(
-            name='PathologyAnalysisResult',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('class_id', models.IntegerField(verbose_name='클래스 ID')),
-                ('class_name', models.CharField(max_length=50, verbose_name='클래스 이름')),
-                ('confidence', models.FloatField(verbose_name='신뢰도')),
-                ('probabilities', models.JSONField(default=dict, verbose_name='클래스별 확률')),
-                ('filename', models.CharField(max_length=500, verbose_name='파일명')),
-                ('image_url', models.TextField(blank=True, verbose_name='이미지 URL')),
-                ('findings', models.TextField(blank=True, verbose_name='소견')),
-                ('recommendations', models.TextField(blank=True, verbose_name='권고사항')),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='분석일')),
-                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='수정일')),
+        # PathologyAnalysisResult도 이미 존재하므로 Django 상태만 업데이트 (데이터베이스 작업 없음)
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.CreateModel(
+                    name='PathologyAnalysisResult',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('class_id', models.IntegerField(verbose_name='클래스 ID')),
+                        ('class_name', models.CharField(max_length=50, verbose_name='클래스 이름')),
+                        ('confidence', models.FloatField(verbose_name='신뢰도')),
+                        ('probabilities', models.JSONField(default=dict, verbose_name='클래스별 확률')),
+                        ('filename', models.CharField(max_length=500, verbose_name='파일명')),
+                        ('image_url', models.TextField(blank=True, verbose_name='이미지 URL')),
+                        ('findings', models.TextField(blank=True, verbose_name='소견')),
+                        ('recommendations', models.TextField(blank=True, verbose_name='권고사항')),
+                        ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='분석일')),
+                        ('updated_at', models.DateTimeField(auto_now=True, verbose_name='수정일')),
+                        ('analyzed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='pathology_analyses', to=settings.AUTH_USER_MODEL, verbose_name='분석자')),
+                        ('order', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='pathology_analysis', to='ocs.order', verbose_name='주문')),
+                    ],
+                    options={
+                        'verbose_name': '병리 분석 결과',
+                        'verbose_name_plural': '병리 분석 결과들',
+                        'ordering': ['-created_at'],
+                    },
+                ),
             ],
-            options={
-                'verbose_name': '병리 분석 결과',
-                'verbose_name_plural': '병리 분석 결과들',
-                'ordering': ['-created_at'],
-            },
-        ),
-        # RenameIndex, AlterField 제거: DB에 인덱스/스키마가 이미 다를 수 있음
-        migrations.AddField(
-            model_name='pathologyanalysisresult',
-            name='analyzed_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='pathology_analyses', to=settings.AUTH_USER_MODEL, verbose_name='분석자'),
-        ),
-        migrations.AddField(
-            model_name='pathologyanalysisresult',
-            name='order',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='pathology_analysis', to='ocs.order', verbose_name='주문'),
         ),
     ]
