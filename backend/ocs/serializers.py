@@ -92,10 +92,21 @@ class OrderSerializer(serializers.ModelSerializer):
         """병리 분석 결과 가져오기"""
         if obj.order_type == 'tissue_exam':
             try:
-                if hasattr(obj, 'pathology_analysis') and obj.pathology_analysis:
-                    return PathologyAnalysisResultSerializer(obj.pathology_analysis).data
-            except Exception:
+                # 관계가 있는지 확인 (select_related 없이도 작동하도록)
+                if hasattr(obj, 'pathology_analysis'):
+                    # 관계 접근 시도 (없으면 None 반환)
+                    try:
+                        pathology = obj.pathology_analysis
+                        if pathology:
+                            return PathologyAnalysisResultSerializer(pathology).data
+                    except Exception:
+                        # 관계가 없거나 접근 불가
+                        pass
+            except Exception as e:
                 # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Pathology analysis serialization error: {str(e)}")
                 pass
         return None
     

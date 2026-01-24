@@ -37,7 +37,7 @@ DRUG_API_BASE_URL = getattr(settings, 'FASTAPI_BASE_URL', 'http://127.0.0.1:8002
 
 class OrderViewSet(viewsets.ModelViewSet):
     """OCS 주문 관리 ViewSet"""
-    queryset = Order.objects.select_related('patient', 'doctor', 'imaging_analysis', 'pathology_analysis').prefetch_related(
+    queryset = Order.objects.select_related('patient', 'doctor', 'imaging_analysis').prefetch_related(
         'status_history', 'drug_interaction_checks', 'allergy_checks'
     ).all()
     authentication_classes = [SessionAuthentication]
