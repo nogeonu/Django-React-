@@ -6,34 +6,6 @@ import django.db.models.deletion
 import uuid
 
 
-def check_table_exists(table_name):
-    """테이블이 존재하는지 확인"""
-    with connection.cursor() as cursor:
-        db_name = connection.settings_dict['NAME']
-        cursor.execute("""
-            SELECT COUNT(*) 
-            FROM information_schema.tables 
-            WHERE table_schema = %s 
-            AND table_name = %s
-        """, [db_name, table_name])
-        return cursor.fetchone()[0] > 0
-
-
-def create_labtestresult_if_not_exists(apps, schema_editor):
-    """LabTestResult 테이블이 없으면 생성 (이미 존재하면 스킵)"""
-    if not check_table_exists('ocs_labtestresult'):
-        # 테이블이 없으면 Django 마이그레이션으로 생성
-        LabTestResult = apps.get_model('ocs', 'LabTestResult')
-        schema_editor.create_model(LabTestResult)
-
-
-def reverse_create_labtestresult(apps, schema_editor):
-    """LabTestResult 테이블 삭제"""
-    if check_table_exists('ocs_labtestresult'):
-        LabTestResult = apps.get_model('ocs', 'LabTestResult')
-        schema_editor.delete_model(LabTestResult)
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -42,25 +14,31 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # LabTestResult 모델 정의 (테이블이 없을 때만 생성)
-        migrations.CreateModel(
-            name='LabTestResult',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('test_results', models.JSONField(default=dict, verbose_name='검사 결과 데이터')),
-                ('ai_findings', models.TextField(blank=True, verbose_name='AI 소견')),
-                ('ai_confidence_score', models.FloatField(blank=True, null=True, verbose_name='AI 신뢰도')),
-                ('ai_report_image', models.TextField(blank=True, verbose_name='AI 임상 리포트 이미지 (base64)')),
-                ('ai_prediction', models.CharField(blank=True, max_length=50, verbose_name='AI 예측 결과')),
-                ('notes', models.TextField(blank=True, verbose_name='추가 메모')),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='입력일')),
-                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='수정일')),
+        # LabTestResult는 이미 존재하므로 Django 상태만 업데이트 (데이터베이스 작업 없음)
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.CreateModel(
+                    name='LabTestResult',
+                    fields=[
+                        ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                        ('test_results', models.JSONField(default=dict, verbose_name='검사 결과 데이터')),
+                        ('ai_findings', models.TextField(blank=True, verbose_name='AI 소견')),
+                        ('ai_confidence_score', models.FloatField(blank=True, null=True, verbose_name='AI 신뢰도')),
+                        ('ai_report_image', models.TextField(blank=True, verbose_name='AI 임상 리포트 이미지 (base64)')),
+                        ('ai_prediction', models.CharField(blank=True, max_length=50, verbose_name='AI 예측 결과')),
+                        ('notes', models.TextField(blank=True, verbose_name='추가 메모')),
+                        ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='입력일')),
+                        ('updated_at', models.DateTimeField(auto_now=True, verbose_name='수정일')),
+                        ('input_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='lab_test_results', to=settings.AUTH_USER_MODEL, verbose_name='결과 입력자')),
+                        ('order', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='lab_test_result', to='ocs.order', verbose_name='주문')),
+                    ],
+                    options={
+                        'verbose_name': '검사 결과',
+                        'verbose_name_plural': '검사 결과들',
+                        'ordering': ['-created_at'],
+                    },
+                ),
             ],
-            options={
-                'verbose_name': '검사 결과',
-                'verbose_name_plural': '검사 결과들',
-                'ordering': ['-created_at'],
-            },
         ),
         migrations.CreateModel(
             name='PathologyAnalysisResult',
