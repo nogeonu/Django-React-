@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ExternalLink, FileText, Search, Loader2, Calendar, User, Building, Globe } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface PubMedPaper {
   id: string;
@@ -38,8 +39,43 @@ interface NewsItem {
 }
 
 export default function KnowledgeHub() {
-  const [searchQuery, setSearchQuery] = useState("lung cancer OR 폐암");
-  const [newsQuery, setNewsQuery] = useState("호흡기 OR 폐암");
+  const { user } = useAuth();
+  
+  // 부서에 따라 초기 검색어 설정
+  const getInitialSearchQuery = () => {
+    const department = user?.department?.trim();
+    if (department === '외과') {
+      return "breast cancer OR 유방암";
+    } else if (department === '호흡기내과') {
+      return "lung cancer OR 폐암";
+    }
+    // 기본값은 폐암
+    return "lung cancer OR 폐암";
+  };
+
+  const getInitialNewsQuery = () => {
+    const department = user?.department?.trim();
+    if (department === '외과') {
+      return "유방암 OR 유방";
+    } else if (department === '호흡기내과') {
+      return "호흡기 OR 폐암";
+    }
+    // 기본값은 폐암
+    return "호흡기 OR 폐암";
+  };
+
+  const getDescription = () => {
+    const department = user?.department?.trim();
+    if (department === '외과') {
+      return "최신 논문, 가이드라인, 뉴스를 통해 유방암 진단 및 치료 정보를 확인하세요.";
+    } else if (department === '호흡기내과') {
+      return "최신 논문, 가이드라인, 뉴스를 통해 폐암 진단 및 치료 정보를 확인하세요.";
+    }
+    return "최신 논문, 가이드라인, 뉴스를 통해 폐암 진단 및 치료 정보를 확인하세요.";
+  };
+
+  const [searchQuery, setSearchQuery] = useState(getInitialSearchQuery());
+  const [newsQuery, setNewsQuery] = useState(getInitialNewsQuery());
   const [newsType, setNewsType] = useState("all"); // all, domestic, international
   const [literatureData, setLiteratureData] = useState<any>(null);
   const [newsData, setNewsData] = useState<any>(null);
@@ -141,7 +177,7 @@ export default function KnowledgeHub() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">지식 허브</h1>
         <p className="text-gray-600 mt-2">
-          최신 논문, 가이드라인, 뉴스를 통해 폐암 진단 및 치료 정보를 확인하세요.
+          {getDescription()}
         </p>
       </div>
 
@@ -164,7 +200,7 @@ export default function KnowledgeHub() {
             <CardContent>
               <div className="flex gap-2">
                 <Input
-                  placeholder="검색어를 입력하세요 (예: lung cancer, 폐암)"
+                  placeholder={`검색어를 입력하세요 (예: ${user?.department?.trim() === '외과' ? 'breast cancer, 유방암' : 'lung cancer, 폐암'})`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1"
@@ -315,7 +351,7 @@ export default function KnowledgeHub() {
             <CardHeader>
               <CardTitle>가이드라인</CardTitle>
               <CardDescription>
-                주요 기관의 폐암 진료 가이드라인을 확인하세요. 각 링크는 실제 가이드라인 메인 페이지로 연결됩니다.
+                주요 기관의 {user?.department?.trim() === '외과' ? '유방암' : '폐암'} 진료 가이드라인을 확인하세요. 각 링크는 실제 가이드라인 메인 페이지로 연결됩니다.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -430,7 +466,7 @@ export default function KnowledgeHub() {
             <CardHeader>
               <CardTitle>최신 뉴스</CardTitle>
               <CardDescription>
-                폐암 관련 최신 의료 뉴스와 연구 동향을 확인하세요.
+                {user?.department?.trim() === '외과' ? '유방암' : '폐암'} 관련 최신 의료 뉴스와 연구 동향을 확인하세요.
               </CardDescription>
             </CardHeader>
             <CardContent>
