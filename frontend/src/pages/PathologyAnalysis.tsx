@@ -61,7 +61,7 @@ export default function PathologyAnalysis() {
   }, []);
 
   // 결과 폴링 함수
-  const startPollingResult = (requestId: string) => {
+  const startPollingResult = (requestId: string, order: Order, filename: string) => {
     const maxAttempts = 1500; // 50분 = 3000초 / 2초 간격
     let attempts = 0;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -96,37 +96,61 @@ export default function PathologyAnalysis() {
           setPendingRequestId(null);
           
           // 분석 결과를 OCS Order에 저장
-          if (selectedOrder) {
+          if (order) {
             try {
-              await fetch('/api/mri/pathology/save-result/', {
+              console.log('💾 분석 결과 저장 시작:', {
+                order_id: order.id,
+                class_name: data.result.class_name,
+                confidence: data.result.confidence
+              });
+              
+              const saveResponse = await fetch('/api/mri/pathology/save-result/', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
                 credentials: 'include',
                 body: JSON.stringify({
-                  order_id: selectedOrder.id,
+                  order_id: order.id,
                   class_id: data.result.class_id,
                   class_name: data.result.class_name,
                   confidence: data.result.confidence,
                   probabilities: data.result.probabilities,
-                  filename: selectedFilename,
+                  filename: filename,
                   image_url: data.result.image_url || '',
                   findings: data.result.class_name === 'Tumor' ? '종양 조직이 관찰되었습니다.' : '정상 조직입니다.',
                   recommendations: data.result.class_name === 'Tumor' ? '추가 검사 및 치료 계획 수립이 필요합니다.' : '정기 검진을 권장합니다.',
                 }),
               });
-              console.log('✅ 분석 결과 저장 완료');
-            } catch (saveError) {
-              console.error('분석 결과 저장 실패:', saveError);
-              // 저장 실패해도 분석 결과는 표시
+              
+              if (!saveResponse.ok) {
+                const errorData = await saveResponse.json();
+                throw new Error(errorData.error || '저장 실패');
+              }
+              
+              const saveData = await saveResponse.json();
+              console.log('✅ 분석 결과 저장 완료:', saveData);
+              
+              toast({
+                title: "분석 완료 및 저장 완료!",
+                description: `결과: ${data.result.class_name} (신뢰도: ${(data.result.confidence * 100).toFixed(2)}%) - OCS에 저장되었습니다.`,
+              });
+            } catch (saveError: any) {
+              console.error('❌ 분석 결과 저장 실패:', saveError);
+              toast({
+                title: "분석 완료 (저장 실패)",
+                description: `결과는 나왔지만 저장에 실패했습니다: ${saveError.message || '알 수 없는 오류'}. OCS에서 수동으로 확인해주세요.`,
+                variant: "destructive",
+              });
             }
+          } else {
+            console.warn('⚠️ selectedOrder가 없어서 결과를 저장할 수 없습니다.');
+            toast({
+              title: "분석 완료 (저장 불가)",
+              description: "주문 정보가 없어 결과를 저장할 수 없습니다.",
+              variant: "destructive",
+            });
           }
-          
-          toast({
-            title: "분석 완료!",
-            description: `결과: ${data.result.class_name} (신뢰도: ${(data.result.confidence * 100).toFixed(2)}%)`,
-          });
           
           // 주문 목록 새로고침
           loadOrders();
@@ -278,8 +302,16 @@ export default function PathologyAnalysis() {
           description: "교육원 워커에서 분석을 진행 중입니다. 결과를 확인하는 중...",
         });
         
-        // 결과 폴링 시작
-        startPollingResult(data.request_id);
+        // 결과 폴링 시작 (selectedOrder와 selectedFilename을 파라미터로 전달)
+        if (!selectedOrder) {
+          toast({
+            title: "오류",
+            description: "주문 정보가 없습니다. 페이지를 새로고침해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
+        startPollingResult(data.request_id, selectedOrder, selectedFilename);
       } else {
         toast({
           title: "분석 요청 완료",
