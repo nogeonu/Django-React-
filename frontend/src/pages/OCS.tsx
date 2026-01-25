@@ -456,8 +456,6 @@ export default function OCS() {
       queryClient.invalidateQueries({ queryKey: ["ocs-orders"] });
     },
   });
-
-  const orders = ordersData?.results || ordersData || [];
   
   // 디버깅: 첫 번째 주문의 patient_number 확인
   if (orders.length > 0 && orders[0]) {
