@@ -187,10 +187,18 @@ export default function OCS() {
       // 디버깅: 조직검사 주문의 pathology_analysis 확인
       ordersArray.forEach((order: any) => {
         if (order.order_type === 'tissue_exam') {
-          console.log(`[OCS] 주문 ${order.id}:`, {
+          console.log(`[OCS] 주문 ${order.id} (${order.patient_name}):`, {
             status: order.status,
             has_pathology: !!order.pathology_analysis,
             pathology_class: order.pathology_analysis?.class_name,
+            pathology_data: order.pathology_analysis ? {
+              id: order.pathology_analysis.id,
+              class_name: order.pathology_analysis.class_name,
+              confidence: order.pathology_analysis.confidence,
+              has_findings: !!order.pathology_analysis.findings,
+              has_recommendations: !!order.pathology_analysis.recommendations,
+              has_image: !!order.pathology_analysis.image_url,
+            } : null,
           });
         }
       });
@@ -1529,20 +1537,56 @@ function OrderCard({
             {/* 의사: 병리 분석 결과 조회 (completed 상태이고 결과가 있을 때) */}
             {order.order_type === "tissue_exam" && 
              order.status === "completed" && 
-             order.pathology_analysis &&
              user?.department !== "검사실" && 
              user?.department !== "원무과" && (
               <Button
-                onClick={() => {
-                  setShowPathologyResultDialog(true);
-                  setSelectedOrderForPathology(order);
+                onClick={async () => {
+                  // 주문 상세 정보를 다시 가져와서 최신 pathology_analysis 확인
+                  try {
+                    const response = await fetch(`/api/ocs/orders/${order.id}/`, {
+                      credentials: 'include',
+                    });
+                    if (response.ok) {
+                      const orderDetail = await response.json() as Order;
+                      console.log('[OCS] 주문 상세 조회:', {
+                        order_id: orderDetail.id,
+                        has_pathology: !!orderDetail.pathology_analysis,
+                        pathology: orderDetail.pathology_analysis,
+                      });
+                      setSelectedOrderForPathology(orderDetail);
+                      if (orderDetail.pathology_analysis) {
+                        setShowPathologyResultDialog(true);
+                      } else {
+                        toast({
+                          title: "결과 없음",
+                          description: "병리 분석 결과가 아직 없습니다.",
+                          variant: "destructive",
+                        });
+                      }
+                    } else {
+                      console.error('주문 상세 조회 실패:', response.status);
+                      // 실패해도 기존 order로 시도
+                      if (order.pathology_analysis) {
+                        setSelectedOrderForPathology(order);
+                        setShowPathologyResultDialog(true);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('주문 상세 조회 오류:', error);
+                    // 오류 발생 시 기존 order로 시도
+                    if (order.pathology_analysis) {
+                      setSelectedOrderForPathology(order);
+                      setShowPathologyResultDialog(true);
+                    }
+                  }
                 }}
                 size="sm"
-                variant="default"
-                className="bg-green-600 hover:bg-green-700"
+                variant={order.pathology_analysis ? "default" : "outline"}
+                className={order.pathology_analysis ? "bg-green-600 hover:bg-green-700" : ""}
+                disabled={!order.pathology_analysis}
               >
                 <CheckCircle className="mr-2 h-4 w-4" />
-                병리 결과 확인
+                {order.pathology_analysis ? "병리 결과 확인" : "결과 대기 중"}
               </Button>
             )}
             {/* 영상의학과: 영상 분석 결과 입력 (processing 상태에서도 표시) */}
