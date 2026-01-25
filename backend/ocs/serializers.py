@@ -331,6 +331,8 @@ class OrderListSerializer(serializers.ModelSerializer):
     imaging_analysis = serializers.SerializerMethodField()
     # 검사 결과 (검사 주문인 경우)
     lab_test_result = serializers.SerializerMethodField()
+    # 병리 분석 결과 (조직검사 주문인 경우)
+    pathology_analysis = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
@@ -340,7 +342,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             'order_data', 'validation_passed', 'validation_notes',  # order_data 추가
             'created_at', 'due_time', 'completed_at',
             'imaging_analysis',  # 영상 분석 결과 추가
-            'lab_test_result'  # 검사 결과 추가
+            'lab_test_result',  # 검사 결과 추가
+            'pathology_analysis'  # 병리 분석 결과 추가
         ]
     
     def get_imaging_analysis(self, obj):
@@ -361,6 +364,39 @@ class OrderListSerializer(serializers.ModelSerializer):
             except Exception:
                 # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
                 pass
+        return None
+    
+    def get_pathology_analysis(self, obj):
+        """병리 분석 결과 가져오기"""
+        if obj.order_type == 'tissue_exam':
+            try:
+                # PathologyAnalysisResult 모델이 import되었는지 확인
+                if PathologyAnalysisResult is None:
+                    return None
+                
+                # select_related로 로드된 경우 직접 접근
+                pathology = None
+                if hasattr(obj, 'pathology_analysis'):
+                    try:
+                        pathology = obj.pathology_analysis
+                    except PathologyAnalysisResult.DoesNotExist:
+                        pathology = None
+                
+                # select_related로 로드되지 않은 경우 직접 조회
+                if not pathology:
+                    try:
+                        pathology = PathologyAnalysisResult.objects.get(order=obj)
+                    except PathologyAnalysisResult.DoesNotExist:
+                        return None
+                
+                if pathology:
+                    return PathologyAnalysisResultSerializer(pathology).data
+            except Exception as e:
+                # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Pathology analysis serialization error for order {obj.id}: {str(e)}")
+                return None
         return None
 
 
