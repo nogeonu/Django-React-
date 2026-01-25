@@ -305,19 +305,32 @@ export default function MRIImageDetail() {
           throw new Error('병리 이미지를 찾을 수 없습니다.');
         }
 
+        // series_description에서 파일명 추출
+        // 형식: "Pathology WSI - filename.svs"
+        let filename = '';
+        const seriesDesc = currentSeries.series_description || '';
+        if (seriesDesc.includes(' - ')) {
+          filename = seriesDesc.split(' - ')[1];  // "filename.svs"
+        } else {
+          // series_description에 파일명이 없으면 instance_id를 filename으로 사용
+          // (교육원 워커가 알아서 매칭하도록)
+          filename = instanceId;
+        }
+
         toast({
           title: "병리 이미지 분석 시작",
           description: "AI 모델이 조직 이미지를 분석하고 있습니다... (약 1-2분 소요)",
         });
 
-        // 병리 AI 분석 API 호출 (instance_id만 전달)
+        // 병리 AI 분석 API 호출 (instance_id와 filename 전달)
         const response = await fetch(`/api/mri/pathology/analyze/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            instance_id: instanceId
+            instance_id: instanceId,
+            filename: filename  // 교육원 워커가 wsi/ 폴더에서 찾을 파일명
           }),
         });
 
@@ -371,6 +384,7 @@ export default function MRIImageDetail() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // 쿠키 포함 (인증 정보)
           body: JSON.stringify({
             instance_ids: instanceIds
           }),
