@@ -450,7 +450,7 @@ export default function OCS() {
     });
   }
 
-  const filteredOrders = orders.filter((order: Order) => {
+  const filteredOrders = (orders || []).filter((order: Order) => {
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       return (
