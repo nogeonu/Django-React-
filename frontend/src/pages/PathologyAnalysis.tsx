@@ -140,9 +140,19 @@ export default function PathologyAnalysis() {
           throw new Error('결과 조회 실패');
         }
         
-        const data = await response.json();
+        const data = await response.json() as {
+          status: string;
+          result?: {
+            class_id: number;
+            class_name: string;
+            confidence: number;
+            probabilities: Record<string, number>;
+            image_url?: string;
+          };
+          error?: string;
+        };
         
-        if (data.status === 'completed') {
+        if (data.status === 'completed' && data.result) {
           setAnalysisResult(data.result);
           setPendingRequestId(null);
           
@@ -175,11 +185,11 @@ export default function PathologyAnalysis() {
               });
               
               if (!saveResponse.ok) {
-                const errorData = await saveResponse.json();
+                const errorData = await saveResponse.json() as { error?: string };
                 throw new Error(errorData.error || '저장 실패');
               }
               
-              const saveData = await saveResponse.json();
+              const saveData = await saveResponse.json() as { success?: boolean; message?: string };
               console.log('✅ 분석 결과 저장 완료:', saveData);
               
               toast({
@@ -270,10 +280,10 @@ export default function PathologyAnalysis() {
         order_type: 'tissue_exam',
         target_department: 'lab',
         status: 'processing',  // 처리 중 상태만
-      });
+      }) as { results?: Order[] } | Order[];
       
       // 결과를 배열로 변환 (data.results 또는 data 자체가 배열)
-      const orders = data.results || data || [];
+      const orders = (Array.isArray(data) ? data : (data.results || [])) as Order[];
       
       setOrders(orders);
       setFilteredOrders(orders);
