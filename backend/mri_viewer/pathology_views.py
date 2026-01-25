@@ -669,6 +669,7 @@ def fail_task(request):
 
 
 @api_view(['POST'])
+@csrf_exempt
 @authentication_classes([CSRFExemptSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def save_pathology_result(request):
