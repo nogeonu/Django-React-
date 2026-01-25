@@ -706,15 +706,31 @@ def save_pathology_result(request):
             order = Order.objects.get(id=order_id)
         except Order.DoesNotExist:
             return Response({'error': '주문을 찾을 수 없습니다'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 필수 필드 검증
+        class_id = request.data.get('class_id')
+        class_name = request.data.get('class_name')
+        confidence = request.data.get('confidence')
+        
+        if class_id is None or not class_name or confidence is None:
+            logger.error(f"❌ 필수 필드 누락: class_id={class_id}, class_name={class_name}, confidence={confidence}")
+            return Response({
+                'error': '필수 필드가 누락되었습니다: class_id, class_name, confidence가 필요합니다'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         
         # 이미 분석 결과가 있으면 업데이트, 없으면 생성 (알림 없이, 상태 변경 없이)
         pathology_analysis, created = PathologyAnalysisResult.objects.update_or_create(
             order=order,
             defaults={
                 'analyzed_by': request.user,
+                'analyzed_by': request.user if request.user.is_authenticated else None,
                 'class_id': request.data.get('class_id'),
+                'class_id': class_id,
                 'class_name': request.data.get('class_name'),
+                'class_name': class_name,
                 'confidence': request.data.get('confidence'),
+                'confidence': float(confidence),
                 'probabilities': request.data.get('probabilities', {}),
                 'filename': request.data.get('filename', ''),
                 'image_url': request.data.get('image_url', ''),
