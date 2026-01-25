@@ -167,20 +167,40 @@ export default function OCS() {
   // 주문 목록 조회 (역할별 자동 필터링)
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ["ocs-orders", statusFilter, typeFilter, viewMode],
-    queryFn: () => {
+    queryFn: async () => {
+      let data;
       if (viewMode === "my") {
-        return getMyOrdersApi();
+        data = await getMyOrdersApi();
       } else if (viewMode === "pending") {
         // 부서별로 자동 필터링됨
-        return getPendingOrdersApi(user?.department || undefined);
+        data = await getPendingOrdersApi(user?.department || undefined);
       } else {
-        return getOrdersApi({ 
+        data = await getOrdersApi({ 
           status: statusFilter !== "all" ? statusFilter : undefined, 
           order_type: typeFilter !== "all" ? typeFilter : undefined 
         });
       }
+      
+      // 배열로 변환
+      const ordersArray = Array.isArray(data) ? data : (data?.results || []);
+      
+      // 디버깅: 조직검사 주문의 pathology_analysis 확인
+      ordersArray.forEach((order: any) => {
+        if (order.order_type === 'tissue_exam') {
+          console.log(`[OCS] 주문 ${order.id}:`, {
+            status: order.status,
+            has_pathology: !!order.pathology_analysis,
+            pathology_class: order.pathology_analysis?.class_name,
+          });
+        }
+      });
+      
+      return ordersArray;
     },
   });
+  
+  // orders를 배열로 변환
+  const orders = Array.isArray(ordersData) ? ordersData : (ordersData?.results || []);
 
   // 통계 조회
   const { data: statistics } = useQuery({
