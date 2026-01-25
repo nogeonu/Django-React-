@@ -356,105 +356,213 @@ export default function KnowledgeHub() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">NCCN 가이드라인</h3>
-                    <p className="text-sm text-gray-600 mb-3">미국 국립 종양 네트워크 폐암 진료 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.nccn.org/guidelines/category_1" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">대한암학회</h3>
-                    <p className="text-sm text-gray-600 mb-3">대한암학회 암 진료 권고안</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.cancer.go.kr" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">WHO 분류</h3>
-                    <p className="text-sm text-gray-600 mb-3">WHO 종양 분류 기준</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.iarc.who.int" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">미국흉부외과학회</h3>
-                    <p className="text-sm text-gray-600 mb-3">흉부외과 관련 자료 및 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.aats.org" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">ESMO 가이드라인</h3>
-                    <p className="text-sm text-gray-600 mb-3">유럽 종양 내과 학회 임상 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">ASCO 가이드라인</h3>
-                    <p className="text-sm text-gray-600 mb-3">미국 임상 종양학회 진료 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.asco.org/guidelines" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">대한결핵 및 호흡기학회</h3>
-                    <p className="text-sm text-gray-600 mb-3">호흡기 질환 진료 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.lungkorea.org" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">미국흉부학회</h3>
-                    <p className="text-sm text-gray-600 mb-3">ATS 호흡기 질환 가이드라인</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.thoracic.org" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">국립암센터</h3>
-                    <p className="text-sm text-gray-600 mb-3">국가 암 관리 및 연구</p>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="https://www.ncc.re.kr" target="_blank" rel="noopener noreferrer">
-                        바로가기
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
+                {user?.department?.trim() === '외과' ? (
+                  // 외과 (유방암) 가이드라인
+                  <>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">NCCN 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">미국 국립 종양 네트워크 유방암 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.nccn.org/guidelines/category_1" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">대한유방암학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">대한유방암학회 유방암 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.kbcs.or.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">WHO 분류</h3>
+                        <p className="text-sm text-gray-600 mb-3">WHO 종양 분류 기준</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.iarc.who.int" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">대한외과학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">대한외과학회 유방암 관련 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.kss.or.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">ESMO 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">유럽 종양 내과 학회 유방암 임상 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">ASCO 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">미국 임상 종양학회 유방암 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.asco.org/guidelines" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">대한암학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">대한암학회 암 진료 권고안</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.cancer.go.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">미국외과학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">ACS 외과 관련 자료 및 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.facs.org" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">국립암센터</h3>
+                        <p className="text-sm text-gray-600 mb-3">국가 암 관리 및 연구</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.ncc.re.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  // 호흡기내과 (폐암) 가이드라인
+                  <>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">NCCN 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">미국 국립 종양 네트워크 폐암 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.nccn.org/guidelines/category_1" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">대한암학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">대한암학회 암 진료 권고안</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.cancer.go.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">WHO 분류</h3>
+                        <p className="text-sm text-gray-600 mb-3">WHO 종양 분류 기준</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.iarc.who.int" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">미국흉부외과학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">흉부외과 관련 자료 및 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.aats.org" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">ESMO 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">유럽 종양 내과 학회 임상 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">ASCO 가이드라인</h3>
+                        <p className="text-sm text-gray-600 mb-3">미국 임상 종양학회 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.asco.org/guidelines" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">대한결핵 및 호흡기학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">호흡기 질환 진료 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.lungkorea.org" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">미국흉부학회</h3>
+                        <p className="text-sm text-gray-600 mb-3">ATS 호흡기 질환 가이드라인</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.thoracic.org" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2">국립암센터</h3>
+                        <p className="text-sm text-gray-600 mb-3">국가 암 관리 및 연구</p>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <a href="https://www.ncc.re.kr" target="_blank" rel="noopener noreferrer">
+                            바로가기
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
