@@ -92,16 +92,22 @@ class OrderSerializer(serializers.ModelSerializer):
         """병리 분석 결과 가져오기"""
         if obj.order_type == 'tissue_exam':
             try:
-                # 관계가 있는지 확인 (select_related 없이도 작동하도록)
-                if hasattr(obj, 'pathology_analysis'):
-                    # 관계 접근 시도 (없으면 None 반환)
-                    try:
-                        pathology = obj.pathology_analysis
-                        if pathology:
-                            return PathologyAnalysisResultSerializer(pathology).data
-                    except Exception:
-                        # 관계가 없거나 접근 불가
-                        pass
+                # PathologyAnalysisResult 모델이 import되었는지 확인
+                if PathologyAnalysisResult is None:
+                    return None
+                
+                # 관계 접근 시도 (Django ORM이 자동으로 처리)
+                try:
+                    # getattr를 사용하여 안전하게 접근
+                    pathology = getattr(obj, 'pathology_analysis', None)
+                    if pathology:
+                        return PathologyAnalysisResultSerializer(pathology).data
+                except Exception as e:
+                    # 관계가 없거나 접근 불가
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.debug(f"Pathology analysis not found for order {obj.id}: {str(e)}")
+                    pass
             except Exception as e:
                 # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
                 import logging
