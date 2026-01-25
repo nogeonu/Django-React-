@@ -724,13 +724,9 @@ def save_pathology_result(request):
             order=order,
             defaults={
                 'analyzed_by': request.user,
-                'analyzed_by': request.user if request.user.is_authenticated else None,
                 'class_id': request.data.get('class_id'),
-                'class_id': class_id,
                 'class_name': request.data.get('class_name'),
-                'class_name': class_name,
                 'confidence': request.data.get('confidence'),
-                'confidence': float(confidence),
                 'probabilities': request.data.get('probabilities', {}),
                 'filename': request.data.get('filename', ''),
                 'image_url': request.data.get('image_url', ''),
