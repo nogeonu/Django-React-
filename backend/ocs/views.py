@@ -370,16 +370,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 병리 분석 결과가 있는지 확인
-        if not hasattr(order, 'pathology_analysis') or not order.pathology_analysis:
+        # 병리 분석 결과가 있는지 확인 (select_related로 이미 로드되어 있어야 함)
+        try:
+            # refresh_from_db로 최신 데이터 가져오기
+            order.refresh_from_db()
+            pathology_result = getattr(order, 'pathology_analysis', None)
+            
+            if not pathology_result:
+                # 직접 조회 시도
+                from ocs.models import PathologyAnalysisResult
+                try:
+                    pathology_result = PathologyAnalysisResult.objects.get(order=order)
+                except PathologyAnalysisResult.DoesNotExist:
+                    logger.warning(f"⚠️ 병리 분석 결과 없음: order_id={order.id}, patient={order.patient.name if order.patient else 'N/A'}")
+                    return Response(
+                        {'error': '병리 분석 결과가 없습니다. 먼저 병리이미지분석 페이지에서 분석을 완료해주세요.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+        except Exception as e:
+            logger.error(f"❌ 병리 분석 결과 조회 실패: {str(e)}", exc_info=True)
             return Response(
-                {'error': '병리 분석 결과가 없습니다. 먼저 병리이미지분석 페이지에서 분석을 완료해주세요.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': f'병리 분석 결과를 불러오는 중 오류가 발생했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
         try:
             # 병리 분석 결과 업데이트 (메모 추가)
-            pathology_result = order.pathology_analysis
             pathology_result.findings = request.data.get('findings', pathology_result.findings)
             pathology_result.recommendations = request.data.get('recommendations', pathology_result.recommendations)
             pathology_result.analyzed_by = user  # 검사한 사람으로 업데이트
