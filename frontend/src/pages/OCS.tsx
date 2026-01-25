@@ -1285,6 +1285,101 @@ function OrderCard({
             </div>
           )}
 
+          {/* 병리 분석 결과 */}
+          {order.order_type === "tissue_exam" && order.pathology_analysis && (
+            <div className="border rounded-lg p-4 bg-purple-50">
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Scan className="h-4 w-4" />
+                병리 분석 결과
+              </h4>
+              <div className="space-y-3">
+                {/* 분석 결과 */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">분석 결과</p>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={order.pathology_analysis.class_name === 'Tumor' ? 'destructive' : 'default'} 
+                      className="text-sm px-3 py-1"
+                    >
+                      {order.pathology_analysis.class_name === 'Tumor' ? '종양 (Tumor)' : '정상 (Normal)'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      신뢰도: {(order.pathology_analysis.confidence * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* 클래스별 확률 */}
+                {order.pathology_analysis.probabilities && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">클래스별 확률</p>
+                    <div className="flex gap-2">
+                      {Object.entries(order.pathology_analysis.probabilities).map(([className, prob]: [string, any]) => (
+                        <div key={className} className="bg-white p-2 rounded border">
+                          <div className="text-xs font-medium">{className}</div>
+                          <div className="text-sm font-bold">{(prob * 100).toFixed(2)}%</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 소견 */}
+                {order.pathology_analysis.findings && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">소견</p>
+                    <p className="text-sm font-semibold">{order.pathology_analysis.findings}</p>
+                  </div>
+                )}
+
+                {/* 권고사항 */}
+                {order.pathology_analysis.recommendations && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">권고사항</p>
+                    <p className="text-sm whitespace-pre-wrap">{order.pathology_analysis.recommendations}</p>
+                  </div>
+                )}
+
+                {/* 분석 이미지 */}
+                {order.pathology_analysis.image_url && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">분석 이미지</p>
+                    <div className="border rounded-lg p-2 bg-white">
+                      <img
+                        src={order.pathology_analysis.image_url}
+                        alt="병리 분석 이미지"
+                        className="w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                          const newWindow = window.open();
+                          if (newWindow) {
+                            newWindow.document.write(`
+                              <html>
+                                <head><title>병리 분석 이미지</title></head>
+                                <body style="margin:0; padding:20px; background:#f5f5f5;">
+                                  <img src="${order.pathology_analysis?.image_url || ''}" style="max-width:100%; height:auto;" />
+                                </body>
+                              </html>
+                            `);
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-center text-muted-foreground mt-2">클릭하여 확대</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 분석 정보 */}
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    {order.pathology_analysis.analyzed_by_name && `검사자: ${order.pathology_analysis.analyzed_by_name} | `}
+                    분석일: {format(new Date(order.pathology_analysis.created_at), 'yyyy-MM-dd HH:mm')}
+                    {order.pathology_analysis.filename && ` | 파일: ${order.pathology_analysis.filename}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 액션 버튼 (역할별 제한) */}
           <div className="flex gap-2 pt-2 flex-wrap">
             {/* 의사: 자신이 생성한 주문만 전달 가능 */}
