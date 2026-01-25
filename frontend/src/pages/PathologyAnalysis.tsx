@@ -21,7 +21,20 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getOrdersApi } from '@/lib/api';
+import { getOrdersApi, getOrderApi } from '@/lib/api';
+
+interface PathologyAnalysis {
+  id: string;
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  probabilities: Record<string, number>;
+  filename: string;
+  image_url?: string;
+  findings?: string;
+  recommendations?: string;
+  created_at: string;
+}
 
 interface Order {
   id: string;
@@ -35,6 +48,7 @@ interface Order {
   };
   status: string;
   created_at: string;
+  pathology_analysis?: PathologyAnalysis;
 }
 
 // 교육원 워커 wsi/ 폴더에 있는 사용 가능한 파일 목록
@@ -59,6 +73,43 @@ export default function PathologyAnalysis() {
   useEffect(() => {
     loadOrders();
   }, []);
+
+  // 주문 선택 시 저장된 분석 결과 불러오기
+  useEffect(() => {
+    const loadSavedAnalysisResult = async () => {
+      if (!selectedOrder) {
+        setAnalysisResult(null);
+        return;
+      }
+
+      try {
+        // 주문 상세 정보 불러오기 (pathology_analysis 포함)
+        const orderDetail = await getOrderApi(selectedOrder.id);
+        
+        if (orderDetail.pathology_analysis) {
+          // 저장된 분석 결과가 있으면 표시
+          const savedResult = orderDetail.pathology_analysis;
+          setAnalysisResult({
+            class_id: savedResult.class_id,
+            class_name: savedResult.class_name,
+            confidence: savedResult.confidence,
+            probabilities: savedResult.probabilities,
+            image_url: savedResult.image_url,
+            num_patches: 1, // 저장된 결과에는 패치 수 정보가 없을 수 있음
+          });
+          console.log('✅ 저장된 분석 결과 불러오기 완료:', savedResult);
+        } else {
+          // 저장된 결과가 없으면 초기화
+          setAnalysisResult(null);
+        }
+      } catch (error) {
+        console.error('저장된 분석 결과 불러오기 실패:', error);
+        setAnalysisResult(null);
+      }
+    };
+
+    loadSavedAnalysisResult();
+  }, [selectedOrder]);
 
   // 결과 폴링 함수
   const startPollingResult = (requestId: string, order: Order, filename: string) => {
@@ -584,7 +635,7 @@ export default function PathologyAnalysis() {
               
               <Button 
                 onClick={handleAnalyze}
-                disabled={analyzing || selectedOrder.status === 'completed' || !selectedFilename || !!pendingRequestId}
+                disabled={analyzing || selectedOrder.status === 'completed' || !selectedFilename || !!pendingRequestId || !!analysisResult}
                 className="w-full bg-primary hover:bg-primary/90"
               >
                 {analyzing ? (
