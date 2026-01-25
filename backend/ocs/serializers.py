@@ -96,24 +96,29 @@ class OrderSerializer(serializers.ModelSerializer):
                 if PathologyAnalysisResult is None:
                     return None
                 
-                # 관계 접근 시도 (Django ORM이 자동으로 처리)
-                try:
-                    # getattr를 사용하여 안전하게 접근
-                    pathology = getattr(obj, 'pathology_analysis', None)
-                    if pathology:
-                        return PathologyAnalysisResultSerializer(pathology).data
-                except Exception as e:
-                    # 관계가 없거나 접근 불가
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.debug(f"Pathology analysis not found for order {obj.id}: {str(e)}")
-                    pass
+                # select_related로 로드된 경우 직접 접근
+                pathology = None
+                if hasattr(obj, 'pathology_analysis'):
+                    try:
+                        pathology = obj.pathology_analysis
+                    except PathologyAnalysisResult.DoesNotExist:
+                        pathology = None
+                
+                # select_related로 로드되지 않은 경우 직접 조회
+                if not pathology:
+                    try:
+                        pathology = PathologyAnalysisResult.objects.get(order=obj)
+                    except PathologyAnalysisResult.DoesNotExist:
+                        return None
+                
+                if pathology:
+                    return PathologyAnalysisResultSerializer(pathology).data
             except Exception as e:
                 # 모델이 아직 마이그레이션되지 않았거나 관계가 없을 수 있음
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.warning(f"Pathology analysis serialization error: {str(e)}")
-                pass
+                logger.warning(f"Pathology analysis serialization error for order {obj.id}: {str(e)}")
+                return None
         return None
     
     def validate(self, data):
