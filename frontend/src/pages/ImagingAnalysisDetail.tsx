@@ -152,7 +152,19 @@ export default function ImagingAnalysisDetail() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-white flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                종양 탐지 영상
+                {(() => {
+                  const imagingType = order.order_data?.imaging_type || '';
+                  const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+                  const isMRI = imagingType === 'MRI' || imagingType?.includes('MRI') || imagingType === 'MRI 영상';
+                  
+                  if (isMRI) {
+                    return 'MRI 세그멘테이션 영상';
+                  } else if (isMammography) {
+                    return '종양 탐지 영상';
+                  } else {
+                    return '영상 분석 결과';
+                  }
+                })()}
               </CardTitle>
               {analysis.analysis_result?.detection_status && (
                 <Badge 
@@ -287,18 +299,60 @@ export default function ImagingAnalysisDetail() {
                 }
                 
                 // 이미지가 없으면 placeholder
-                return (
-                  <div className="text-center text-slate-500 p-8">
-                    <p className="mb-2">Mammography Image / Heatmap</p>
-                    <p className="text-xs text-slate-600">CC View / MLO View (Selectable)</p>
-                  </div>
-                );
+                const imagingType = order.order_data?.imaging_type || '';
+                const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+                const isMRI = imagingType === 'MRI' || imagingType?.includes('MRI') || imagingType === 'MRI 영상';
+                
+                if (isMRI) {
+                  return (
+                    <div className="text-center text-slate-500 p-8">
+                      <p className="mb-2">MRI Image / Segmentation Overlay</p>
+                      <p className="text-xs text-slate-600">Original DICOM / Segmentation Overlay (Toggle)</p>
+                    </div>
+                  );
+                } else if (isMammography) {
+                  return (
+                    <div className="text-center text-slate-500 p-8">
+                      <p className="mb-2">Mammography Image / Heatmap</p>
+                      <p className="text-xs text-slate-600">CC View / MLO View (Selectable)</p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="text-center text-slate-500 p-8">
+                      <p className="mb-2">영상 분석 결과</p>
+                      <p className="text-xs text-slate-600">분석 이미지가 없습니다</p>
+                    </div>
+                  );
+                }
               })()}
             </div>
             <div className="p-4 border-t border-slate-800">
-              <p className="text-xs text-red-400">
-                빨간색 영역 = AI가 주목한 부분
-              </p>
+              {(() => {
+                const imagingType = order.order_data?.imaging_type || '';
+                const isMammography = imagingType === '유방촬영술' || imagingType?.includes('유방');
+                const isMRI = imagingType === 'MRI' || imagingType?.includes('MRI') || imagingType === 'MRI 영상';
+                
+                if (isMRI) {
+                  return (
+                    <p className="text-xs text-red-400">
+                      빨간색/마젠타 영역 = AI 세그멘테이션 영역 (종양 탐지)
+                    </p>
+                  );
+                } else if (isMammography) {
+                  return (
+                    <p className="text-xs text-red-400">
+                      빨간색 영역 = AI가 주목한 부분
+                    </p>
+                  );
+                } else {
+                  return (
+                    <p className="text-xs text-red-400">
+                      AI 분석 영역
+                    </p>
+                  );
+                }
+              })()}
             </div>
           </CardContent>
         </Card>
