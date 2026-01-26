@@ -391,26 +391,40 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, birth_date
             # 2D 그레이스케일을 3D로 확장 (H, W) -> (H, W, 1)
             img_array = img_array[:, :, np.newaxis]
     
-    # 컬러 이미지인 경우 (H, W, 3) 형태
-    if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
-        # RGB 이미지를 uint16으로 변환 (각 채널별로)
-        if img_array.dtype != np.uint16:
-            # 0-65535 범위로 스케일링 (각 채널별)
-            if img_array.max() > 0:
-                img_array = (img_array.astype(np.float32) / 255.0 * 65535).astype(np.uint16)
-            else:
-                img_array = img_array.astype(np.uint16)
+    # SM 모달리티(병리 이미지)는 uint8 사용, 다른 모달리티는 uint16 사용
+    if modality == "SM":
+        # SM 모달리티: RGB 이미지를 uint8로 유지 (병리 이미지는 컬러 정보가 중요)
+        if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+            # RGB 이미지를 uint8로 유지
+            if img_array.dtype != np.uint8:
+                img_array = img_array.astype(np.uint8)
+        else:
+            # 그레이스케일 이미지 처리
+            if len(img_array.shape) == 3:
+                img_array = img_array[:, :, 0]  # 첫 번째 채널만 사용
+            if img_array.dtype != np.uint8:
+                img_array = img_array.astype(np.uint8)
     else:
-        # 그레이스케일 이미지 처리
-        if len(img_array.shape) == 3:
-            img_array = img_array[:, :, 0]  # 첫 번째 채널만 사용
-        
-        # uint16으로 변환
-        if img_array.dtype != np.uint16:
-            if img_array.max() > 0:
-                img_array = (img_array.astype(np.float32) / img_array.max() * 65535).astype(np.uint16)
-            else:
-                img_array = img_array.astype(np.uint16)
+        # 다른 모달리티: uint16 사용
+        if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+            # RGB 이미지를 uint16으로 변환 (각 채널별로)
+            if img_array.dtype != np.uint16:
+                # 0-65535 범위로 스케일링 (각 채널별)
+                if img_array.max() > 0:
+                    img_array = (img_array.astype(np.float32) / 255.0 * 65535).astype(np.uint16)
+                else:
+                    img_array = img_array.astype(np.uint16)
+        else:
+            # 그레이스케일 이미지 처리
+            if len(img_array.shape) == 3:
+                img_array = img_array[:, :, 0]  # 첫 번째 채널만 사용
+            
+            # uint16으로 변환
+            if img_array.dtype != np.uint16:
+                if img_array.max() > 0:
+                    img_array = (img_array.astype(np.float32) / img_array.max() * 65535).astype(np.uint16)
+                else:
+                    img_array = img_array.astype(np.uint16)
     
     # 환자 정보 설정
     if patient_id is None:
@@ -435,6 +449,9 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, birth_date
     
     # DICOM 데이터셋 생성
     ds = Dataset()
+    
+    # 한글 지원을 위한 문자셋 설정 (PatientName에 한글이 포함될 수 있음)
+    ds.SpecificCharacterSet = 'ISO_IR 192'  # UTF-8
     
     # 필수 DICOM 태그
     ds.PatientID = str(patient_id)
@@ -470,35 +487,59 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, birth_date
     else:
         ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.1.2"  # Digital Mammography X-Ray Image Storage
     
-    # 이미지 파라미터
+    # 이미지 파라미터 (SM 모달리티는 uint8, 다른 모달리티는 uint16)
     ds.Rows = img_array.shape[0]
     ds.Columns = img_array.shape[1]
-    ds.BitsAllocated = 16
-    ds.BitsStored = 16
-    ds.HighBit = 15
-    ds.PixelRepresentation = 0  # Unsigned
     
-    # 컬러 이미지인 경우 RGB 설정
-    if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
-        ds.SamplesPerPixel = 3
-        ds.PhotometricInterpretation = "RGB"
-        ds.PlanarConfiguration = 0  # 0 = interleaved (RGBRGBRGB...)
-        # 픽셀 데이터를 interleaved 형식으로 변환 (R, G, B 순서)
-        # (H, W, 3) -> (H*W, 3) -> (H*W*3) 형태로 변환
-        # 각 픽셀의 R, G, B 값이 연속적으로 배치되도록
-        h, w = img_array.shape[:2]
-        pixel_data = img_array.reshape(h * w, 3).astype(np.uint16)
-        # uint16 배열을 바이트로 변환 (little-endian)
-        pixel_data = pixel_data.tobytes()
-        logger.info(f"✅ RGB 컬러 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
+    if modality == "SM":
+        # SM 모달리티: uint8 사용
+        ds.BitsAllocated = 8
+        ds.BitsStored = 8
+        ds.HighBit = 7
+        ds.PixelRepresentation = 0  # Unsigned
+        
+        # 컬러 이미지인 경우 RGB 설정
+        if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+            ds.SamplesPerPixel = 3
+            ds.PhotometricInterpretation = "RGB"
+            ds.PlanarConfiguration = 0  # 0 = interleaved (RGBRGBRGB...)
+            # 픽셀 데이터를 interleaved 형식으로 변환 (R, G, B 순서)
+            h, w = img_array.shape[:2]
+            pixel_data = img_array.reshape(h * w, 3).astype(np.uint8)
+            pixel_data = pixel_data.tobytes()
+            logger.info(f"✅ SM 모달리티 RGB 컬러 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
+        else:
+            ds.SamplesPerPixel = 1
+            ds.PhotometricInterpretation = "MONOCHROME2"
+            if len(img_array.shape) == 3:
+                img_array = img_array[:, :, 0]
+            pixel_data = img_array.astype(np.uint8).tobytes()
+            logger.info(f"✅ SM 모달리티 그레이스케일 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
     else:
-        ds.SamplesPerPixel = 1
-        ds.PhotometricInterpretation = "MONOCHROME2"
-        # 그레이스케일 이미지
-        if len(img_array.shape) == 3:
-            img_array = img_array[:, :, 0]
-        pixel_data = img_array.astype(np.uint16).tobytes()
-        logger.info(f"✅ 그레이스케일 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
+        # 다른 모달리티: uint16 사용
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 0  # Unsigned
+        
+        # 컬러 이미지인 경우 RGB 설정
+        if is_color and len(img_array.shape) == 3 and img_array.shape[2] == 3:
+            ds.SamplesPerPixel = 3
+            ds.PhotometricInterpretation = "RGB"
+            ds.PlanarConfiguration = 0  # 0 = interleaved (RGBRGBRGB...)
+            # 픽셀 데이터를 interleaved 형식으로 변환 (R, G, B 순서)
+            h, w = img_array.shape[:2]
+            pixel_data = img_array.reshape(h * w, 3).astype(np.uint16)
+            pixel_data = pixel_data.tobytes()
+            logger.info(f"✅ RGB 컬러 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
+        else:
+            ds.SamplesPerPixel = 1
+            ds.PhotometricInterpretation = "MONOCHROME2"
+            # 그레이스케일 이미지
+            if len(img_array.shape) == 3:
+                img_array = img_array[:, :, 0]
+            pixel_data = img_array.astype(np.uint16).tobytes()
+            logger.info(f"✅ 그레이스케일 이미지 처리: shape={img_array.shape}, pixel_data size={len(pixel_data)} bytes")
     
     # 픽셀 데이터
     ds.PixelData = pixel_data
