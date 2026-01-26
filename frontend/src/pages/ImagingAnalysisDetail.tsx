@@ -354,7 +354,7 @@ export default function ImagingAnalysisDetail() {
                 if (isMRI) {
                   return (
                     <p className="text-xs text-red-400">
-                      빨간색/마젠타 영역 = AI 세그멘테이션 영역 (종양 탐지)
+                      보라색 영역 = AI 세그멘테이션 영역 (종양 탐지)
                     </p>
                   );
                 } else if (isMammography) {
