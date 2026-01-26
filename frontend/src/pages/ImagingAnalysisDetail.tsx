@@ -304,10 +304,28 @@ export default function ImagingAnalysisDetail() {
                 const isMRI = imagingType === 'MRI' || imagingType?.includes('MRI') || imagingType === 'MRI 영상';
                 
                 if (isMRI) {
+                  // MRI의 경우 세그멘테이션 뷰어로 이동할 수 있는 링크 제공
+                  const patientId = order.patient_id || order.patient_number;
                   return (
-                    <div className="text-center text-slate-500 p-8">
-                      <p className="mb-2">MRI Image / Segmentation Overlay</p>
-                      <p className="text-xs text-slate-600">Original DICOM / Segmentation Overlay (Toggle)</p>
+                    <div className="text-center text-slate-500 p-8 space-y-4">
+                      <div>
+                        <p className="mb-2 text-lg">MRI Image / Segmentation Overlay</p>
+                        <p className="text-xs text-slate-600">Original DICOM / Segmentation Overlay (Toggle)</p>
+                      </div>
+                      {patientId && (
+                        <Button
+                          onClick={() => navigate(`/mri-viewer/${patientId}?imageType=MRI 영상`)}
+                          variant="outline"
+                          className="mt-4"
+                        >
+                          MRI 뷰어에서 세그멘테이션 확인하기
+                        </Button>
+                      )}
+                      {analysis.analysis_result?.seg_instance_id && (
+                        <p className="text-xs text-slate-400 mt-2">
+                          세그멘테이션 결과가 Orthanc에 저장되어 있습니다 (Instance ID: {analysis.analysis_result.seg_instance_id.substring(0, 8)}...)
+                        </p>
+                      )}
                     </div>
                   );
                 } else if (isMammography) {
