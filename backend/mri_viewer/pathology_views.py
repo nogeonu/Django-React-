@@ -718,6 +718,75 @@ def save_pathology_result(request):
                 'error': '필수 필드가 누락되었습니다: class_id, class_name, confidence가 필요합니다'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # 이미지 URL이 있으면 Orthanc에 업로드
+        image_url = request.data.get('image_url', '')
+        orthanc_instance_id = None
+        
+        if image_url:
+            try:
+                from PIL import Image
+                import requests as req_lib
+                from .utils import pil_image_to_dicom
+                from .orthanc_client import OrthancClient
+                from django.core.files.base import ContentFile
+                
+                # 이미지 다운로드
+                logger.info(f"📥 병리 이미지 다운로드 시작: {image_url}")
+                
+                # 절대 URL로 변환
+                if image_url.startswith('/'):
+                    full_image_url = f"{request.scheme}://{request.get_host()}{image_url}"
+                else:
+                    full_image_url = image_url
+                
+                # 이미지 다운로드
+                img_response = req_lib.get(full_image_url, timeout=30)
+                img_response.raise_for_status()
+                
+                # PIL Image로 로드
+                img_data = ContentFile(img_response.content)
+                pil_image = Image.open(img_data)
+                
+                # 환자 정보 가져오기
+                patient_id = order.patient.patient_id if order.patient else None
+                patient_name = order.patient.name if order.patient else 'Unknown'
+                
+                if not patient_id:
+                    logger.warning("⚠️ 환자 ID가 없어 Orthanc 업로드를 건너뜁니다.")
+                else:
+                    # DICOM으로 변환 (SM 모달리티)
+                    logger.info(f"🔄 병리 이미지를 DICOM으로 변환 중... (환자 ID: {patient_id})")
+                    orthanc_client = OrthancClient()
+                    
+                    # 기존 Study 찾기
+                    study_instance_uid = None
+                    try:
+                        study_instance_uid = orthanc_client.get_existing_study_instance_uid(patient_id)
+                    except Exception as e:
+                        logger.debug(f"기존 Study 찾기 실패 (새로 생성): {e}")
+                    
+                    # DICOM 변환 (SM 모달리티 사용)
+                    dicom_bytes = pil_image_to_dicom(
+                        pil_image=pil_image,
+                        patient_id=patient_id,
+                        patient_name=patient_name,
+                        series_description=f"Pathology Analysis - {class_name}",
+                        modality="SM",  # Slide Microscopy
+                        orthanc_client=orthanc_client,
+                        study_instance_uid=study_instance_uid
+                    )
+                    
+                    # Orthanc에 업로드
+                    logger.info(f"📤 Orthanc에 병리 이미지 업로드 중...")
+                    upload_result = orthanc_client.upload_dicom(dicom_bytes)
+                    orthanc_instance_id = upload_result.get('ID') if isinstance(upload_result, dict) else upload_result
+                    
+                    logger.info(f"✅ 병리 이미지 Orthanc 업로드 완료: instance_id={orthanc_instance_id}")
+                    
+            except Exception as e:
+                logger.error(f"❌ 병리 이미지 Orthanc 업로드 실패: {str(e)}", exc_info=True)
+                # 업로드 실패해도 분석 결과는 저장
+                logger.warning("⚠️ Orthanc 업로드 실패했지만 분석 결과는 저장합니다.")
         
         # 이미 분석 결과가 있으면 업데이트, 없으면 생성 (알림 없이, 상태 변경 없이)
         pathology_analysis, created = PathologyAnalysisResult.objects.update_or_create(
@@ -729,7 +798,7 @@ def save_pathology_result(request):
                 'confidence': float(confidence),
                 'probabilities': request.data.get('probabilities', {}),
                 'filename': request.data.get('filename', ''),
-                'image_url': request.data.get('image_url', ''),
+                'image_url': image_url,
                 'findings': request.data.get('findings', ''),
                 'recommendations': request.data.get('recommendations', ''),
             }
@@ -738,13 +807,14 @@ def save_pathology_result(request):
         # 주문 상태는 변경하지 않음 (검사실에서 결과 입력 시 변경)
         # 알림도 보내지 않음 (검사실에서 전달 시 보냄)
         
-        logger.info(f"✅ 병리 분석 결과 저장 완료 (알림 없음): order_id={order_id}, class_name={request.data.get('class_name')}")
+        logger.info(f"✅ 병리 분석 결과 저장 완료 (알림 없음): order_id={order_id}, class_name={request.data.get('class_name')}, orthanc_instance_id={orthanc_instance_id}")
         
         return Response({
             'success': True,
             'message': '분석 결과가 저장되었습니다',
             'created': created,
-            'analysis_id': str(pathology_analysis.id)
+            'analysis_id': str(pathology_analysis.id),
+            'orthanc_instance_id': orthanc_instance_id
         })
         
     except Exception as e:

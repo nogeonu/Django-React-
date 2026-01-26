@@ -447,7 +447,11 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, birth_date
     ds.StudyDate = datetime.now().strftime("%Y%m%d")
     ds.StudyTime = datetime.now().strftime("%H%M%S")
     ds.StudyID = str(uuid.uuid4())[:8]
-    ds.StudyDescription = "Mammography Analysis"
+    # Modality에 따라 StudyDescription 설정
+    if modality == "SM":
+        ds.StudyDescription = "Pathology Analysis"
+    else:
+        ds.StudyDescription = "Mammography Analysis"
     ds.AccessionNumber = ""  # Accession Number
     ds.ReferringPhysicianName = ""  # Referring Physician Name
     
@@ -460,7 +464,11 @@ def pil_image_to_dicom(pil_image, patient_id=None, patient_name=None, birth_date
     # Instance 정보
     ds.InstanceNumber = "1"
     ds.SOPInstanceUID = generate_uid()
-    ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.1.2"  # Digital Mammography X-Ray Image Storage
+    # Modality에 따라 SOPClassUID 설정
+    if modality == "SM":
+        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.77.1.6"  # VL Whole Slide Microscopy Image Storage
+    else:
+        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.1.2"  # Digital Mammography X-Ray Image Storage
     
     # 이미지 파라미터
     ds.Rows = img_array.shape[0]
