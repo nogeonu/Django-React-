@@ -39,6 +39,12 @@ const departmentNavigation = {
     { name: "예약 정보", href: "/reservation-info", icon: CalendarDays },
     { name: "처방전달시스템", href: "/ocs", icon: FileText },
   ],
+  검사실: [
+    { name: "검사실 대시보드", href: "/laboratory-dashboard", icon: Activity },
+    { name: "AI 분석", href: "/laboratory-ai-analysis", icon: Brain },
+    { name: "병리이미지분석", href: "/pathology-analysis", icon: Scan },
+    { name: "처방전달시스템", href: "/ocs", icon: FileText },
+  ],
 };
 
 const adminNavigation = [
@@ -78,17 +84,27 @@ export default function Sidebar({ isSidebarOpen }: SidebarProps) {
     if (user.role === 'admin_staff') {
       departmentMenuItems = adminNavigation;
     } else if (user.role === 'medical_staff') {
-      const deptMenu = departmentNavigation[user.department as keyof typeof departmentNavigation];
+      // department 값 정규화 (공백 제거, 대소문자 무시)
+      const normalizedDept = user.department?.trim();
+      const deptMenu = departmentNavigation[normalizedDept as keyof typeof departmentNavigation];
       departmentMenuItems = deptMenu || departmentNavigation['외과'];
+      
+      // 디버깅용 로그 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development' && normalizedDept === '검사실' && !deptMenu) {
+        console.warn('검사실 메뉴를 찾을 수 없습니다. department 값:', normalizedDept, '사용 가능한 키:', Object.keys(departmentNavigation));
+      }
     }
   } else {
     departmentMenuItems = departmentNavigation['외과'];
   }
 
-  const menuItems = [
-    { name: '대시보드', href: dashboardHref, icon: BarChart3 },
-    ...departmentMenuItems
-  ];
+  // 검사실 사용자는 대시보드 메뉴 제외
+  const menuItems = user?.department === '검사실' 
+    ? departmentMenuItems
+    : [
+        { name: '대시보드', href: dashboardHref, icon: BarChart3 },
+        ...departmentMenuItems
+      ];
 
   const getRoleBadgeColor = (role: string) => {
     const colors = {

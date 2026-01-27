@@ -39,6 +39,9 @@ import MedicalLayout from "@/components/MedicalLayout";
 import OCS from "@/pages/OCS";
 import ImagingAnalysisDetail from "@/pages/ImagingAnalysisDetail";
 import Schedule from "@/pages/Schedule";
+import LaboratoryDashboard from "@/pages/LaboratoryDashboard";
+import LaboratoryAIAnalysis from "@/pages/LaboratoryAIAnalysis";
+import PathologyAnalysis from "@/pages/PathologyAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -188,6 +191,30 @@ function AppContentInner() {
         element={
           <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
             <OCS />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/laboratory-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <LaboratoryDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/laboratory-ai-analysis"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <LaboratoryAIAnalysis />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pathology-analysis"
+        element={
+          <ProtectedRoute allowedRoles={["medical_staff", "admin_staff", "superuser"]}>
+            <PathologyAnalysis />
           </ProtectedRoute>
         }
       />
