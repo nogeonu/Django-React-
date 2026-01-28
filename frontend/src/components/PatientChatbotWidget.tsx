@@ -342,10 +342,11 @@ function ChatActionButtons({
                 return (
                     <button
                         key={`${label}-${idx}`}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-primary/30 hover:bg-primary/5"
+                        className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-primary to-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                         onClick={() => action && onSendMessage(action)}
                     >
-                        {label}
+                        <span>{label}</span>
+                        <span className="text-xs">›</span>
                     </button>
                 );
             })}
@@ -401,15 +402,14 @@ function DoctorCard({
     };
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="flex items-start justify-between gap-2">
-                <div>
-                    <div className="text-sm font-bold text-slate-800">{doctorName}</div>
-                    <div className="text-xs text-slate-500">{title}</div>
-                    {phone && <div className="text-xs text-slate-500">{phone}</div>}
+                <div className="space-y-1">
+                    <div className="text-sm font-semibold text-slate-800">{doctorName}</div>
+                    <div className="text-xs text-slate-500">{title || "-"}</div>
                 </div>
                 <button
-                    className="text-xs font-semibold text-primary"
+                    className="text-xs font-semibold text-sky-600"
                     onClick={() => setExpanded((prev) => !prev)}
                 >
                     {expanded ? "닫기" : "예약하기"}
