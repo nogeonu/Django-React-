@@ -150,8 +150,7 @@ export default function PatientDoctors() {
       const displayName = getDisplayName(doctor).toLowerCase();
       return (
         displayName.includes(keyword) ||
-        (doctor.email ?? "").toLowerCase().includes(keyword) ||
-        (doctor.doctor_id ?? "").toLowerCase().includes(keyword)
+        (doctor.email ?? "").toLowerCase().includes(keyword)
       );
     });
   }, [doctors, searchTerm]);
@@ -209,8 +208,10 @@ export default function PatientDoctors() {
         doctor: selectedDoctor.id,
         patient_identifier: patientUser.patient_id,
         patient_name: patientUser.name,
+        memo: appointmentMemo.trim() || "",
       };
 
+      console.log("예약 데이터:", appointmentData);
       await createAppointmentApi(appointmentData);
       
       toast({
@@ -226,7 +227,36 @@ export default function PatientDoctors() {
       setAppointmentMemo("");
     } catch (error: any) {
       console.error("예약 생성 실패:", error);
-      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || "예약 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
+      console.error("에러 응답:", error?.response?.data);
+      
+      let errorMessage = "예약 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
+      
+      if (error?.response?.data) {
+        const data = error.response.data;
+        if (typeof data === "string") {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.error) {
+          errorMessage = data.error;
+        } else if (data.non_field_errors) {
+          errorMessage = Array.isArray(data.non_field_errors) 
+            ? data.non_field_errors.join(", ") 
+            : String(data.non_field_errors);
+        } else {
+          // 필드별 오류 메시지 수집
+          const fieldErrors = Object.entries(data)
+            .map(([field, messages]) => {
+              const msg = Array.isArray(messages) ? messages.join(", ") : String(messages);
+              return `${field}: ${msg}`;
+            })
+            .join("\n");
+          if (fieldErrors) {
+            errorMessage = fieldErrors;
+          }
+        }
+      }
+      
       toast({
         title: "예약 실패",
         description: errorMessage,
@@ -306,7 +336,7 @@ export default function PatientDoctors() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   className="pl-9"
-                  placeholder="의료진 이름, 이메일 또는 doctor_id로 검색하세요."
+                  placeholder="의료진 이름 또는 이메일로 검색하세요."
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                 />
@@ -382,9 +412,6 @@ export default function PatientDoctors() {
                             {departmentLabel}
                           </Badge>
                         </div>
-                        <p className="text-xs text-slate-500">
-                          Doctor ID: {doctor.doctor_id ?? "발급 준비중"}
-                        </p>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4 py-6 text-sm text-slate-600">
