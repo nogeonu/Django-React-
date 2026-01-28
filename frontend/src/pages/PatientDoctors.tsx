@@ -403,6 +403,7 @@ export default function PatientDoctors() {
                         <Button
                           size="sm"
                           className="gap-2 bg-primary text-white hover:bg-primary/90"
+                          onClick={() => handleOpenAppointmentDialog(doctor)}
                         >
                           <CalendarDays className="h-4 w-4" /> 진료예약 문의
                         </Button>
