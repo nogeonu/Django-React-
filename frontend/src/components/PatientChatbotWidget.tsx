@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const API_URL = "/api/chatbot/"; // ✅ nginx가 8001의 /api/chat/ 로 프록시
+
+const CHATBOT_SESSION_STORAGE_KEY = "chatbot_session_id";
 
 type Msg = { role: "user" | "bot"; text: string };
 
 export default function PatientChatbotWidget() {
+    const { patientUser } = useAuth();
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
@@ -13,6 +17,25 @@ export default function PatientChatbotWidget() {
     ]);
 
     const listRef = useRef<HTMLDivElement | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (sessionIdRef.current) return;
+        try {
+            let existing = localStorage.getItem(CHATBOT_SESSION_STORAGE_KEY);
+            if (!existing) {
+                if (typeof crypto?.randomUUID === "function") {
+                    existing = crypto.randomUUID();
+                } else {
+                    existing = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                }
+                localStorage.setItem(CHATBOT_SESSION_STORAGE_KEY, existing);
+            }
+            sessionIdRef.current = existing;
+        } catch {
+            sessionIdRef.current = null;
+        }
+    }, []);
 
     useEffect(() => {
         if (!open) return;
@@ -33,7 +56,17 @@ export default function PatientChatbotWidget() {
             const res = await fetch(API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: text }),
+                body: JSON.stringify({
+                    message: text,
+                    session_id: sessionIdRef.current,
+                    request_id: sessionIdRef.current ? `${sessionIdRef.current}-${Date.now()}` : undefined,
+                    verified_user: Boolean(patientUser),
+                    account_id: patientUser?.account_id,
+                    patient_id: patientUser?.patient_id,
+                    name: patientUser?.name,
+                    email: patientUser?.email,
+                    phone: patientUser?.phone,
+                }),
             });
 
             const data = await res.json();
