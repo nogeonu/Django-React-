@@ -360,7 +360,7 @@ const navItems = [
               <h2 className="text-4xl font-bold mb-4">
                 최고의 <span className="bg-gradient-to-r from-sky-400 via-cyan-400 to-teal-500 bg-clip-text text-transparent">CDSSentials</span>
               </h2>
-              <p className="text-lg text-muted-foreground">
+              <p className="text-xl text-muted-foreground">
                 각 분야 최고의 개발자들이 최신 기술을 통해 만든 시스템과 함께 당신의 건강을 지킵니다.
               </p>
             </div>
