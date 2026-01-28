@@ -283,7 +283,6 @@ function ChatTableCards({
                 if (isDoctorList) {
                     const name = String(rowData[0] ?? "");
                     const title = String(rowData[1] ?? "");
-                    const phone = String(rowData[2] ?? "");
                     const meta = table.doctor_metadata?.[idx] ?? {};
                     const parsedCode =
                         name.includes("(") && name.includes(")")
@@ -294,7 +293,6 @@ function ChatTableCards({
                             key={`${name}-${idx}`}
                             doctorName={name}
                             title={title}
-                            phone={phone}
                             doctorCode={meta.doctor_code ?? parsedCode}
                             doctorId={meta.doctor_id}
                             onSendMessage={onSendMessage}
@@ -357,7 +355,6 @@ function ChatActionButtons({
 function DoctorCard({
     doctorName,
     title,
-    phone,
     doctorCode,
     doctorId,
     onSendMessage,
@@ -365,7 +362,6 @@ function DoctorCard({
 }: {
     doctorName: string;
     title: string;
-    phone: string;
     doctorCode?: string;
     doctorId?: string;
     onSendMessage: (text: string) => void;
