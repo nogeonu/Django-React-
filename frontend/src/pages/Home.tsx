@@ -1,12 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import PatientChatbotWidget from "@/components/PatientChatbotWidget";
 import {
-  ArrowRight,
-  Activity,
-  Brain,
-  ShieldCheck,
+  ArrowRight, 
+  Activity, 
+  Brain, 
+  ShieldCheck, 
   Stethoscope,
   CalendarCheck,
   Search,
@@ -37,22 +36,22 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navItems = [
+const navItems = [
     { name: "병원소개", path: "#about" },
     { name: "진료안내", path: "/patient/doctors" },
     { name: "의료진소개", path: "/patient/doctors" },
     { name: "건강정보", path: "#health-info" },
     { name: "고객센터", path: "#contact" },
-  ];
+];
 
   return (
     <div className="min-h-screen flex flex-col bg-background font-sans">
       {/* Header */}
-      <header
+      <header 
         className={cn(
           "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b",
-          isScrolled
-            ? "bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm border-gray-200 dark:border-gray-800 py-3"
+          isScrolled 
+            ? "bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm border-gray-200 dark:border-gray-800 py-3" 
             : "bg-transparent border-transparent py-5"
         )}
       >
@@ -87,22 +86,52 @@ export default function Home() {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Link to={patientUser ? "/patient/mypage" : "/patient/login"}>
-              <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all">
-                <User className="w-4 h-4" />
-                <span>{patientUser ? "마이페이지" : "로그인"}</span>
-              </Button>
-            </Link>
-            <Link to="/patient/login">
-              <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-md hover:shadow-lg transition-all">
-                <Calendar className="w-4 h-4" />
-                <span>진료예약</span>
-              </Button>
-            </Link>
+            {patientUser ? (
+              <>
+                <Link to="/patient/mypage">
+                  <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all">
+                    <User className="w-4 h-4" />
+                    <span>마이페이지</span>
+                  </Button>
+                </Link>
+                <Link to="/patient/doctors">
+                  <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-md hover:shadow-lg transition-all">
+                    <Calendar className="w-4 h-4" />
+                    <span>진료예약</span>
+                  </Button>
+                </Link>
+                <Button 
+                  variant="outline" 
+                  className="gap-2 border-red-200 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-all"
+                  onClick={() => {
+                    setPatientUser(null);
+                    navigate("/", { replace: true });
+                  }}
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>로그아웃</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/patient/login">
+                  <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all">
+                    <User className="w-4 h-4" />
+                    <span>로그인</span>
+                  </Button>
+                </Link>
+                <Link to="/patient/login">
+                  <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-md hover:shadow-lg transition-all">
+                    <Calendar className="w-4 h-4" />
+                    <span>진료예약</span>
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button
+          <button 
             className="md:hidden p-2 text-foreground"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
@@ -117,7 +146,7 @@ export default function Home() {
           <nav className="flex flex-col gap-6 text-lg font-medium">
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
-                <span
+                <span 
                   className="py-3 border-b border-border flex justify-between items-center cursor-pointer"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
@@ -126,18 +155,49 @@ export default function Home() {
               </Link>
             ))}
             <div className="flex flex-col gap-3 mt-4">
-              <Link to={patientUser ? "/patient/mypage" : "/patient/login"}>
-                <Button variant="outline" className="w-full justify-center gap-2">
-                  <User className="w-4 h-4" />
-                  {patientUser ? "마이페이지" : "로그인"}
-                </Button>
-              </Link>
-              <Link to="/patient/login">
-                <Button className="w-full justify-center gap-2 bg-gradient-to-r from-primary to-accent">
-                  <Calendar className="w-4 h-4" />
-                  진료예약
-                </Button>
-              </Link>
+              {patientUser ? (
+                <>
+                  <Link to="/patient/mypage">
+                    <Button variant="outline" className="w-full justify-center gap-2">
+                      <User className="w-4 h-4" />
+                      마이페이지
+                    </Button>
+                  </Link>
+                  <Link to="/patient/doctors">
+                    <Button className="w-full justify-center gap-2 bg-gradient-to-r from-primary to-accent">
+                      <Calendar className="w-4 h-4" />
+                      진료예약
+                    </Button>
+                  </Link>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-center gap-2 border-red-200 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                    onClick={() => {
+                      setPatientUser(null);
+                      setIsMobileMenuOpen(false);
+                      navigate("/", { replace: true });
+                    }}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    로그아웃
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/patient/login">
+                    <Button variant="outline" className="w-full justify-center gap-2">
+                      <User className="w-4 h-4" />
+                      로그인
+                    </Button>
+                  </Link>
+                  <Link to="/patient/login">
+                    <Button className="w-full justify-center gap-2 bg-gradient-to-r from-primary to-accent">
+                      <Calendar className="w-4 h-4" />
+                      진료예약
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </div>
@@ -149,9 +209,9 @@ export default function Home() {
         <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-slate-50 dark:bg-slate-950">
           {/* Background Image with Overlay */}
           <div className="absolute inset-0 z-0">
-            <img
-              src="/images/hero-bg.jpg"
-              alt="Futuristic Hospital Lobby"
+            <img 
+              src="/images/hero-bg.jpg" 
+              alt="Futuristic Hospital Lobby" 
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/70 to-transparent dark:from-black/90 dark:via-black/70 dark:to-transparent"></div>
@@ -164,11 +224,11 @@ export default function Home() {
                 Next Generation Medical AI
               </Badge>
               <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1]">
-                미래 의료의 기준,<br />
+                미래 의료의 기준,<br/>
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">CDSS 메디컬 센터</span>
               </h1>
               <p className="text-xl text-slate-600 dark:text-slate-300 mb-10 leading-relaxed max-w-lg">
-                최첨단 AI 진단 시스템과 전문 의료진의 협진으로<br />
+                최첨단 AI 진단 시스템과 전문 의료진의 협진으로<br/>
                 당신의 건강한 삶을 위한 가장 정확한 답을 제시합니다.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -187,7 +247,22 @@ export default function Home() {
           </div>
 
           {/* Floating Stats Card */}
-          <PatientChatbotWidget />
+          <div className="absolute bottom-10 right-10 hidden lg:block animate-in slide-in-from-bottom-10 duration-1000 delay-300 fade-in">
+            <div className="glass-panel p-6 rounded-2xl max-w-xs backdrop-blur-md bg-white/90 dark:bg-black/60 shadow-xl border border-white/20">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                  <Brain className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground font-medium">AI 진단 정확도</p>
+                  <p className="text-2xl font-bold text-foreground">99.8%</p>
+                </div>
+              </div>
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-accent w-[99.8%]"></div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Quick Access Menu */}
@@ -223,9 +298,9 @@ export default function Home() {
             <div className="flex flex-col lg:flex-row items-center gap-16">
               <div className="lg:w-1/2 relative">
                 <div className="relative rounded-3xl overflow-hidden shadow-2xl border-8 border-white dark:border-slate-800">
-                  <img
-                    src="/images/ai-diagnosis.jpg"
-                    alt="AI Diagnosis System"
+                  <img 
+                    src="/images/ai-diagnosis.jpg" 
+                    alt="AI Diagnosis System" 
                     className="w-full h-auto hover:scale-105 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-8">
@@ -236,26 +311,26 @@ export default function Home() {
                       </div>
                       <p className="font-medium">환자 데이터 실시간 동기화 및 분석</p>
                     </div>
-                  </div>
-                </div>
+            </div>
+          </div>
                 {/* Decorative Elements */}
                 <div className="absolute -top-10 -left-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl"></div>
               </div>
-
+              
               <div className="lg:w-1/2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-bold mb-6">
                   <Brain className="w-4 h-4" />
                   <span>Intelligent Healthcare</span>
-                </div>
+            </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight text-foreground">
-                  AI가 더하는<br />
+                  AI가 더하는<br/>
                   <span className="text-primary">정확함의 깊이</span>
                 </h2>
                 <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                   CDSS(Clinical Decision Support System)는 수만 건의 임상 데이터를 학습한 AI가 의료진의 진단을 보조하여, 오진율을 획기적으로 낮추고 최적의 치료 계획을 수립하도록 돕습니다.
                 </p>
-
+                
                 <div className="space-y-6">
                   {[
                     { title: "실시간 데이터 분석", desc: "환자의 생체 신호를 실시간으로 모니터링하고 이상 징후를 즉시 감지합니다." },
@@ -287,7 +362,7 @@ export default function Home() {
                 각 분야 최고의 전문의들이 첨단 시스템과 함께 당신의 건강을 지킵니다.
               </p>
             </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
                 { name: "김태훈 교수", dept: "순환기내과", img: "/images/doctor-1.jpg", desc: "심장질환 AI 진단 권위자" },
@@ -297,9 +372,9 @@ export default function Home() {
               ].map((doctor, idx) => (
                 <div key={idx} className="group relative overflow-hidden rounded-2xl bg-slate-50 dark:bg-slate-900">
                   <div className="aspect-[4/5] overflow-hidden">
-                    <img
-                      src={doctor.img}
-                      alt={doctor.name}
+                    <img 
+                      src={doctor.img} 
+                      alt={doctor.name} 
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
@@ -311,10 +386,10 @@ export default function Home() {
                       {doctor.desc}
                     </p>
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
             </div>
-
+            
             <div className="text-center mt-12">
               <Link to="/patient/doctors">
                 <Button variant="outline" size="lg" className="rounded-full px-8 border-primary text-primary hover:bg-primary hover:text-white">
@@ -328,18 +403,18 @@ export default function Home() {
         {/* CDSS Platform Access Banner */}
         <section className="py-20 relative overflow-hidden">
           <div className="absolute inset-0">
-            <img
-              src="/images/medical-tech.jpg"
-              alt="Medical Tech Background"
+            <img 
+              src="/images/medical-tech.jpg" 
+              alt="Medical Tech Background" 
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-primary/90 mix-blend-multiply"></div>
           </div>
-
+          
           <div className="container relative z-10 text-center text-white">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">의료진 전용 플랫폼</h2>
             <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
-              CDSS(Clinical Decision Support System)는 의료진을 위한 통합 진료 지원 시스템입니다.<br />
+              CDSS(Clinical Decision Support System)는 의료진을 위한 통합 진료 지원 시스템입니다.<br/>
               권한이 있는 의료진만 접속 가능합니다.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -351,7 +426,7 @@ export default function Home() {
               <Link to="/app-download">
                 <Button size="lg" className="bg-white text-primary hover:bg-white/90 h-14 px-8 text-lg rounded-full font-bold">
                   사용자 앱 다운로드
-                </Button>
+      </Button>
               </Link>
             </div>
           </div>
@@ -370,8 +445,8 @@ export default function Home() {
                 <span className="text-lg font-bold">CDSS Medical</span>
               </div>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                차세대 지능형 의료지원 시스템으로<br />
-                더 정확하고 안전한 의료 서비스를 제공합니다.<br />
+                차세대 지능형 의료지원 시스템으로<br/>
+                더 정확하고 안전한 의료 서비스를 제공합니다.<br/>
                 환자 중심의 미래형 병원, CDSS입니다.
               </p>
               <div className="flex gap-4">
@@ -381,7 +456,7 @@ export default function Home() {
                 <button className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-colors cursor-pointer text-xs font-bold">I</button>
               </div>
             </div>
-
+            
             <div>
               <h4 className="font-bold mb-6 text-foreground">진료 안내</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -391,7 +466,7 @@ export default function Home() {
                 <li><Link to="/patient/login"><span className="hover:text-primary transition-colors cursor-pointer">건강검진 예약</span></Link></li>
               </ul>
             </div>
-
+            
             <div>
               <h4 className="font-bold mb-6 text-foreground">병원 이용</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -401,16 +476,16 @@ export default function Home() {
                 <li><Link to="/patient/login"><span className="hover:text-primary transition-colors cursor-pointer">증명서 발급</span></Link></li>
               </ul>
             </div>
-
-            <div>
+            
+          <div>
               <h4 className="font-bold mb-6 text-foreground">고객 센터</h4>
               <div className="flex items-center gap-3 mb-4">
                 <Phone className="w-5 h-5 text-primary" />
                 <span className="text-xl font-bold">1577-0000</span>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                평일: 09:00 - 18:00<br />
-                토요일: 09:00 - 13:00<br />
+                평일: 09:00 - 18:00<br/>
+                토요일: 09:00 - 13:00<br/>
                 일요일/공휴일 휴무
               </p>
               <Button variant="outline" size="sm" className="mt-4 w-full">
@@ -418,7 +493,7 @@ export default function Home() {
               </Button>
             </div>
           </div>
-
+          
           <div className="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
             <div className="flex gap-6">
               <a href="#" className="hover:text-foreground">이용약관</a>
