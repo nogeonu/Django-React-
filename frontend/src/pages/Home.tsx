@@ -15,9 +15,10 @@ import {
   Calendar,
   User,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,8 @@ import { cn } from "@/lib/utils";
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { patientUser } = useAuth();
+  const { patientUser, setPatientUser } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -170,7 +172,7 @@ export default function Home() {
                 당신의 건강한 삶을 위한 가장 정확한 답을 제시합니다.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/patient/login">
+                <Link to={patientUser ? "/patient/doctors" : "/patient/login"}>
                   <Button size="lg" className="h-14 px-8 text-lg bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full">
                     진료 예약하기 <ArrowRight className="ml-2 w-5 h-5" />
                   </Button>
