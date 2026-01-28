@@ -365,25 +365,25 @@ const navItems = [
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
-                { name: "김태훈 교수", dept: "순환기내과", img: "/images/doctor-1.jpg", desc: "심장질환 AI 진단 권위자" },
-                { name: "이서연 교수", dept: "신경외과", img: "/images/doctor-2.jpg", desc: "뇌혈관 정밀 수술 전문" },
-                { name: "박준형 교수", dept: "정형외과", img: "/images/doctor-1.jpg", desc: "로봇 인공관절 수술 전문" },
-                { name: "최지민 교수", dept: "소아청소년과", img: "/images/doctor-2.jpg", desc: "소아 희귀질환 전문" }
-              ].map((doctor, idx) => (
+                { name: "노건우", role: "팀장", img: "/images/doctor-1.jpg", desc: "AI 연구 및 시스템 총괄" },
+                { name: "김우선", role: "팀원", img: "/images/doctor-2.jpg", desc: "챗봇 개발 및 채팅" },
+                { name: "박철순", role: "팀원", img: "/images/doctor-3.jpg", desc: "AI 연구(3D모델)" },
+                { name: "이희재", role: "팀원", img: "/images/doctor-4.jpg", desc: "AI 연구(유전체모델)" }
+              ].map((member, idx) => (
                 <div key={idx} className="group relative overflow-hidden rounded-2xl bg-slate-50 dark:bg-slate-900">
                   <div className="aspect-[4/5] overflow-hidden">
                     <img 
-                      src={doctor.img} 
-                      alt={doctor.name} 
+                      src={member.img} 
+                      alt={member.name} 
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                    <p className="text-accent font-medium text-sm mb-1">{doctor.dept}</p>
-                    <h3 className="text-2xl font-bold mb-2">{doctor.name}</h3>
+                    <p className="text-accent font-medium text-sm mb-1">{member.role}</p>
+                    <h3 className="text-2xl font-bold mb-2">{member.name}</h3>
                     <p className="text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
-                      {doctor.desc}
+                      {member.desc}
                     </p>
                   </div>
                   </div>
