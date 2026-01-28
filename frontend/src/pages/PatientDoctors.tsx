@@ -224,6 +224,9 @@ export default function PatientDoctors() {
       console.log("예약 데이터:", appointmentData);
       await createAppointmentApi(appointmentData);
       
+      // 예약 생성 후 예약 정보 페이지에 알림 (자동 새로고침)
+      window.dispatchEvent(new CustomEvent('appointment-created'));
+      
       toast({
         title: "예약이 완료되었습니다",
         description: `${format(appointmentDate, "yyyy년 MM월 dd일", { locale: ko })} ${appointmentTime}에 예약되었습니다.`,
