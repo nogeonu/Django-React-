@@ -334,7 +334,7 @@ const navItems = [
                 <div className="space-y-6">
                   {[
                     { title: "실시간 데이터 분석", desc: "환자의 생체 신호를 실시간으로 모니터링하고 이상 징후를 즉시 감지합니다." },
-                    { title: "정밀 영상 판독", desc: "MRI, CT 등 의료 영상을 AI가 픽셀 단위로 분석하여 미세한 병변까지 찾아냅니다." },
+                    { title: "정밀 영상 판독", desc: "유방촬영술, 병리, MRI 등 의료 영상을 AI가 픽셀 단위로 분석하여 미세한 병변까지 찾아냅니다." },
                     { title: "맞춤형 치료 제안", desc: "유전체 정보와 생활 습관을 분석하여 개인별 최적의 치료법을 제시합니다." }
                   ].map((feature, idx) => (
                     <div key={idx} className="flex gap-4 p-4 rounded-xl hover:bg-white hover:shadow-md transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
