@@ -380,9 +380,9 @@ const navItems = [
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                    <p className="text-accent font-medium text-sm mb-1">{member.role}</p>
+                    <p className="text-accent font-bold text-base mb-1">{member.role}</p>
                     <h3 className="text-2xl font-bold mb-2">{member.name}</h3>
-                    <p className="text-white/80 text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                    <p className="text-white/90 text-base font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                       {member.desc}
                     </p>
                   </div>
