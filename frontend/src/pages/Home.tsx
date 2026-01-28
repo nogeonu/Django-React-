@@ -357,9 +357,9 @@ const navItems = [
         <section className="py-24 bg-white dark:bg-black">
           <div className="container">
             <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-4xl font-bold mb-4 text-foreground">최고의 의료진</h2>
+              <h2 className="text-4xl font-bold mb-4 text-foreground">최고의 CDSSentials</h2>
               <p className="text-lg text-muted-foreground">
-                각 분야 최고의 전문의들이 첨단 시스템과 함께 당신의 건강을 지킵니다.
+                각 분야 최고의 개발자들이 최신 기술을 통해 만든 시스템과 함께 당신의 건강을 지킵니다.
               </p>
             </div>
             
@@ -388,14 +388,6 @@ const navItems = [
                   </div>
                   </div>
                 ))}
-            </div>
-            
-            <div className="text-center mt-12">
-              <Link to="/patient/doctors">
-                <Button variant="outline" size="lg" className="rounded-full px-8 border-primary text-primary hover:bg-primary hover:text-white">
-                  의료진 전체보기
-                </Button>
-              </Link>
             </div>
           </div>
         </section>
