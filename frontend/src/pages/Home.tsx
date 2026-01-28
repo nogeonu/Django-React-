@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import PatientChatbotWidget from "@/components/PatientChatbotWidget";
 import {
   ArrowRight, 
   Activity, 
@@ -21,6 +22,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import PatientChatbotWidget from "@/components/PatientChatbotWidget";
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -247,22 +249,7 @@ const navItems = [
           </div>
 
           {/* Floating Stats Card */}
-          <div className="absolute bottom-10 right-10 hidden lg:block animate-in slide-in-from-bottom-10 duration-1000 delay-300 fade-in">
-            <div className="glass-panel p-6 rounded-2xl max-w-xs backdrop-blur-md bg-white/90 dark:bg-black/60 shadow-xl border border-white/20">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                  <Brain className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">AI 진단 정확도</p>
-                  <p className="text-2xl font-bold text-foreground">99.8%</p>
-                </div>
-              </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-accent w-[99.8%]"></div>
-              </div>
-            </div>
-          </div>
+          <PatientChatbotWidget />
         </section>
 
         {/* Quick Access Menu */}
