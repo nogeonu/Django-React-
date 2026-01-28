@@ -197,8 +197,18 @@ export default function PatientDoctors() {
 
     setSubmitting(true);
     try {
-      const startDateTime = `${format(appointmentDate, "yyyy-MM-dd")}T${appointmentTime}:00`;
-      const endDateTime = `${format(appointmentDate, "yyyy-MM-dd")}T${appointmentTime.split(":")[0]}:${parseInt(appointmentTime.split(":")[1]) + 30 === 60 ? String(parseInt(appointmentTime.split(":")[0]) + 1).padStart(2, "0") + ":00" : appointmentTime.split(":")[0] + ":" + String(parseInt(appointmentTime.split(":")[1]) + 30).padStart(2, "0")}:00`;
+      // 날짜와 시간을 결합하여 Date 객체 생성
+      const [hours, minutes] = appointmentTime.split(":").map(Number);
+      const startDate = new Date(appointmentDate);
+      startDate.setHours(hours, minutes, 0, 0);
+      
+      // 30분 후 종료 시간 계산
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + 30);
+      
+      // ISO 8601 형식으로 변환 (YYYY-MM-DDTHH:mm:ss)
+      const startDateTime = startDate.toISOString().slice(0, 19);
+      const endDateTime = endDate.toISOString().slice(0, 19);
 
       const appointmentData = {
         title: appointmentTitle.trim() || `${getDisplayName(selectedDoctor)} 의사 진료 예약`,
