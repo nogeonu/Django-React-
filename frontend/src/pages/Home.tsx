@@ -41,7 +41,7 @@ const navItems = [
     { name: "병원소개", path: "#about" },
     { name: "진료안내", path: "/patient/doctors" },
     { name: "의료진소개", path: "/patient/doctors" },
-    { name: "건강정보", path: "#health-info" },
+    { name: "건강정보", path: "/health-info" },
     { name: "고객센터", path: "#contact" },
 ];
 
@@ -259,7 +259,7 @@ const navItems = [
                 { icon: CalendarCheck, title: "간편 예약", desc: "모바일로 쉽고 빠르게", link: patientUser ? "/patient/doctors" : "/patient/login" },
                 { icon: Search, title: "진료과 찾기", desc: "증상별 맞춤 진료과", link: "/patient/doctors" },
                 { icon: FileText, title: "제증명 발급", desc: "온라인 즉시 발급", link: patientUser ? "/patient/records" : "/patient/login" },
-                { icon: Stethoscope, title: "건강검진", desc: "나만을 위한 맞춤 검진", link: patientUser ? "/patient/doctors" : "/patient/login" }
+                { icon: Stethoscope, title: "건강검진", desc: "여성 건강 통계·검진 정보", link: "/breast-cancer-stats" }
               ].map((item, idx) => (
                 <Link key={idx} to={item.link}>
                   <Card className="border-none shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-slate-800 overflow-hidden group cursor-pointer">

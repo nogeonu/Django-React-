@@ -42,6 +42,8 @@ import Schedule from "@/pages/Schedule";
 import LaboratoryDashboard from "@/pages/LaboratoryDashboard";
 import LaboratoryAIAnalysis from "@/pages/LaboratoryAIAnalysis";
 import PathologyAnalysis from "@/pages/PathologyAnalysis";
+import HealthInfo from "@/pages/HealthInfo";
+import BreastCancerStats from "@/pages/BreastCancerStats";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +61,8 @@ function AppContentInner() {
     "/patient/records",
     "/patient/doctors",
     "/app-download",
+    "/health-info",
+    "/breast-cancer-stats",
   ].includes(location.pathname);
 
   // MRIImageDetail 페이지는 사이드바 숨김 (전체 화면)
@@ -251,6 +255,8 @@ function AppContentInner() {
             <Route path="/patient/records" element={<PatientMedicalRecords />} />
             <Route path="/patient/doctors" element={<PatientDoctors />} />
             <Route path="/app-download" element={<AppDownload />} />
+            <Route path="/health-info" element={<HealthInfo />} />
+            <Route path="/breast-cancer-stats" element={<BreastCancerStats />} />
             <Route
               path="/mri-viewer/:patientId"
               element={
